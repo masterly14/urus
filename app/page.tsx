@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { DollarSign, TrendingUp, Wallet, Briefcase, Activity } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +71,16 @@ export default function DashboardPage() {
         }, 3000);
         return () => clearInterval(interval);
     }, []);
+
+    const router = useRouter();
+
+    useEffect(() => {
+        // Simulate auth check
+        const isLoggedIn = localStorage.getItem("isLoggedIn");
+        if (!isLoggedIn) {
+            router.push("/login");
+        }
+    }, [router]);
 
     // Determine global health
     const healthStatus: SemaforoStatus =
