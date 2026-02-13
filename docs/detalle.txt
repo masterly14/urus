@@ -1,0 +1,576 @@
+# URUS Capital
+
+## Análisis documentos de referencia - Urus Capital
+
+### Soporte emocional y Coach
+
+Asistente conversacional interno para el equipo de Urus Capital enfocado en la motivación, asistencia y apoyo emocional a los vendedores. El asistente tiene una personalidad enfocada ayudar y coachear tanto en ventas como en estado de ánimo. Desde preguntas profundas emocionales, hasta preguntas de cierres de venta y coach comercial.
+
+El sistema tiene que tener un canal de definición, WhatsApp (No recomendado para ahorrar costos), por ende hay que buscar otra opción de mensajería o incluso mensajería en la plataforma misma a desarrollar.
+
+### Análisis técnico
+
+En el documento se detalla una posible integración con el CRM no invasiva que le permita a el asistente saber que actividades tiene el comercial y tener más contexto. Esta información puede ser inyectada mediante API como contexto cuando inicie la conversación, esta integración se haría mediante una Custom Tool usando Mastra AI
+
+El asistente conversacional en general usara Mastra ya que estará basado en Typescript, tendrá un historial en base de datos PostgreSQL. El documento menciona que el asistente debe aprender con el tiempo de cada persona. Lo que planteo, para hacerlo sencillo, es que al finalizar una conversación un agente analice el historial de mensajes de la misma e inyecte contexto importante sobre el comercial para que cada vez se sienta más personalizado.
+
+Ahora, el CEO quiere poder ver que uso se le da, así que el Dashboard le mostrara el nivel de estrés de su equipo, comerciales que necesitan apoyo y métricas de uso por cada comercial (Nunca relevando información sensible de la conversación)
+
+- **Estaba en la propuesta original:** NO
+- **Complejidad:** 4/10 (Tiene su tiempo respecto a la interfaz completa del Chat, pero es simplemente un agente de terapia)
+
+## Automatización post-venta
+
+### Objetivos
+
+1. Cerrar el ciclo profesionalmente (experiencia premium)
+2. Reducir incidencias y reclamaciones
+3. Generar reseñas públicas positivas
+4. Activar referidos sin pedirlos directamente
+5. Re-captar al cliente como vendedor/inversor
+6. Crear base de datos de alto valor (clientes reales)
+
+El funcionamiento será mediante un Trigger al cambiar el estado en Inmovilla a "Cerrado", desencadenará todas las etapas
+
+### Etapa 1 - Cierre inmediato
+
+Mensaje de agradecimiento
+
+Email con el resumen de la operación:
+
+- Fecha de firma
+- Partes implicadas
+- Documentación clave (Proveniente del CRM o archivos internos de URUS)
+
+Checklist interno de "operación cerrada correctamente"
+
+### Etapa 2 - Soporte temprano
+
+Mensaje automático buscando validación de si todo está correcto
+
+Enlace a mini guía:
+
+- Cambio de suministros
+- Empadronamiento
+- IBI / Comunidad
+
+### Etapa 3 - Reputación
+
+- Petición de reseña (Google Business Profile, Portal Inmobiliario, Redes)
+- Recordatorio suave si no responde
+
+### Etapa 4 - Activación de referidos
+
+- Mensaje de invitación a referidos
+- Enlace directo para el Referido
+
+### Etapa 5 - Recaptación y relación a largo plazo (90-180 días)
+
+Basado en una segmentación automática:
+
+**Compradores:**
+
+- Mensaje de activación
+
+**Inversores:**
+
+- Mensaje de oportunidades de negocio
+
+**Vendedores:**
+
+- Mensaje de rendimiento
+
+### Análisis técnico
+
+El sistema está basado en Cron Jobs (Trabajos programados). El trigger (Desencadenante) es el CRM, será la fuente de verdad para entrar en el sistema de trabajos programados. Se tienen que definir las fechas exactas que tiene que pasar desde un mensaje a el otro y los estados en los que se tiene que mover el cliente cuando se consiga respuesta en Fallback, es decir, que escriba mensajes de otras etapas sin estar en esa etapa.
+
+- **Estaba en la propuesta original:** SI
+- **Complejidad:** 6/10
+
+**Automatización post-venta**
+
+Cerrar el ciclo profesionalmente (experiencia premium) 2. Reducir incidencias y reclamaciones 3. Generar reseñas públicas positivas 4. Activar referidos sin pedirlos directamente 5. Re-captar al cliente como vendedor/inversor 6. Crear base de datos de alto valor (clientes reales)
+
+El funcionamieneto será mediante un Trigger al cambiar el estado en Inmovilla a “Cerrado”, desencadenara todas las etapas
+
+Etapa 1 - Cierre inmediato
+
+Mensaje de agradecimiento
+
+Email con el resumen de la operación:
+
+1. Fecha de firma
+2. Partes implicadas
+3. Documentación clave (Proveniente del CRM o archivos internos de URUS)
+
+Checklist interno de “operación cerrada correctamente”
+
+Etapa 2 - Soporte temprano
+
+Mensaje automatico buscando validación de si todo esta correcto
+
+Enlace a mini guia
+
+Cambio de suministros
+
+Empadronamiento
+
+IBI / Comunidad
+
+Etapa 3 - Reputación
+
+Petición de reseña (Google Business Profile, Portal Inmobiliario, Redes)
+
+Recordatorio suave si no responde
+
+Etapa 4 - Activación de referidos
+
+Mensaje de invitación a referidos
+
+Enlace directo para el Referido
+
+Etapa 5 - Recaptación y relación a largo plazo (90-180 días)
+
+Basado en una segmentación automatica
+
+Compradores:
+
+mensaje de activación
+
+Inversores:
+
+Mensaje de oportunidades de negocio
+
+Vendedores
+
+Mensaje de rendimiento
+
+**Analisis tecnico**
+
+El sistema está basado en Cron Jobs (Trabajos programados). El trigger (Desencadenante) es el CRM, será la fuente de verdad para entrar en el sistema de trabajos programados. Se tienen que definir las fechas exactas que tiene que pasar desde un mensaje a el otro y los estados en los que se tiene que mover el cliente cuando se consiga respuesta en Fallback, es decir, que escriba mensajes de otras etapas sin estar en esa etapa.
+
+Estaba en la propuesta original: SI
+
+Complejidad: 6/10
+
+# Automatización Post-Venta
+
+## Objetivos
+
+1. Cerrar el ciclo profesionalmente (experiencia premium)
+2. Reducir incidencias y reclamaciones
+3. Generar reseñas públicas positivas
+4. Activar referidos sin pedirlos directamente
+5. Re-captar al cliente como vendedor/inversor
+6. Crear base de datos de alto valor (clientes reales)
+
+## Funcionamiento
+
+El sistema se activa mediante un **Trigger** al cambiar el estado en Inmovilla a "Cerrado", lo que desencadenará todas las etapas del proceso.
+
+---
+
+## Etapa 1 - Cierre Inmediato
+
+### Mensaje de agradecimiento
+
+### Email con el resumen de la operación:
+
+- Fecha de firma
+- Partes implicadas
+- Documentación clave (proveniente del CRM o archivos internos de URUS)
+
+### Checklist interno de "operación cerrada correctamente"
+
+---
+
+## Etapa 2 - Soporte Temprano
+
+### Mensaje automático buscando validación de si todo está correcto
+
+### Enlace a mini guía:
+
+- Cambio de suministros
+- Empadronamiento
+- IBI / Comunidad
+
+---
+
+## Etapa 3 - Reputación
+
+### Petición de reseña
+
+- Google Business Profile
+- Portal Inmobiliario
+- Redes
+
+### Recordatorio suave si no responde
+
+---
+
+## Etapa 4 - Activación de Referidos
+
+### Mensaje de invitación a referidos
+
+### Enlace directo para el referido
+
+---
+
+## Etapa 5 - Recaptación y Relación a Largo Plazo (90-180 días)
+
+Basado en una **segmentación automática**:
+
+### Compradores:
+
+- Mensaje de activación
+
+### Inversores:
+
+- Mensaje de oportunidades de negocio
+
+### Vendedores:
+
+- Mensaje de rendimiento
+- Análisis técnico
+
+---
+
+## Arquitectura Técnica
+
+El sistema está basado en **Cron Jobs** (trabajos programados). El trigger (desencadenante) es el **CRM**, que será la fuente de verdad para entrar en el sistema de trabajos programados.
+
+### Pendiente de definir:
+
+- Las fechas exactas que tienen que pasar desde un mensaje al otro
+- Los estados en los que se tiene que mover el cliente cuando se consiga respuesta en **Fallback** (es decir, que escriba mensajes de otras etapas sin estar en esa etapa)
+
+---
+
+## Información del Proyecto
+
+**Estaba en la propuesta original:** SÍ
+
+**Complejidad:** 6/10
+
+# Sistema de Automatización y Control de Colaboradores Externos
+
+## Descripción General
+
+El principal punto de entrada es el **CRM**, ya que es el gobierno del ecosistema externo de la inmobiliaria.
+
+## Objetivos
+
+1. Eliminar cuellos de botella invisibles (el típico "está en el banco", "lo ve el abogado")
+2. Medir rendimiento real por colaborador
+3. Detectar colaboradores que restan rentabilidad
+4. Priorizar a los que aceleran cierres
+5. Profesionalizar la relación (menos dependencia personal)
+6. Convertir proveedores en partners estratégicos
+
+---
+
+## Arquitectura del Sistema
+
+El sistema se divide en **3 capas**:
+
+### Capa 1: Base - Definición de Proveedores
+
+Cada colaborador existe como entidad dentro del CRM con:
+
+- Tipo
+- Ciudad
+- Especialidad
+- SLA esperado
+- Operaciones asociadas
+- Métricas históricas
+
+Cada colaborador recibirá un **hito** que será básicamente el trabajo que tendrá que hacer.
+
+---
+
+### Capa 2: Procesamiento
+
+A nivel del sistema, funcionará basado en **tres componentes**:
+
+### 1. Triggers
+
+Cuando cambie de estado alguna propiedad de la entidad, el sistema reaccionará para almacenarlo en la base de datos y nutrir el Dashboard de los colaboradores.
+
+### 2. Cron Job
+
+Revisará periódicamente el SLA esperado buscando inconsistencias o resultados mejores de lo esperado para notificar todo al CEO mediante el Dashboard.
+
+### 3. Worker
+
+Procesa todo asíncronamente cuando el estado cambia:
+
+- Actualización UI
+- Base de datos
+- Cálculo de métricas
+
+---
+
+### Capa 3: Dashboard - Estrategia de Actualización
+
+### Datos en tiempo real (Triggers):
+
+- Estado actual de hitos
+- Alertas críticas
+- Operaciones bloqueadas HOY
+
+### Datos agregados (CRON nocturno + cache):
+
+- Rankings de colaboradores
+- Tendencias mensuales
+- Impacto económico acumulado
+
+### Consulta directa (on-demand):
+
+- Drill-down específico
+- Comparativas personalizadas
+- Exportación de reportes
+
+**Estaba en la propuesta original:** NO
+
+**Complejidad:** 7/10
+
+# Motor de Decisión IT Inmobiliario (Tech-Enabled Brokerage)
+
+- Inmovilla (El Cerebro / CRM)
+    - Base de datos y fuente de verdad
+    - Almacena propiedades y cliente. Es el único lugar donde se guardan datos de forma definitiva. Si algo no está en Inmovilla, "no existe" para URUS
+    - Es el motor porque toma las decisiones de cruce (quién encaja con qué) basándose en los datos que tiene.
+- Statefox (Motor Externo)
+    - Herramienta de búsqueda de propiedades fuera de la cartera de Urus (otros portales, otras agencias, particulares)
+    - Se activa cuando URUS no tiene la casa que el cliente busca. No se pierde el cliente, Statefox busca en el mercado. Permite filtrar opciones y genera enlace White-label para enviarlo a el cliente
+
+Con estas diferencias se concluye con que Inmovilla gestiona el Stock de URUS, mientras que StateFox gestiona el stock del mercado
+
+### Procesos de automatización
+
+- Cruce automático (Matching)
+    - Se eliminan las busquedas manuales por eventos instantaneos
+    - Cuando se guarda una casa nueva en Inmovilla el sistema revisa automaticamente toda la base de datos de compradores (Demanda). Si las variables coinciden se dispara una alerta. No se espera a que el agente busque, el sistema encuentra el comprador
+    - Variables: Datos númericos o estrictos que definen el filtro inicial: Precio, zona, metros, habitaciones
+    - Las variables son objetivas. Si el cliente busca máximo 300.000 € y la case vale 310.000 el sistema puede decidir si enviarla o no basandose en reglas lógicas
+- Mensaje Saliente (WhatsApp API Cloud)
+    - Se envía un mensaje con botones de *"Me encaja"*, *"No me encaja"*, *"Busco algo diferente"*. Esto permite que el software entienda la respuesta sin ayuda humana.
+- **Feedback Loop (Bucle de Retroalimentación):**
+    - Es un ciclo de mejora continua de los datos.
+    - **Ejemplo:** El sistema envía una casa. El cliente dice "No me encaja, es cara".
+    - **Acción automática:** El sistema (usando IA) entiende que el precio es el problema y actualiza la ficha del cliente en Inmovilla bajando su presupuesto máximo.
+    - **Resultado:** La próxima casa que le envíe será más barata. El sistema "aprendió" sin que el agente tocara nada.
+
+### 3. Conceptos Técnicos (El "Motor")
+
+- **Sync (Sincronización):**
+    - Es el movimiento de datos entre Inmovilla y Statefox. Cuando una demanda (cliente) está bien perfilada en Inmovilla pero no le vendes nada tuyo, esos datos viajan solos a Statefox para empezar a buscar fuera.
+- **Webhook:**
+    - Es el "timbre" de la automatización.
+    - Cuando un cliente hace clic en "Me encaja" en WhatsApp, se activa el desencadenante. Ese timbre avisa a el sistema para que ejecute una acción (ej: agendar una visita en el calendario).
+- **LLM**
+    - Se usa para interpretar texto libre.
+    - Si el cliente escribe: *"Busco algo con terraza más grande y por la zona norte"*, un software tradicional no entiende nada. El LLM lee eso, extrae **"Terraza: Sí"** y **"Zona: Norte"**, y actualiza los campos en el CRM automáticamente.
+
+### 4. Gestión Humana (SOP)
+
+- **SOP (Standard Operating Procedure):**
+    - Son los procedimientos estándar. El documento hace mucho énfasis en esto porque la automatización falla si el humano no es disciplinado.
+    - **Regla de oro aquí:** El agente ya no gestiona datos, solo gestiona relaciones. Su trabajo en el sistema es binary: marcar "interés real" o "visita realizada".
+- **Rol de Validación:**
+    - El agente pasa de ser un "buscador" a ser un "controlador de calidad".
+    - En lugar de buscar casas en Statefox una por una, el sistema le presenta una lista pre-filtrada y el agente solo dice "Esta sí, esta no, esta sí" (Validación en 30-60 segundos).
+
+El enfásis en el SOP es que es un validador de estados
+
+ESTABA EN LA COTIZACIÓN INICIAL: SI
+
+# URUS Smart Pricing y posicionamiento automatico
+
+Este sistema se enfoca en optimizar el producto (El inmueble). Su objetivo es responder automaticamente: “Por que no se vende esta casa” “A que precio deberia salir para arrasar”
+
+## Funcionamiento
+
+- Inmovilla
+    - Actua como disparador. El sistema se ejecuta cuando se agrega una nueva casa, cuando se cambia de precio o cuando detecta que una casa lleva X días sin recibir llamadas
+- Statefox
+    - No funciona de manera igual a la anterior. No busca casas para venderlas, busca casas para compararlas.
+    - Escanea todo el mercado para encontrar la competencia directa el inmueble
+
+## Conceptos técnicos del análisis
+
+- Cluster comparativo
+    - El sistema no compara la propiedad con todas las propiedas. Crea un filtro especifico con reglas estrictas:
+        - Misma zona o distrito
+        - Metros cuadrados similares
+        - Misma tipologia y estado
+    - Importa para no comparar por decirlo de alguna forma “peras con manzanas”. Si por ejemplo el apartamento es remodelado el sistema intentará no compararlo con uno que esta para reformar,
+- Gap de precio y posicionamiento
+    - El sistema analiza
+        - Cual es el parcentaje de diferencia positivia y negativa de la medía
+        - En que página sale. Por ejemplo, si el precio hunde a la página > 5 el sistema lo detecta
+        - Compara calidades en si la competencia tiene terraza y el inmueble de URUS no. El sistema intenara justificar por que otros son más caros o baratos basandose en los “extras”
+- LLM
+    - Recopila datos númericos, la IA toma esos números y los traduce a lenguaje comercial persuasivo
+    - En lugar de decir *"Desviación +5%"*, escribe: *"Para competir con los 5 primeros anuncios, deberíamos ajustar el precio un 5% a la baja"*.
+
+### El Producto Final: El "Semáforo"
+
+El resultado de toda esta automatización no es una hoja de Excel gigante, sino un **Informe de 1 página** diseñado para la toma de decisiones rápidas.
+
+- **Diagnóstico Automático (Semáforo):**
+    - 🟢 **Bien posicionado:** No tocar nada.
+    - 🟡 **Riesgo comercial:** Ojo, estamos algo caros o las fotos son peores que las del vecino.
+    - 🔴 **Fuera de mercado / Quemado:** Nadie va a llamar. Urge acción.
+- **Recomendación Accionable (No es una Tasación):**
+    - El documento insiste mucho en esto: **No es una tasación oficial** (valor legal). Es **Inteligencia de Mercado** (valor de venta real).
+    - El sistema dice  *qué hacer*: "Bajar precio", "Mejorar fotos", o "Reposicionar" (cambiar el texto o destacar otra característica).
+
+ESTABA EN LA COTIZACIÓN INICIAL: NO
+
+### Automatización legal
+
+Todo ocurre entre el CRM y la Herramienta de Documentación.
+
+- **Inmovilla (Almacén de Datos):**
+    - Sigue siendo la fuente de la verdad. Para que esto funcione, los datos *tienen* que estar bien metidos aquí (Precio, Fechas, etc..)
+    - **Trigger:** El sistema no arranca por capricho. Arranca cuando cambias el estado de una operación a **"Reserva"** o **"Arras"**.
+- **Gestor:**
+    - Antes: "mecanógrafo" que abre Word y copia-pega cláusulas.
+    - **Nuevo Rol:** Se convierte en un **"Auditor de Voz"**. Su trabajo es leer el borrador y *hablarle* al sistema para corregirlo.
+- **El Sistema**
+    - Es quien realmente escribe el contrato, versiona los archivos y los envía a firmar.
+
+### 2. Caracteristica extrá: (Voice-to-Action)
+
+- **Flujo Conversacional:**
+    - En lugar de buscar la "Cláusula 5" y reescribirla, el gestor simplemente dice *"Cambia las arras a penitenciales y pon que la firma es en 45 días hábiles"*.
+- **STT (Speech-to-Text [OpenAI Whisper]) + LLM (Intertprete):**
+    - **STT:** Convierte el audio en texto plano.
+    - **LLM (Cerebro):** Lee ese texto y entiende la *intención*.
+    - **Ejemplo:**
+        - *Tú dices:* "Oye, que al final sí necesitan hipoteca".
+        - *El LLM interpreta:* clausula_condicion_hipotecaria = TRUE.
+        - *El Sistema ejecuta:* Inserta el bloque de texto legal correspondiente a la condición hipotecaria en el contrato.
+
+### Conceptos Técnicos
+
+**No editar texto, editar variables y bloques**
+
+- **Plantillas Dinámicas:**
+    - El contrato no es un archivo de Word estático. Es un puzzle.
+    - Tiene piezas fijas y piezas condicionales
+    - Si el gestor dice "Incluye muebles", el sistema no escribe la palabra "muebles"; activa el **"Anexo de Mobiliario"** completo.
+- **Control de Versiones (Versioning):**
+    - Como el humano no guarda archivos manualmente (tipo contrato_final_final_v3.doc), el sistema lo hace solo.
+    - Genera v1_Borrador, luego v2_CambiosGestor, y finalmente Firmado. Esto deja una huella de auditoría perfecta en Inmovilla.
+
+### 4. El Proceso (SOP) Simplificado
+
+El flujo se divide claramente entre el Comercial (vendedor) y el Gestor (legal):
+
+1. **Comercial (El Gatillo):**
+    - Solo negocia el precio y consigue los DNI.
+    - Cambia el estado en Inmovilla a "Arras". Fin de su trabajo administrativo.
+2. **Sistema (Borrador v1):**
+    - Extrae datos y crea el primer contrato estándar en 2 minutos.
+3. **Gestor (El Refinamiento):**
+    - Recibe el borrador.
+    - Usa el modo voz para ajustar detalles finos ("quita el trastero", "cambia la fecha").
+    - Da el "OK".
+4. **Sistema (Cierre):**
+    - Envía el contrato por **DocuSign/Signaturit** a comprador y vendedor.
+    - Cuando firman, archiva el PDF firmado en Inmovilla automáticamente.
+
+ESTABA EN LA OFERTA INICIAL: Parcialmente, sin versionado, sin voz y sin envío automatico a el cliente registrado en el CRM
+
+**Sistema de Inteligencia de Negocio (Business Intelligence)**
+
+## Sistema de Business Intelligence
+
+Su propósito es centralizar la información de todos los subsistemas anteriores (ventas, marketing, legal) para permitir la toma de decisiones basada en datos y el escalado nacional.
+
+### Objetivo del Sistema: Gobernanza Basada en Datos
+
+El sistema busca eliminar la gestión intuitiva y reactiva. Transforma a Miguel en un estratega que opera mediante un **Cuadro de Mando Integral**, permitiendo visualizar el estado de la empresa en tiempo real sin necesidad de consultar manualmente a los departamentos.
+
+### Arquitectura de las 6 Capas de Información
+
+El sistema estructura los datos en seis niveles de profundidad, desde lo financiero hasta lo predictivo:
+
+- **Capa 1: Estado Financiero**
+    - **Función:** Monitorización de KPIs globales financieros.
+    - **Métricas:** Facturación, EBITDA, Cash Flow y Coste Operativo.
+    - **Visualización:** Semáforos (Verde/Amarillo/Rojo) para una lectura inmediata del "estado de salud" de la empresa.
+- **Capa 2: Rendimiento Operativo**
+    - **Función:** Desglose del rendimiento por unidad de negocio (Ciudad) y por individuo (Comercial).
+    - **Análisis:** Identificación de rentabilidad por empleado y detección de ineficiencias (saturación o infrautilización de recursos).
+- **Capa 3: Riesgo de Capital Humano**
+    - **Función:** Medición de la sostenibilidad del equipo.
+    - **Innovación:** Utiliza datos agregados (sin violar privacidad individual) para detectar zonas con alta presión, fatiga o riesgo de baja laboral, permitiendo intervención preventiva antes de que afecte la facturación. Los datos vienen del Coach Motivacional
+- **Capa 4: Analítica Prescriptiva**
+    - **Diferencia clave:** No solo muestra datos, sugiere acciones.
+    - **Lógica:** Utiliza reglas condicionales (Si Carga > X, entonces Recomendar Contratación).
+    - **Output:** Recomendaciones automáticas sobre contratación, formación o redistribución de leads.
+- **Capa 5: Motor de Expansión**
+    - **Función:** Estandarización de la apertura de nuevas sedes.
+    - **Criterio:** La expansión deja de ser una apuesta para convertirse en una **consecuencia lógica** cuando se cumplen métricas predefinidas (margen estable, cash disponible, liderazgo listo).
+- **Capa 6: Control Financiero y Reinversión**
+    - **Función:** Gestión de tesorería y ROI.
+    - **Objetivo:** Determinar cuánto capital se puede reinvertir en tecnología o crecimiento sin comprometer la solvencia operativa (Caja).
+
+### 3. Mecanismo de Funcionamiento
+
+El sistema opera bajo un flujo de **Dato → Umbral → Recomendación**:
+
+1. **Integración:** Recopila datos de CRM, Finanzas y Recursos Humanos.
+2. **Umbrales Estratégicos:** El CEO define los límites tolerables (ej. "Mínimo 15% margen para expandir").
+3. **Disparadores:** Cuando un indicador cruza un umbral, el sistema genera una alerta o recomendación.
+
+ESTABA INCLUIDO EN LA OFERTA INICIAL: NO y tiene una complejidad alta
+
+**Sistema de Gestión del Rendimiento (Performance Management System)** basado en datos.
+
+Su función no es mostrar gráficos sino actuar como una herramienta de **Auditoría de Productividad** en tiempo real. Elimina la subjetividad en la evaluación del personal y vincula la actividad diaria con el resultado económico final (Rentabilidad).
+
+Aquí tienes el análisis técnico de los componentes y lógicas del sistema:
+
+### 1. Principio Fundamental: Gobernanza del Dato
+
+El sistema establece una dictadura digital con la regla: **"Si no está en CRM, no existe"**.
+
+- **Eliminación del Input Manual:** Se prohíbe que el comercial rellene excels o informes de actividad. El sistema "escucha" el CRM. Si el comercial hizo una llamada pero no cambió el estado del lead, el sistema registra inactividad. Esto fuerza el uso riguroso del CRM.
+
+### 2. Arquitectura de Procesamiento (Las 5 Capas)
+
+- **Capa 1: Ingesta de Datos Crudos**
+    - Recopila eventos atómicos: Llamadas, visitas, cambios de estado, ofertas enviadas.
+    - No juzga, solo cuenta.
+- **Capa 2: Normalización (Conversión a Métricas)**
+    - Transforma "actividad" en "ratio".
+    - **KPIs Críticos:**
+        - *% Contacto Efectivo:* De 100 leads, ¿con cuántos hablas?
+        - *Conversión Visita → Cierre:* De 10 visitas, ¿cuántos compran?
+        - *Facturación/Lead:* ¿Cuánto dinero me genera cada contacto que le asigno a esta persona?
+- **Capa 3: Visión Jerárquica (Seguridad de la Información)**
+    - El sistema fragmenta la información según el usuario:
+        - **CEO:** Ve dinero y rankings (Top vs Bottom).
+        - **Comercial:** Ve "Espejo" (Yo vs. La Media del equipo).
+
+### 3. El Motor de Clasificación
+
+Esta es la parte más avanzada (Capa 4). El sistema no solo dice "vende poco", sino que **diagnostica por qué** clasificando al empleado en 4 arquetipos:
+
+1. **Top Performer:** Alta conversión + Alta actividad. (Acción: Clonar sus métodos y dar mejores leads).
+2. **Productivo Ineficiente:** Trabaja muchísimo (muchas visitas/llamadas) pero cierra poco. (Diagnóstico: Problema de técnica de cierre o filtrado. No es vagancia, es falta de capacitación).
+3. **Dependiente del Lead Caliente:** Solo cierra lo fácil. Tiene un ratio de cierre alto pero baja actividad de prospección. (Diagnóstico: "Recogepedidos", no cazador).
+4. **Bajo Rendimiento Estructural:** Mala actitud y malos números. (Acción: Despido justificado con datos).
+
+### 4. Sistema de Alertas y Tendencias
+
+El dashboard es dinámico y predictivo:
+
+- **Detección de Anomalías:** Si un Top Performer baja su rendimiento durante 2 semanas consecutivas, salta una alerta. Permite intervenir antes de que el comercial se queme (burnout) o se vaya.
+- **Coste de Oportunidad:** Calcula cuánto dinero está perdiendo la empresa por tener leads asignados a comerciales con baja conversión.
+
+ESTABA EN LA OFERTA INICIAL: Si parcialmente, se pensaba que era un Dashboard, no un sistema de alertas y anomalias arquetipicas
