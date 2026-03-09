@@ -6,7 +6,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "🔍 Buscando secretos/credenciales..."
-if git diff --cached --name-only | xargs grep -lE "sk-|password=|token=|secret=" --exclude-dir=.husky --exclude=pre-commit --exclude=commit-msg --exclude=pre-push 2>/dev/null; then
+if git diff --cached --name-only | xargs grep -lE "sk-|password=|token=|secret=" --exclude-dir=.husky --exclude=pre-commit --exclude=commit-msg --exclude=pre-push --exclude=package-lock.json 2>/dev/null; then
   echo "❌ Posibles credenciales detectadas. Revisa antes de commitear."
   exit 1
 fi
