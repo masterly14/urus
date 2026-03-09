@@ -13,3 +13,103 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum AggregateType {
+  PROPERTY
+  LEAD
+  DEMAND
+  MATCH
+  SLA
+  SYSTEM
+}
+
+enum EventType {
+  PROPIEDAD_CREADA
+  PROPIEDAD_MODIFICADA
+  ESTADO_CAMBIADO
+  LEAD_INGESTADO
+  SLA_INICIADO
+  DEMANDA_ACTUALIZADA
+  MATCH_GENERADO
+}
+
+enum JobType {
+  PROCESS_EVENT
+  UPDATE_PROPERTY_PROJECTION
+  UPDATE_DEMAND_PROJECTION
+  WRITE_TO_INMOVILLA
+}
+
+enum JobStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  DEAD_LETTER
+}
+
+enum ProjectionName {
+  PROPERTIES_CURRENT
+  DEMANDS_CURRENT
+}
+
+model Event {
+  id            String        @id @default(cuid())
+  position      BigInt        @unique @default(autoincrement())
+  type          EventType
+  aggregateType AggregateType
+  aggregateId   String
+  version       Int?
+  payload       Json
+  metadata      Json?
+  correlationId String?
+  causationId   String?
+  occurredAt    DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+
+  jobs          JobQueue[]
+
+  @@index([aggregateType, aggregateId, position])
+  @@index([type, position])
+  @@index([occurredAt])
+  @@map("events")
+}
+
+model JobQueue {
+  id             String     @id @default(cuid())
+  type           JobType
+  status         JobStatus  @default(PENDING)
+  payload        Json
+  priority       Int        @default(100)
+  attempts       Int        @default(0)
+  maxAttempts    Int        @default(5)
+  availableAt    DateTime   @default(now())
+  lockedAt       DateTime?
+  lockedBy       String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  failedAt       DateTime?
+  lastError      String?
+  idempotencyKey String?    @unique
+  sourceEventId  String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  sourceEvent    Event?     @relation(fields: [sourceEventId], references: [id], onDelete: SetNull)
+
+  @@index([status, availableAt, priority])
+  @@index([type, status])
+  @@index([sourceEventId])
+  @@map("job_queue")
+}
+
+model ProjectionCheckpoint {
+  projectionName     ProjectionName @id
+  lastEventId        String?
+  lastEventPosition  BigInt?
+  lastProcessedAt    DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@map("projections_checkpoint")
+}
