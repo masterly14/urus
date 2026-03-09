@@ -4,23 +4,6 @@
 
 ---
 
-## Estado del repo (M0)
-
-Infraestructura base ya implementada según el plan (Semana 1):
-
-- **Event Store (Neon/PostgreSQL)**: tabla `events` (Prisma `Event`) + API en `lib/event-store/` (`appendEvent`, `getEventsByAggregate`, `getEventsSince`) con tests en `lib/event-store/__tests__/`.
-- **Job Queue (Neon/PostgreSQL)**: tabla `job_queue` (Prisma `JobQueue`) + API en `lib/job-queue/` (`enqueueJob`, `dequeueJob`, `markCompleted`, `markFailed`) con reintentos, idempotencia y tests de ciclo completo en `lib/job-queue/__tests__/`.
-
-Documentación de decisiones:
-
-- `docs/adr/001-event-sourcing-sobre-crud.md`
-- `docs/adr/002-neon-como-job-queue.md`
-
-### Comandos útiles
-
-- **Tests**: `npm test` (requiere `DATABASE_URL` configurada en el entorno).
-- **Build**: `npm run build`
-
 ## Tabla de Contenidos
 
 1. [Visión General de la Arquitectura](#visión-general-de-la-arquitectura)
