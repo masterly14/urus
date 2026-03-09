@@ -87,7 +87,7 @@ Su trabajo: detectar cambios (por ejemplo, "el comercial cambió el estado a Res
 
 #### Egestion Worker (Escritura / Network Interception)
 
-Cuando la inteligencia artificial decide que hay que actualizar un dato en Inmovilla (subir un precio, adjuntar un PDF, crear un lead), este worker entra en acción. Mediante código TypeScript puro:
+Cuando la inteligencia artificial decide que hay que actualizar un dato en Inmovilla (subir un precio, crear un lead, modificar una demanda o cambiar un estado), este worker entra en acción. Mediante código TypeScript puro:
 
 1. Hace **login silente** con credenciales almacenadas.
 2. Obtiene el **código 2FA** por correo: la integración con **Composio** dispara una acción sobre Gmail (listar/buscar correos de Inmovilla) y se extrae el código de 6 dígitos del último correo recibido (ver `docs/workers/inmovilla-endpoints.md`).
@@ -140,10 +140,12 @@ Para evitar que clientes, colaboradores externos o comerciales peleen con la int
 | Canal | Implementación |
 |---|---|
 | **WhatsApp** | WhatsApp Business API (integración directa vía código) para precalificar compradores, seguimiento post-venta y notificaciones de matches |
-| **Micro-Frontends** | Rutas dinámicas en Next.js donde un gestor de banco sube un documento, o un comercial valida un enlace de Statefox en 30 segundos |
+| **Micro-Frontends** | Rutas dinámicas en Next.js para flujos propios que Inmovilla no modela bien, como estados tipo kanban de colaboradores, subida documental y validaciones rápidas del equipo |
 | **Notificaciones internas** | Webhooks propios hacia Slack/WhatsApp del equipo |
 
-Una vez que el usuario interactúa con la interfaz ligera, la información viaja a la **Capa 3** para ser procesada y, finalmente, escrita en Inmovilla por la **Capa 2**.
+Una vez que el usuario interactúa con la interfaz ligera, la información viaja a la **Capa 3** para ser procesada y, finalmente, escrita en Inmovilla por la **Capa 2** cuando sea necesario persistir el resultado final en el CRM.
+
+Esto es especialmente importante en el flujo de colaboradores: como Inmovilla está especializado para procesos inmobiliarios tradicionales y no ofrece una forma flexible de modelar tableros tipo kanban, hitos operativos y movimientos de estado personalizados, ese flujo vive en un **micro-frontend propio** con Neon como fuente operativa. Inmovilla queda como sistema de persistencia final, no como interfaz principal del proceso.
 
 ---
 
@@ -1298,7 +1300,7 @@ Se registra automáticamente:
 - Tiempos de respuesta.
 - Resultado final (aprobado / rechazado / retrasado).
 
-Los datos se capturan tanto por el `Ingestion Worker` (si el colaborador interactúa con Inmovilla) como por los **micro-frontends de Next.js** donde los colaboradores suben documentos e interactúan.
+Los datos se capturan principalmente por los **micro-frontends de Next.js** donde los colaboradores suben documentos, avanzan hitos y cambian estados. El `Ingestion Worker` queda para reconciliar o leer cambios finales ya persistidos en Inmovilla cuando aplique.
 
 > **Regla clave:** ningún colaborador trabaja fuera del sistema.
 

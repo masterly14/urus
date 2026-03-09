@@ -464,12 +464,14 @@ Formato:
 |---|---|---|---|
 | AM | 8:30–10:00 | **Ingeniería inversa Fase 1:** Login manual, capturar con DevTools todas las peticiones de red (Network tab). Documentar endpoints descubiertos. | `docs/workers/inmovilla-endpoints.md` |
 | AM | 10:00–12:30 | **Ingeniería inversa Fase 2:** Identificar flujo de autenticación (cookies de sesión, tokens CSRF, headers obligatorios). Documentar cada paso. | Flujo de auth documentado |
-| PM | 12:30–15:00 | **Ingeniería inversa Fase 3:** Mapear operaciones CRUD principales: crear lead, modificar demanda, cambiar estado, subir documento. Capturar XHR de cada una. | Catálogo de operaciones con XHR samples |
+| PM | 12:30–15:00 | **Ingeniería inversa Fase 3:** Mapear operaciones CRUD principales que sí vivirán en Inmovilla: crear lead, modificar demanda, cambiar estado y listar propiedades. Capturar XHR de cada una. Dejar fuera la subida documental del flujo de colaboradores. | Catálogo de operaciones core con XHR samples |
 | PM | 15:00–17:00 | Instalar Playwright. Escribir script de login silente: navegar a Inmovilla, rellenar credenciales, capturar cookies y CSRF token. | Script `scripts/inmovilla-login.ts` funcional |
 | PM | 17:00–19:00 | Escribir script de lectura: listar propiedades activas desde Inmovilla (vía API de lectura si existe, o scraping headless). | Script `scripts/inmovilla-read-properties.ts` |
 | PM | 19:00–20:00 | Daily log, push, organizar descubrimientos. | Documentación actualizada |
 
 **Git:** mínimo 5 commits. Branch: `feat/M1-inmovilla-reverse-eng`.
+
+**Nota de alcance:** el flujo de colaboradores externos (banco, abogado, tasador, etc.) se implementará mediante un **micro-frontend propio** con Neon como estado operativo. Motivo: Inmovilla está optimizado para flujos inmobiliarios estándar y no ofrece una forma flexible de crear tableros tipo kanban ni de modelar hitos/estados personalizados como requiere ese proceso. Por tanto, en el Día 2 la ingeniería inversa debe centrarse en las operaciones core que sí se leerán/escribirán directamente en Inmovilla; no es necesario cubrir subida documental del flujo de colaboradores en `docs/workers/inmovilla-endpoints.md`.
 
 #### Miércoles (Día 3) — M1 + M2: Workers de Lectura y Escritura
 
@@ -748,7 +750,7 @@ Formato:
 | Bloque | Horario | Tarea | Entregable |
 |---|---|---|---|
 | AM | 8:30–11:00 | Diseñar schema de **colaboradores externos** en Neon: entidad colaborador, tipo (banco/abogado/tasador/arquitecto), ciudad, SLA, hitos, métricas. | Schema + migrations |
-| AM | 11:00–13:00 | Implementar **micro-frontend portal de colaboradores**: interfaz donde banco/abogado/tasador ve sus operaciones asignadas, sube documentos, actualiza estados. | Portal funcional |
+| AM | 11:00–13:00 | Implementar **micro-frontend portal de colaboradores**: interfaz propia donde banco/abogado/tasador ve sus operaciones asignadas, sube documentos y actualiza estados tipo kanban. Este flujo no se resuelve en Inmovilla porque su modelo no cubre bien estos hitos operativos. | Portal funcional |
 | PM | 13:00–15:30 | Implementar **tracking de hitos**: cada cambio de estado del colaborador registra timestamp en Neon. Cálculo automático de tiempos. Hitos estándar por tipo (banco: documentación → estudio → preaprobación → aprobación; abogado: revisión → observaciones → validación). | Tracking funcional |
 | PM | 15:30–18:00 | Implementar **alertas SLA de colaboradores**: cron-job que detecta retrasos → alerta al jefe de zona o CEO según severidad. | Alertas funcionales |
 | PM | 18:00–20:00 | Implementar **clasificación automática de colaboradores**: partner estratégico / funcional / lento / crítico (basada en datos, no afinidad). | Clasificación funcional |
