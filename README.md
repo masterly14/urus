@@ -90,9 +90,10 @@ Su trabajo: detectar cambios (por ejemplo, "el comercial cambió el estado a Res
 Cuando la inteligencia artificial decide que hay que actualizar un dato en Inmovilla (subir un precio, adjuntar un PDF, crear un lead), este worker entra en acción. Mediante código TypeScript puro:
 
 1. Hace **login silente** con credenciales almacenadas.
-2. Captura las **Session Cookies**.
-3. Raspa el DOM para obtener el **token CSRF** dinámico.
-4. Dispara una **petición HTTP clonada** (XHR/Fetch) directamente a los endpoints internos de Inmovilla.
+2. Obtiene el **código 2FA** por correo: la integración con **Composio** dispara una acción sobre Gmail (listar/buscar correos de Inmovilla) y se extrae el código de 6 dígitos del último correo recibido (ver `docs/workers/inmovilla-endpoints.md`).
+3. Captura las **Session Cookies** y el **token de sesión** (`l`) tras completar el login en dos pasos (credenciales + verificación 2FA).
+4. Raspa el DOM si hace falta para **tokens dinámicos** adicionales.
+5. Dispara **peticiones HTTP clonadas** (XHR/Fetch) directamente a los endpoints internos de Inmovilla.
 
 Es una ejecución **determinista, centralizada y server-side**, a prueba de los fallos que tendría una extensión de navegador o una herramienta no-code.
 
@@ -533,6 +534,13 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 | Booking | Micro-frontend Next.js con integración Google Calendar API |
 | Confirmación | Automática vía WhatsApp Business API |
 | Registro en CRM | `Egestion Worker` escribe cita en Inmovilla |
+
+### Autenticación Inmovilla (login automático y 2FA)
+
+| Componente | Implementación |
+|---|---|
+| Login en dos pasos | POST a `comprueba.php` (credenciales) + POST a `login2Fa/verifyCode` (código 2FA). Ver `docs/workers/inmovilla-endpoints.md`. |
+| Código 2FA por correo | **Composio**: conexión Gmail (OAuth), acción de listado/búsqueda de correos filtrada por remitente Inmovilla; extracción del código de 6 dígitos del último correo; envío al endpoint de verificación. Permite login totalmente automatizado sin intervención manual. |
 
 ### Documentación y Plantillas
 
@@ -1618,6 +1626,7 @@ El sistema ofrece lectura **estratégica**, no psicológica:
 
 | Servicio | Proveedor | Integración |
 |---|---|---|
+| **Autenticación Inmovilla (2FA)** | **Composio + Gmail** | Obtención automática del código de verificación por correo: acción Composio sobre Gmail (listar/buscar correos de Inmovilla), extracción del código de 6 dígitos, envío al endpoint `login2Fa/verifyCode`. Ver `docs/workers/inmovilla-endpoints.md`. |
 | WhatsApp Business | **360dialog / Twilio / MessageBird** | API directa desde código (webhooks + envíos) |
 | Firma digital | **Signaturit / DocuSign** | API REST desde Next.js |
 | Calendario | **Google Calendar API** | Micro-frontend de booking |
