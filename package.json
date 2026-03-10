@@ -13,7 +13,11 @@
     "commitlint": "commitlint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "@composio/anthropic": "^0.6.4",
     "@composio/core": "^0.6.4",
+    "@composio/openai-agents": "^0.6.4",
+    "@openai/agents": "^0.6.0",
     "@prisma/client": "^6.19.2",
     "next": "16.1.6",
     "react": "19.2.3",
