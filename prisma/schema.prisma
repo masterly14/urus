@@ -27,6 +27,9 @@ enum EventType {
   PROPIEDAD_CREADA
   PROPIEDAD_MODIFICADA
   ESTADO_CAMBIADO
+  DEMANDA_CREADA
+  DEMANDA_MODIFICADA
+  DEMANDA_ESTADO_CAMBIADO
   LEAD_INGESTADO
   SLA_INICIADO
   DEMANDA_ACTUALIZADA
@@ -136,6 +139,27 @@ model PropertySnapshot {
   updatedAt          DateTime @updatedAt
 
   @@map("property_snapshots")
+}
+
+model DemandSnapshot {
+  codigo             String   @id
+  ref                String   @default("")
+  nombre             String   @default("")
+  estadoId           String   @default("")
+  estadoNombre       String   @default("")
+  presupuestoMin     Float    @default(0)
+  presupuestoMax     Float    @default(0)
+  habitacionesMin    Int      @default(0)
+  tipos              String   @default("")
+  zonas              String   @default("")
+  fechaActualizacion String   @default("")
+  agente             String   @default("")
+  raw                Json     @default("{}")
+  firstSeenAt        DateTime @default(now())
+  lastSeenAt         DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("demand_snapshots")
 }
 
 model User {
