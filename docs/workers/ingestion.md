@@ -17,6 +17,31 @@ QStash (cron cada X min)
        └─ saveCurrentSnapshot (upsert en property_snapshots)
 ```
 
+## Ingestión de demandas activas (Item 3)
+
+La ingesta de demandas usa el endpoint paginado de Inmovilla con:
+
+- `POST /new/app/api/v1/paginacion/`
+- `ventana = demandas`
+- `data = demresultados`
+- `lostags = 20,23,26,31` (estados activos en HAR)
+
+El flujo técnico de demandas es paralelo al de propiedades:
+
+1. `runDemandsIngestionCycle()` inicia login y lectura paginada (`fetchAllDemands`).
+2. Se carga snapshot previo desde `demand_snapshots`.
+3. Se calcula diff (`DEMANDA_CREADA`, `DEMANDA_MODIFICADA`, `DEMANDA_ESTADO_CAMBIADO`).
+4. Se publican eventos en Event Store (`aggregateType = DEMAND`).
+5. Se persiste snapshot actualizado de demandas.
+
+### Contratos de evento de demandas
+
+- `DEMANDA_CREADA`: payload `{ snapshot, detectedAt }`
+- `DEMANDA_MODIFICADA`: payload `{ before, after, changedFields, detectedAt }`
+- `DEMANDA_ESTADO_CAMBIADO`: payload `{ previousEstadoId, previousEstadoNombre, newEstadoId, newEstadoNombre, otherChangedFields, snapshot, detectedAt }`
+
+Cada evento incluye metadata: `source=ingestion:demands`, `cycleId`, `fingerprint`, `aggregateId`, `eventType`, `changedFields`.
+
 ## Campos que participan en el diff
 
 | Campo | Tipo | Evento si cambia |
@@ -187,6 +212,18 @@ npx vitest run lib/workers/ingestion/__tests__/snapshot-repo.test.ts
 
 # Integration tests de emisión al Event Store (requiere DB)
 npx vitest run lib/workers/ingestion/__tests__/properties-worker-events.test.ts
+
+# Unit tests del diff de demandas
+npx vitest run lib/workers/ingestion/demands/__tests__/demands-diff.test.ts
+
+# Unit tests del publicador de demandas
+npx vitest run lib/workers/ingestion/demands/__tests__/event-publisher.test.ts
+
+# Integration tests de snapshots de demandas
+npx vitest run lib/workers/ingestion/demands/__tests__/snapshot-repo.test.ts
+
+# Integration tests de eventos de demandas
+npx vitest run lib/workers/ingestion/demands/__tests__/events-integration.test.ts
 
 # Todos los tests
 npm test
