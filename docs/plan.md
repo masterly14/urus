@@ -475,6 +475,8 @@ Formato:
 
 #### Miércoles (Día 3) — M1 + M2: Workers de Lectura y Escritura
 
+**Decisión de infraestructura:** todos los cron-jobs del plan (ingesta, cadencias, alertas y triggers temporales) se orquestan con **Upstash QStash**.
+
 | Bloque | Horario | Tarea | Entregable |
 |---|---|---|---|
 | AM | 8:30–10:30 | Implementar `Ingestion Worker` v1: cron-job que ejecuta lectura de propiedades cada X minutos. Detectar cambios comparando con estado previo (diff). | Worker ejecutable con detección de cambios |
@@ -1210,6 +1212,7 @@ Formato:
 | **Egestion Worker** | Proceso server-side que escribe datos en Inmovilla/Statefox mediante network interception (login silente → cookies → CSRF → XHR clonado). |
 | **Event Store** | Tabla en Neon donde se persisten todos los eventos del sistema como registros inmutables. |
 | **Job Queue** | Tabla en Neon que gestiona tareas asíncronas con reintentos, idempotencia y dead-letter queue. |
+| **Cron Scheduler** | **Upstash QStash** se usa para disparar y orquestar todos los cron-jobs del sistema. |
 | **Proyección** | Vista materializada del estado actual, calculada a partir de los eventos del Event Store. |
 | **Smart Matching** | Módulo de IA (LangGraph) que interpreta respuestas de texto libre y ajusta demandas automáticamente en Inmovilla. |
 | **Smart Closing** | Sistema de generación de contratos con variables + revisión por voz (STT + LangGraph) + firma digital. |
