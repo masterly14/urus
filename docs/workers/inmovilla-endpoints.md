@@ -964,6 +964,13 @@ Valores de disponibilidad observados: `1,7,18,40,41` (estados activos). Para obt
 
 ### Login
 
+
+**Selectores UI (script `inmovilla-login.ts`):**
+
+- Credenciales: `#claveofi`, `#user`, `#pass`.
+- Botón "Acceder": `#entrar` (el botón no tiene `type="submit"` ni `id="btnLogin"`).
+- Pantalla 2FA: seis inputs individuales con `input[maxlength="1"]`; escribir el código con `page.keyboard.type(code)` tras hacer click en el primero (el componente auto-avanza y auto-envía al completar los 6 dígitos).
+
 **Opción A — Manual o semiautomático**
 
 1. Navegar a `https://crm.inmovilla.com/login/es`.

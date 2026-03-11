@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "husky",
-    "commitlint": "commitlint"
+    "commitlint": "commitlint",
+    "inmovilla:login": "tsx scripts/inmovilla-login.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
@@ -22,6 +23,9 @@
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3"
+  },
+  "overrides": {
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.4.3",
@@ -37,6 +41,7 @@
     "playwright": "^1.58.2",
     "prisma": "^6.19.2",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5",
     "vitest": "^4.0.18"
   }
