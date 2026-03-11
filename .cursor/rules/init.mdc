@@ -1,0 +1,64 @@
+---
+description: Reglas de Git para el proyecto Urus Capital. Aplicar al hacer commits, crear ramas, PRs o tags.
+alwaysApply: true
+---
+
+# Disciplina Git — Urus Capital
+
+## Ramas
+
+Formato: `<tipo>/<módulo>-<descripción-kebab-case>`
+
+Tipos: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
+
+Estructura:
+- `main` ← producción, siempre deployable
+- `develop` ← integración, se mergea a main cada sábado post-demo
+
+Ejemplos: `feat/M0-event-store`, `fix/M1-polling-timeout`, `docs/week-01-retro`
+
+## Commits (Conventional Commits obligatorio)
+
+Formato:
+```
+<tipo>(<alcance>): <descripción imperativa en español>
+
+[cuerpo opcional — qué y por qué, no cómo]
+
+[footer opcional — refs a issues, breaking changes]
+```
+
+Reglas:
+- Commits **atómicos**: un commit = un cambio lógico. Prohibido "arreglos varios" o "WIP".
+- Todo commit debe compilar (`npm run build` sin errores).
+- Nunca commitear secretos, `.env`, credenciales o tokens.
+- El alcance usa el ID del módulo cuando aplique (M0–M14) o `deps`, `ci`, etc.
+
+Ejemplos:
+```
+feat(M1): implementar polling básico de propiedades en Inmovilla
+fix(M2): corregir extracción de token CSRF en login silente
+refactor(M0): migrar event store a schema dedicado en Neon
+test(M3): añadir tests unitarios para scoring de compradores
+chore(deps): actualizar playwright a v1.42
+```
+
+## Pull Requests
+
+- **Título:** misma convención que commits.
+- **Descripción:** qué cambia, por qué, cómo probarlo.
+- **Base branch:** `develop` (nunca directo a `main`).
+- Checklist obligatorio:
+  - [ ] Build pasa sin errores
+  - [ ] Tests relevantes añadidos o actualizados
+  - [ ] Sin secretos ni credenciales hardcodeadas
+  - [ ] Tipos TypeScript correctos (sin `any` injustificado)
+  - [ ] Variables de entorno documentadas en `.env.example`
+
+## Tags y Releases
+
+Formato: `v0.<sprint>.<semana-dentro-del-sprint>-week-<número>`
+
+Ejemplo: `git tag -a v0.1.0-week-01 -m "Sprint 1.1: Infraestructura base + Ingestion Worker v1"`
+
+Se crean cada sábado post-demo.
