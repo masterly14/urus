@@ -61,19 +61,32 @@ export async function loginToInmovilla(
     await submitBtn.click();
     await responsePromise;
 
+    const twoFASentAt = new Date();
     console.log("[login] Paso 1 completado — esperando correo 2FA...");
 
     // --- Delay pre-2FA ---
     await delay(twoFADelayMs);
 
-    // --- Obtener código 2FA ---
+    // --- Obtener código 2FA (con ventana temporal y reenvío) ---
     let code: string;
     try {
-      code = await getInmovilla2FACode();
+      code = await getInmovilla2FACode(twoFASentAt);
     } catch {
-      console.log("[login] Primer intento de 2FA fallido, reintentando...");
+      console.log("[login] Código no encontrado — reenviando código...");
+      const resendBtn = page.locator("#btn-2fa--send-again");
+      if (await resendBtn.isVisible()) {
+        await resendBtn.click();
+        console.log("[login] Click en 'Reenviar código' — esperando...");
+      }
+      const resendAt = new Date();
       await delay(RETRY_EXTRA_DELAY_MS);
-      code = await getInmovilla2FACode();
+      try {
+        code = await getInmovilla2FACode(resendAt);
+      } catch {
+        console.log("[login] Segundo intento fallido — último reintento...");
+        await delay(RETRY_EXTRA_DELAY_MS);
+        code = await getInmovilla2FACode(resendAt);
+      }
     }
 
     console.log("[login] Código 2FA obtenido — verificando...");

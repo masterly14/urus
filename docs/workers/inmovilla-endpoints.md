@@ -258,6 +258,8 @@ Formato típico de `miid`: `agencia.agente.timestamp1.timestamp2_agencia`.
 | GET | `/new/app/api/v1/panelesconfiguraciones/index.php` | Configuración de paneles del escritorio |
 | GET | `/new/app/api/v1/paneles/index.php?escritorio={id}&panel={id}&espaneldemandos=0` | Datos de un panel (propiedades, demandas, etc.) |
 | POST | `/new/app/api/v1/paneles/index.php?escritorio=...&panel=...&espaneldemandos=0&custom=1` | Panel con datos personalizados |
+| POST | `/new/app/api/v1/paginacion/` | **Listado paginado** — propiedades (`ventana=cofe`) o demandas (`ventana=demandas`) |
+| POST | `/new/app/api/v1/fichas/demandas/index.php` | Catálogo de campos de demandas |
 
 Ejemplo de `escritorio` y `panel`: `escritorio=105870`, `panel=-122` (inicio), `panel=100`, `70`, `89`, `5`, `90`, `30`, `32`, `61`, `95`, `88`, `153`, etc.
 
@@ -945,6 +947,304 @@ Valores de disponibilidad observados: `1,7,18,40,41` (estados activos). Para obt
 
 ---
 
+### 7.4 Listar Demandas (lectura paginada)
+
+#### Endpoint principal
+
+| Campo | Valor |
+|-------|-------|
+| **URL** | `POST https://crm.inmovilla.com/new/app/api/v1/paginacion/` |
+| **Content-Type** | `application/x-www-form-urlencoded; charset=UTF-8` |
+| **Headers** | `X-Requested-With: XMLHttpRequest` |
+
+Usa el **mismo endpoint** que propiedades (`paginacion`), pero con `ventana=demandas` en lugar de `ventana=cofe`.
+
+---
+
+#### Flujo (1 request para datos)
+
+Para automatización, solo se necesita el request de datos (equivalente al Paso 2 de propiedades). No se observaron requests previos de carga de estructura de vista en la captura HAR de demandas.
+
+---
+
+#### Request — Carga de datos
+
+**Body:**
+
+| Parámetro | Descripción |
+|-----------|-------------|
+| `paramjson` | JSON URL-encoded con filtros, paginación y configuración (ver estructura abajo) |
+| `soyajax` | `1` |
+| `miid` | ID sesión |
+| `l` | `{{SESSION_TOKEN}}` |
+| `id_pestanya` | ID pestaña |
+
+**Estructura de `paramjson`:**
+
+```json
+{
+  "general": {
+    "info": {
+      "lostags": "lista_situacion;:;lista;:;lista;:;20,23,26,31;:;",
+      "numvistas": 1,
+      "ventana": "demandas",
+      "data": "demresultados"
+    },
+    "filtro": "",
+    "campo": {
+      "demandas.desvioalquiler": { "valor": 0 },
+      "demandas.desvioventa": { "valor": 0 }
+    },
+    "ordentipo": "desc"
+  },
+  "demresultados": {
+    "info": {
+      "ficha": "demandas",
+      "data": "demresultados",
+      "posicion": 0,
+      "paginacion": "10",
+      "jsonvista": "1",
+      "totalreg": 0
+    },
+    "orden": false
+  }
+}
+```
+
+**Campos clave del `paramjson`:**
+
+| Campo | Descripción |
+|-------|-------------|
+| `general.info.ventana` | `demandas` (vs `cofe` en propiedades) |
+| `general.info.data` | `demresultados` (vs `oferesultados` en propiedades) |
+| `general.info.lostags` | Filtro por situación: `20,23,26,31` (estados activos de demanda) |
+| `general.filtro` | Filtro de texto libre (vacío = sin filtrar) |
+| `general.campo` | Filtros por campo: `desvioalquiler` y `desvioventa` (desviación de precio, 0 = sin desviación) |
+| `general.ordentipo` | `"desc"` — orden descendente (ubicado en `general`, no en la sección de datos) |
+| `demresultados.info.posicion` | **Offset de paginación** (0, 10, 20...) |
+| `demresultados.info.paginacion` | Tamaño de página (`"10"` por defecto) |
+| `demresultados.info.totalreg` | Total de registros (0 en primera request; el servidor lo calcula) |
+| `demresultados.orden` | Campo de orden específico o `false` |
+
+**Valores de `lostags` (situación de demanda):**
+
+| ID | Significado probable |
+|----|---------------------|
+| `20` | Buscando |
+| `23` | (por confirmar) |
+| `26` | Cliente de Portal |
+| `31` | (por confirmar) |
+
+---
+
+#### Diferencias clave vs propiedades (`paramjson`)
+
+| Aspecto | Propiedades (`cofe`) | Demandas |
+|---------|---------------------|----------|
+| `ventana` | `cofe` | `demandas` |
+| `data` | `oferesultados` | `demresultados` |
+| `lostags` tipo | `lista_disponibilidad` | `lista_situacion` |
+| `lostags` valores | `1,7,18,40,41` | `20,23,26,31` |
+| `campo` filtros | `ofertas.patio`, `ofertas.salida_humos` | `demandas.desvioalquiler`, `demandas.desvioventa` |
+| `ordentipo` ubicación | En sección `oferesultados` | En sección `general` |
+| `general.param` | Presente (con `soloRefSearch`, `fechaalta`, etc.) | **Ausente** |
+
+---
+
+#### Paginación
+
+Mismo mecanismo que propiedades — paginación por offset:
+
+| Página | `posicion` | Items |
+|--------|-----------|-------|
+| 1 | `0` | 10 |
+| 2 | `10` | 10 |
+| N | `(N-1) * paginacion` | hasta `paginacion` |
+
+En la captura HAR: **102 demandas totales**, 11 páginas de 10.
+
+---
+
+#### Respuesta — Estructura JSON
+
+```json
+{
+  "demandas": {
+    "demresultados": {
+      "info": {
+        "vista": "demresultados",
+        "tipopag": "_demandas",
+        "ficha": "demandas",
+        "data": "demresultados",
+        "campos": { "codigo": {"pos":0}, "nombre": {"pos":1}, ... },
+        "total": "102",
+        "posicion": 10,
+        "paginacion": "10",
+        "pagtotal": 11,
+        "pagactual": 2,
+        "pagsig": 3,
+        "pagant": 1
+      },
+      "datos": {
+        "10": {
+          "acciones": [...],
+          "fields": [
+            { "campo": "codigo", "value": "38885037" },
+            { "campo": "nombre", "value": "Veronica Ordoñez Relaño" },
+            ...
+          ]
+        },
+        "11": { ... },
+        ...
+      }
+    }
+  }
+}
+```
+
+**Diferencia estructural vs propiedades:** `datos` es un **objeto con claves numéricas** (posición global del registro: `"10"`, `"11"`, ...) en lugar del array indexado que devuelve propiedades. Las claves son strings del índice global (offset + posición local).
+
+---
+
+#### Campos por demanda (74 campos)
+
+**Identificadores:**
+
+| Campo | Descripción | Ejemplo |
+|-------|-------------|---------|
+| `codigo` | ID único de la demanda (`cod_dem`) | `38885037` |
+| `numdemanda` | Número secuencial de demanda | `1071` |
+| `keycli` | ID del cliente (`cod_cli`) | `58055249` |
+| `keyagente` | ID del agente asignado | `177892` |
+| `keycomercial` | ID del comercial | `177892` |
+
+**Datos del cliente (embebidos en cada demanda):**
+
+| Campo | Descripción | Ejemplo |
+|-------|-------------|---------|
+| `nombre` | Nombre completo (display) | `Veronica Ordoñez Relaño` |
+| `clientenombre` | Nombre | `Veronica` |
+| `clienteapellidos` | Apellidos | `Ordoñez Relaño` |
+| `email` | Email del cliente | `veronicaordonezrelano@gmail.com` |
+| `telefono1` | Teléfono 1 | `` |
+| `telefono2` | Teléfono 2 | `625352966` |
+| `telefono1_raw` | Teléfono 1 con prefijo | `` |
+| `telefono2_raw` | Teléfono 2 con prefijo | `34625352966` |
+| `prefijotel1` | Prefijo teléfono 1 | `34` |
+| `prefijotel2` | Prefijo teléfono 2 | `34` |
+| `fotocliente` | URL avatar del cliente | `fotos15.apinmo.com/siglas/VO.jpg` |
+
+**Criterios de búsqueda de la demanda:**
+
+| Campo | Descripción | Ejemplo |
+|-------|-------------|---------|
+| `titulodem` | Título/descripción de la demanda | `3 hab. Asc. , Casco Histórico` |
+| `textodemandas` | Texto descriptivo (display) | `3 hab. Asc. , Vistalegre...` |
+| `ventadesde` | Precio venta mínimo | `54000` |
+| `ventahasta` | Precio venta máximo | `93000` |
+| `alquilerdesde` | Precio alquiler mínimo | `0` |
+| `alquilerhasta` | Precio alquiler máximo | `0` |
+| `tipomes` | Tipo temporal | `MES` |
+| `habitacionmin` | Habitaciones mínimas | `3` |
+| `banosmin` | Baños mínimos | `1` |
+| `ascensor` | Requiere ascensor (0/1) | `1` |
+| `preciosdem` | Objeto con precios formateados | `{"alquilerformateado":0,"ventaformateado":"54.000€ - 93.000€"}` |
+
+**Estado y fechas:**
+
+| Campo | Descripción | Ejemplo |
+|-------|-------------|---------|
+| `keysitu` | ID de situación | `26` |
+| `idlista` | ID del estado en lista | `26` |
+| `listipo` | Tipo/estado en texto | `Cliente de Portal` |
+| `nodisponible` | No disponible (0/1) | `0` |
+| `fecha` | Fecha de alta | `2026-03-09 08:25:58` |
+| `fechaact` | Fecha última actualización | `2026-03-09 08:25:58` |
+| `fechaaltamostrar` | Fecha alta formateada (display) | `09/03/2026` |
+| `fechaactmostrar` | Fecha act relativa (display) | `2 días` |
+| `prioridad` | Prioridad numérica | `1` |
+
+**Agente/Comercial:**
+
+| Campo | Descripción | Ejemplo |
+|-------|-------------|---------|
+| `comercialdemandas` | URL foto del comercial | `fotos15.apinmo.com/11636/usuarios/177892.jpg` |
+| `usernombre` | Nombre del comercial | `Miguel` |
+| `userapellidos` | Apellidos del comercial | `Angel Carrillo Ramos` |
+| `siglas` | Siglas del comercial | `MA` |
+| `userid` | ID de usuario del comercial | `177892` |
+| `useragencia` | ID agencia del comercial | `11636` |
+| `color` | Color asignado al comercial | `#529405` |
+
+**Cruces y seguimiento:**
+
+| Campo | Descripción | Ejemplo |
+|-------|-------------|---------|
+| `crucesdemandas` | Número de cruces (display) | `1` |
+| `numcruces` | Número de cruces (numérico) | `0` |
+| `numinteres` | Número de interesados | `0` |
+| `ultimoseg` | Último seguimiento (texto) | `Creada Automaticamente` |
+| `contactadopor` | Medio de captación | `idealista.com` |
+| `cantdisponible` | Cantidad disponible | `` |
+| `refcierre` | Referencia de cierre | `` |
+| `visita` | Visita programada | `` |
+| `visitarealizada` | Visita realizada | `` |
+
+**RGPD y permisos:**
+
+| Campo | Descripción | Ejemplo |
+|-------|-------------|---------|
+| `gesauto` | Gestión automática | `5` |
+| `rgpdwhats` | RGPD WhatsApp | `5` |
+| `rgpdtel` | RGPD teléfono (clase CSS) | `text-verde` |
+| `nonewsletters` | No newsletters | `0` |
+| `rgpdmail` | RGPD mail (clase CSS) | `text-amarillo-dark` |
+
+**Display/UI:**
+
+| Campo | Descripción | Ejemplo |
+|-------|-------------|---------|
+| `colormostrar` | Color de fila | `#FFFFFF` |
+| `prioridadmostrar` | Prioridad display | `` |
+| `mostrarllamar` | Mostrar botón llamar | `1` |
+| `telefonodemandasmostrar` | Mostrar teléfono | `1` |
+| `llamar` | Flag de llamada | `1` |
+| `tipocliente` | Tipo de cliente (HTML) | `<div>...Comprador...</div>` |
+| `leads` | Leads asociados | `` |
+| `logo` | Logo | `0` |
+| `visibilidadtotal` | Visibilidad total | `0` |
+| `valoracioncli` | Valoración del cliente | `` |
+| `valoracliente` | Valoración numérica | `0` |
+
+---
+
+#### Filtros disponibles (`lostags`)
+
+El campo `lostags` para demandas usa `lista_situacion` (vs `lista_disponibilidad` en propiedades):
+
+```
+lista_situacion;:;lista;:;lista;:;20,23,26,31;:;
+```
+
+Para filtrar por un estado concreto, modificar los IDs (ej: solo `20` para demandas "Buscando").
+
+---
+
+#### Notas para automatización (Ingestion Worker)
+
+- El endpoint `paginacion` con `ventana=demandas` y `data=demresultados` es la **vía principal para leer demandas** — mismo patrón que propiedades.
+- Para iterar todas las demandas: hacer POST incrementando `posicion` en bloques de 10 (o el tamaño de `paginacion`).
+- Para detectar cambios: comparar `fechaact` entre polls sucesivos o mantener un mapa `cod_dem → fechaact` y emitir evento cuando cambie.
+- El `totalreg` se devuelve a partir de la segunda página; en la primera request poner `0` y el servidor lo calcula.
+- La respuesta devuelve `datos` como **objeto con claves numéricas** (no array) — iterar con `Object.values(datos)` o `Object.entries(datos)`.
+- Dentro de cada entrada, los campos son un array de `{campo, value}` — transformar a mapa para uso programático.
+- Cada demanda incluye datos del **cliente embebidos** (`clientenombre`, `clienteapellidos`, `email`, `telefono1/2`, `keycli`) — no hace falta un request adicional para obtener datos básicos del cliente.
+- El campo `contactadopor` indica la fuente (ej: `idealista.com`, `fotocasa.es`).
+- Nombres internos: Inmovilla llama `demandas` a la ventana y `demresultados` a la vista de datos.
+- El side-effect `POST /new/app/googlecontacts/crearContactosMasivo.php` se dispara automáticamente al cargar la vista (response: `x`); no es necesario invocarlo manualmente.
+
+---
+
 ## 8. Servicios externos detectados
 
 | Servicio | URL / referencia | Uso |
@@ -1003,6 +1303,29 @@ Usar POST /new/app/api/v1/paginacion/ con paramjson (ver § 7.3):
 4. Si datos.length === paginacion, incrementar posicion += paginacion y repetir.
 5. Para detección de cambios, comparar fechaact de cada cod_ofer entre polls.
 
+### Listado de demandas
+
+Usar POST /new/app/api/v1/paginacion/ con paramjson (ver § 7.4):
+1. Construir el paramjson con ventana=demandas, data=demresultados, posicion=0.
+2. Enviar con l, miid, id_pestanya, soyajax=1.
+3. Parsear response.demandas.demresultados.datos — **objeto** con claves numéricas, cada entrada con 74 campos.
+4. Si Object.keys(datos).length === paginacion, incrementar posicion += paginacion y repetir.
+5. Para detección de cambios, comparar fechaact de cada cod_dem entre polls.
+6. Cada demanda incluye datos del cliente embebidos (nombre, email, teléfono, keycli).
+
+### Mapping de operaciones para `writeToInmovilla` (M2 v1)
+
+| Operación | Endpoint principal | Pre-step | Verificación post-write |
+|-----------|--------------------|----------|--------------------------|
+| `createDemand` | `POST /new/app/guardar/guardar.php?...&SoyNuevo=1...` | `POST /new/app/api/v1/fichas/demandas/index.php` (catálogo opcional) | `POST /new/app/cargas/fichacliente/fichacliente.php` por `cod_dem` |
+| `updateDemandEmail` | `POST /new/app/guardar/guardar.php?...` (sin `SoyNuevo`) | `POST /new/app/cargas/compruebacontacto.php` | `POST /new/app/cargas/fichacliente/fichacliente.php` y validar `clientes.email` |
+| `updateDemandPriority` | `POST /new/app/guardar/guardar.php?...` (sin `SoyNuevo`) | Ninguno | `POST /new/app/cargas/fichacliente/fichacliente.php` y validar `demandas.prioridad` |
+
+#### Señales de éxito/error en `guardar.php`
+
+- **Éxito frecuente:** `tmprecibido='...'` y `hayerrores=0`
+- **Éxito adicional (algunos updates):** prefijo `//exito;N`
+- **Error:** `hayerrores=1` y mensaje en `hayerrorestxt`
 
 ---
 
@@ -1020,4 +1343,4 @@ No commitear credenciales ni tokens reales.
 
 ---
 
-*Última actualización: 2026-03-09 — Fase 3: operaciones CRUD (crear/actualizar demanda) y lectura paginada de propiedades.*
+*Última actualización: 2026-03-11 — Fase 3: operaciones CRUD (crear/actualizar demanda), lectura paginada de propiedades y demandas.*

@@ -1,0 +1,25 @@
+-- Add new demand ingestion event types
+ALTER TYPE "EventType" ADD VALUE IF NOT EXISTS 'DEMANDA_CREADA';
+ALTER TYPE "EventType" ADD VALUE IF NOT EXISTS 'DEMANDA_MODIFICADA';
+ALTER TYPE "EventType" ADD VALUE IF NOT EXISTS 'DEMANDA_ESTADO_CAMBIADO';
+
+-- Create demand snapshots table
+CREATE TABLE IF NOT EXISTS "demand_snapshots" (
+  "codigo" TEXT NOT NULL,
+  "ref" TEXT NOT NULL DEFAULT '',
+  "nombre" TEXT NOT NULL DEFAULT '',
+  "estadoId" TEXT NOT NULL DEFAULT '',
+  "estadoNombre" TEXT NOT NULL DEFAULT '',
+  "presupuestoMin" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "presupuestoMax" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "habitacionesMin" INTEGER NOT NULL DEFAULT 0,
+  "tipos" TEXT NOT NULL DEFAULT '',
+  "zonas" TEXT NOT NULL DEFAULT '',
+  "fechaActualizacion" TEXT NOT NULL DEFAULT '',
+  "agente" TEXT NOT NULL DEFAULT '',
+  "raw" JSONB NOT NULL DEFAULT '{}',
+  "firstSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "lastSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "demand_snapshots_pkey" PRIMARY KEY ("codigo")
+);

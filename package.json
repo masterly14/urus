@@ -11,7 +11,11 @@
     "test:watch": "vitest",
     "prepare": "husky",
     "commitlint": "commitlint",
-    "inmovilla:login": "tsx scripts/inmovilla-login.ts"
+    "inmovilla:login": "tsx scripts/inmovilla-login.ts",
+    "inmovilla:read-properties": "tsx scripts/inmovilla-read-properties.ts",
+    "egestion:write": "tsx scripts/run-write-inmovilla.ts",
+    "ingestion:properties": "tsx scripts/run-ingestion-properties.ts",
+    "ingestion:demands": "tsx scripts/run-ingestion-demands.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",

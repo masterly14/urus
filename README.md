@@ -80,6 +80,7 @@ Dado que Inmovilla no emite notificaciones cuando algo ocurre, ni dispone de una
 
 Un proceso en segundo plano (`cron-job` en Node.js) que monitorea Inmovilla constantemente mediante:
 
+- **Orquestación de cron-jobs**: todos los cron-jobs del sistema se disparan con **Upstash QStash**.
 - **Polling programático**: consultas regulares a los endpoints de lectura disponibles.
 - **Scraping headless**: cuando no existe endpoint, un navegador headless (Playwright) extrae datos del DOM.
 
@@ -509,6 +510,7 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 |---|---|---|
 | Framework principal | **Next.js (App Router) + TypeScript** | API Routes como orquestador central |
 | Workers (Ingestion/Egestion) | **Node.js + Playwright** | Cron-jobs, polling, scraping headless, network interception |
+| Scheduler de cron-jobs | **Upstash QStash** | Disparo y orquestación de todos los cron-jobs del sistema |
 | Base de datos | **Neon (PostgreSQL serverless)** | Event store, job queue, estado transaccional |
 | Motor IA | **LangGraph + modelos o3** | Flujos agénticos: scoring, clasificación, recomendaciones |
 
@@ -1621,7 +1623,7 @@ El sistema ofrece lectura **estratégica**, no psicológica:
 
 | Worker | Tecnología | Función |
 |---|---|---|
-| Ingestion Worker | **Node.js + Playwright** (cron-job) | Polling + scraping headless de Inmovilla/Statefox |
+| Ingestion Worker | **Node.js + Playwright** (cron-job con **Upstash QStash**) | Polling + scraping headless de Inmovilla/Statefox |
 | Egestion Worker | **Node.js + fetch** (job queue) | Login silente, CSRF, XHR clonado hacia Inmovilla/Statefox |
 
 ### Integraciones Externas

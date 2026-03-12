@@ -1,7 +1,7 @@
 import type { Page, BrowserContext } from "playwright";
 import type { InmovillaSession } from "./types";
 
-function generateMiid(numAgencia: string, idUsuario: string): string {
+export function generateMiid(numAgencia: string, idUsuario: string): string {
   const now = new Date();
   const ts = [
     String(now.getFullYear()).slice(2),
