@@ -10,13 +10,26 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "husky",
-    "commitlint": "commitlint"
+    "commitlint": "commitlint",
+    "inmovilla:login": "tsx scripts/inmovilla-login.ts",
+    "inmovilla:read-properties": "tsx scripts/inmovilla-read-properties.ts",
+    "egestion:write": "tsx scripts/run-write-inmovilla.ts",
+    "ingestion:properties": "tsx scripts/run-ingestion-properties.ts",
+    "ingestion:demands": "tsx scripts/run-ingestion-demands.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "@composio/anthropic": "^0.6.4",
+    "@composio/core": "^0.6.4",
+    "@composio/openai-agents": "^0.6.4",
+    "@openai/agents": "^0.6.0",
     "@prisma/client": "^6.19.2",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3"
+  },
+  "overrides": {
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.4.3",
@@ -29,8 +42,10 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "husky": "^9.1.7",
+    "playwright": "^1.58.2",
     "prisma": "^6.19.2",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5",
     "vitest": "^4.0.18"
   }

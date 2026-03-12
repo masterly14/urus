@@ -4,22 +4,31 @@
 
 ---
 
-## Estado del repo (M0)
+## Estado del repo (M0 + M1 + M2)
 
-Infraestructura base ya implementada según el plan (Semana 1):
+Infraestructura base y workers de Inmovilla implementados según el plan (Semana 1–2):
 
 - **Event Store (Neon/PostgreSQL)**: tabla `events` (Prisma `Event`) + API en `lib/event-store/` (`appendEvent`, `getEventsByAggregate`, `getEventsSince`) con tests en `lib/event-store/__tests__/`.
 - **Job Queue (Neon/PostgreSQL)**: tabla `job_queue` (Prisma `JobQueue`) + API en `lib/job-queue/` (`enqueueJob`, `dequeueJob`, `markCompleted`, `markFailed`) con reintentos, idempotencia y tests de ciclo completo en `lib/job-queue/__tests__/`.
+- **Ingestion Worker (M1)**: lectura de propiedades y demandas desde Inmovilla vía `lib/inmovilla/api/` (paginación, normalización). Cron/scripts: `ingestion:properties`, `ingestion:demands`. Documentación: `docs/workers/inmovilla-endpoints.md`.
+- **Egestion Worker / escritura (M2)**: módulo `lib/inmovilla/write/` con `writeToInmovilla(operation, payload)` — operaciones tipadas (`createDemand`, `updateDemandEmail`, `updateDemandPriority`), parsing de respuestas legacy, verificación post-escritura y reintento por sesión expirada. Script: `egestion:write`.
 
 Documentación de decisiones:
 
 - `docs/adr/001-event-sourcing-sobre-crud.md`
 - `docs/adr/002-neon-como-job-queue.md`
 
+Escenario de migración a API REST (contactos, propiedades, propietarios) documentado en `docs/plan.md` — estrategia de transición sin romper el flujo actual.
+
 ### Comandos útiles
 
 - **Tests**: `npm test` (requiere `DATABASE_URL` configurada en el entorno).
 - **Build**: `npm run build`
+- **Inmovilla — login**: `npm run inmovilla:login` (requiere `INMOVILLA_USER`, `INMOVILLA_PASSWORD`, `INMOVILLA_OFFICE_KEY` y Composio/Gmail para 2FA).
+- **Inmovilla — lectura propiedades**: `npm run inmovilla:read-properties`
+- **Egestion — escritura en Inmovilla**: `npm run egestion:write -- <operation> [--headless] [--no-verify] [--json]` — operaciones: `createDemand`, `updateDemandEmail`, `updateDemandPriority` (ver variables/args en el script).
+- **Ingestion — propiedades**: `npm run ingestion:properties`
+- **Ingestion — demandas**: `npm run ingestion:demands`
 
 ## Tabla de Contenidos
 
@@ -80,6 +89,7 @@ Dado que Inmovilla no emite notificaciones cuando algo ocurre, ni dispone de una
 
 Un proceso en segundo plano (`cron-job` en Node.js) que monitorea Inmovilla constantemente mediante:
 
+- **Orquestación de cron-jobs**: todos los cron-jobs del sistema se disparan con **Upstash QStash**.
 - **Polling programático**: consultas regulares a los endpoints de lectura disponibles.
 - **Scraping headless**: cuando no existe endpoint, un navegador headless (Playwright) extrae datos del DOM.
 
@@ -87,12 +97,13 @@ Su trabajo: detectar cambios (por ejemplo, "el comercial cambió el estado a Res
 
 #### Egestion Worker (Escritura / Network Interception)
 
-Cuando la inteligencia artificial decide que hay que actualizar un dato en Inmovilla (subir un precio, adjuntar un PDF, crear un lead), este worker entra en acción. Mediante código TypeScript puro:
+Cuando la inteligencia artificial decide que hay que actualizar un dato en Inmovilla (subir un precio, crear un lead, modificar una demanda o cambiar un estado), este worker entra en acción. Mediante código TypeScript puro:
 
 1. Hace **login silente** con credenciales almacenadas.
-2. Captura las **Session Cookies**.
-3. Raspa el DOM para obtener el **token CSRF** dinámico.
-4. Dispara una **petición HTTP clonada** (XHR/Fetch) directamente a los endpoints internos de Inmovilla.
+2. Obtiene el **código 2FA** por correo: la integración con **Composio** dispara una acción sobre Gmail (listar/buscar correos de Inmovilla) y se extrae el código de 6 dígitos del último correo recibido (ver `docs/workers/inmovilla-endpoints.md`).
+3. Captura las **Session Cookies** y el **token de sesión** (`l`) tras completar el login en dos pasos (credenciales + verificación 2FA).
+4. Raspa el DOM si hace falta para **tokens dinámicos** adicionales.
+5. Dispara **peticiones HTTP clonadas** (XHR/Fetch) directamente a los endpoints internos de Inmovilla.
 
 Es una ejecución **determinista, centralizada y server-side**, a prueba de los fallos que tendría una extensión de navegador o una herramienta no-code.
 
@@ -139,10 +150,12 @@ Para evitar que clientes, colaboradores externos o comerciales peleen con la int
 | Canal | Implementación |
 |---|---|
 | **WhatsApp** | WhatsApp Business API (integración directa vía código) para precalificar compradores, seguimiento post-venta y notificaciones de matches |
-| **Micro-Frontends** | Rutas dinámicas en Next.js donde un gestor de banco sube un documento, o un comercial valida un enlace de Statefox en 30 segundos |
+| **Micro-Frontends** | Rutas dinámicas en Next.js para flujos propios que Inmovilla no modela bien, como estados tipo kanban de colaboradores, subida documental y validaciones rápidas del equipo |
 | **Notificaciones internas** | Webhooks propios hacia Slack/WhatsApp del equipo |
 
-Una vez que el usuario interactúa con la interfaz ligera, la información viaja a la **Capa 3** para ser procesada y, finalmente, escrita en Inmovilla por la **Capa 2**.
+Una vez que el usuario interactúa con la interfaz ligera, la información viaja a la **Capa 3** para ser procesada y, finalmente, escrita en Inmovilla por la **Capa 2** cuando sea necesario persistir el resultado final en el CRM.
+
+Esto es especialmente importante en el flujo de colaboradores: como Inmovilla está especializado para procesos inmobiliarios tradicionales y no ofrece una forma flexible de modelar tableros tipo kanban, hitos operativos y movimientos de estado personalizados, ese flujo vive en un **micro-frontend propio** con Neon como fuente operativa. Inmovilla queda como sistema de persistencia final, no como interfaz principal del proceso.
 
 ---
 
@@ -506,6 +519,7 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 |---|---|---|
 | Framework principal | **Next.js (App Router) + TypeScript** | API Routes como orquestador central |
 | Workers (Ingestion/Egestion) | **Node.js + Playwright** | Cron-jobs, polling, scraping headless, network interception |
+| Scheduler de cron-jobs | **Upstash QStash** | Disparo y orquestación de todos los cron-jobs del sistema |
 | Base de datos | **Neon (PostgreSQL serverless)** | Event store, job queue, estado transaccional |
 | Motor IA | **LangGraph + modelos o3** | Flujos agénticos: scoring, clasificación, recomendaciones |
 
@@ -533,6 +547,13 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 | Booking | Micro-frontend Next.js con integración Google Calendar API |
 | Confirmación | Automática vía WhatsApp Business API |
 | Registro en CRM | `Egestion Worker` escribe cita en Inmovilla |
+
+### Autenticación Inmovilla (login automático y 2FA)
+
+| Componente | Implementación |
+|---|---|
+| Login en dos pasos | POST a `comprueba.php` (credenciales) + POST a `login2Fa/verifyCode` (código 2FA). Ver `docs/workers/inmovilla-endpoints.md`. |
+| Código 2FA por correo | **Composio**: conexión Gmail (OAuth), acción de listado/búsqueda de correos filtrada por remitente Inmovilla; extracción del código de 6 dígitos del último correo; envío al endpoint de verificación. Permite login totalmente automatizado sin intervención manual. |
 
 ### Documentación y Plantillas
 
@@ -1290,7 +1311,7 @@ Se registra automáticamente:
 - Tiempos de respuesta.
 - Resultado final (aprobado / rechazado / retrasado).
 
-Los datos se capturan tanto por el `Ingestion Worker` (si el colaborador interactúa con Inmovilla) como por los **micro-frontends de Next.js** donde los colaboradores suben documentos e interactúan.
+Los datos se capturan principalmente por los **micro-frontends de Next.js** donde los colaboradores suben documentos, avanzan hitos y cambian estados. El `Ingestion Worker` queda para reconciliar o leer cambios finales ya persistidos en Inmovilla cuando aplique.
 
 > **Regla clave:** ningún colaborador trabaja fuera del sistema.
 
@@ -1611,13 +1632,14 @@ El sistema ofrece lectura **estratégica**, no psicológica:
 
 | Worker | Tecnología | Función |
 |---|---|---|
-| Ingestion Worker | **Node.js + Playwright** (cron-job) | Polling + scraping headless de Inmovilla/Statefox |
+| Ingestion Worker | **Node.js + Playwright** (cron-job con **Upstash QStash**) | Polling + scraping headless de Inmovilla/Statefox |
 | Egestion Worker | **Node.js + fetch** (job queue) | Login silente, CSRF, XHR clonado hacia Inmovilla/Statefox |
 
 ### Integraciones Externas
 
 | Servicio | Proveedor | Integración |
 |---|---|---|
+| **Autenticación Inmovilla (2FA)** | **Composio + Gmail** | Obtención automática del código de verificación por correo: acción Composio sobre Gmail (listar/buscar correos de Inmovilla), extracción del código de 6 dígitos, envío al endpoint `login2Fa/verifyCode`. Ver `docs/workers/inmovilla-endpoints.md`. |
 | WhatsApp Business | **360dialog / Twilio / MessageBird** | API directa desde código (webhooks + envíos) |
 | Firma digital | **Signaturit / DocuSign** | API REST desde Next.js |
 | Calendario | **Google Calendar API** | Micro-frontend de booking |

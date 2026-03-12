@@ -27,6 +27,9 @@ enum EventType {
   PROPIEDAD_CREADA
   PROPIEDAD_MODIFICADA
   ESTADO_CAMBIADO
+  DEMANDA_CREADA
+  DEMANDA_MODIFICADA
+  DEMANDA_ESTADO_CAMBIADO
   LEAD_INGESTADO
   SLA_INICIADO
   DEMANDA_ACTUALIZADA
@@ -112,4 +115,53 @@ model ProjectionCheckpoint {
   updatedAt          DateTime       @updatedAt
 
   @@map("projections_checkpoint")
+}
+
+model PropertySnapshot {
+  codigo             String   @id
+  ref                String
+  titulo             String   @default("")
+  tipoOfer           String   @default("")
+  precio             Float    @default(0)
+  metrosConstruidos  Float    @default(0)
+  habitaciones       Int      @default(0)
+  banyos             Int      @default(0)
+  ciudad             String   @default("")
+  zona               String   @default("")
+  estado             String   @default("")
+  fechaAlta          String   @default("")
+  fechaActualizacion String   @default("")
+  numFotos           Int      @default(0)
+  agente             String   @default("")
+  raw                Json     @default("{}")
+  firstSeenAt        DateTime @default(now())
+  lastSeenAt         DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("property_snapshots")
+}
+
+model DemandSnapshot {
+  codigo             String   @id
+  ref                String   @default("")
+  nombre             String   @default("")
+  estadoId           String   @default("")
+  estadoNombre       String   @default("")
+  presupuestoMin     Float    @default(0)
+  presupuestoMax     Float    @default(0)
+  habitacionesMin    Int      @default(0)
+  tipos              String   @default("")
+  zonas              String   @default("")
+  fechaActualizacion String   @default("")
+  agente             String   @default("")
+  raw                Json     @default("{}")
+  firstSeenAt        DateTime @default(now())
+  lastSeenAt         DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("demand_snapshots")
+}
+
+model User {
+  id String @id @default(cuid())
 }
