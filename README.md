@@ -4,22 +4,31 @@
 
 ---
 
-## Estado del repo (M0)
+## Estado del repo (M0 + M1 + M2)
 
-Infraestructura base ya implementada según el plan (Semana 1):
+Infraestructura base y workers de Inmovilla implementados según el plan (Semana 1–2):
 
 - **Event Store (Neon/PostgreSQL)**: tabla `events` (Prisma `Event`) + API en `lib/event-store/` (`appendEvent`, `getEventsByAggregate`, `getEventsSince`) con tests en `lib/event-store/__tests__/`.
 - **Job Queue (Neon/PostgreSQL)**: tabla `job_queue` (Prisma `JobQueue`) + API en `lib/job-queue/` (`enqueueJob`, `dequeueJob`, `markCompleted`, `markFailed`) con reintentos, idempotencia y tests de ciclo completo en `lib/job-queue/__tests__/`.
+- **Ingestion Worker (M1)**: lectura de propiedades y demandas desde Inmovilla vía `lib/inmovilla/api/` (paginación, normalización). Cron/scripts: `ingestion:properties`, `ingestion:demands`. Documentación: `docs/workers/inmovilla-endpoints.md`.
+- **Egestion Worker / escritura (M2)**: módulo `lib/inmovilla/write/` con `writeToInmovilla(operation, payload)` — operaciones tipadas (`createDemand`, `updateDemandEmail`, `updateDemandPriority`), parsing de respuestas legacy, verificación post-escritura y reintento por sesión expirada. Script: `egestion:write`.
 
 Documentación de decisiones:
 
 - `docs/adr/001-event-sourcing-sobre-crud.md`
 - `docs/adr/002-neon-como-job-queue.md`
 
+Escenario de migración a API REST (contactos, propiedades, propietarios) documentado en `docs/plan.md` — estrategia de transición sin romper el flujo actual.
+
 ### Comandos útiles
 
 - **Tests**: `npm test` (requiere `DATABASE_URL` configurada en el entorno).
 - **Build**: `npm run build`
+- **Inmovilla — login**: `npm run inmovilla:login` (requiere `INMOVILLA_USER`, `INMOVILLA_PASSWORD`, `INMOVILLA_OFFICE_KEY` y Composio/Gmail para 2FA).
+- **Inmovilla — lectura propiedades**: `npm run inmovilla:read-properties`
+- **Egestion — escritura en Inmovilla**: `npm run egestion:write -- <operation> [--headless] [--no-verify] [--json]` — operaciones: `createDemand`, `updateDemandEmail`, `updateDemandPriority` (ver variables/args en el script).
+- **Ingestion — propiedades**: `npm run ingestion:properties`
+- **Ingestion — demandas**: `npm run ingestion:demands`
 
 ## Tabla de Contenidos
 
