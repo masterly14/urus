@@ -47,10 +47,10 @@ export type PropiedadCompleta = {
   [key: string]: unknown;
 };
 
-/** Payload mínimo para POST /propiedades/ (crear propiedad). */
+/** Payload mínimo para POST /propiedades/ (crear propiedad). keyacci es obligatorio en la API. */
 export type CreatePropertyPayload = {
   ref: string;
-  keyacci?: number;
+  keyacci: number;
   key_tipo: number;
   key_loca: number | string;
   nodisponible?: boolean;
