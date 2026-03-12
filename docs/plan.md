@@ -99,6 +99,37 @@ El principio fundacional es la **Segregación de Responsabilidades**. Inmovilla 
 
 ---
 
+### Escenario estratégico: Inmovilla publica API REST (CRUD)
+
+Si Inmovilla habilita una API REST oficial para contactos, propiedades y propietarios, el principio de segregación de responsabilidades se mantiene, pero la implementación cambia de forma relevante:
+
+- **Se mantiene:** Capa 3 (Event Store, Job Queue, reglas de negocio e IA), observabilidad, SLAs, idempotencia y proyecciones.
+- **Se reduce:** Capa 2 de intercepción (login silente, CSRF, clonación de XHR, parsing de respuestas legacy).
+- **Se reemplaza:** adaptadores de escritura/lectura basados en endpoints internos por clientes REST versionados.
+
+#### Impacto por módulo
+
+| Módulo | Impacto con API REST |
+|---|---|
+| M1 (Ingestion) | Pasa de polling/scraping híbrido a conectores API + polling más simple por cambios incrementales. |
+| M2 (Egestion) | Pasa de network interception a cliente REST autenticado con contratos estables y códigos de error tipados. |
+| M5/M6/M8 | Mantienen lógica funcional; cambian solo sus drivers de persistencia a Inmovilla. |
+| M14 (Hardening) | Reenfoca esfuerzo desde resiliencia de scraping hacia resiliencia de integraciones API (rate limits, retries, backoff, circuit breaker). |
+
+#### Plan de migración recomendado (sin parar operación)
+
+1. Definir un puerto interno de integración (`InmovillaReadPort` / `InmovillaWritePort`) para desacoplar la lógica de negocio.
+2. Mantener el adaptador actual (legacy) y añadir adaptador REST en paralelo.
+3. Activar por feature flag (`INMOVILLA_MODE=legacy|rest|hybrid`) con fallback automático.
+4. Migrar por entidad en este orden: contactos → propiedades → propietarios.
+5. Ejecutar verificación dual temporal (REST vs legacy) en staging para validar consistencia antes de apagar flujos legacy.
+
+#### Riesgo principal en este escenario
+
+Aunque la API REST reduzca fragilidad operativa, aumenta la dependencia de contratos externos versionados. Por ello, se exige versionado de clientes, tests de contrato y fallback operativo a modo legacy mientras dure la transición.
+
+---
+
 ## Stack Técnico
 
 ### Core

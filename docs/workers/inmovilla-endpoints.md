@@ -1313,6 +1313,20 @@ Usar POST /new/app/api/v1/paginacion/ con paramjson (ver § 7.4):
 5. Para detección de cambios, comparar fechaact de cada cod_dem entre polls.
 6. Cada demanda incluye datos del cliente embebidos (nombre, email, teléfono, keycli).
 
+### Mapping de operaciones para `writeToInmovilla` (M2 v1)
+
+| Operación | Endpoint principal | Pre-step | Verificación post-write |
+|-----------|--------------------|----------|--------------------------|
+| `createDemand` | `POST /new/app/guardar/guardar.php?...&SoyNuevo=1...` | `POST /new/app/api/v1/fichas/demandas/index.php` (catálogo opcional) | `POST /new/app/cargas/fichacliente/fichacliente.php` por `cod_dem` |
+| `updateDemandEmail` | `POST /new/app/guardar/guardar.php?...` (sin `SoyNuevo`) | `POST /new/app/cargas/compruebacontacto.php` | `POST /new/app/cargas/fichacliente/fichacliente.php` y validar `clientes.email` |
+| `updateDemandPriority` | `POST /new/app/guardar/guardar.php?...` (sin `SoyNuevo`) | Ninguno | `POST /new/app/cargas/fichacliente/fichacliente.php` y validar `demandas.prioridad` |
+
+#### Señales de éxito/error en `guardar.php`
+
+- **Éxito frecuente:** `tmprecibido='...'` y `hayerrores=0`
+- **Éxito adicional (algunos updates):** prefijo `//exito;N`
+- **Error:** `hayerrores=1` y mensaje en `hayerrorestxt`
+
 ---
 
 ## 10. Placeholders de seguridad
