@@ -99,6 +99,37 @@ El principio fundacional es la **Segregación de Responsabilidades**. Inmovilla 
 
 ---
 
+### Escenario estratégico: Inmovilla publica API REST (CRUD)
+
+Si Inmovilla habilita una API REST oficial para contactos, propiedades y propietarios, el principio de segregación de responsabilidades se mantiene, pero la implementación cambia de forma relevante:
+
+- **Se mantiene:** Capa 3 (Event Store, Job Queue, reglas de negocio e IA), observabilidad, SLAs, idempotencia y proyecciones.
+- **Se reduce:** Capa 2 de intercepción (login silente, CSRF, clonación de XHR, parsing de respuestas legacy).
+- **Se reemplaza:** adaptadores de escritura/lectura basados en endpoints internos por clientes REST versionados.
+
+#### Impacto por módulo
+
+| Módulo | Impacto con API REST |
+|---|---|
+| M1 (Ingestion) | Pasa de polling/scraping híbrido a conectores API + polling más simple por cambios incrementales. |
+| M2 (Egestion) | Pasa de network interception a cliente REST autenticado con contratos estables y códigos de error tipados. |
+| M5/M6/M8 | Mantienen lógica funcional; cambian solo sus drivers de persistencia a Inmovilla. |
+| M14 (Hardening) | Reenfoca esfuerzo desde resiliencia de scraping hacia resiliencia de integraciones API (rate limits, retries, backoff, circuit breaker). |
+
+#### Plan de migración recomendado (sin parar operación)
+
+1. Definir un puerto interno de integración (`InmovillaReadPort` / `InmovillaWritePort`) para desacoplar la lógica de negocio.
+2. Mantener el adaptador actual (legacy) y añadir adaptador REST en paralelo.
+3. Activar por feature flag (`INMOVILLA_MODE=legacy|rest|hybrid`) con fallback automático.
+4. Migrar por entidad en este orden: contactos → propiedades → propietarios.
+5. Ejecutar verificación dual temporal (REST vs legacy) en staging para validar consistencia antes de apagar flujos legacy.
+
+#### Riesgo principal en este escenario
+
+Aunque la API REST reduzca fragilidad operativa, aumenta la dependencia de contratos externos versionados. Por ello, se exige versionado de clientes, tests de contrato y fallback operativo a modo legacy mientras dure la transición.
+
+---
+
 ## Stack Técnico
 
 ### Core
@@ -474,6 +505,8 @@ Formato:
 **Nota de alcance:** el flujo de colaboradores externos (banco, abogado, tasador, etc.) se implementará mediante un **micro-frontend propio** con Neon como estado operativo. Motivo: Inmovilla está optimizado para flujos inmobiliarios estándar y no ofrece una forma flexible de crear tableros tipo kanban ni de modelar hitos/estados personalizados como requiere ese proceso. Por tanto, en el Día 2 la ingeniería inversa debe centrarse en las operaciones core que sí se leerán/escribirán directamente en Inmovilla; no es necesario cubrir subida documental del flujo de colaboradores en `docs/workers/inmovilla-endpoints.md`.
 
 #### Miércoles (Día 3) — M1 + M2: Workers de Lectura y Escritura
+
+**Decisión de infraestructura:** todos los cron-jobs del plan (ingesta, cadencias, alertas y triggers temporales) se orquestan con **Upstash QStash**.
 
 | Bloque | Horario | Tarea | Entregable |
 |---|---|---|---|
@@ -1210,6 +1243,7 @@ Formato:
 | **Egestion Worker** | Proceso server-side que escribe datos en Inmovilla/Statefox mediante network interception (login silente → cookies → CSRF → XHR clonado). |
 | **Event Store** | Tabla en Neon donde se persisten todos los eventos del sistema como registros inmutables. |
 | **Job Queue** | Tabla en Neon que gestiona tareas asíncronas con reintentos, idempotencia y dead-letter queue. |
+| **Cron Scheduler** | **Upstash QStash** se usa para disparar y orquestar todos los cron-jobs del sistema. |
 | **Proyección** | Vista materializada del estado actual, calculada a partir de los eventos del Event Store. |
 | **Smart Matching** | Módulo de IA (LangGraph) que interpreta respuestas de texto libre y ajusta demandas automáticamente en Inmovilla. |
 | **Smart Closing** | Sistema de generación de contratos con variables + revisión por voz (STT + LangGraph) + firma digital. |
