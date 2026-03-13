@@ -47,10 +47,10 @@ export type PropiedadCompleta = {
   [key: string]: unknown;
 };
 
-/** Payload mínimo para POST /propiedades/ (crear propiedad). */
+/** Payload mínimo para POST /propiedades/ (crear propiedad). keyacci es obligatorio en la API. */
 export type CreatePropertyPayload = {
   ref: string;
-  keyacci?: number;
+  keyacci: number;
   key_tipo: number;
   key_loca: number | string;
   nodisponible?: boolean;
@@ -171,3 +171,76 @@ export type SearchClientParams = {
   telefono?: string;
   email?: string;
 };
+
+// --- Enums / Catálogos (GET /enums/?...) ---
+
+/**
+ * Respuesta de GET /enums/?calidades.
+ * Listado de campos booleanos (true/false) para propiedades.
+ */
+export type EnumCalidadItem = {
+  campo: string;
+  valores: string;
+};
+
+/**
+ * Respuesta de GET /enums/?tipos (un tipo).
+ * Ej.: keyacci, key_tipo, key_loca, key_zona, keycarpin...
+ */
+export type EnumTipoItem = {
+  nombre: string;
+  valor: number;
+};
+
+/**
+ * Respuesta completa de GET /enums/?tipos.
+ * Claves: keyacci, key_tipo, key_loca, key_zona, keycarpin, etc.
+ */
+export type EnumTiposResponse = Record<string, EnumTipoItem[]>;
+
+/**
+ * Respuesta de GET /enums/?paises.
+ * valor se usa en GET /enums/?ciudades={pais}.
+ */
+export type EnumPaisItem = {
+  pais: string;
+  valor: string;
+  iso2: string;
+  iso3: string;
+};
+
+/**
+ * Ciudad dentro de GET /enums/?ciudades (o ?ciudades={pais}).
+ */
+export type EnumCiudadItem = {
+  ciudad: string;
+  key_loca: number;
+};
+
+/**
+ * Respuesta de GET /enums/?ciudades o GET /enums/?ciudades={pais}.
+ * Por defecto España; pais opcional numérico (valor de paises).
+ */
+export type EnumCiudadesProvinciaItem = {
+  pais?: number;
+  provincia: string;
+  cod_prov: number;
+  ciudades: EnumCiudadItem[];
+};
+
+/**
+ * Item de zona en GET /enums/?zonas={key_loca} o ?zonas=key1,key2.
+ * La API puede devolver "zona" o "ciudad" según el caso; key_zona y key_loca opcionales.
+ */
+export type EnumZonaItem = {
+  zona?: string;
+  ciudad?: string;
+  key_zona?: number;
+  key_loca?: number;
+};
+
+/**
+ * Respuesta de GET /enums/?zonas={key_loca} o ?zonas=key1,key2.
+ * Clave = key_loca como string; valor = array de zonas.
+ */
+export type EnumZonasResponse = Record<string, EnumZonaItem[]>;

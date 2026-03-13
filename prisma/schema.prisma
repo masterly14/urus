@@ -165,3 +165,65 @@ model DemandSnapshot {
 model User {
   id String @id @default(cuid())
 }
+
+// --- Catálogos Inmovilla (cache de GET /enums/?...) ---
+// Escritura por script de sincronización; lectura por catalogs.ts (key_loca, key_tipo, key_zona).
+
+model InmovillaEnumCalidad {
+  id        String   @id @default(cuid())
+  campo     String
+  valores   String
+  updatedAt DateTime @updatedAt
+
+  @@unique([campo])
+  @@map("inmovilla_enum_calidad")
+}
+
+model InmovillaEnumTipo {
+  id        String   @id @default(cuid())
+  tipo      String   // ej. key_tipo, keyacci
+  nombre    String
+  valor     Int
+  updatedAt DateTime @updatedAt
+
+  @@index([tipo, valor])
+  @@map("inmovilla_enum_tipo")
+}
+
+model InmovillaEnumPais {
+  id        String   @id @default(cuid())
+  pais      String
+  valor     String
+  iso2     String
+  iso3     String
+  updatedAt DateTime @updatedAt
+
+  @@unique([valor])
+  @@map("inmovilla_enum_pais")
+}
+
+model InmovillaEnumCiudad {
+  id          String   @id @default(cuid())
+  key_loca    Int      @unique
+  ciudad      String
+  provincia   String
+  cod_prov    Int
+  pais_valor  String?
+  updatedAt   DateTime @updatedAt
+
+  @@index([key_loca])
+  @@index([ciudad, provincia])
+  @@map("inmovilla_enum_ciudad")
+}
+
+model InmovillaEnumZona {
+  id        String   @id @default(cuid())
+  key_zona  Int
+  key_loca  Int
+  zona      String
+  updatedAt DateTime @updatedAt
+
+  @@unique([key_loca, key_zona])
+  @@index([key_loca, key_zona])
+  @@map("inmovilla_enum_zona")
+}

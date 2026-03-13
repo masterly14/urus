@@ -7,6 +7,24 @@ export { createInmovillaRestClient } from "./client";
 export type { InmovillaRestClient, InmovillaRestClientConfig } from "./client";
 export { getProperty, createProperty } from "./properties";
 export { getClient, createClient, searchClient } from "./clients";
+export {
+  getCalidades,
+  getTipos,
+  getTiposByTipo,
+  getPaises,
+  getCiudades,
+  getZonas,
+} from "./enums";
+export { syncEnums, throttle } from "./sync-enums";
+export type { SyncEnumsOptions } from "./sync-enums";
+export {
+  getKeyLocaByCiudad,
+  getKeyTipoByNombre,
+  getKeyZonaByZonaAndKeyLoca,
+  getCiudadesByPais,
+  getZonasByKeyLoca,
+} from "./catalogs";
+export type { CatalogSearchParams } from "./catalogs";
 export type {
   PropiedadListadoItem,
   InmovillaRestListadoItem,
@@ -19,4 +37,12 @@ export type {
   Cliente,
   ClienteAgente,
   SearchClientParams,
+  EnumCalidadItem,
+  EnumTipoItem,
+  EnumTiposResponse,
+  EnumPaisItem,
+  EnumCiudadItem,
+  EnumCiudadesProvinciaItem,
+  EnumZonaItem,
+  EnumZonasResponse,
 } from "./types";

@@ -30,7 +30,6 @@ Formato:
 
 Reglas:
 - Commits **atómicos**: un commit = un cambio lógico. Prohibido "arreglos varios" o "WIP".
-- Todo commit debe compilar (`npm run build` sin errores).
 - Nunca commitear secretos, `.env`, credenciales o tokens.
 - El alcance usa el ID del módulo cuando aplique (M0–M14) o `deps`, `ci`, etc.
 

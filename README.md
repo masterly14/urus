@@ -20,6 +20,8 @@ Documentación de decisiones:
 
 Escenario de migración a API REST (contactos, propiedades, propietarios) documentado en `docs/plan.md` — estrategia de transición sin romper el flujo actual.
 
+- **Catálogos Inmovilla (enums vía REST)**: `key_loca`, `key_tipo`, `key_zona` se resuelven desde Neon; sincronización con `scripts/sync-inmovilla-enums.ts` (rate limit 2/min). Lectura: `lib/inmovilla/rest/catalogs.ts`. Ver `docs/catalogos-inmovilla.md`.
+
 ### Comandos útiles
 
 - **Tests**: `npm test` (requiere `DATABASE_URL` configurada en el entorno).
@@ -29,6 +31,7 @@ Escenario de migración a API REST (contactos, propiedades, propietarios) docume
 - **Egestion — escritura en Inmovilla**: `npm run egestion:write -- <operation> [--headless] [--no-verify] [--json]` — operaciones: `createDemand`, `updateDemandEmail`, `updateDemandPriority` (ver variables/args en el script).
 - **Ingestion — propiedades**: `npm run ingestion:properties`
 - **Ingestion — demandas**: `npm run ingestion:demands`
+- **Sincronizar catálogos Inmovilla (enums)**: `npm run inmovilla:sync-enums` (opción `--skip-zonas` para omitir zonas). Requiere `INMOVILLA_API_TOKEN` y `DATABASE_URL`.
 
 ## Tabla de Contenidos
 
