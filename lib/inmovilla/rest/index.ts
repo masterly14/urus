@@ -15,6 +15,8 @@ export {
   getCiudades,
   getZonas,
 } from "./enums";
+export { syncEnums, throttle } from "./sync-enums";
+export type { SyncEnumsOptions } from "./sync-enums";
 export type {
   PropiedadListadoItem,
   InmovillaRestListadoItem,

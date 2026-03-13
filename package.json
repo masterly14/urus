@@ -13,6 +13,7 @@
     "commitlint": "commitlint",
     "inmovilla:login": "tsx scripts/inmovilla-login.ts",
     "inmovilla:read-properties": "tsx scripts/inmovilla-read-properties.ts",
+    "inmovilla:sync-enums": "tsx scripts/sync-inmovilla-enums.ts",
     "egestion:write": "tsx scripts/run-write-inmovilla.ts",
     "ingestion:properties": "tsx scripts/run-ingestion-properties.ts",
     "ingestion:demands": "tsx scripts/run-ingestion-demands.ts"
