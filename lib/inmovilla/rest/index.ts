@@ -17,6 +17,14 @@ export {
 } from "./enums";
 export { syncEnums, throttle } from "./sync-enums";
 export type { SyncEnumsOptions } from "./sync-enums";
+export {
+  getKeyLocaByCiudad,
+  getKeyTipoByNombre,
+  getKeyZonaByZonaAndKeyLoca,
+  getCiudadesByPais,
+  getZonasByKeyLoca,
+} from "./catalogs";
+export type { CatalogSearchParams } from "./catalogs";
 export type {
   PropiedadListadoItem,
   InmovillaRestListadoItem,
