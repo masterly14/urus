@@ -7,6 +7,14 @@ export { createInmovillaRestClient } from "./client";
 export type { InmovillaRestClient, InmovillaRestClientConfig } from "./client";
 export { getProperty, createProperty } from "./properties";
 export { getClient, createClient, searchClient } from "./clients";
+export {
+  getCalidades,
+  getTipos,
+  getTiposByTipo,
+  getPaises,
+  getCiudades,
+  getZonas,
+} from "./enums";
 export type {
   PropiedadListadoItem,
   InmovillaRestListadoItem,
@@ -19,4 +27,12 @@ export type {
   Cliente,
   ClienteAgente,
   SearchClientParams,
+  EnumCalidadItem,
+  EnumTipoItem,
+  EnumTiposResponse,
+  EnumPaisItem,
+  EnumCiudadItem,
+  EnumCiudadesProvinciaItem,
+  EnumZonaItem,
+  EnumZonasResponse,
 } from "./types";
