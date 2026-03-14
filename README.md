@@ -31,7 +31,11 @@ Escenario de migración a API REST (contactos, propiedades, propietarios) docume
 - **Egestion — escritura en Inmovilla**: `npm run egestion:write -- <operation> [--headless] [--no-verify] [--json]` — operaciones: `createDemand`, `updateDemandEmail`, `updateDemandPriority` (ver variables/args en el script).
 - **Ingestion — propiedades**: `npm run ingestion:properties`
 - **Ingestion — demandas**: `npm run ingestion:demands`
+- **Consumer (procesador de eventos)**: `npm run consumer` — procesa jobs `PROCESS_EVENT` y encola proyecciones.
+- **Proyecciones (worker)**: `npm run projections` — materializa estado actual en `properties_current` y `demands_current` desde la job queue (`UPDATE_PROPERTY_PROJECTION`, `UPDATE_DEMAND_PROJECTION`). Cron: `POST /api/cron/projections` (requiere `CRON_SECRET`).
 - **Sincronizar catálogos Inmovilla (enums)**: `npm run inmovilla:sync-enums` (opción `--skip-zonas` para omitir zonas). Requiere `INMOVILLA_API_TOKEN` y `DATABASE_URL`.
+
+**Contribuir:** ramas, commits, PRs y releases siguen la [Guía de contribución (CONTRIBUTING.md)](CONTRIBUTING.md).
 
 ## Tabla de Contenidos
 
