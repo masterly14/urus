@@ -5,8 +5,6 @@
 
 export { createInmovillaRestClient } from "./client";
 export type { InmovillaRestClient, InmovillaRestClientConfig } from "./client";
-export { getProperty, createProperty } from "./properties";
-export { getClient, createClient, searchClient } from "./clients";
 export type {
   PropiedadListadoItem,
   InmovillaRestListadoItem,
