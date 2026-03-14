@@ -27,6 +27,9 @@ enum EventType {
   PROPIEDAD_CREADA
   PROPIEDAD_MODIFICADA
   ESTADO_CAMBIADO
+  DEMANDA_CREADA
+  DEMANDA_MODIFICADA
+  DEMANDA_ESTADO_CAMBIADO
   LEAD_INGESTADO
   SLA_INICIADO
   DEMANDA_ACTUALIZADA
@@ -112,4 +115,115 @@ model ProjectionCheckpoint {
   updatedAt          DateTime       @updatedAt
 
   @@map("projections_checkpoint")
+}
+
+model PropertySnapshot {
+  codigo             String   @id
+  ref                String
+  titulo             String   @default("")
+  tipoOfer           String   @default("")
+  precio             Float    @default(0)
+  metrosConstruidos  Float    @default(0)
+  habitaciones       Int      @default(0)
+  banyos             Int      @default(0)
+  ciudad             String   @default("")
+  zona               String   @default("")
+  estado             String   @default("")
+  fechaAlta          String   @default("")
+  fechaActualizacion String   @default("")
+  numFotos           Int      @default(0)
+  agente             String   @default("")
+  raw                Json     @default("{}")
+  firstSeenAt        DateTime @default(now())
+  lastSeenAt         DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("property_snapshots")
+}
+
+model DemandSnapshot {
+  codigo             String   @id
+  ref                String   @default("")
+  nombre             String   @default("")
+  estadoId           String   @default("")
+  estadoNombre       String   @default("")
+  presupuestoMin     Float    @default(0)
+  presupuestoMax     Float    @default(0)
+  habitacionesMin    Int      @default(0)
+  tipos              String   @default("")
+  zonas              String   @default("")
+  fechaActualizacion String   @default("")
+  agente             String   @default("")
+  raw                Json     @default("{}")
+  firstSeenAt        DateTime @default(now())
+  lastSeenAt         DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("demand_snapshots")
+}
+
+model User {
+  id String @id @default(cuid())
+}
+
+// --- Catálogos Inmovilla (cache de GET /enums/?...) ---
+// Escritura por script de sincronización; lectura por catalogs.ts (key_loca, key_tipo, key_zona).
+
+model InmovillaEnumCalidad {
+  id        String   @id @default(cuid())
+  campo     String
+  valores   String
+  updatedAt DateTime @updatedAt
+
+  @@unique([campo])
+  @@map("inmovilla_enum_calidad")
+}
+
+model InmovillaEnumTipo {
+  id        String   @id @default(cuid())
+  tipo      String   // ej. key_tipo, keyacci
+  nombre    String
+  valor     Int
+  updatedAt DateTime @updatedAt
+
+  @@index([tipo, valor])
+  @@map("inmovilla_enum_tipo")
+}
+
+model InmovillaEnumPais {
+  id        String   @id @default(cuid())
+  pais      String
+  valor     String
+  iso2     String
+  iso3     String
+  updatedAt DateTime @updatedAt
+
+  @@unique([valor])
+  @@map("inmovilla_enum_pais")
+}
+
+model InmovillaEnumCiudad {
+  id          String   @id @default(cuid())
+  key_loca    Int      @unique
+  ciudad      String
+  provincia   String
+  cod_prov    Int
+  pais_valor  String?
+  updatedAt   DateTime @updatedAt
+
+  @@index([key_loca])
+  @@index([ciudad, provincia])
+  @@map("inmovilla_enum_ciudad")
+}
+
+model InmovillaEnumZona {
+  id        String   @id @default(cuid())
+  key_zona  Int
+  key_loca  Int
+  zona      String
+  updatedAt DateTime @updatedAt
+
+  @@unique([key_loca, key_zona])
+  @@index([key_loca, key_zona])
+  @@map("inmovilla_enum_zona")
 }
