@@ -3,12 +3,17 @@ import type { InmovillaProperty } from "@/lib/inmovilla/api/types";
 import type { PropertyDiffResult } from "../types";
 import { publishEventsForDiff } from "../event-publisher";
 
-const { appendEventMock } = vi.hoisted(() => ({
+const { appendEventMock, enqueueJobMock } = vi.hoisted(() => ({
   appendEventMock: vi.fn(),
+  enqueueJobMock: vi.fn(),
 }));
 
 vi.mock("@/lib/event-store", () => ({
   appendEvent: appendEventMock,
+}));
+
+vi.mock("@/lib/job-queue", () => ({
+  enqueueJob: enqueueJobMock,
 }));
 
 function makeProperty(
@@ -39,7 +44,9 @@ function makeProperty(
 describe("publishEventsForDiff", () => {
   beforeEach(() => {
     appendEventMock.mockReset();
-    appendEventMock.mockResolvedValue({ id: "evt-1" });
+    enqueueJobMock.mockReset();
+    appendEventMock.mockResolvedValue({ id: "evt-1", type: "PROPIEDAD_CREADA" });
+    enqueueJobMock.mockResolvedValue({ id: "job-1" });
   });
 
   it("debe publicar los 3 tipos de evento con correlationId y metadata", async () => {

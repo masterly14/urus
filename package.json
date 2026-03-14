@@ -16,7 +16,9 @@
     "inmovilla:sync-enums": "tsx scripts/sync-inmovilla-enums.ts",
     "egestion:write": "tsx scripts/run-write-inmovilla.ts",
     "ingestion:properties": "tsx scripts/run-ingestion-properties.ts",
-    "ingestion:demands": "tsx scripts/run-ingestion-demands.ts"
+    "ingestion:demands": "tsx scripts/run-ingestion-demands.ts",
+    "consumer": "tsx scripts/run-consumer.ts",
+    "projections": "tsx scripts/run-projections.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",

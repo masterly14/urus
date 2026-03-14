@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { appendEvent } from "@/lib/event-store";
+import { enqueueJob } from "@/lib/job-queue";
 import type { InmovillaDemand } from "@/lib/inmovilla/api/types-demands";
 import type { DemandDiffResult } from "./types";
 import type {
@@ -124,13 +125,20 @@ export async function publishDemandEventsForDiff(
       changedFields: candidate.changedFields,
     };
 
-    await appendEvent({
+    const event = await appendEvent({
       type: candidate.eventType,
       aggregateType: "DEMAND",
       aggregateId: candidate.aggregateId,
       payload: candidate.payload,
       metadata,
       correlationId: cycleId,
+    });
+
+    await enqueueJob({
+      type: "PROCESS_EVENT",
+      payload: { eventId: event.id, eventType: event.type },
+      sourceEventId: event.id,
+      idempotencyKey: `process-event:${event.id}`,
     });
 
     console.log(
