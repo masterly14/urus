@@ -162,6 +162,59 @@ model DemandSnapshot {
   @@map("demand_snapshots")
 }
 
+model PropertyCurrent {
+  codigo             String   @id
+  ref                String   @default("")
+  titulo             String   @default("")
+  tipoOfer           String   @default("")
+  precio             Float    @default(0)
+  metrosConstruidos  Float    @default(0)
+  habitaciones       Int      @default(0)
+  banyos             Int      @default(0)
+  ciudad             String   @default("")
+  zona               String   @default("")
+  estado             String   @default("")
+  fechaAlta          String   @default("")
+  fechaActualizacion String   @default("")
+  numFotos           Int      @default(0)
+  agente             String   @default("")
+  lastEventId        String
+  lastEventPosition  BigInt
+  lastEventAt        DateTime
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([estado])
+  @@index([ciudad, zona])
+  @@index([lastEventPosition])
+  @@map("properties_current")
+}
+
+model DemandCurrent {
+  codigo             String   @id
+  ref                String   @default("")
+  nombre             String   @default("")
+  estadoId           String   @default("")
+  estadoNombre       String   @default("")
+  presupuestoMin     Float    @default(0)
+  presupuestoMax     Float    @default(0)
+  habitacionesMin    Int      @default(0)
+  tipos              String   @default("")
+  zonas              String   @default("")
+  fechaActualizacion String   @default("")
+  agente             String   @default("")
+  lastEventId        String
+  lastEventPosition  BigInt
+  lastEventAt        DateTime
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([estadoId])
+  @@index([zonas])
+  @@index([lastEventPosition])
+  @@map("demands_current")
+}
+
 model User {
   id String @id @default(cuid())
 }
