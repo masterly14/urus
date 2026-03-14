@@ -12,20 +12,29 @@ function cycleId(suffix: string): string {
   return id;
 }
 
-beforeEach(async () => {
-  if (cycleIds.length > 0) {
-    await prisma.event.deleteMany({
-      where: { correlationId: { in: cycleIds } },
+async function cleanupTestData() {
+  if (cycleIds.length === 0) return;
+  const events = await prisma.event.findMany({
+    where: { correlationId: { in: cycleIds } },
+    select: { id: true },
+  });
+  const eventIds = events.map((e) => e.id);
+  if (eventIds.length > 0) {
+    await prisma.jobQueue.deleteMany({
+      where: { sourceEventId: { in: eventIds } },
     });
   }
+  await prisma.event.deleteMany({
+    where: { correlationId: { in: cycleIds } },
+  });
+}
+
+beforeEach(async () => {
+  await cleanupTestData();
 });
 
 afterAll(async () => {
-  if (cycleIds.length > 0) {
-    await prisma.event.deleteMany({
-      where: { correlationId: { in: cycleIds } },
-    });
-  }
+  await cleanupTestData();
   await prisma.$disconnect();
 });
 
