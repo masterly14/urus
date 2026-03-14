@@ -4,23 +4,24 @@
 
 ---
 
-## Estado del repo (M0 + M1 + M2)
+## Estado del repo (M0 + M1 + M2) — Sprint 1, Día 3
 
-Infraestructura base y workers de Inmovilla implementados según el plan (Semana 1–2):
+Infraestructura base y workers de Inmovilla completados según el plan (Días 1–3):
 
 - **Event Store (Neon/PostgreSQL)**: tabla `events` (Prisma `Event`) + API en `lib/event-store/` (`appendEvent`, `getEventsByAggregate`, `getEventsSince`) con tests en `lib/event-store/__tests__/`.
 - **Job Queue (Neon/PostgreSQL)**: tabla `job_queue` (Prisma `JobQueue`) + API en `lib/job-queue/` (`enqueueJob`, `dequeueJob`, `markCompleted`, `markFailed`) con reintentos, idempotencia y tests de ciclo completo en `lib/job-queue/__tests__/`.
-- **Ingestion Worker (M1)**: lectura de propiedades y demandas desde Inmovilla vía `lib/inmovilla/api/` (paginación, normalización). Cron/scripts: `ingestion:properties`, `ingestion:demands`. Documentación: `docs/workers/inmovilla-endpoints.md`.
+- **Ingestion Worker propiedades — modo REST (M1)**: `runPropertiesIngestionCycleRest` en `lib/inmovilla/ingestion/properties-rest.ts`. Usa `GET /propiedades/?listado` para detectar cambios por `fechaact`, luego `GET /propiedades/?cod_ofer` solo para las propiedades nuevas o modificadas (fetch incremental, throttle 10/min). Emite `PROPIEDAD_CREADA`, `PROPIEDAD_MODIFICADA`, `ESTADO_CAMBIADO` al Event Store. Activo cuando `INMOVILLA_API_TOKEN` está configurado.
+- **Ingestion Worker demandas — modo Legacy (M1)**: `runDemandsIngestionCycle` vía RPA legacy (paginación interna `POST /new/app/api/v1/paginacion/`). Emite `DEMANDA_CREADA`, `DEMANDA_MODIFICADA`, `DEMANDA_ESTADO_CAMBIADO`. Cron/scripts: `ingestion:properties`, `ingestion:demands`.
 - **Egestion Worker / escritura (M2)**: módulo `lib/inmovilla/write/` con `writeToInmovilla(operation, payload)` — operaciones tipadas (`createDemand`, `updateDemandEmail`, `updateDemandPriority`), parsing de respuestas legacy, verificación post-escritura y reintento por sesión expirada. Script: `egestion:write`.
+- **Geocoding y polígonos para demandas (M2)**: módulo `lib/geo/` con `buildDemandGeoFields(zone, city)` y `buildCreateDemandPayload(params)`. Polígonos predefinidos para Córdoba, Málaga y Sevilla. Geocoding con Nominatim/OSM (throttle 1 req/s, caché). Resolución en cascada: predefinidos → Nominatim → fallback ciudad. Formato Inmovilla: `;lat1+lng1,lat2+lng2,...`. 34 tests unitarios.
+- **Catálogos Inmovilla (enums vía REST)**: `key_loca`, `key_tipo`, `key_zona` se resuelven desde Neon; sincronización con `scripts/sync-inmovilla-enums.ts` (rate limit 2/min). Lectura: `lib/inmovilla/rest/catalogs.ts`. Ver `docs/catalogos-inmovilla.md`.
 
-Documentación de decisiones:
+Documentación de decisiones y limitaciones:
 
 - `docs/adr/001-event-sourcing-sobre-crud.md`
 - `docs/adr/002-neon-como-job-queue.md`
-
-Escenario de migración a API REST (contactos, propiedades, propietarios) documentado en `docs/plan.md` — estrategia de transición sin romper el flujo actual.
-
-- **Catálogos Inmovilla (enums vía REST)**: `key_loca`, `key_tipo`, `key_zona` se resuelven desde Neon; sincronización con `scripts/sync-inmovilla-enums.ts` (rate limit 2/min). Lectura: `lib/inmovilla/rest/catalogs.ts`. Ver `docs/catalogos-inmovilla.md`.
+- `docs/inmovilla-rest-rate-limits.md` — rate limits REST (408 = demasiadas peticiones, no timeout)
+- `docs/daily-logs/day-03.md` — log Día 3: limitaciones polígonos, rate limits, undici timeout
 
 ### Comandos útiles
 
