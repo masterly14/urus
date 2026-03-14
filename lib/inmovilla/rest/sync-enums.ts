@@ -148,7 +148,7 @@ function persistZonas(
     const arr = data[String(keyLoca)];
     if (!Array.isArray(arr)) continue;
     for (const item of arr) {
-      const key_zona = item.key_zona ?? item.key_loca;
+      const key_zona: number = item.key_zona ?? item.key_loca ?? 0;
       const zona = (item.zona ?? item.ciudad ?? "").trim() || String(key_zona);
       rows.push({ key_zona, key_loca: keyLoca, zona });
     }

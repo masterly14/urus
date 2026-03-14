@@ -2,14 +2,23 @@
 
 Worker de ingesta que lee propiedades activas de Inmovilla por polling, detecta cambios comparando con un snapshot previo persistido en Neon y emite eventos inmutables al Event Store.
 
-## Arquitectura
+## Modos de ejecución (Día 3)
+
+- **API REST** (recomendado): Si está definida `INMOVILLA_API_TOKEN`, el worker usa la API REST v1:
+  1. `GET /propiedades/?listado` → listado ordenado por `fechaact` (`cod_ofer`, `ref`, `nodisponible`, `prospecto`, `fechaact`).
+  2. Comparación con snapshot previo en Neon: se detectan creadas (nuevo `cod_ofer`) y modificadas (`fechaact` distinto).
+  3. Solo para creadas y modificadas: `GET /propiedades/?cod_ofer={id}` (throttle 10 prop/min).
+  4. Misma lógica de diff y publicación de eventos que en modo legacy.
+- **Legacy**: Sin token REST, se usa login con Playwright y paginación interna (`/new/app/api/v1/paginacion/`).
+
+## Arquitectura (flujo unificado)
 
 ```
 QStash (cron cada X min)
   └─ POST /api/cron/ingestion/properties
-       ├─ loginToInmovilla (Playwright + 2FA vía Composio)
-       ├─ fetchAllProperties (API paginación Inmovilla)
        ├─ loadPreviousSnapshot (Neon: property_snapshots)
+       ├─ [REST] fetchPropertyList → listadoDiff → getProperty (solo cambiadas, throttle 10/min)
+       │   ó [Legacy] loginToInmovilla → fetchAllProperties (paginación)
        ├─ computePropertyDiff
        │    ├─ PROPIEDAD_CREADA   → appendEvent
        │    ├─ PROPIEDAD_MODIFICADA → appendEvent

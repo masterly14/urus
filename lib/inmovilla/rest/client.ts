@@ -9,10 +9,13 @@
 import type { InmovillaRestErrorBody } from "./types";
 
 const DEFAULT_BASE_URL = "https://procesos.inmovilla.com/api/v1";
+const DEFAULT_TIMEOUT_MS = 30_000;
 
 export type InmovillaRestClientConfig = {
   token: string;
   baseUrl?: string;
+  /** Timeout por request en ms (connect + headers + body). Por defecto 30000. */
+  timeoutMs?: number;
 };
 
 export type InmovillaRestClient = {
@@ -66,6 +69,29 @@ export function createInmovillaRestClient(
   }
 
   const baseUrl = (config?.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
+  const envTimeout =
+    typeof process !== "undefined" ? Number(process.env?.INMOVILLA_REST_TIMEOUT_MS) : NaN;
+  const timeoutMs =
+    config?.timeoutMs ??
+    (Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : undefined) ??
+    DEFAULT_TIMEOUT_MS;
+  let dispatcher: unknown;
+  try {
+    // Node.js >= 22 expone undici como built-in; require dinámico para no romper el bundler.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require(/* webpackIgnore: true */ "undici");
+    const AgentCtor = mod?.Agent ?? mod?.default?.Agent;
+    if (typeof AgentCtor === "function") {
+      dispatcher = new AgentCtor({
+        connect: { timeout: timeoutMs },
+        bodyTimeout: timeoutMs,
+        headersTimeout: timeoutMs,
+      });
+    }
+  } catch {
+    dispatcher = undefined;
+  }
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Token: token,
@@ -78,15 +104,36 @@ export function createInmovillaRestClient(
   ): Promise<T> {
     const url =
       baseUrl + path.replace(/^\//, "/") + (options?.params ? buildQueryString(options.params) : "");
-    const init: RequestInit = {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const init: Record<string, unknown> = {
       method,
       headers: { ...headers },
+      signal: controller.signal,
     };
+    if (dispatcher) {
+      init.dispatcher = dispatcher;
+    }
     if (options?.body !== undefined && (method === "POST" || method === "PUT")) {
       init.body = JSON.stringify(options.body);
     }
 
-    const response = await fetch(url, init);
+    let response: Response;
+    try {
+      response = await fetch(url, init as RequestInit);
+      clearTimeout(timeoutId);
+    } catch (err) {
+      clearTimeout(timeoutId);
+      const isAbort = err instanceof Error && err.name === "AbortError";
+      const cause = isAbort
+        ? `Request timeout after ${timeoutMs}ms`
+        : (err instanceof Error ? err.cause ?? err.message : String(err));
+      const urlForLog = url.replace(/Token=[^&]+/, "Token=***");
+      throw new Error(
+        `Inmovilla REST request failed: ${urlForLog} — ${cause}`,
+        { cause: err instanceof Error ? err : undefined },
+      );
+    }
     if (!response.ok) {
       await handleErrorResponse(response);
     }

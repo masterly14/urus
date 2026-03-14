@@ -5,23 +5,27 @@ import type { PropertySnapshotData } from "./types";
 
 export type SnapshotMap = Map<string, PropertySnapshotData>;
 
+function str(v: unknown): string {
+  return v != null && v !== "" ? String(v) : "";
+}
+
 function toSnapshotData(p: InmovillaProperty): PropertySnapshotData {
   return {
-    codigo: p.codigo,
-    ref: p.ref,
-    titulo: p.titulo,
-    tipoOfer: p.tipoOfer,
-    precio: p.precio,
-    metrosConstruidos: p.metrosConstruidos,
-    habitaciones: p.habitaciones,
-    banyos: p.banyos,
-    ciudad: p.ciudad,
-    zona: p.zona,
-    estado: p.estado,
-    fechaAlta: p.fechaAlta,
-    fechaActualizacion: p.fechaActualizacion,
-    numFotos: p.numFotos,
-    agente: p.agente,
+    codigo: str(p.codigo),
+    ref: str(p.ref),
+    titulo: str(p.titulo),
+    tipoOfer: str(p.tipoOfer),
+    precio: Number(p.precio) || 0,
+    metrosConstruidos: Number(p.metrosConstruidos) || 0,
+    habitaciones: Number(p.habitaciones) || 0,
+    banyos: Number(p.banyos) || 0,
+    ciudad: str(p.ciudad),
+    zona: str(p.zona),
+    estado: str(p.estado),
+    fechaAlta: str(p.fechaAlta),
+    fechaActualizacion: str(p.fechaActualizacion),
+    numFotos: Number(p.numFotos) || 0,
+    agente: str(p.agente),
   };
 }
 
