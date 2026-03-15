@@ -12,6 +12,9 @@ import type {
   StatefoxSource,
   StatefoxHousing,
 } from "./types";
+import { buildQueryString, type QueryParams } from "@/lib/utils/query-string";
+import { handleHttpErrorResponse } from "@/lib/utils/http-error";
+import { fetchWithTimeout, tryCreateDispatcher } from "@/lib/utils/fetch-with-timeout";
 
 const DEFAULT_BASE_URL = "https://statefox.com/public/aapi/props";
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -50,40 +53,9 @@ export type StatefoxClientConfig = {
 export type StatefoxClient = {
   get: <T = unknown>(
     path: string,
-    params?: Record<string, string | number | boolean | undefined | null>,
+    params?: QueryParams,
   ) => Promise<T>;
 };
-
-function buildQueryString(
-  params: Record<string, string | number | boolean | undefined | null>,
-): string {
-  const searchParams = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === null) continue;
-    if (value === true) {
-      searchParams.set(key, "");
-    } else if (value !== false) {
-      searchParams.set(key, String(value));
-    }
-  }
-  const qs = searchParams.toString();
-  return qs ? `?${qs}` : "";
-}
-
-async function handleErrorResponse(response: Response): Promise<never> {
-  let message = `${response.status} ${response.statusText}`;
-  const text = await response.text();
-  if (text) {
-    try {
-      const body = JSON.parse(text) as Record<string, unknown>;
-      const detail = body.message ?? body.error ?? body.mensaje ?? text;
-      message = `${response.status} ${response.statusText}: ${String(detail)}`;
-    } catch {
-      message = `${response.status} ${response.statusText}: ${text}`;
-    }
-  }
-  throw new Error(message);
-}
 
 export function createStatefoxClient(
   config?: Partial<StatefoxClientConfig> & { token?: string },
@@ -104,61 +76,32 @@ export function createStatefoxClient(
     config?.timeoutMs ??
     (Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : undefined) ??
     DEFAULT_TIMEOUT_MS;
-
-  let dispatcher: unknown;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require(/* webpackIgnore: true */ "undici");
-    const AgentCtor = mod?.Agent ?? mod?.default?.Agent;
-    if (typeof AgentCtor === "function") {
-      dispatcher = new AgentCtor({
-        connect: { timeout: timeoutMs },
-        bodyTimeout: timeoutMs,
-        headersTimeout: timeoutMs,
-      });
-    }
-  } catch {
-    dispatcher = undefined;
-  }
+  const dispatcher = tryCreateDispatcher(timeoutMs);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
   };
 
-  async function request<T>(
-    path: string,
-    params?: Record<string, string | number | boolean | undefined | null>,
-  ): Promise<T> {
+  async function request<T>(path: string, params?: QueryParams): Promise<T> {
     const url =
       baseUrl + path.replace(/^\//, "/") + (params ? buildQueryString(params) : "");
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    const init: Record<string, unknown> = {
+    const init: RequestInit = {
       method: "GET",
       headers: { ...headers },
-      signal: controller.signal,
     };
-    if (dispatcher) {
-      init.dispatcher = dispatcher;
-    }
 
     let response: Response;
     try {
-      response = await fetch(url, init as RequestInit);
-      clearTimeout(timeoutId);
+      response = await fetchWithTimeout(url, init, { timeoutMs, dispatcher });
     } catch (err) {
-      clearTimeout(timeoutId);
-      const isAbort = err instanceof Error && err.name === "AbortError";
-      const cause = isAbort
-        ? `Request timeout after ${timeoutMs}ms`
-        : (err instanceof Error ? err.cause ?? err.message : String(err));
-      throw new Error(`Statefox REST request failed: ${path} — ${cause}`, {
-        cause: err instanceof Error ? err : undefined,
-      });
+      throw new Error(
+        `Statefox REST request failed: ${path} — ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err instanceof Error ? err : undefined },
+      );
     }
     if (!response.ok) {
-      await handleErrorResponse(response);
+      await handleHttpErrorResponse(response);
     }
 
     const contentType = response.headers.get("Content-Type") ?? "";
@@ -169,10 +112,7 @@ export function createStatefoxClient(
   }
 
   return {
-    get<T = unknown>(
-      path: string,
-      params?: Record<string, string | number | boolean | undefined | null>,
-    ): Promise<T> {
+    get<T = unknown>(path: string, params?: QueryParams): Promise<T> {
       return request<T>(path, params);
     },
   };
