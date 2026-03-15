@@ -2,6 +2,7 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { EventRecord } from "@/lib/event-store/types";
 import type { ProjectionApplyResult } from "./types";
+import { str, num, int } from "@/lib/utils/normalize";
 
 type DemandPayloadSnapshot = {
   codigo: string;
@@ -28,18 +29,6 @@ type DemandModifiedAfter = {
   zonas: string;
   fechaActualizacion: string;
 };
-
-function str(v: unknown): string {
-  return v != null && v !== "" ? String(v) : "";
-}
-
-function num(v: unknown): number {
-  return Number(v) || 0;
-}
-
-function int(v: unknown): number {
-  return Math.round(num(v));
-}
 
 function snapshotToUpsertData(
   snapshot: DemandPayloadSnapshot,
