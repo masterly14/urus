@@ -1,5 +1,5 @@
 import type { EventType } from "@/app/generated/prisma/client";
-import type { EventRecord } from "@/lib/event-store/types";
+import type { Event } from "@/types/domain";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import type { EventHandler, HandlerResult } from "./types";
 
@@ -32,7 +32,7 @@ function buildProjectionJob(
 function propertyHandler(
   jobType: "UPDATE_PROPERTY_PROJECTION",
 ): EventHandler {
-  return async (event: EventRecord): Promise<HandlerResult> => {
+  return async (event: Event): Promise<HandlerResult> => {
     console.log(
       `[consumer] ${event.type} aggregateId=${event.aggregateId} → ${jobType}`,
     );
@@ -46,7 +46,7 @@ function propertyHandler(
 function demandHandler(
   jobType: "UPDATE_DEMAND_PROJECTION",
 ): EventHandler {
-  return async (event: EventRecord): Promise<HandlerResult> => {
+  return async (event: Event): Promise<HandlerResult> => {
     console.log(
       `[consumer] ${event.type} aggregateId=${event.aggregateId} → ${jobType}`,
     );
@@ -58,7 +58,7 @@ function demandHandler(
 }
 
 function placeholderHandler(): EventHandler {
-  return async (event: EventRecord): Promise<HandlerResult> => {
+  return async (event: Event): Promise<HandlerResult> => {
     console.log(
       `[consumer] ${event.type} aggregateId=${event.aggregateId} → no-op (placeholder)`,
     );

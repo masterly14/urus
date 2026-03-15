@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { appendEvent } from "@/lib/event-store";
 import { enqueueJob } from "@/lib/job-queue";
-import type { InmovillaProperty } from "@/lib/inmovilla/api/types";
+import type { Property } from "@/types/domain";
 import type { PropertyDiffResult } from "./types";
 import type {
   DiffField,
@@ -28,9 +28,7 @@ type PublishCandidate = {
   changedFields: DiffField[];
 };
 
-function normalizeSnapshot(
-  property: InmovillaProperty,
-): Omit<InmovillaProperty, "raw"> {
+function normalizeSnapshot(property: Property): Omit<Property, "raw"> {
   const { raw: _raw, ...snapshot } = property;
   return snapshot;
 }

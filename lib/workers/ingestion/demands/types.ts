@@ -1,3 +1,4 @@
+import type { Demand } from "@/types/domain";
 import type { InmovillaDemand } from "@/lib/inmovilla/api/types-demands";
 
 export const DEMAND_DIFF_FIELDS = [
@@ -9,25 +10,25 @@ export const DEMAND_DIFF_FIELDS = [
   "tipos",
   "zonas",
   "fechaActualizacion",
-] as const satisfies readonly (keyof InmovillaDemand)[];
+] as const satisfies readonly (keyof Demand)[];
 
 export type DemandDiffField = (typeof DEMAND_DIFF_FIELDS)[number];
 
 export type DemandCreatedChange = {
   type: "created";
-  demand: InmovillaDemand;
+  demand: Demand;
 };
 
 export type DemandModifiedChange = {
   type: "modified";
-  demand: InmovillaDemand;
-  before: Pick<InmovillaDemand, DemandDiffField>;
+  demand: Demand;
+  before: Pick<Demand, DemandDiffField>;
   changedFields: DemandDiffField[];
 };
 
 export type DemandStatusChangedChange = {
   type: "status_changed";
-  demand: InmovillaDemand;
+  demand: Demand;
   previousEstadoId: string;
   previousEstadoNombre: string;
   newEstadoId: string;
@@ -59,13 +60,13 @@ export type DemandIngestionCycleResult = {
 };
 
 export type DemandCreatedEventPayload = {
-  snapshot: Omit<InmovillaDemand, "raw">;
+  snapshot: Omit<Demand, "raw">;
   detectedAt: string;
 };
 
 export type DemandModifiedEventPayload = {
-  before: Pick<InmovillaDemand, DemandDiffField>;
-  after: Pick<InmovillaDemand, DemandDiffField>;
+  before: Pick<Demand, DemandDiffField>;
+  after: Pick<Demand, DemandDiffField>;
   changedFields: DemandDiffField[];
   detectedAt: string;
 };
@@ -76,7 +77,7 @@ export type DemandStatusChangedEventPayload = {
   newEstadoId: string;
   newEstadoNombre: string;
   otherChangedFields: DemandDiffField[];
-  snapshot: Omit<InmovillaDemand, "raw">;
+  snapshot: Omit<Demand, "raw">;
   detectedAt: string;
 };
 
@@ -97,7 +98,7 @@ export type DemandEventPublicationSummary = {
 };
 
 export type DemandSnapshotData = Pick<
-  InmovillaDemand,
+  Demand,
   | "codigo"
   | "ref"
   | "nombre"
@@ -111,3 +112,6 @@ export type DemandSnapshotData = Pick<
   | "fechaActualizacion"
   | "agente"
 >;
+
+/** Compatibilidad: InmovillaDemand cumple el contrato de dominio Demand. */
+export type { InmovillaDemand };

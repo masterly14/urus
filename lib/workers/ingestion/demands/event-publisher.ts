@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { appendEvent } from "@/lib/event-store";
 import { enqueueJob } from "@/lib/job-queue";
-import type { InmovillaDemand } from "@/lib/inmovilla/api/types-demands";
+import type { Demand } from "@/types/domain";
 import type { DemandDiffResult } from "./types";
 import type {
   DemandDiffField,
@@ -28,9 +28,7 @@ type PublishCandidate = {
   changedFields: DemandDiffField[];
 };
 
-function normalizeSnapshot(
-  demand: InmovillaDemand,
-): Omit<InmovillaDemand, "raw"> {
+function normalizeSnapshot(demand: Demand): Omit<Demand, "raw"> {
   const { raw: _raw, ...snapshot } = demand;
   return snapshot;
 }

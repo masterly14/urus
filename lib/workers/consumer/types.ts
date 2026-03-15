@@ -1,6 +1,4 @@
-import type { EventType, JobType } from "@/app/generated/prisma/client";
-import type { EventRecord } from "@/lib/event-store/types";
-import type { EnqueueJobInput } from "@/lib/job-queue/types";
+import type { Event, EnqueueJobInput, EventType, JobType } from "@/types/domain";
 
 export interface HandlerResult {
   success: boolean;
@@ -8,7 +6,7 @@ export interface HandlerResult {
   error?: string;
 }
 
-export type EventHandler = (event: EventRecord) => Promise<HandlerResult>;
+export type EventHandler = (event: Event) => Promise<HandlerResult>;
 
 export interface ConsumerConfig {
   workerId: string;
