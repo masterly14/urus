@@ -1,5 +1,7 @@
 export { runConsumerCycle, runConsumerLoop } from "./consumer";
 export { registerHandler, getHandler, getRegisteredTypes } from "./handlers";
+export { registerJobHandler, getJobHandler } from "./job-handlers";
+export type { JobHandler } from "./job-handlers";
 
 export type {
   EventHandler,

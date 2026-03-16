@@ -27,6 +27,7 @@ export async function POST(request: Request) {
     maxCycles: batchSize,
     batchSize,
     pollIntervalMs: 500,
+    types: ["PROCESS_EVENT", "NOTIFY_LEAD_WHATSAPP", "FOLLOW_UP_LEAD"],
   });
 
   return NextResponse.json(result);

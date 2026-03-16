@@ -4,6 +4,7 @@ export interface HandlerResult {
   success: boolean;
   followUpJobs?: EnqueueJobInput[];
   error?: string;
+  scoredPayload?: Record<string, unknown>;
 }
 
 export type EventHandler = (event: Event) => Promise<HandlerResult>;

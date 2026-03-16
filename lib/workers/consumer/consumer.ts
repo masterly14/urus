@@ -1,7 +1,9 @@
 import type { EventType } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { dequeueJob, enqueueJob, markCompleted, markFailed } from "@/lib/job-queue";
+import type { JobRecord } from "@/lib/job-queue/types";
 import { getHandler } from "./handlers";
+import { getJobHandler, type JobHandler } from "./job-handlers";
 import type {
   ConsumerConfig,
   ConsumerCycleResult,
@@ -25,6 +27,11 @@ export async function runConsumerCycle(
 
   if (!job) {
     return { processed: 0, failed: 0, noWork: true };
+  }
+
+  const directHandler = getJobHandler(job.type);
+  if (directHandler) {
+    return processDirectJob(job, directHandler, config.workerId);
   }
 
   const eventId = job.sourceEventId ?? (job.payload as { eventId?: string })?.eventId;
@@ -104,6 +111,43 @@ export async function runConsumerCycle(
       error: message,
       workerId: config.workerId,
     });
+    return { processed: 0, failed: 1, noWork: false };
+  }
+}
+
+async function processDirectJob(
+  job: JobRecord,
+  handler: JobHandler,
+  workerId: string,
+): Promise<ConsumerCycleResult> {
+  try {
+    const result = await handler(job);
+
+    if (!result.success) {
+      console.error(
+        `[consumer] Job handler ${job.type} falló: ${result.error ?? "error desconocido"}`,
+      );
+      await markFailed({
+        jobId: job.id,
+        error: result.error ?? "Job handler retornó success=false",
+        workerId,
+      });
+      return { processed: 0, failed: 1, noWork: false };
+    }
+
+    if (result.followUpJobs?.length) {
+      for (const followUp of result.followUpJobs) {
+        await enqueueJob(followUp);
+      }
+    }
+
+    await markCompleted({ jobId: job.id, workerId });
+    console.log(`[consumer] Job ${job.id} (${job.type}) completado directamente`);
+    return { processed: 1, failed: 0, noWork: false };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[consumer] Excepción en job handler ${job.type}: ${message}`);
+    await markFailed({ jobId: job.id, error: message, workerId });
     return { processed: 0, failed: 1, noWork: false };
   }
 }
