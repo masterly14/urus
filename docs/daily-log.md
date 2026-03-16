@@ -129,7 +129,8 @@ Registro diario según rutina en `docs/plan.md`.
   - Tests unitarios de scoring: `lib/matching/__tests__/scoring.test.ts` — 34 tests (zona, precio, tipología, metros, habitaciones, `computeMatchScore`).  
   - Tests E2E del pipeline: `lib/matching/__tests__/match-pipeline.test.ts` — 5 tests: match positivo/negativo, evento `MATCH_GENERADO` en event store, `DEMANDA_ACTUALIZADA` actualiza `demands_current` y cambia resultados del cruce, flujo completo propiedad → match → ajuste demanda → recruce.  
   - Ajuste en `matching-handler.ts`: fallback al payload del evento cuando la propiedad aún no está en `properties_current` (evita chicken-and-egg con la proyección).  
-  - Tests E2E usan BD real (Neon), cleanup de eventos/proyecciones/snapshots; `ensureDemandSnapshot` para que el handler de `DEMANDA_ACTUALIZADA` no falle en egestion.
+  - Tests E2E usan BD real (Neon), cleanup de eventos/proyecciones/snapshots; `ensureDemandSnapshot` para que el handler de `DEMANDA_ACTUALIZADA` no falle en egestion.  
+  - Commit: `9bec510` test(M5): añadir tests flujo completo Smart Matching y fallback en matching-handler
 
 ### Notas
 
