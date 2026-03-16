@@ -14,7 +14,11 @@ export {
   sendTemplateMessage,
   sendInteractiveMessage,
   sendMatchNotification,
+  sendLeadAssignedToCommercial,
+  sendFollowUpToCommercial,
 } from "./send";
+
+export type { LeadAssignedParams, FollowUpParams } from "./send";
 
 export {
   verifyWebhookChallenge,

@@ -101,3 +101,132 @@ export async function sendMatchNotification(
   };
   return sendTemplateMessage(to, template, options);
 }
+
+export interface LeadAssignedParams {
+  leadId: string;
+  score: number;
+  slaLevel: string;
+  maxResponseMs?: number;
+  ciudad?: string;
+  reasons?: string[];
+}
+
+const LEAD_ASSIGNED_TEMPLATE = "lead_asignado";
+
+/**
+ * Notifica al comercial que tiene un nuevo lead asignado.
+ *
+ * MVP: usa sendTextMessage (requiere ventana de 24h).
+ * Producción: sustituir por sendTemplateMessage con plantilla "lead_asignado"
+ * aprobada en Meta Business Manager.
+ */
+export async function sendLeadAssignedToCommercial(
+  to: string,
+  params: LeadAssignedParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: LEAD_ASSIGNED_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.leadId },
+            { type: "text", text: String(params.score) },
+            { type: "text", text: params.slaLevel },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const slaLabel = formatSlaLabel(params.slaLevel, params.maxResponseMs);
+  const lines = [
+    `📋 *Nuevo lead asignado*`,
+    ``,
+    `• ID: ${params.leadId}`,
+    `• Score: ${params.score}/100`,
+    `• SLA: ${slaLabel}`,
+  ];
+  if (params.ciudad) lines.push(`• Ciudad: ${params.ciudad}`);
+  if (params.reasons?.length) {
+    lines.push(`• Señales: ${params.reasons.join(", ")}`);
+  }
+  lines.push(``, `Revisa el panel para más detalles.`);
+
+  return sendTextMessage(to, lines.join("\n"), options);
+}
+
+function formatSlaLabel(level: string, maxResponseMs?: number): string {
+  if (!maxResponseMs) return level;
+  const minutes = Math.round(maxResponseMs / 60_000);
+  if (minutes < 60) return `${level} (< ${minutes}min)`;
+  return `${level} (< ${Math.round(minutes / 60)}h)`;
+}
+
+export interface FollowUpParams {
+  leadId: string;
+  step: string;
+  score: number;
+  daysSinceCreation?: number;
+}
+
+const STEP_LABELS: Record<string, string> = {
+  "D+1": "1 día sin contacto",
+  "D+3": "3 días sin contacto",
+  "D+7": "7 días sin contacto — última alerta",
+};
+
+/**
+ * Envía recordatorio de follow-up al comercial para un lead sin respuesta.
+ * MVP: texto libre. Producción: plantilla "lead_follow_up".
+ */
+export async function sendFollowUpToCommercial(
+  to: string,
+  params: FollowUpParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: "lead_follow_up",
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.leadId },
+            { type: "text", text: params.step },
+            { type: "text", text: String(params.score) },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const stepLabel = STEP_LABELS[params.step] ?? params.step;
+  const urgencyEmoji = params.step === "D+7" ? "🔴" : params.step === "D+3" ? "🟡" : "🟢";
+
+  const lines = [
+    `${urgencyEmoji} *Recordatorio: lead sin contactar*`,
+    ``,
+    `• Lead: ${params.leadId}`,
+    `• Estado: ${stepLabel}`,
+    `• Score original: ${params.score}/100`,
+  ];
+
+  if (params.step === "D+7") {
+    lines.push(
+      ``,
+      `⚠️ Este es el último recordatorio automático.`,
+      `Si no se contacta, el lead pasará a estado inactivo.`,
+    );
+  }
+
+  lines.push(``, `Contacta al lead lo antes posible.`);
+
+  return sendTextMessage(to, lines.join("\n"), options);
+}
