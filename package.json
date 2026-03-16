@@ -22,13 +22,17 @@
     "daily-log:start": "tsx scripts/daily-log-start.ts",
     "daily-log:end": "tsx scripts/daily-log-end.ts",
     "daily-log:sync-commit": "tsx scripts/daily-log-sync-commit.ts",
-    "whatsapp:test-m4": "tsx scripts/test-whatsapp-m4.ts"
+    "whatsapp:test-m4": "tsx scripts/test-whatsapp-m4.ts",
+    "agents:test-langgraph": "tsx scripts/test-langgraph.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
     "@composio/anthropic": "^0.6.4",
     "@composio/core": "^0.6.4",
     "@composio/openai-agents": "^0.6.4",
+    "@langchain/core": "^1.1.32",
+    "@langchain/langgraph": "^1.2.2",
+    "@langchain/openai": "^1.2.13",
     "@openai/agents": "^0.6.0",
     "@prisma/client": "^6.19.2",
     "next": "16.1.6",
