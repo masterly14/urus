@@ -1,6 +1,13 @@
 import type { Page, BrowserContext } from "playwright";
 import type { InmovillaSession } from "./types";
 
+interface InmovillaWindow {
+  ps?: string;
+  id_pestanya?: string;
+  idusuario?: string | number;
+  numagencia?: string | number;
+}
+
 export function generateMiid(numAgencia: string, idUsuario: string): string {
   const now = new Date();
   const ts = [
@@ -22,23 +29,25 @@ export async function extractSession(
   page: Page,
   context: BrowserContext,
 ): Promise<InmovillaSession> {
-  const l = await page.evaluate(() => (window as any).ps || "");
+  const l = await page.evaluate(
+    () => (window as unknown as InmovillaWindow).ps ?? "",
+  );
   if (!l) throw new Error("No se encontró window.ps (token l) en /panel/");
 
   const idPestanya = await page.evaluate(
-    () => (window as any).id_pestanya || "",
+    () => (window as unknown as InmovillaWindow).id_pestanya ?? "",
   );
   if (!idPestanya)
     throw new Error("No se encontró window.id_pestanya en /panel/");
 
-  const idUsuario = await page.evaluate(
-    () => String((window as any).idusuario ?? ""),
+  const idUsuario = await page.evaluate(() =>
+    String((window as unknown as InmovillaWindow).idusuario ?? ""),
   );
   if (!idUsuario)
     throw new Error("No se encontró la variable idusuario en /panel/");
 
-  const numAgencia = await page.evaluate(
-    () => String((window as any).numagencia ?? ""),
+  const numAgencia = await page.evaluate(() =>
+    String((window as unknown as InmovillaWindow).numagencia ?? ""),
   );
   if (!numAgencia)
     throw new Error("No se encontró la variable numagencia en /panel/");

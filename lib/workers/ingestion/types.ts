@@ -1,3 +1,4 @@
+import type { Property } from "@/types/domain";
 import type { InmovillaProperty } from "@/lib/inmovilla/api/types";
 
 export const DIFF_FIELDS = [
@@ -9,25 +10,25 @@ export const DIFF_FIELDS = [
   "zona",
   "estado",
   "fechaActualizacion",
-] as const satisfies readonly (keyof InmovillaProperty)[];
+] as const satisfies readonly (keyof Property)[];
 
 export type DiffField = (typeof DIFF_FIELDS)[number];
 
 export type PropertyCreatedChange = {
   type: "created";
-  property: InmovillaProperty;
+  property: Property;
 };
 
 export type PropertyModifiedChange = {
   type: "modified";
-  property: InmovillaProperty;
-  before: Pick<InmovillaProperty, DiffField>;
+  property: Property;
+  before: Pick<Property, DiffField>;
   changedFields: DiffField[];
 };
 
 export type PropertyStatusChangedChange = {
   type: "status_changed";
-  property: InmovillaProperty;
+  property: Property;
   previousEstado: string;
   newEstado: string;
   otherChangedFields: DiffField[];
@@ -62,13 +63,13 @@ export type IngestionCycleResult = {
 };
 
 export type PropertyCreatedEventPayload = {
-  snapshot: Omit<InmovillaProperty, "raw">;
+  snapshot: Omit<Property, "raw">;
   detectedAt: string;
 };
 
 export type PropertyModifiedEventPayload = {
-  before: Pick<InmovillaProperty, DiffField>;
-  after: Pick<InmovillaProperty, DiffField>;
+  before: Pick<Property, DiffField>;
+  after: Pick<Property, DiffField>;
   changedFields: DiffField[];
   detectedAt: string;
 };
@@ -77,7 +78,7 @@ export type PropertyStatusChangedEventPayload = {
   previousEstado: string;
   newEstado: string;
   otherChangedFields: DiffField[];
-  snapshot: Omit<InmovillaProperty, "raw">;
+  snapshot: Omit<Property, "raw">;
   detectedAt: string;
 };
 
@@ -98,7 +99,7 @@ export type EventPublicationSummary = {
 };
 
 export type PropertySnapshotData = Pick<
-  InmovillaProperty,
+  Property,
   | "codigo"
   | "ref"
   | "titulo"
@@ -115,3 +116,6 @@ export type PropertySnapshotData = Pick<
   | "numFotos"
   | "agente"
 >;
+
+/** Compatibilidad: InmovillaProperty cumple el contrato de dominio Property. */
+export type { InmovillaProperty };

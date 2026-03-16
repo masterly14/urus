@@ -3,12 +3,17 @@ import type { InmovillaDemand } from "@/lib/inmovilla/api/types-demands";
 import type { DemandDiffResult } from "../types";
 import { publishDemandEventsForDiff } from "../event-publisher";
 
-const { appendEventMock } = vi.hoisted(() => ({
+const { appendEventMock, enqueueJobMock } = vi.hoisted(() => ({
   appendEventMock: vi.fn(),
+  enqueueJobMock: vi.fn(),
 }));
 
 vi.mock("@/lib/event-store", () => ({
   appendEvent: appendEventMock,
+}));
+
+vi.mock("@/lib/job-queue", () => ({
+  enqueueJob: enqueueJobMock,
 }));
 
 function makeDemand(
@@ -36,7 +41,9 @@ function makeDemand(
 describe("publishDemandEventsForDiff", () => {
   beforeEach(() => {
     appendEventMock.mockReset();
-    appendEventMock.mockResolvedValue({ id: "evt" });
+    enqueueJobMock.mockReset();
+    appendEventMock.mockResolvedValue({ id: "evt", type: "DEMANDA_CREADA" });
+    enqueueJobMock.mockResolvedValue({ id: "job-1" });
   });
 
   it("publica eventos de demanda con correlationId y metadata", async () => {

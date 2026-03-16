@@ -16,7 +16,13 @@
     "inmovilla:sync-enums": "tsx scripts/sync-inmovilla-enums.ts",
     "egestion:write": "tsx scripts/run-write-inmovilla.ts",
     "ingestion:properties": "tsx scripts/run-ingestion-properties.ts",
-    "ingestion:demands": "tsx scripts/run-ingestion-demands.ts"
+    "ingestion:demands": "tsx scripts/run-ingestion-demands.ts",
+    "consumer": "tsx scripts/run-consumer.ts",
+    "projections": "tsx scripts/run-projections.ts",
+    "daily-log:start": "tsx scripts/daily-log-start.ts",
+    "daily-log:end": "tsx scripts/daily-log-end.ts",
+    "daily-log:sync-commit": "tsx scripts/daily-log-sync-commit.ts",
+    "whatsapp:test-m4": "tsx scripts/test-whatsapp-m4.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
@@ -39,6 +45,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.0.18",
     "dotenv": "^17.3.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",

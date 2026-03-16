@@ -1,0 +1,89 @@
+/**
+ * Tipos de dominio unificado (Item 3 Día 5).
+ * Contrato canónico para Property, Demand, Lead, Event, Job, Match y StatefoxProperty.
+ * Los DTOs de integración (Inmovilla, Statefox) se mapean a estos tipos.
+ */
+
+import type { EventRecord, AppendEventInput } from "@/lib/event-store/types";
+import type { JobRecord, EnqueueJobInput } from "@/lib/job-queue/types";
+import type { EventType, AggregateType, JobType, JobStatus } from "@/app/generated/prisma/client";
+import type { StatefoxProperty as StatefoxPropertyIntegration } from "@/lib/statefox/types";
+
+// --- Property (inmueble interno / Inmovilla) ---
+
+export interface Property {
+  codigo: string;
+  ref: string;
+  titulo: string;
+  tipoOfer: string;
+  precio: number;
+  metrosConstruidos: number;
+  habitaciones: number;
+  banyos: number;
+  ciudad: string;
+  zona: string;
+  estado: string;
+  fechaAlta: string;
+  fechaActualizacion: string;
+  numFotos: number;
+  agente: string;
+  raw?: Record<string, unknown>;
+}
+
+// --- Demand (demanda de comprador) ---
+
+export interface Demand {
+  codigo: string;
+  ref: string;
+  nombre: string;
+  estadoId: string;
+  estadoNombre: string;
+  presupuestoMin: number;
+  presupuestoMax: number;
+  habitacionesMin: number;
+  tipos: string;
+  zonas: string;
+  fechaActualizacion: string;
+  agente: string;
+  raw?: Record<string, unknown>;
+}
+
+// --- Lead (contacto comercial / estado comercial) ---
+
+export interface Lead {
+  id: string;
+  source?: string;
+  nombre?: string;
+  email?: string;
+  telefono?: string;
+  estado?: string;
+  aggregateId?: string;
+  raw?: Record<string, unknown>;
+}
+
+// --- Match (relación demanda–propiedad, scoring) ---
+
+export interface Match {
+  id?: string;
+  demandId: string;
+  propertyId?: string;
+  score?: number;
+  estado?: string;
+  aggregateId?: string;
+  raw?: Record<string, unknown>;
+}
+
+// --- Event (alineado con event-store) ---
+
+export type Event = EventRecord;
+export type AppendEventInputDomain = AppendEventInput;
+export type { EventType, AggregateType };
+
+// --- Job (alineado con job-queue) ---
+
+export type Job = JobRecord;
+export type { EnqueueJobInput, JobType, JobStatus };
+
+// --- StatefoxProperty (propiedad de mercado, re-export desde integración) ---
+
+export type StatefoxProperty = StatefoxPropertyIntegration;

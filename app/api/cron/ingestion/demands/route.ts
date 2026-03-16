@@ -1,16 +1,6 @@
 import { NextResponse } from "next/server";
+import { isAuthorized } from "@/lib/api/cron-auth";
 import { runDemandsIngestionCycle } from "@/lib/workers/ingestion";
-
-function isAuthorized(request: Request): boolean {
-  const token = process.env.CRON_SECRET;
-  if (!token) return false;
-
-  const authHeader = request.headers.get("authorization");
-  if (authHeader === `Bearer ${token}`) return true;
-
-  const url = new URL(request.url);
-  return url.searchParams.get("token") === token;
-}
 
 export async function POST(request: Request) {
   if (!isAuthorized(request)) {

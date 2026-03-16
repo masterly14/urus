@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { appendEvent } from "@/lib/event-store";
-import type { InmovillaProperty } from "@/lib/inmovilla/api/types";
+import { enqueueJob } from "@/lib/job-queue";
+import type { Property } from "@/types/domain";
 import type { PropertyDiffResult } from "./types";
 import type {
   DiffField,
@@ -27,9 +28,7 @@ type PublishCandidate = {
   changedFields: DiffField[];
 };
 
-function normalizeSnapshot(
-  property: InmovillaProperty,
-): Omit<InmovillaProperty, "raw"> {
+function normalizeSnapshot(property: Property): Omit<Property, "raw"> {
   const { raw: _raw, ...snapshot } = property;
   return snapshot;
 }
@@ -119,13 +118,20 @@ export async function publishEventsForDiff(
       changedFields: candidate.changedFields,
     };
 
-    await appendEvent({
+    const event = await appendEvent({
       type: candidate.eventType,
       aggregateType: "PROPERTY",
       aggregateId: candidate.aggregateId,
       payload: candidate.payload,
       metadata,
       correlationId: cycleId,
+    });
+
+    await enqueueJob({
+      type: "PROCESS_EVENT",
+      payload: { eventId: event.id, eventType: event.type },
+      sourceEventId: event.id,
+      idempotencyKey: `process-event:${event.id}`,
     });
 
     console.log(

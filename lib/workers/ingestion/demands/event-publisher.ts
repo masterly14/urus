@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { appendEvent } from "@/lib/event-store";
-import type { InmovillaDemand } from "@/lib/inmovilla/api/types-demands";
+import { enqueueJob } from "@/lib/job-queue";
+import type { Demand } from "@/types/domain";
 import type { DemandDiffResult } from "./types";
 import type {
   DemandDiffField,
@@ -27,9 +28,7 @@ type PublishCandidate = {
   changedFields: DemandDiffField[];
 };
 
-function normalizeSnapshot(
-  demand: InmovillaDemand,
-): Omit<InmovillaDemand, "raw"> {
+function normalizeSnapshot(demand: Demand): Omit<Demand, "raw"> {
   const { raw: _raw, ...snapshot } = demand;
   return snapshot;
 }
@@ -124,13 +123,20 @@ export async function publishDemandEventsForDiff(
       changedFields: candidate.changedFields,
     };
 
-    await appendEvent({
+    const event = await appendEvent({
       type: candidate.eventType,
       aggregateType: "DEMAND",
       aggregateId: candidate.aggregateId,
       payload: candidate.payload,
       metadata,
       correlationId: cycleId,
+    });
+
+    await enqueueJob({
+      type: "PROCESS_EVENT",
+      payload: { eventId: event.id, eventType: event.type },
+      sourceEventId: event.id,
+      idempotencyKey: `process-event:${event.id}`,
     });
 
     console.log(
