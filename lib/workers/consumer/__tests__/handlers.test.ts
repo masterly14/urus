@@ -35,6 +35,7 @@ describe("handler registry", () => {
       "DEMANDA_MODIFICADA",
       "DEMANDA_ESTADO_CAMBIADO",
       "LEAD_INGESTADO",
+      "LEAD_SCORED",
       "SLA_INICIADO",
       "MATCH_GENERADO",
       "DEMANDA_ACTUALIZADA",
@@ -108,7 +109,7 @@ describe("demand handlers", () => {
 
 describe("placeholder handlers", () => {
   const placeholderTypes: EventType[] = [
-    "LEAD_INGESTADO",
+    "LEAD_SCORED",
     "SLA_INICIADO",
     "MATCH_GENERADO",
     "DEMANDA_ACTUALIZADA",
