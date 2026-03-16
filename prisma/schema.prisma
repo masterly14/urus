@@ -21,6 +21,7 @@ enum AggregateType {
   MATCH
   SLA
   SYSTEM
+  WHATSAPP_CONVERSATION
 }
 
 enum EventType {
@@ -34,6 +35,8 @@ enum EventType {
   SLA_INICIADO
   DEMANDA_ACTUALIZADA
   MATCH_GENERADO
+  WHATSAPP_RECIBIDO
+  WHATSAPP_ENVIADO
 }
 
 enum JobType {

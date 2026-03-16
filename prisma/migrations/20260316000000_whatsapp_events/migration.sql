@@ -1,0 +1,5 @@
+-- M4: WhatsApp Cloud API (Meta) — nuevos valores de enum para eventos y agregados
+
+ALTER TYPE "EventType" ADD VALUE IF NOT EXISTS 'WHATSAPP_RECIBIDO';
+ALTER TYPE "EventType" ADD VALUE IF NOT EXISTS 'WHATSAPP_ENVIADO';
+ALTER TYPE "AggregateType" ADD VALUE IF NOT EXISTS 'WHATSAPP_CONVERSATION';
