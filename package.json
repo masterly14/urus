@@ -21,7 +21,8 @@
     "projections": "tsx scripts/run-projections.ts",
     "daily-log:start": "tsx scripts/daily-log-start.ts",
     "daily-log:end": "tsx scripts/daily-log-end.ts",
-    "daily-log:sync-commit": "tsx scripts/daily-log-sync-commit.ts"
+    "daily-log:sync-commit": "tsx scripts/daily-log-sync-commit.ts",
+    "whatsapp:test-m4": "tsx scripts/test-whatsapp-m4.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
