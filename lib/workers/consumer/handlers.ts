@@ -2,6 +2,7 @@ import type { EventType } from "@/app/generated/prisma/client";
 import type { Event } from "@/types/domain";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import type { EventHandler, HandlerResult } from "./types";
+import { handleLeadIngestado } from "./lead-scoring-handler";
 
 const registry = new Map<EventType, EventHandler>();
 
@@ -76,8 +77,12 @@ registerHandler("DEMANDA_CREADA", demandHandler("UPDATE_DEMAND_PROJECTION"));
 registerHandler("DEMANDA_MODIFICADA", demandHandler("UPDATE_DEMAND_PROJECTION"));
 registerHandler("DEMANDA_ESTADO_CAMBIADO", demandHandler("UPDATE_DEMAND_PROJECTION"));
 
+// --- Lead scoring + SLA ---
+registerHandler("LEAD_INGESTADO", handleLeadIngestado);
+
 // --- Placeholders (futuras implementaciones) ---
-registerHandler("LEAD_INGESTADO", placeholderHandler());
+registerHandler("LEAD_SCORED", placeholderHandler());
+registerHandler("LEAD_CONTACTADO", placeholderHandler());
 registerHandler("SLA_INICIADO", placeholderHandler());
 registerHandler("MATCH_GENERADO", placeholderHandler());
 registerHandler("DEMANDA_ACTUALIZADA", placeholderHandler());
