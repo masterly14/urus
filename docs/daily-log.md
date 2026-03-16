@@ -122,3 +122,26 @@ Registro diario según rutina en `docs/plan.md`.
 
 - Ninguno / [descripcion]
 
+
+### Completado
+
+- [x] **[M5] Tests del flujo completo Smart Matching (Día 9, ítem 5)**  
+  - Tests unitarios de scoring: `lib/matching/__tests__/scoring.test.ts` — 34 tests (zona, precio, tipología, metros, habitaciones, `computeMatchScore`).  
+  - Tests E2E del pipeline: `lib/matching/__tests__/match-pipeline.test.ts` — 5 tests: match positivo/negativo, evento `MATCH_GENERADO` en event store, `DEMANDA_ACTUALIZADA` actualiza `demands_current` y cambia resultados del cruce, flujo completo propiedad → match → ajuste demanda → recruce.  
+  - Ajuste en `matching-handler.ts`: fallback al payload del evento cuando la propiedad aún no está en `properties_current` (evita chicken-and-egg con la proyección).  
+  - Tests E2E usan BD real (Neon), cleanup de eventos/proyecciones/snapshots; `ensureDemandSnapshot` para que el handler de `DEMANDA_ACTUALIZADA` no falle en egestion.
+
+### Notas
+
+- Suite matching: 34 unitarios + 5 E2E (~2 min). Todos pasan.  
+- El flujo E2E cubre: nueva propiedad → cruce → match → (simulado) ajuste de demanda → recruce con criterios actualizados.
+
+<!-- Commits de hoy (copiar refs a Completado):
+   b6b72a4 test(M4): añadir script test-whatsapp-m4 y comando npm whatsapp:test-m4
+   5908e9b docs(daily-log): añadir último ítem de Test M4 con número +573113541077 y checklist
+   8716ba7 docs(M4): documentar variables de entorno WhatsApp en .env.example
+   efadf02 feat(M4): implementar webhook de recepción GET/POST /api/whatsapp/webhook
+   f4b4bc8 feat(M4): añadir tipos, verificación de firma y parseo para webhook WhatsApp
+   7ffb08a chore(M4): añadir enums WHATSAPP_RECIBIDO, WHATSAPP_ENVIADO y WHATSAPP_CONVERSATION en Prisma
+   c281302 chore(M4): documentar variables de entorno de WhatsApp Cloud API en .env.example
+-->
