@@ -32,6 +32,8 @@ enum EventType {
   DEMANDA_MODIFICADA
   DEMANDA_ESTADO_CAMBIADO
   LEAD_INGESTADO
+  LEAD_SCORED
+  LEAD_CONTACTADO
   SLA_INICIADO
   DEMANDA_ACTUALIZADA
   MATCH_GENERADO
@@ -44,6 +46,8 @@ enum JobType {
   UPDATE_PROPERTY_PROJECTION
   UPDATE_DEMAND_PROJECTION
   WRITE_TO_INMOVILLA
+  NOTIFY_LEAD_WHATSAPP
+  FOLLOW_UP_LEAD
 }
 
 enum JobStatus {
@@ -220,6 +224,27 @@ model DemandCurrent {
 
 model User {
   id String @id @default(cuid())
+}
+
+model Comercial {
+  id                String   @id @default(cuid())
+  nombre            String
+  telefono          String   @default("")
+  email             String   @default("")
+  ciudad            String
+  especialidad      String   @default("general")
+  activo            Boolean  @default(true)
+  cargaActual       Int      @default(0)
+  cargaMaxima       Int      @default(20)
+  leadsAsignados    Int      @default(0)
+  leadsCerrados     Int      @default(0)
+  tasaConversion    Float    @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([ciudad, activo])
+  @@index([activo, cargaActual])
+  @@map("comerciales")
 }
 
 // --- Catálogos Inmovilla (cache de GET /enums/?...) ---
