@@ -39,6 +39,8 @@ enum EventType {
   MATCH_GENERADO
   WHATSAPP_RECIBIDO
   WHATSAPP_ENVIADO
+  VISITA_EVALUADA
+  VISITA_AGENDADA
 }
 
 enum JobType {
@@ -48,6 +50,7 @@ enum JobType {
   WRITE_TO_INMOVILLA
   NOTIFY_LEAD_WHATSAPP
   FOLLOW_UP_LEAD
+  GENERATE_MICROSITE
 }
 
 enum JobStatus {
@@ -220,6 +223,34 @@ model DemandCurrent {
   @@index([zonas])
   @@index([lastEventPosition])
   @@map("demands_current")
+}
+
+model IngestionCycleMetric {
+  id               String   @id @default(cuid())
+  cycleId          String   @unique
+  worker           String   // "properties" | "demands"
+  mode             String   // "rest" | "legacy"
+  success          Boolean
+  startedAt        DateTime
+  finishedAt       DateTime
+  durationMs       Int
+  itemsRead        Int      @default(0)
+  itemsFetched     Int      @default(0)
+  itemsFailed      Int      @default(0)
+  snapshotSize     Int      @default(0)
+  eventsEmitted    Int      @default(0)
+  diffCreated      Int      @default(0)
+  diffModified     Int      @default(0)
+  diffStatusChanged Int     @default(0)
+  diffUnchanged    Int      @default(0)
+  errorMessage     String?
+  errorCode        String?
+  phases           Json     @default("{}")
+  createdAt        DateTime @default(now())
+
+  @@index([worker, startedAt])
+  @@index([success, startedAt])
+  @@map("ingestion_cycle_metrics")
 }
 
 model User {

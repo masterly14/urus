@@ -8,46 +8,74 @@ import {
 import { computeDemandDiff } from "./demands-diff";
 import { publishDemandEventsForDiff } from "./event-publisher";
 import type { DemandIngestionCycleResult } from "./types";
+import { demandsLogger } from "../logger";
+import { classifyError } from "../errors";
+import { saveCycleMetrics, PhaseTimer } from "../metrics";
+import type { PhaseTimings } from "../metrics";
 
 export async function runDemandsIngestionCycle(): Promise<DemandIngestionCycleResult> {
   const cycleId = randomUUID();
   const startedAt = new Date();
+  const log = demandsLogger.child({ cycleId });
+  const phases: PhaseTimings = {};
 
-  console.log(`[ingestion:demands] Ciclo ${cycleId} iniciado`);
+  log.info("Ciclo iniciado", { mode: "legacy" });
 
   try {
-    console.log("[ingestion:demands] Iniciando login...");
+    // ── Fase 1: login + lectura de demandas ──────────────────────────────
+    let t = new PhaseTimer();
+    log.info("Iniciando login en Inmovilla...");
     const session = await loginToInmovilla({ headless: true });
 
-    console.log("[ingestion:demands] Leyendo demandas...");
+    log.info("Leyendo demandas...");
     const demands = await fetchAllDemands(session);
-    console.log(`[ingestion:demands] ${demands.length} demandas leídas`);
+    phases.fetchData = t.end();
+    log.phase("fetchData", phases.fetchData, { demandsRead: demands.length });
 
-    console.log("[ingestion:demands] Cargando snapshot previo...");
+    // ── Fase 2: cargar snapshot previo ────────────────────────────────────
+    t = new PhaseTimer();
+    log.info("Cargando snapshot previo...");
     const previousSnapshot = await loadPreviousDemandSnapshot();
-    console.log(
-      `[ingestion:demands] Snapshot previo: ${previousSnapshot.size} demandas`,
-    );
+    phases.loadSnapshot = t.end();
+    log.phase("loadSnapshot", phases.loadSnapshot, {
+      snapshotSize: previousSnapshot.size,
+    });
 
-    console.log("[ingestion:demands] Calculando diff...");
+    // ── Fase 3: calcular diff ─────────────────────────────────────────────
+    t = new PhaseTimer();
+    log.info("Calculando diff...");
     const diff = computeDemandDiff(demands, previousSnapshot);
-    console.log(
-      `[ingestion:demands] Diff: ${diff.created.length} nuevas, ${diff.modified.length} modificadas, ${diff.statusChanged.length} cambios de estado, ${diff.unchanged} sin cambios`,
-    );
+    phases.computeDiff = t.end();
+    log.phase("computeDiff", phases.computeDiff, {
+      created: diff.created.length,
+      modified: diff.modified.length,
+      statusChanged: diff.statusChanged.length,
+      unchanged: diff.unchanged,
+    });
 
+    // ── Fase 4: publicar eventos ──────────────────────────────────────────
+    t = new PhaseTimer();
+    log.info("Publicando eventos...");
     const publication = await publishDemandEventsForDiff(diff, cycleId);
     const eventsEmitted = publication.emitted;
-    console.log(`[ingestion:demands] ${eventsEmitted} eventos emitidos`);
+    phases.publishEvents = t.end();
+    log.phase("publishEvents", phases.publishEvents, { eventsEmitted });
 
-    console.log("[ingestion:demands] Guardando snapshot actual...");
+    // ── Fase 5: guardar snapshot ──────────────────────────────────────────
+    t = new PhaseTimer();
+    log.info("Guardando snapshot actual...");
     await saveCurrentDemandSnapshot(demands, startedAt);
+    phases.saveSnapshot = t.end();
+    log.phase("saveSnapshot", phases.saveSnapshot);
 
     const finishedAt = new Date();
+    const durationMs = finishedAt.getTime() - startedAt.getTime();
+
     const result: DemandIngestionCycleResult = {
       cycleId,
       startedAt,
       finishedAt,
-      durationMs: finishedAt.getTime() - startedAt.getTime(),
+      durationMs,
       demandsRead: demands.length,
       eventsEmitted,
       diff: {
@@ -58,25 +86,72 @@ export async function runDemandsIngestionCycle(): Promise<DemandIngestionCycleRe
       },
     };
 
-    console.log(
-      `[ingestion:demands] Ciclo ${cycleId} completado en ${result.durationMs}ms`,
-    );
+    log.info("Ciclo completado", {
+      durationMs,
+      demandsRead: demands.length,
+      eventsEmitted,
+      diff: result.diff,
+    });
+
+    await saveCycleMetrics({
+      cycleId,
+      worker: "demands",
+      mode: "legacy",
+      success: true,
+      startedAt,
+      finishedAt,
+      durationMs,
+      itemsRead: demands.length,
+      snapshotSize: previousSnapshot.size,
+      eventsEmitted,
+      diffCreated: diff.created.length,
+      diffModified: diff.modified.length,
+      diffStatusChanged: diff.statusChanged.length,
+      diffUnchanged: diff.unchanged,
+      phases,
+    });
+
     return result;
   } catch (err: unknown) {
     const finishedAt = new Date();
-    const message = err instanceof Error ? err.message : String(err);
+    const durationMs = finishedAt.getTime() - startedAt.getTime();
+    const classified = classifyError(err);
 
-    console.error(`[ingestion:demands] Ciclo ${cycleId} falló: ${message}`);
+    log.error("Ciclo fallido", err, {
+      durationMs,
+      errorCode: classified.code,
+      retryable: classified.retryable,
+    });
+
+    await saveCycleMetrics({
+      cycleId,
+      worker: "demands",
+      mode: "legacy",
+      success: false,
+      startedAt,
+      finishedAt,
+      durationMs,
+      itemsRead: 0,
+      snapshotSize: 0,
+      eventsEmitted: 0,
+      diffCreated: 0,
+      diffModified: 0,
+      diffStatusChanged: 0,
+      diffUnchanged: 0,
+      errorMessage: classified.message,
+      errorCode: classified.code,
+      phases,
+    });
 
     return {
       cycleId,
       startedAt,
       finishedAt,
-      durationMs: finishedAt.getTime() - startedAt.getTime(),
+      durationMs,
       demandsRead: 0,
       eventsEmitted: 0,
       diff: { created: 0, modified: 0, statusChanged: 0, unchanged: 0 },
-      error: message,
+      error: classified.message,
     };
   }
 }

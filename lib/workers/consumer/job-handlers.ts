@@ -12,6 +12,12 @@ import {
   type FollowUpCheckResult,
 } from "@/lib/leads/follow-up-checker";
 import { prisma } from "@/lib/prisma";
+import {
+  writeToInmovilla,
+  InmovillaWriteError,
+  type WriteOperation,
+  type WriteOperationPayloadMap,
+} from "@/lib/inmovilla/write";
 
 export type JobHandler = (job: JobRecord) => Promise<HandlerResult>;
 
@@ -56,6 +62,72 @@ async function handleNotifyLeadWhatsApp(job: JobRecord): Promise<HandlerResult> 
 }
 
 registerJobHandler("NOTIFY_LEAD_WHATSAPP", handleNotifyLeadWhatsApp);
+
+const PERMANENT_ERROR_CODES = new Set<string>([
+  "VALIDATION_ERROR",
+]);
+
+const TRANSIENT_ERROR_CODES = new Set<string>([
+  "SESSION_EXPIRED",
+  "NETWORK_ERROR",
+]);
+
+function isErrorPermanent(err: unknown): boolean {
+  if (err instanceof InmovillaWriteError) {
+    return PERMANENT_ERROR_CODES.has(err.code);
+  }
+  return false;
+}
+
+async function handleWriteToInmovilla(job: JobRecord): Promise<HandlerResult> {
+  const payload = (job.payload ?? {}) as Record<string, unknown>;
+  const operation = payload.operation as WriteOperation | undefined;
+  const args = payload.args as unknown;
+
+  if (!operation) {
+    return {
+      success: false,
+      error: "WRITE_TO_INMOVILLA sin payload.operation",
+      permanent: true,
+    };
+  }
+
+  try {
+    await writeToInmovilla(
+      operation,
+      args as WriteOperationPayloadMap[WriteOperation],
+      {
+        headless: true,
+        retryOnSessionExpired: true,
+        verify: true,
+      },
+    );
+
+    console.log(
+      `[consumer] WRITE_TO_INMOVILLA job ${job.id} operación=${operation} — OK`,
+    );
+    return { success: true };
+  } catch (err) {
+    const permanent = isErrorPermanent(err);
+
+    if (err instanceof InmovillaWriteError) {
+      const message = `${err.code}: ${err.message}`;
+      const retryLabel = permanent ? "NO RETRIABLE" : "retriable";
+      console.error(
+        `[consumer] WRITE_TO_INMOVILLA job ${job.id} operación=${operation} — ${message} [${retryLabel}]`,
+      );
+      return { success: false, error: message, permanent };
+    }
+
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[consumer] WRITE_TO_INMOVILLA job ${job.id} operación=${operation} — error inesperado: ${message}`,
+    );
+    return { success: false, error: message };
+  }
+}
+
+registerJobHandler("WRITE_TO_INMOVILLA", handleWriteToInmovilla);
 
 export type FollowUpChecker = (aggregateId: string) => Promise<FollowUpCheckResult>;
 export type AgentPhoneLookup = (agentId: string) => Promise<string | null>;
@@ -133,3 +205,13 @@ export async function handleFollowUpLead(
 }
 
 registerJobHandler("FOLLOW_UP_LEAD", handleFollowUpLead);
+
+async function handleGenerateMicrosite(job: JobRecord): Promise<HandlerResult> {
+  const payload = (job.payload ?? {}) as Record<string, unknown>;
+  console.log(
+    `[consumer] GENERATE_MICROSITE job ${job.id} demandId=${payload.demandId} stock=${payload.stockCount} — pendiente implementación M6`,
+  );
+  return { success: true };
+}
+
+registerJobHandler("GENERATE_MICROSITE", handleGenerateMicrosite);

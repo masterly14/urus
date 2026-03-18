@@ -3,6 +3,10 @@ import type { Event } from "@/types/domain";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import type { EventHandler, HandlerResult } from "./types";
 import { handleLeadIngestado } from "./lead-scoring-handler";
+import { handlePropertyMatching } from "./matching-handler";
+import { handleDemandaActualizada } from "./write-demand-update-handler";
+import { handleWhatsAppRecibido } from "./whatsapp-nlu-handler";
+import { handleVisitaEvaluada } from "./visita-evaluada-handler";
 
 const registry = new Map<EventType, EventHandler>();
 
@@ -68,7 +72,8 @@ function placeholderHandler(): EventHandler {
 }
 
 // --- Property handlers ---
-registerHandler("PROPIEDAD_CREADA", propertyHandler("UPDATE_PROPERTY_PROJECTION"));
+// PROPIEDAD_CREADA dispara cruce de demandas + projection (matching-handler.ts)
+registerHandler("PROPIEDAD_CREADA", handlePropertyMatching);
 registerHandler("PROPIEDAD_MODIFICADA", propertyHandler("UPDATE_PROPERTY_PROJECTION"));
 registerHandler("ESTADO_CAMBIADO", propertyHandler("UPDATE_PROPERTY_PROJECTION"));
 
@@ -80,9 +85,17 @@ registerHandler("DEMANDA_ESTADO_CAMBIADO", demandHandler("UPDATE_DEMAND_PROJECTI
 // --- Lead scoring + SLA ---
 registerHandler("LEAD_INGESTADO", handleLeadIngestado);
 
+// --- Smart Matching (M5) ---
+registerHandler("WHATSAPP_RECIBIDO", handleWhatsAppRecibido);
+registerHandler("DEMANDA_ACTUALIZADA", handleDemandaActualizada);
+
+// --- Micro-frontends (M4) ---
+registerHandler("VISITA_EVALUADA", handleVisitaEvaluada);
+registerHandler("VISITA_AGENDADA", placeholderHandler());
+
 // --- Placeholders (futuras implementaciones) ---
 registerHandler("LEAD_SCORED", placeholderHandler());
 registerHandler("LEAD_CONTACTADO", placeholderHandler());
 registerHandler("SLA_INICIADO", placeholderHandler());
 registerHandler("MATCH_GENERADO", placeholderHandler());
-registerHandler("DEMANDA_ACTUALIZADA", placeholderHandler());
+registerHandler("WHATSAPP_ENVIADO", placeholderHandler());

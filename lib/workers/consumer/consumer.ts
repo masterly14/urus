@@ -1,6 +1,7 @@
 import type { EventType } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { dequeueJob, enqueueJob, markCompleted, markFailed } from "@/lib/job-queue";
+import { getDeadLetterStats } from "@/lib/job-queue/dead-letter";
 import type { JobRecord } from "@/lib/job-queue/types";
 import { getHandler } from "./handlers";
 import { getJobHandler, type JobHandler } from "./job-handlers";
@@ -77,12 +78,14 @@ export async function runConsumerCycle(
 
     if (!result.success) {
       console.error(
-        `[consumer] Handler ${event.type} falló: ${result.error ?? "error desconocido"}`,
+        `[consumer] Handler ${event.type} falló: ${result.error ?? "error desconocido"}` +
+          (result.permanent ? " [PERMANENTE — directo a DLQ]" : ` [intento ${job.attempts}/${job.maxAttempts}]`),
       );
       await markFailed({
         jobId: job.id,
         error: result.error ?? "Handler retornó success=false",
         workerId: config.workerId,
+        permanent: result.permanent,
       });
       return { processed: 0, failed: 1, noWork: false };
     }
@@ -104,7 +107,7 @@ export async function runConsumerCycle(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(
-      `[consumer] Excepción en handler ${event.type}: ${message}`,
+      `[consumer] Excepción en handler ${event.type}: ${message} [intento ${job.attempts}/${job.maxAttempts}]`,
     );
     await markFailed({
       jobId: job.id,
@@ -125,12 +128,14 @@ async function processDirectJob(
 
     if (!result.success) {
       console.error(
-        `[consumer] Job handler ${job.type} falló: ${result.error ?? "error desconocido"}`,
+        `[consumer] Job handler ${job.type} falló: ${result.error ?? "error desconocido"}` +
+          (result.permanent ? " [PERMANENTE — directo a DLQ]" : ` [intento ${job.attempts}/${job.maxAttempts}]`),
       );
       await markFailed({
         jobId: job.id,
         error: result.error ?? "Job handler retornó success=false",
         workerId,
+        permanent: result.permanent,
       });
       return { processed: 0, failed: 1, noWork: false };
     }
@@ -146,7 +151,9 @@ async function processDirectJob(
     return { processed: 1, failed: 0, noWork: false };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[consumer] Excepción en job handler ${job.type}: ${message}`);
+    console.error(
+      `[consumer] Excepción en job handler ${job.type}: ${message} [intento ${job.attempts}/${job.maxAttempts}]`,
+    );
     await markFailed({ jobId: job.id, error: message, workerId });
     return { processed: 0, failed: 1, noWork: false };
   }
@@ -184,6 +191,19 @@ export async function runConsumerLoop(
       await delay(pollIntervalMs);
     } else {
       consecutiveNoWork = 0;
+    }
+  }
+
+  if (totalFailed > 0) {
+    try {
+      const dlqStats = await getDeadLetterStats();
+      if (dlqStats.total > 0) {
+        console.warn(
+          `[consumer] Dead-letter queue: ${dlqStats.total} job(s) — ${JSON.stringify(dlqStats.byType)}`,
+        );
+      }
+    } catch {
+      // No bloquear el loop por un fallo leyendo stats DLQ
     }
   }
 

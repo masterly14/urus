@@ -56,5 +56,7 @@ export interface MarkFailedInput {
   workerId?: string;
   now?: Date;
   retryDelayMs?: number;
+  /** Si true, el job va directo a DEAD_LETTER sin importar intentos restantes. */
+  permanent?: boolean;
 }
 

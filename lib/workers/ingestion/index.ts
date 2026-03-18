@@ -25,3 +25,11 @@ export type {
   DemandStatusChangedChange,
   DemandIngestionCycleResult,
 } from "./demands";
+
+// Infraestructura de observabilidad
+export { propertiesLogger, demandsLogger } from "./logger";
+export type { WorkerLogger, LogLevel, LogEntry } from "./logger";
+export { classifyError, isRateLimitError, isRetryableError, IngestionError } from "./errors";
+export type { IngestionErrorCode } from "./errors";
+export { saveCycleMetrics, getRecentMetrics, PhaseTimer } from "./metrics";
+export type { CycleMetricsData, PhaseTimings, WorkerName, WorkerMode } from "./metrics";
