@@ -146,3 +146,81 @@ Registro diario según rutina en `docs/plan.md`.
    7ffb08a chore(M4): añadir enums WHATSAPP_RECIBIDO, WHATSAPP_ENVIADO y WHATSAPP_CONVERSATION en Prisma
    c281302 chore(M4): documentar variables de entorno de WhatsApp Cloud API en .env.example
 -->
+
+## 2026-03-18 (Miercoles - Semana 12)
+
+### Dia de desarrollo
+
+- Jueves (Dia 10) - Robustez de Workers + Micro-frontends
+- Fuente: docs/plan.md
+
+### Plan del dia
+
+- [x] Robustez del Ingestion Worker: manejo de errores, reconexión automática, logging estructurado, métricas de ejecución.
+- [x] Robustez del Egestion Worker: retry con backoff exponencial, dead-letter queue para fallos permanentes, alertas.
+- [x] Implementar micro-frontend post-visita: formulario Next.js donde el comercial marca interés (alto/medio/bajo) + notas. Conectado a API Route → evento en Neon.
+- [x] Implementar micro-frontend de agenda: selección de hora de visita, integración básica con Google Calendar API.
+- [x] Conectar micro-frontends al flujo principal: visita → interés → scoring actualizado → consulta a Statefox API para stock de mercado + decisión de generar microsite. Implementar traductor demanda→filtros Statefox (lib/statefox/query-builder.ts).
+- [x] Daily log, push.
+
+### Bloqueantes
+
+- Ninguno
+
+### Completado
+
+- [x] **[M1] Robustez Ingestion Worker** (`426034a`)
+  - Logging estructurado por ciclo, métricas de ejecución, reconexión automática de DB.
+- [x] **[M1] Robustez Egestion Worker — Dead-Letter Queue y alertas** (`f46214d`, `241f3b9`, `6f098c4`, `d25c90e`, `641d34b`, `e6f941f`)
+  - Módulo de alertas WhatsApp/log para jobs en DLQ.
+  - Utilidades DLQ: listar, stats, replay, purge.
+  - `markFailed` con flag `permanent` y disparo automático de alerta.
+  - Clasificación de errores egestion (permanent vs transient).
+  - Endpoint API `/api/workers/dead-letter` para gestión operativa de la DLQ.
+  - Variable `ALERT_WHATSAPP_TO` documentada en `.env.example`.
+- [x] **[M0] Eventos `VISITA_EVALUADA` y `VISITA_AGENDADA` en schema Prisma** (`544f4fc`, `abb9585`)
+- [x] **[deps] Shadcn UI inicializado + componentes** (Button, Card, RadioGroup, Textarea, Input, Label, Select) (`b23b0d6`)
+- [x] **[M4] Micro-frontend post-visita** (`69771cb`, `085e8cd`)
+  - API Route `POST /api/post-visit` → `appendEvent(VISITA_EVALUADA)`.
+  - Página `app/post-visita/[demandId]/page.tsx` con RadioGroup interés + Textarea notas.
+- [x] **[M4] Micro-frontend agenda** (`08fee21`, `b92ba37`, `a10d7ed`, `d506828`)
+  - `lib/composio/create-calendar-event.ts` — integración Google Calendar via Composio (mismo patrón `OpenAIAgentsProvider` que 2FA).
+  - API Route `POST /api/agenda` → crea evento Google Calendar + `appendEvent(VISITA_AGENDADA)`.
+  - Página `app/agenda/[demandId]/page.tsx` con formulario de booking (fecha, hora, ubicación, notas).
+  - Enlace al evento de Google Calendar en pantalla de éxito.
+- [x] **[M0] JobType `GENERATE_MICROSITE` en schema Prisma** (`a49c5cf`)
+- [x] **[M4] Query-builder Statefox** (`bfa40e5`)
+  - `lib/statefox/query-builder.ts`: `mapTiposToHousing()` (Piso→flat, Ático→penthouse…), `parseLocationKeywords()`, `buildStatefoxQuery()`, `matchesStatefoxFilters()`, `filterStatefoxResults()`.
+- [x] **[M4] Flujo principal conectado** (`01bfe17`, `b483ef8`)
+  - Handler `VISITA_EVALUADA`: lee DemandCurrent → ajusta score (alto+20/medio 0/bajo-15) → consulta Statefox stock → decide `GENERATE_MICROSITE` (stock≥3 + interés alto).
+  - `VISITA_AGENDADA` y `GENERATE_MICROSITE` registrados en consumer.
+
+### Notas
+
+- Rama: `feat/M4-micro-frontend-visita` (creada desde `feat/M1-worker-resilience`).
+- Total de commits del día: 20 en rama activa.
+- Google Calendar vía Composio requiere conexión activa en [app.composio.dev](https://app.composio.dev) (misma cuenta que Gmail 2FA, integración adicional `GOOGLECALENDAR`).
+- El handler `GENERATE_MICROSITE` es placeholder; la implementación completa es tarea del Día 11 (M6).
+
+<!-- Commits de hoy:
+   b483ef8 feat(M4): conectar micro-frontends al flujo principal via handlers del consumer
+   01bfe17 feat(M4): implementar handler VISITA_EVALUADA con scoring y consulta Statefox
+   bfa40e5 feat(M4): implementar query-builder traductor demanda a filtros Statefox
+   a49c5cf feat(M0): añadir JobType GENERATE_MICROSITE al event store
+   d506828 docs(M4): documentar conexión Google Calendar en variables Composio
+   a10d7ed feat(M4): implementar micro-frontend de agenda con formulario de booking
+   b92ba37 feat(M4): implementar API Route /api/agenda para agendar visitas
+   08fee21 feat(M4): implementar integración Google Calendar via Composio
+   abb9585 feat(M0): añadir evento VISITA_AGENDADA al event store
+   085e8cd feat(M4): implementar micro-frontend post-visita con formulario interés y notas
+   69771cb feat(M4): implementar API Route post-visit para evaluación de visita
+   b23b0d6 chore(deps): añadir Shadcn UI y componentes para formularios
+   544f4fc feat(M0): añadir evento VISITA_EVALUADA al event store
+   e6f941f docs(M1): documentar ALERT_WHATSAPP_TO en .env.example
+   641d34b feat(M1): endpoint API /api/workers/dead-letter para gestión DLQ
+   d25c90e feat(M1): clasificar errores egestion (permanent vs transient) y propagar en consumer
+   6f098c4 feat(M1): markFailed con flag permanent y alerta al pasar a DEAD_LETTER
+   241f3b9 feat(M1): utilidades dead-letter queue (listar, stats, replay, purge)
+   f46214d feat(M1): añadir módulo de alertas para dead-letter (log + WhatsApp opcional)
+   426034a feat(M1): robustez del Ingestion Worker - logging, errores, metricas y reconexion DB
+-->
