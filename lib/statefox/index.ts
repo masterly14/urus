@@ -25,3 +25,18 @@ export type {
   StatefoxHousing,
   StatefoxSnapshotStatus,
 } from "./types";
+
+export {
+  buildStatefoxQuery,
+  mapTiposToHousing,
+  parseLocationKeywords,
+  matchesStatefoxFilters,
+  filterStatefoxResults,
+} from "./query-builder";
+
+export type {
+  DemandFilterInput,
+  StatefoxQueryParams,
+  StatefoxResultFilters,
+  StatefoxDemandQuery,
+} from "./query-builder";
