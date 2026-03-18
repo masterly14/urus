@@ -1,5 +1,6 @@
 import type { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { alertDeadLetter } from "@/lib/alerts";
 import type {
   DequeueJobOptions,
   DequeueJobResult,
@@ -165,11 +166,17 @@ export async function markFailed(input: MarkFailedInput): Promise<JobRecord> {
     throw new Error(`Job lock no pertenece al worker: ${input.jobId}`);
   }
 
-  const hasAttemptsLeft = job.attempts < job.maxAttempts;
-  const retryDelayMs =
-    input.retryDelayMs ?? computeBackoffMs(Math.max(1, job.attempts));
+  const shouldDeadLetter = input.permanent || job.attempts >= job.maxAttempts;
 
-  if (!hasAttemptsLeft) {
+  if (shouldDeadLetter) {
+    const reason = input.permanent
+      ? "fallo permanente (no retriable)"
+      : `máximo de intentos alcanzado (${job.attempts}/${job.maxAttempts})`;
+
+    console.error(
+      `[job-queue] Job ${job.id} (${job.type}) → DEAD_LETTER: ${reason}. Error: ${input.error}`,
+    );
+
     const updated = await prisma.jobQueue.update({
       where,
       data: {
@@ -180,10 +187,32 @@ export async function markFailed(input: MarkFailedInput): Promise<JobRecord> {
         lockedBy: null,
       },
     });
+
+    const payload = (job.payload ?? {}) as Record<string, unknown>;
+    alertDeadLetter({
+      jobId: job.id,
+      jobType: job.type,
+      attempts: job.attempts,
+      lastError: input.error,
+      operation: typeof payload.operation === "string" ? payload.operation : undefined,
+      details: { reason },
+    }).catch((err) => {
+      console.error(
+        `[job-queue] Error emitiendo alerta DLQ: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
+
     return updated;
   }
 
+  const retryDelayMs =
+    input.retryDelayMs ?? computeBackoffMs(Math.max(1, job.attempts));
   const availableAt = new Date(now.getTime() + Math.max(0, retryDelayMs));
+
+  console.warn(
+    `[job-queue] Job ${job.id} (${job.type}) — reintento ${job.attempts}/${job.maxAttempts}, próximo en ${retryDelayMs}ms (${availableAt.toISOString()}). Error: ${input.error}`,
+  );
+
   const updated = await prisma.jobQueue.update({
     where,
     data: {
