@@ -4,6 +4,8 @@ export interface HandlerResult {
   success: boolean;
   followUpJobs?: EnqueueJobInput[];
   error?: string;
+  /** Si true, el error es permanente y el job debe ir directo a DEAD_LETTER. */
+  permanent?: boolean;
   scoredPayload?: Record<string, unknown>;
 }
 
