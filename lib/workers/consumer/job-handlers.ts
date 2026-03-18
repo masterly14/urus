@@ -205,3 +205,13 @@ export async function handleFollowUpLead(
 }
 
 registerJobHandler("FOLLOW_UP_LEAD", handleFollowUpLead);
+
+async function handleGenerateMicrosite(job: JobRecord): Promise<HandlerResult> {
+  const payload = (job.payload ?? {}) as Record<string, unknown>;
+  console.log(
+    `[consumer] GENERATE_MICROSITE job ${job.id} demandId=${payload.demandId} stock=${payload.stockCount} — pendiente implementación M6`,
+  );
+  return { success: true };
+}
+
+registerJobHandler("GENERATE_MICROSITE", handleGenerateMicrosite);
