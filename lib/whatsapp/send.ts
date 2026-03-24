@@ -230,3 +230,125 @@ export async function sendFollowUpToCommercial(
 
   return sendTextMessage(to, lines.join("\n"), options);
 }
+
+export type MicrositeValidationNotifyParams = {
+  demandNombre: string;
+  demandId: string;
+  validationUrl: string;
+  /** Fecha límite ISO para el SLA (2h). */
+  validationDueAtIso: string;
+};
+
+/**
+ * Notifica al comercial que debe validar la selección de propiedades del microsite (M6).
+ * MVP: texto libre (ventana 24h con el comercial).
+ */
+export async function sendMicrositePendingValidationToCommercial(
+  to: string,
+  params: MicrositeValidationNotifyParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const due = new Date(params.validationDueAtIso);
+  const dueStr = due.toLocaleString("es-ES", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+  const lines = [
+    `🏠 *Selección de mercado lista*`,
+    ``,
+    `• Demanda: ${params.demandNombre || params.demandId}`,
+    `• ID: ${params.demandId}`,
+    ``,
+    `Valida en menos de 2h (antes de ${dueStr}):`,
+    params.validationUrl,
+    ``,
+    `Tras aprobar, enviaremos el enlace al comprador por WhatsApp.`,
+  ];
+  return sendTextMessage(to, lines.join("\n"), options);
+}
+
+export type MicrositeBuyerLinkParams = {
+  demandNombre: string;
+  buyerUrl: string;
+};
+
+/**
+ * Envía al comprador el enlace público del microsite tras validación comercial.
+ */
+export async function sendMicrositeLinkToBuyer(
+  to: string,
+  params: MicrositeBuyerLinkParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const firstName = params.demandNombre.trim().split(/\s+/)[0];
+  const lines = [
+    `Hola${firstName ? ` ${firstName}` : ""},`,
+    ``,
+    `Aquí tienes una selección de propiedades que encajan con tu búsqueda:`,
+    params.buyerUrl,
+    ``,
+    `Indica cuáles te interesan desde la página.`,
+  ];
+  return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
+}
+
+export type ContractDataIncompleteNotifyParams = {
+  operationId: string;
+  demandId: string;
+  missingCategories: string[];
+  description: string;
+};
+
+/**
+ * Notifica al comercial que faltan datos obligatorios para generar un contrato (M8).
+ * MVP: texto libre (ventana 24h). Producción: plantilla "contrato_datos_incompletos".
+ */
+export async function sendContractDataIncompleteToCommercial(
+  to: string,
+  params: ContractDataIncompleteNotifyParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const categoriesLabel = params.missingCategories.length > 0
+    ? params.missingCategories.join(", ")
+    : "campos obligatorios";
+
+  const lines = [
+    `📄 *Contrato: datos incompletos*`,
+    ``,
+    `• Operación: ${params.operationId}`,
+    `• Demanda: ${params.demandId}`,
+    `• Datos faltantes: ${categoriesLabel}`,
+    ``,
+    params.description,
+    ``,
+    `Completa los datos en Inmovilla para que el sistema pueda generar el contrato.`,
+  ];
+
+  return sendTextMessage(to, lines.join("\n"), options);
+}
+
+export type MicrositeValidationEscalationParams = {
+  demandId: string;
+  demandNombre: string;
+  validationUrl: string;
+  validationDueAtIso: string;
+};
+
+/** Alerta a jefe de zona / escalación si se incumple el SLA de validación. */
+export async function sendMicrositeValidationEscalation(
+  to: string,
+  params: MicrositeValidationEscalationParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const lines = [
+    `⚠️ *SLA validación microsite incumplido*`,
+    ``,
+    `• Demanda: ${params.demandNombre || params.demandId}`,
+    `• ID: ${params.demandId}`,
+    `• Límite: ${params.validationDueAtIso}`,
+    ``,
+    `Pendiente de validación comercial:`,
+    params.validationUrl,
+  ];
+  return sendTextMessage(to, lines.join("\n"), options);
+}
