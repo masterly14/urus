@@ -92,6 +92,12 @@ registerHandler("DEMANDA_ACTUALIZADA", handleDemandaActualizada);
 // --- Micro-frontends (M4) ---
 registerHandler("VISITA_EVALUADA", handleVisitaEvaluada);
 registerHandler("VISITA_AGENDADA", placeholderHandler());
+registerHandler("SELECCION_COMPRADOR", placeholderHandler());
+registerHandler("SELECCION_VALIDADA", placeholderHandler());
+registerHandler("SELECCION_RECHAZADA", placeholderHandler());
+
+// --- Smart Closing (M8) ---
+registerHandler("DATOS_INCOMPLETOS", placeholderHandler());
 
 // --- Placeholders (futuras implementaciones) ---
 registerHandler("LEAD_SCORED", placeholderHandler());

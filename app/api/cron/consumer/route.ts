@@ -27,7 +27,14 @@ export async function POST(request: Request) {
     maxCycles: batchSize,
     batchSize,
     pollIntervalMs: 500,
-    types: ["PROCESS_EVENT", "NOTIFY_LEAD_WHATSAPP", "FOLLOW_UP_LEAD"],
+    types: [
+      "PROCESS_EVENT",
+      "NOTIFY_LEAD_WHATSAPP",
+      "FOLLOW_UP_LEAD",
+      "GENERATE_MICROSITE",
+      "NOTIFY_MICROSITE_PENDING_VALIDATION",
+      "SEND_MICROSITE_TO_BUYER",
+    ],
   });
 
   return NextResponse.json(result);

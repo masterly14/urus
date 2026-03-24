@@ -10,7 +10,7 @@
  */
 
 import type { Event } from "@/types/domain";
-import type { EnqueueJobInput } from "@/lib/job-queue/types";
+import type { EnqueueJobInput, JsonValue } from "@/lib/job-queue/types";
 import type { HandlerResult } from "./types";
 import type { DemandFilterInput } from "@/lib/statefox";
 import { prisma } from "@/lib/prisma";
@@ -156,9 +156,9 @@ export async function handleVisitaEvaluada(event: Event): Promise<HandlerResult>
         notas,
         scoreDelta,
         stockCount,
-        demand: demandFilter,
+        demand: demandFilter as unknown as JsonValue,
         sourceEventId: event.id,
-      },
+      } as unknown as JsonValue,
       priority: 50,
       idempotencyKey: `generate_microsite:${demandId}:${event.id}`,
       sourceEventId: event.id,
