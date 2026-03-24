@@ -7,6 +7,7 @@ import { handlePropertyMatching } from "./matching-handler";
 import { handleDemandaActualizada } from "./write-demand-update-handler";
 import { handleWhatsAppRecibido } from "./whatsapp-nlu-handler";
 import { handleVisitaEvaluada } from "./visita-evaluada-handler";
+import { handleEstadoCambiado } from "./smart-closing-handler";
 
 const registry = new Map<EventType, EventHandler>();
 
@@ -75,7 +76,7 @@ function placeholderHandler(): EventHandler {
 // PROPIEDAD_CREADA dispara cruce de demandas + projection (matching-handler.ts)
 registerHandler("PROPIEDAD_CREADA", handlePropertyMatching);
 registerHandler("PROPIEDAD_MODIFICADA", propertyHandler("UPDATE_PROPERTY_PROJECTION"));
-registerHandler("ESTADO_CAMBIADO", propertyHandler("UPDATE_PROPERTY_PROJECTION"));
+registerHandler("ESTADO_CAMBIADO", handleEstadoCambiado);
 
 // --- Demand handlers ---
 registerHandler("DEMANDA_CREADA", demandHandler("UPDATE_DEMAND_PROJECTION"));
@@ -98,6 +99,7 @@ registerHandler("SELECCION_RECHAZADA", placeholderHandler());
 
 // --- Smart Closing (M8) ---
 registerHandler("DATOS_INCOMPLETOS", placeholderHandler());
+registerHandler("CONTRATO_BORRADOR_GENERADO", placeholderHandler());
 
 // --- Placeholders (futuras implementaciones) ---
 registerHandler("LEAD_SCORED", placeholderHandler());

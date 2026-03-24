@@ -26,6 +26,7 @@ import { getPublicAppUrl } from "@/lib/microsite/app-url";
 import { normalizeWhatsAppDigits } from "@/lib/microsite/buyer-phone";
 import { enqueueJob } from "@/lib/job-queue";
 import type { DemandFilterInput } from "@/lib/statefox";
+import { handleGenerateContractDraft } from "./contract-draft-handler";
 
 export type JobHandler = (job: JobRecord) => Promise<HandlerResult>;
 
@@ -475,3 +476,6 @@ async function handleNotifyContractDataIncomplete(job: JobRecord): Promise<Handl
 }
 
 registerJobHandler("NOTIFY_CONTRACT_DATA_INCOMPLETE", handleNotifyContractDataIncomplete);
+
+// --- Smart Closing: generación de borrador de contrato (M8) ---
+registerJobHandler("GENERATE_CONTRACT_DRAFT", handleGenerateContractDraft);
