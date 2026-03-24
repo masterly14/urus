@@ -47,7 +47,7 @@ Cron de seguridad (POST /api/cron/cadences — cada 6-12h):
 
 Endpoint temporal para disparar manualmente la ingesta de leads (pruebas, demos, integración con sistemas externos). En producción, la ingesta se realizará automáticamente desde el Ingestion Worker cuando detecte leads nuevos en Inmovilla.
 
-**Autenticación:** `Authorization: Bearer <CRON_SECRET>` o query param `?token=<CRON_SECRET>`.
+**Autenticación:** `Authorization: Bearer <CRON_SECRET>` o parámetro de consulta `cronSecret` con el mismo valor.
 
 **Body (JSON):**
 
