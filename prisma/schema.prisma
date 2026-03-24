@@ -41,6 +41,10 @@ enum EventType {
   WHATSAPP_ENVIADO
   VISITA_EVALUADA
   VISITA_AGENDADA
+  SELECCION_COMPRADOR
+  SELECCION_VALIDADA
+  SELECCION_RECHAZADA
+  DATOS_INCOMPLETOS
 }
 
 enum JobType {
@@ -51,6 +55,9 @@ enum JobType {
   NOTIFY_LEAD_WHATSAPP
   FOLLOW_UP_LEAD
   GENERATE_MICROSITE
+  NOTIFY_MICROSITE_PENDING_VALIDATION
+  SEND_MICROSITE_TO_BUYER
+  NOTIFY_CONTRACT_DATA_INCOMPLETE
 }
 
 enum JobStatus {
@@ -64,6 +71,18 @@ enum JobStatus {
 enum ProjectionName {
   PROPERTIES_CURRENT
   DEMANDS_CURRENT
+}
+
+enum MicrositeSelectionStatus {
+  PENDING_VALIDATION
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum MicrositeSelectionDecision {
+  ME_INTERESA
+  NO_ME_ENCAJA
 }
 
 model Event {
@@ -204,6 +223,8 @@ model DemandCurrent {
   codigo             String   @id
   ref                String   @default("")
   nombre             String   @default("")
+  /** Teléfono del contacto/comprador si la ingesta lo expone (E.164 o dígitos). */
+  telefono           String   @default("")
   estadoId           String   @default("")
   estadoNombre       String   @default("")
   presupuestoMin     Float    @default(0)
@@ -338,4 +359,65 @@ model InmovillaEnumZona {
   @@unique([key_loca, key_zona])
   @@index([key_loca, key_zona])
   @@map("inmovilla_enum_zona")
+}
+
+model MicrositeSelection {
+  id            String                   @id @default(cuid())
+  /** Token público para el comprador: /seleccion/{token} */
+  token         String                   @unique
+  /** Token opaco para el comercial: /validar-seleccion/{validationToken} */
+  validationToken String                 @unique
+  status        MicrositeSelectionStatus @default(PENDING_VALIDATION)
+
+  demandId      String
+  demandNombre  String                  @default("")
+  comercialId   String                  @default("system")
+  /** Teléfono del comprador resuelto al crear la selección (envío WA). */
+  buyerPhone    String                  @default("")
+
+  /** Query params enviados a Statefox (/properties). */
+  statefoxQuery Json
+  /** Filtros aplicados en memoria (precio/metros/keywords...). */
+  resultFilters Json
+  /** Lista curada para renderizar el microsite. */
+  properties    Json
+
+  stockCount    Int                     @default(0)
+  sourceEventId String?
+  firstViewedAt DateTime?
+  lastViewedAt  DateTime?
+  viewCount     Int                     @default(0)
+
+  /** SLA validación comercial: deadline = createdAt + 2h (M6). */
+  validationDueAt   DateTime?
+  validatedAt       DateTime?
+  validatedByComercialId String?
+  escalatedAt       DateTime?
+
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  expiresAt     DateTime?
+
+  feedbacks     MicrositeSelectionFeedback[]
+
+  @@index([demandId, createdAt])
+  @@index([token])
+  @@index([status, validationDueAt])
+  @@map("microsite_selections")
+}
+
+model MicrositeSelectionFeedback {
+  id          String                     @id @default(cuid())
+  selectionId String
+  propertyId  String
+  decision    MicrositeSelectionDecision
+  payload     Json?
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  selection   MicrositeSelection         @relation(fields: [selectionId], references: [id], onDelete: Cascade)
+
+  @@unique([selectionId, propertyId])
+  @@index([selectionId, createdAt])
+  @@map("microsite_selection_feedback")
 }
