@@ -69,7 +69,6 @@ const TIPO_TO_HOUSING: Record<string, StatefoxHousing> = {
   // Áticos y similares
   "ático": "penthouse",
   atico: "penthouse",
-  ático: "penthouse",
   penthouse: "penthouse",
   // Casas y unifamiliares
   chalet: "house",
