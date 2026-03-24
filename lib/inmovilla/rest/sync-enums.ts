@@ -89,8 +89,17 @@ export async function syncEnums(
     });
   }
 
-  // 4. Ciudades (España por defecto)
-  const ciudadesByProvincia = await getCiudades(client);
+  // 4. Ciudades — probar primero sin país (España por defecto); si falla 404, reintentar con código 724
+  let ciudadesByProvincia: Awaited<ReturnType<typeof getCiudades>> = [];
+  try {
+    ciudadesByProvincia = await getCiudades(client);
+  } catch {
+    console.log("[sync-enums] getCiudades() sin parámetro falló — reintentando con código 724");
+    await throttle();
+    const paisEspana =
+      paises.find((p) => p.iso2 === "ES" || String(p.valor) === "724")?.valor ?? "724";
+    ciudadesByProvincia = await getCiudades(client, String(paisEspana));
+  }
   await throttle();
   await prisma.inmovillaEnumCiudad.deleteMany({});
   const ciudadRows: {
@@ -101,8 +110,9 @@ export async function syncEnums(
     pais_valor: string | null;
   }[] = [];
   for (const prov of ciudadesByProvincia) {
-    const paisValor = prov.pais != null ? String(prov.pais) : "724"; // 724 = España por defecto
-    for (const c of prov.ciudades ?? []) {
+    const paisValor = prov.pais != null ? String(prov.pais) : "724";
+    const ciudadesArr = Array.isArray(prov.ciudades) ? prov.ciudades : [];
+    for (const c of ciudadesArr) {
       ciudadRows.push({
         key_loca: c.key_loca,
         ciudad: c.ciudad,
