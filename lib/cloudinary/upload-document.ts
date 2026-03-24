@@ -33,7 +33,7 @@ export async function uploadContractDocument(
   const { buffer, fileName, folder, tags = [], context } = options;
   const cloudinary = getCloudinary();
 
-  const nameWithoutExt = fileName.replace(/\.[^.]+$/, "");
+  const safeFileName = fileName.trim();
 
   const contextStr = context
     ? Object.entries(context)
@@ -46,7 +46,9 @@ export async function uploadContractDocument(
   const result = await cloudinary.uploader.upload(dataUri, {
     resource_type: "raw",
     folder,
-    public_id: nameWithoutExt,
+    // Mantener extension en public_id evita descargas sin ".docx".
+    public_id: safeFileName,
+    filename_override: safeFileName,
     tags: ["contract", ...tags],
     context: contextStr,
     overwrite: true,

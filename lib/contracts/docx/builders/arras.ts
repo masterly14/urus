@@ -2,6 +2,7 @@ import {
   AlignmentType,
   Document,
   HeadingLevel,
+  LineRuleType,
   Paragraph,
   TextRun,
   UnderlineType,
@@ -32,16 +33,17 @@ export interface ArrasRenderModel {
 
 function heading(text: string): Paragraph {
   return new Paragraph({
-    spacing: { before: 240, after: 120 },
-    children: [new TextRun({ text, bold: true })],
+    spacing: { before: 260, after: 140 },
+    children: [new TextRun({ text, bold: true, size: 24 })],
   });
 }
 
 function body(text: string): Paragraph {
   return new Paragraph({
-    spacing: { after: 120 },
+    spacing: { after: 140, line: 360, lineRule: LineRuleType.AUTO },
+    indent: { firstLine: 420 },
     alignment: AlignmentType.JUSTIFIED,
-    children: [new TextRun({ text })],
+    children: [new TextRun({ text, size: 24 })],
   });
 }
 
@@ -109,26 +111,73 @@ export function buildArrasRenderModel(payload: ArrasContractPayload): ArrasRende
 
 export function buildArrasDocument(payload: ArrasContractPayload): Document {
   const model = buildArrasRenderModel(payload);
+  const p = model.paragraphs;
 
   return new Document({
+    styles: {
+      default: {
+        document: {
+          run: {
+            font: "Times New Roman",
+            size: 24,
+          },
+          paragraph: {
+            spacing: {
+              after: 140,
+              line: 360,
+            },
+          },
+        },
+      },
+    },
     sections: [
       {
         properties: {},
         children: [
           new Paragraph({
             heading: HeadingLevel.HEADING_1,
-            spacing: { after: 220 },
+            spacing: { after: 260 },
             alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: model.title, bold: true })],
+            children: [new TextRun({ text: model.title, bold: true, color: "2F6DB5", size: 36 })],
           }),
           heading("REUNIDOS"),
-          ...model.paragraphs.map(body),
+          body(p[0]),
+          body(p[1]),
+          body(p[2]),
+          heading("INMUEBLE"),
+          body(p[3]),
+          body(p[4]),
+          body(p[5]),
+          body(p[6]),
+          heading("ESTIPULACIONES"),
+          heading("PRIMERA.- PRECIO Y ARRAS"),
+          body(p[7]),
+          body(p[8]),
+          body(p[9]),
+          body(p[10]),
+          body(p[11]),
+          heading("SEGUNDA.- PLAZO PARA ESCRITURA"),
+          body(p[12]),
+          body(p[13]),
+          heading("TERCERA.- ENTREGA DE LLAVES"),
+          body(p[14]),
+          heading("CUARTA.- GASTOS E IMPUESTOS"),
+          body(p[15]),
+          heading("QUINTA.- CARGAS"),
+          body(p[16]),
+          heading("SEXTA.- ESTADO DEL INMUEBLE"),
+          body(p[17]),
+          heading("SEPTIMA.- FUERO"),
+          body(p[18]),
+          body(p[19]),
           new Paragraph({
-            spacing: { before: 200, after: 120 },
+            spacing: { before: 320, after: 140 },
+            alignment: AlignmentType.CENTER,
             children: [
               new TextRun({
                 text: model.signatureLine,
                 underline: { type: UnderlineType.SINGLE },
+                size: 24,
               }),
             ],
           }),
