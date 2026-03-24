@@ -24,7 +24,8 @@
     "daily-log:end": "tsx scripts/daily-log-end.ts",
     "daily-log:sync-commit": "tsx scripts/daily-log-sync-commit.ts",
     "whatsapp:test-m4": "tsx scripts/test-whatsapp-m4.ts",
-    "agents:test-langgraph": "tsx scripts/test-langgraph.ts"
+    "agents:test-langgraph": "tsx scripts/test-langgraph.ts",
+    "m8:test-contract-upload": "tsx scripts/test-contract-docx-cloudinary.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
