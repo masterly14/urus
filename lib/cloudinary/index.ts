@@ -10,3 +10,9 @@ export {
   type CloudinaryCredentials,
   type CreateCloudinaryClientOptions,
 } from "./client";
+
+export {
+  uploadContractDocument,
+  type UploadDocumentOptions,
+  type UploadDocumentResult,
+} from "./upload-document";
