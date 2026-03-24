@@ -3,7 +3,8 @@ import type { InmovillaSession } from "../auth/types";
 export type WriteOperation =
   | "createDemand"
   | "updateDemandEmail"
-  | "updateDemandPriority";
+  | "updateDemandPriority"
+  | "updateDemandCriteria";
 
 export type CreateDemandPayload = {
   query: {
@@ -44,10 +45,27 @@ export type UpdateDemandPriorityPayload = {
   envConf?: "true" | "false";
 };
 
+export type UpdateDemandCriteriaPayload = {
+  demandId: string;
+  demandRef: string;
+  clientId: string;
+  agentId: string;
+  propertyTypes: string;
+  patch: {
+    presupuestoMin?: number;
+    presupuestoMax?: number;
+    habitacionesMin?: number;
+    zonas?: string;
+    tipos?: string;
+  };
+  envConf?: "true" | "false";
+};
+
 export type WriteOperationPayloadMap = {
   createDemand: CreateDemandPayload;
   updateDemandEmail: UpdateDemandEmailPayload;
   updateDemandPriority: UpdateDemandPriorityPayload;
+  updateDemandCriteria: UpdateDemandCriteriaPayload;
 };
 
 export type WriteRequestContext<T extends WriteOperation = WriteOperation> = {

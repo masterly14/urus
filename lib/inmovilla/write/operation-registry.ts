@@ -163,10 +163,64 @@ const updateDemandPrioritySpec: WriteOperationSpec<"updateDemandPriority"> = {
     verifyDemandPriority(responseText, ctx.payload.priority),
 };
 
+const updateDemandCriteriaSpec: WriteOperationSpec<"updateDemandCriteria"> = {
+  operation: "updateDemandCriteria",
+  mainStep: ({ payload, session }) => {
+    const query = toQueryString({
+      eS: "0",
+      tipocruce: "1",
+      porarea: "1",
+      ref: payload.demandRef,
+      idi: "1",
+      envConf: payload.envConf ?? "false",
+      cache: buildCacheToken(session.numAgencia),
+    });
+
+    const patch = payload.patch ?? {};
+
+    const body: Record<string, string> = {
+      tipopropiedad: payload.propertyTypes,
+      "demandas-cod_dempriclave": payload.demandId,
+      "clientes-cod_clipriclave": payload.clientId,
+      "demandas-keycliclaveext": payload.clientId,
+      nbclave: "demandas.cod_dem",
+      antagente: payload.agentId,
+    };
+
+    // Campos que sí conocemos y son estables (alineados con createDemand).
+    if (typeof patch.presupuestoMin === "number") {
+      body["demandas-ventadesde"] = String(Math.round(patch.presupuestoMin));
+    }
+    if (typeof patch.presupuestoMax === "number") {
+      const max = String(Math.round(patch.presupuestoMax));
+      body["demandas-ventahasta"] = max;
+      // Inmovilla usa 'ventanego' en altas; en update lo enviamos si hay presupuestoMax.
+      body["demandas-ventanego"] = max;
+    }
+    if (typeof patch.habitacionesMin === "number") {
+      body["demandas-habitacionmin"] = String(Math.round(patch.habitacionesMin));
+    }
+    if (typeof patch.zonas === "string" && patch.zonas.trim()) {
+      body["zonas"] = patch.zonas.trim();
+    }
+    if (typeof patch.tipos === "string" && patch.tipos.trim()) {
+      body["tipos"] = patch.tipos.trim();
+    }
+
+    return {
+      path: `/new/app/guardar/guardar.php?${query}`,
+      body,
+      responseMode: "text",
+    };
+  },
+  parseMainResponse: parseGuardarResponse,
+};
+
 export const writeOperationRegistry: {
   [K in WriteOperation]: WriteOperationSpec<K>;
 } = {
   createDemand: createDemandSpec,
   updateDemandEmail: updateDemandEmailSpec,
   updateDemandPriority: updateDemandPrioritySpec,
+  updateDemandCriteria: updateDemandCriteriaSpec,
 };

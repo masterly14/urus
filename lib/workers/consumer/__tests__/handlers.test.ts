@@ -39,6 +39,9 @@ describe("handler registry", () => {
       "SLA_INICIADO",
       "MATCH_GENERADO",
       "DEMANDA_ACTUALIZADA",
+      "SELECCION_COMPRADOR",
+      "SELECCION_VALIDADA",
+      "SELECCION_RECHAZADA",
     ];
 
     for (const type of expectedTypes) {
@@ -112,7 +115,9 @@ describe("placeholder handlers", () => {
     "LEAD_SCORED",
     "SLA_INICIADO",
     "MATCH_GENERADO",
-    "DEMANDA_ACTUALIZADA",
+    "SELECCION_COMPRADOR",
+    "SELECCION_VALIDADA",
+    "SELECCION_RECHAZADA",
   ];
 
   for (const eventType of placeholderTypes) {

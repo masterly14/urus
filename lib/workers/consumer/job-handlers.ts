@@ -4,6 +4,9 @@ import type { HandlerResult } from "./types";
 import {
   sendLeadAssignedToCommercial,
   sendFollowUpToCommercial,
+  sendMicrositePendingValidationToCommercial,
+  sendMicrositeLinkToBuyer,
+  sendContractDataIncompleteToCommercial,
   type LeadAssignedParams,
   type FollowUpParams,
 } from "@/lib/whatsapp/send";
@@ -18,6 +21,12 @@ import {
   type WriteOperation,
   type WriteOperationPayloadMap,
 } from "@/lib/inmovilla/write";
+import { generateMicrositeSelection } from "@/lib/microsite/selection";
+import { getPublicAppUrl } from "@/lib/microsite/app-url";
+import { normalizeWhatsAppDigits } from "@/lib/microsite/buyer-phone";
+import { enqueueJob } from "@/lib/job-queue";
+import type { DemandFilterInput } from "@/lib/statefox";
+import { handleGenerateContractDraft } from "./contract-draft-handler";
 
 export type JobHandler = (job: JobRecord) => Promise<HandlerResult>;
 
@@ -208,10 +217,265 @@ registerJobHandler("FOLLOW_UP_LEAD", handleFollowUpLead);
 
 async function handleGenerateMicrosite(job: JobRecord): Promise<HandlerResult> {
   const payload = (job.payload ?? {}) as Record<string, unknown>;
+
+  const demandId = typeof payload.demandId === "string" ? payload.demandId : "";
+  if (!demandId) {
+    return { success: false, error: "GENERATE_MICROSITE sin payload.demandId", permanent: true };
+  }
+
+  const comercialId = typeof payload.comercialId === "string" ? payload.comercialId : "system";
+  const sourceEventId =
+    typeof payload.sourceEventId === "string"
+      ? payload.sourceEventId
+      : job.sourceEventId ?? undefined;
+
+  const demandFromPayload = payload.demand as unknown as Partial<DemandFilterInput> | undefined;
+
+  const demandCurrent = await prisma.demandCurrent.findUnique({
+    where: { codigo: demandId },
+    select: {
+      nombre: true,
+      tipos: true,
+      zonas: true,
+      presupuestoMin: true,
+      presupuestoMax: true,
+      habitacionesMin: true,
+    },
+  });
+
+  const demand: DemandFilterInput = {
+    tipos: demandCurrent?.tipos ?? String(demandFromPayload?.tipos ?? ""),
+    zonas: demandCurrent?.zonas ?? String(demandFromPayload?.zonas ?? ""),
+    presupuestoMin:
+      demandCurrent?.presupuestoMin ??
+      (typeof demandFromPayload?.presupuestoMin === "number" ? demandFromPayload.presupuestoMin : 0),
+    presupuestoMax:
+      demandCurrent?.presupuestoMax ??
+      (typeof demandFromPayload?.presupuestoMax === "number" ? demandFromPayload.presupuestoMax : 0),
+    habitacionesMin:
+      demandCurrent?.habitacionesMin ??
+      (typeof demandFromPayload?.habitacionesMin === "number" ? demandFromPayload.habitacionesMin : 0),
+    metrosMin:
+      typeof demandFromPayload?.metrosMin === "number" ? demandFromPayload.metrosMin : undefined,
+    metrosMax:
+      typeof demandFromPayload?.metrosMax === "number" ? demandFromPayload.metrosMax : undefined,
+  };
+
+  const demandNombre = demandCurrent?.nombre ?? "";
+
+  const result = await generateMicrositeSelection({
+    demandId,
+    demandNombre,
+    comercialId,
+    demand,
+    sourceEventId,
+  });
+
+  if (!result.ok) {
+    console.warn(
+      `[consumer] GENERATE_MICROSITE job ${job.id} demandId=${demandId} — omitido: ${result.reason}`,
+    );
+    return { success: true };
+  }
+
   console.log(
-    `[consumer] GENERATE_MICROSITE job ${job.id} demandId=${payload.demandId} stock=${payload.stockCount} — pendiente implementación M6`,
+    `[consumer] GENERATE_MICROSITE job ${job.id} demandId=${demandId} — creado Token=${result.token} props=${result.propertiesCount} stock=${result.stockCount}`,
   );
+
+  await enqueueJob({
+    type: "NOTIFY_MICROSITE_PENDING_VALIDATION",
+    payload: { selectionId: result.selectionId },
+    priority: 40,
+    idempotencyKey: `notify_microsite_validation:${result.selectionId}`,
+  });
+
   return { success: true };
 }
 
 registerJobHandler("GENERATE_MICROSITE", handleGenerateMicrosite);
+
+async function handleNotifyMicrositePendingValidation(job: JobRecord): Promise<HandlerResult> {
+  const payload = (job.payload ?? {}) as Record<string, unknown>;
+  const selectionId = typeof payload.selectionId === "string" ? payload.selectionId : "";
+  if (!selectionId) {
+    return { success: false, error: "NOTIFY_MICROSITE_PENDING_VALIDATION sin selectionId", permanent: true };
+  }
+
+  const selection = await prisma.micrositeSelection.findUnique({
+    where: { id: selectionId },
+    select: {
+      status: true,
+      validationToken: true,
+      demandId: true,
+      demandNombre: true,
+      comercialId: true,
+      validationDueAt: true,
+    },
+  });
+
+  if (!selection) {
+    return { success: false, error: "Selección no encontrada", permanent: true };
+  }
+  if (selection.status !== "PENDING_VALIDATION") {
+    console.log(
+      `[consumer] NOTIFY_MICROSITE_PENDING_VALIDATION job ${job.id} — omitido, status=${selection.status}`,
+    );
+    return { success: true };
+  }
+
+  const comercial = await prisma.comercial.findUnique({
+    where: { id: selection.comercialId },
+    select: { telefono: true },
+  });
+  const telefono = comercial?.telefono?.trim();
+  if (!telefono) {
+    console.warn(
+      `[consumer] NOTIFY_MICROSITE_PENDING_VALIDATION job ${job.id} — comercial ${selection.comercialId} sin teléfono`,
+    );
+    return { success: true };
+  }
+
+  const base = getPublicAppUrl();
+  const validationUrl = `${base}/validar-seleccion/${selection.validationToken}`;
+  const due = selection.validationDueAt ?? new Date(Date.now() + 2 * 60 * 60 * 1000);
+
+  try {
+    await sendMicrositePendingValidationToCommercial(telefono, {
+      demandId: selection.demandId,
+      demandNombre: selection.demandNombre,
+      validationUrl,
+      validationDueAtIso: due.toISOString(),
+    });
+    console.log(
+      `[consumer] NOTIFY_MICROSITE_PENDING_VALIDATION job ${job.id} — enviado a ${telefono} selectionId=${selectionId}`,
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[consumer] NOTIFY_MICROSITE_PENDING_VALIDATION — error: ${message}`);
+    return { success: false, error: message };
+  }
+
+  return { success: true };
+}
+
+registerJobHandler("NOTIFY_MICROSITE_PENDING_VALIDATION", handleNotifyMicrositePendingValidation);
+
+async function handleSendMicrositeToBuyer(job: JobRecord): Promise<HandlerResult> {
+  const payload = (job.payload ?? {}) as Record<string, unknown>;
+  const selectionId = typeof payload.selectionId === "string" ? payload.selectionId : "";
+  if (!selectionId) {
+    return { success: false, error: "SEND_MICROSITE_TO_BUYER sin selectionId", permanent: true };
+  }
+
+  const selection = await prisma.micrositeSelection.findUnique({
+    where: { id: selectionId },
+    select: {
+      token: true,
+      status: true,
+      demandNombre: true,
+      buyerPhone: true,
+    },
+  });
+
+  if (!selection) {
+    return { success: false, error: "Selección no encontrada", permanent: true };
+  }
+  if (selection.status !== "APPROVED") {
+    console.warn(
+      `[consumer] SEND_MICROSITE_TO_BUYER job ${job.id} — status=${selection.status}, omitiendo envío`,
+    );
+    return { success: true };
+  }
+
+  const digits = normalizeWhatsAppDigits(selection.buyerPhone);
+  if (digits.length < 9) {
+    console.warn(
+      `[consumer] SEND_MICROSITE_TO_BUYER job ${job.id} — sin teléfono comprador para selectionId=${selectionId}`,
+    );
+    return { success: true };
+  }
+
+  const base = getPublicAppUrl();
+  const buyerUrl = `${base}/seleccion/${selection.token}`;
+
+  try {
+    await sendMicrositeLinkToBuyer(digits, {
+      demandNombre: selection.demandNombre,
+      buyerUrl,
+    });
+    console.log(
+      `[consumer] SEND_MICROSITE_TO_BUYER job ${job.id} — enviado al comprador selectionId=${selectionId}`,
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[consumer] SEND_MICROSITE_TO_BUYER — error: ${message}`);
+    return { success: false, error: message };
+  }
+
+  return { success: true };
+}
+
+registerJobHandler("SEND_MICROSITE_TO_BUYER", handleSendMicrositeToBuyer);
+
+async function handleNotifyContractDataIncomplete(job: JobRecord): Promise<HandlerResult> {
+  const payload = (job.payload ?? {}) as Record<string, unknown>;
+  const operationId = typeof payload.operationId === "string" ? payload.operationId : "";
+  const demandId = typeof payload.demandId === "string" ? payload.demandId : "";
+  const assignedCommercialId =
+    typeof payload.assignedCommercialId === "string" ? payload.assignedCommercialId : "";
+  const description = typeof payload.description === "string" ? payload.description : "";
+  const missingCategories = Array.isArray(payload.missingRequiredCategories)
+    ? (payload.missingRequiredCategories as string[])
+    : [];
+
+  if (!operationId || !demandId) {
+    return {
+      success: false,
+      error: "NOTIFY_CONTRACT_DATA_INCOMPLETE sin operationId o demandId",
+      permanent: true,
+    };
+  }
+
+  if (!assignedCommercialId || assignedCommercialId === "system") {
+    console.warn(
+      `[consumer] NOTIFY_CONTRACT_DATA_INCOMPLETE job ${job.id} — sin comercial asignado, completando sin envío`,
+    );
+    return { success: true };
+  }
+
+  const comercial = await prisma.comercial.findUnique({
+    where: { id: assignedCommercialId },
+    select: { telefono: true },
+  });
+  const telefono = comercial?.telefono?.trim();
+
+  if (!telefono) {
+    console.warn(
+      `[consumer] NOTIFY_CONTRACT_DATA_INCOMPLETE job ${job.id} — comercial ${assignedCommercialId} sin teléfono`,
+    );
+    return { success: true };
+  }
+
+  try {
+    await sendContractDataIncompleteToCommercial(telefono, {
+      operationId,
+      demandId,
+      missingCategories,
+      description,
+    });
+    console.log(
+      `[consumer] NOTIFY_CONTRACT_DATA_INCOMPLETE job ${job.id} — enviado a ${telefono} operationId=${operationId}`,
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[consumer] NOTIFY_CONTRACT_DATA_INCOMPLETE — error: ${message}`);
+    return { success: false, error: message };
+  }
+
+  return { success: true };
+}
+
+registerJobHandler("NOTIFY_CONTRACT_DATA_INCOMPLETE", handleNotifyContractDataIncomplete);
+
+// --- Smart Closing: generación de borrador de contrato (M8) ---
+registerJobHandler("GENERATE_CONTRACT_DRAFT", handleGenerateContractDraft);

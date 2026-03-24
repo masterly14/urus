@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { appendEvent } from "@/lib/event-store/event-store";
 import { AggregateType, EventType } from "@/app/generated/prisma/client";
+import { enqueueJob } from "@/lib/job-queue";
 
 export async function POST(request: Request) {
   try {
@@ -23,6 +24,13 @@ export async function POST(request: Request) {
         notas: notas || "",
         comercialId: comercialId || "system",
       },
+    });
+
+    await enqueueJob({
+      type: "PROCESS_EVENT",
+      payload: { eventId: event.id },
+      sourceEventId: event.id,
+      idempotencyKey: `process_event:${event.id}`,
     });
 
     return NextResponse.json({ success: true, eventId: event.id });

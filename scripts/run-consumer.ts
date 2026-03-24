@@ -15,7 +15,14 @@ async function main() {
     maxCycles,
     batchSize: maxCycles,
     pollIntervalMs: 1_000,
-    types: ["PROCESS_EVENT", "NOTIFY_LEAD_WHATSAPP", "FOLLOW_UP_LEAD"],
+    types: [
+      "PROCESS_EVENT",
+      "NOTIFY_LEAD_WHATSAPP",
+      "FOLLOW_UP_LEAD",
+      "GENERATE_MICROSITE",
+      "NOTIFY_MICROSITE_PENDING_VALIDATION",
+      "SEND_MICROSITE_TO_BUYER",
+    ],
   });
 
   console.log("\n=== Resultado del consumer ===");

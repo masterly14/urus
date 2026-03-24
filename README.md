@@ -20,6 +20,8 @@ Documentación de decisiones:
 
 Escenario de migración a API REST (contactos, propiedades, propietarios) documentado en `docs/plan.md` — estrategia de transición sin romper el flujo actual.
 
+**Mensajería:** se usa **WhatsApp Cloud API (Meta)** en integración directa; no se utiliza BSP (Twilio, 360dialog, MessageBird).
+
 - **Catálogos Inmovilla (enums vía REST)**: `key_loca`, `key_tipo`, `key_zona` se resuelven desde Neon; sincronización con `scripts/sync-inmovilla-enums.ts` (rate limit 2/min). Lectura: `lib/inmovilla/rest/catalogs.ts`. Ver `docs/catalogos-inmovilla.md`.
 
 ### Comandos útiles
@@ -166,7 +168,7 @@ Para evitar que clientes, colaboradores externos o comerciales peleen con la int
 
 | Canal | Implementación |
 |---|---|
-| **WhatsApp** | WhatsApp Business API (integración directa vía código) para precalificar compradores, seguimiento post-venta y notificaciones de matches |
+| **WhatsApp** | **WhatsApp Cloud API (Meta)** — integración directa con la API de Meta, sin BSP (Twilio/360dialog/MessageBird). Precalificación de compradores, seguimiento post-venta y notificaciones de matches |
 | **Micro-Frontends** | Rutas dinámicas en Next.js para flujos propios que Inmovilla no modela bien, como estados tipo kanban de colaboradores, subida documental y validaciones rápidas del equipo |
 | **Notificaciones internas** | Webhooks propios hacia Slack/WhatsApp del equipo |
 
@@ -229,7 +231,7 @@ A cada comprador compatible se le envía automáticamente un mensaje vía **What
 > 2. No me encaja
 > 3. Busco algo diferente"
 
-El agente **no interviene**. El mensaje se genera con plantillas aprobadas y se envía desde una API Route de Next.js que conecta directamente con el proveedor de WhatsApp Business (360dialog / Twilio / MessageBird).
+El agente **no interviene**. El mensaje se genera con plantillas aprobadas y se envía desde una API Route de Next.js que conecta directamente con **WhatsApp Cloud API (Meta)** — sin intermediarios BSP.
 
 ---
 
@@ -298,6 +300,7 @@ El sistema consulta el mercado externo:
 Con las propiedades relevantes del mercado (de Statefox API), el sistema genera un **microsite propio** (micro-frontend Next.js con branding Urus Capital):
 
 - Página con token único: `/seleccion/{token}`
+- **Vista demo (mocks):** en desarrollo, abre `/seleccion/demo` para ver fichas de ejemplo sin Neon ni Statefox. En producción, opcionalmente `NEXT_PUBLIC_MICROSITE_MOCK=true` (ver `.env.example`).
 - Fichas con imágenes (`pImages`), precio, metros, zona, extras
 - Botones "Me interesa" / "No me encaja" que generan eventos (`SELECCION_COMPRADOR`)
 - Tracking de qué se mostró, a quién, cuándo (persistido en Neon)
@@ -308,18 +311,15 @@ Con las propiedades relevantes del mercado (de Statefox API), el sistema genera 
 
 ## Módulo 7 — Validación del Comercial
 
-El comercial recibe una notificación automática (vía WhatsApp Business API o el micro-frontend interno):
+Flujo implementado (M6 Item 3):
 
-> "Demanda [Nombre] — Selección de propiedades de mercado lista.
-> Pendiente de validación."
+1. Tras generar la selección (`GENERATE_MICROSITE`), se encola `NOTIFY_MICROSITE_PENDING_VALIDATION` y el comercial recibe un **WhatsApp** con enlace a **`/validar-seleccion/{validationToken}`** (token distinto del enlace del comprador) y recordatorio de SLA (2 h desde la creación).
+2. El comercial abre el micro-frontend interno y en **30–60 s** puede **Aprobar** o **Rechazar**.
+3. **Aprobar** → evento `SELECCION_VALIDADA` en Neon, estado `APPROVED`, job `SEND_MICROSITE_TO_BUYER` → WhatsApp al comprador con **`/seleccion/{token}`** (requiere `buyerPhone` en la selección, resuelto desde `demands_current.telefono` o `demand_snapshots.raw`).
+4. **Rechazar** → evento `SELECCION_RECHAZADA`, estado `REJECTED` (no se envía enlace al comprador).
+5. **SLA:** cron autenticado **`POST /api/cron/microsite-validation-sla`** (mismo criterio que otros cron: `CRON_SECRET`): selecciones `PENDING_VALIDATION` con `validationDueAt` vencido y sin `escalatedAt` → WhatsApp a `MICROSITE_VALIDATION_ESCALATION_TO` y marca `escalatedAt`.
 
-**El comercial revisa en 30–60 segundos:**
-
-- Que las propiedades seleccionadas sean adecuadas.
-- Que no haya conflictos de branding.
-- Ajusta la selección si hace falta (ocultar/añadir fichas).
-
-Al aprobar, el sistema registra el evento `SELECCION_VALIDADA` y envía el enlace del microsite al comprador. Si el SLA de validación (2 horas) se incumple, se escala al jefe de zona.
+Variables: `NEXT_PUBLIC_APP_URL` (enlaces absolutos en WhatsApp), `MICROSITE_VALIDATION_ESCALATION_TO` — ver `.env.example`.
 
 ---
 
@@ -544,7 +544,7 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 
 | Requisito | Implementación |
 |---|---|
-| Proveedor | **360dialog / Twilio / MessageBird** (WhatsApp Business API) |
+| Proveedor | **WhatsApp Cloud API (Meta)** — integración directa, sin BSP. Cuenta Meta Business Manager + WABA. |
 | Plantillas aprobadas | Para primer contacto (obligatorio por política de Meta) |
 | Mensajes interactivos | Botones de respuesta rápida (1/2/3) |
 | Webhooks de entrada | Captura de respuestas → API Route en Next.js |
@@ -578,7 +578,7 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 | Componente | Implementación |
 |---|---|
 | Motor de plantillas | Generación programática en TypeScript (docx/PDF) con variables y bloques condicionales |
-| Almacenamiento | S3-compatible o sistema de archivos del servidor |
+| Almacenamiento | Cloudinary o sistema de archivos del servidor |
 | Versionado | Naming estándar: `OP-2026-XXXX_Arras_v1.pdf` |
 
 ### Tracking y Observabilidad
@@ -1660,10 +1660,10 @@ El sistema ofrece lectura **estratégica**, no psicológica:
 | Servicio | Proveedor | Integración |
 |---|---|---|
 | **Autenticación Inmovilla (2FA)** | **Composio + Gmail** | Obtención automática del código de verificación por correo: acción Composio sobre Gmail (listar/buscar correos de Inmovilla), extracción del código de 6 dígitos, envío al endpoint `login2Fa/verifyCode`. Ver `docs/workers/inmovilla-endpoints.md`. |
-| WhatsApp Business | **360dialog / Twilio / MessageBird** | API directa desde código (webhooks + envíos) |
+| WhatsApp | **WhatsApp Cloud API (Meta)** | Integración directa con Meta (sin BSP): API REST, webhooks, plantillas. Cuenta Meta Business + WABA. |
 | Firma digital | **Signaturit / DocuSign** | API REST desde Next.js |
 | Calendario | **Google Calendar API** | Micro-frontend de booking |
-| Almacenamiento | **S3-compatible** | Documentos, contratos, adjuntos |
+| Almacenamiento | **Cloudinary** | Documentos, contratos, adjuntos |
 
 ### Interfaces
 

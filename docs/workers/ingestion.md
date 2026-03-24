@@ -197,6 +197,12 @@ Almacena el ultimo estado conocido de cada propiedad. Se usa exclusivamente para
 | `firstSeenAt` | datetime | Primera vez que el worker vio esta propiedad |
 | `lastSeenAt` | datetime | Ultima vez que el worker vio esta propiedad |
 
+## Estado semanal (v0.1.0-week-01)
+
+- Build y tests del repositorio validados antes del tag semanal.
+- Flujo de ingestion de propiedades por REST validado en entorno de trabajo.
+- Flujo de ingestion de demandas legacy mantenido para cobertura funcional donde REST no aplica.
+
 ## Troubleshooting
 
 | Problema | Causa probable | Solucion |

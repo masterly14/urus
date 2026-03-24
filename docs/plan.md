@@ -33,7 +33,7 @@
 
 ### Qué se construye
 
-Un sistema de automatización integral para Urus Capital Group que envuelve el CRM existente (Inmovilla) y lo conecta con Statefox, WhatsApp Business, firma digital, y un motor de IA — creando un ecosistema que transforma la operativa inmobiliaria de manual a autónoma.
+Un sistema de automatización integral para Urus Capital Group que envuelve el CRM existente (Inmovilla) y lo conecta con Statefox, **WhatsApp Cloud API (Meta)** — integración directa, sin BSP —, firma digital, y un motor de IA — creando un ecosistema que transforma la operativa inmobiliaria de manual a autónoma.
 
 ### Por qué
 
@@ -80,7 +80,7 @@ El principio fundacional es la **Segregación de Responsabilidades**. Inmovilla 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  CAPA 4 — Interfaces Satélite (Las Ventanillas)        │
-│  Micro-frontends · WhatsApp Business · Notificaciones   │
+│  Micro-frontends · WhatsApp Cloud API (Meta) · Notificaciones   │
 ├─────────────────────────────────────────────────────────┤
 │  CAPA 3 — Plano de Control (El Cerebro)                │
 │  Next.js API Routes · Neon Event Store · LangGraph IA   │
@@ -104,7 +104,7 @@ El principio fundacional es la **Segregación de Responsabilidades**. Inmovilla 
 
 **Capa 3 — Plano de Control (El Cerebro):** Next.js App Router + TypeScript como framework principal. Neon PostgreSQL como Event Store + Job Queue. LangGraph + modelos o3 para flujos agénticos (scoring, clasificación, Smart Matching, Smart Closing, pricing).
 
-**Capa 4 — Interfaces Satélite (Las Ventanillas):** Micro-frontends en Next.js (formularios de post-visita, validación de enlaces, dashboards), WhatsApp Business API para comunicación con compradores y comerciales, y webhooks internos.
+**Capa 4 — Interfaces Satélite (Las Ventanillas):** Micro-frontends en Next.js (formularios de post-visita, validación de enlaces, dashboards), **WhatsApp Cloud API (Meta)** en integración directa (sin BSP) para comunicación con compradores y comerciales, y webhooks internos.
 
 ### API REST de Inmovilla — Confirmado y operativo
 
@@ -116,22 +116,26 @@ Inmovilla dispone de una API REST v1 (`https://procesos.inmovilla.com/api/v1`) q
 
 #### Cobertura de la API REST
 
-| Entidad | GET | POST | PUT | DELETE | Buscar | Extra |
-|---|---|---|---|---|---|---|
-| **Clientes** | por `cod_cli` | nombre + datos | por `cod_cli` | por `cod_cli` | por teléfono/email | — |
-| **Propiedades** | por `cod_ofer`/`ref` | JSON (~180 campos) | mismo POST con `ref` | `nodisponible=true` | listado por `fechaact` | `extrainfo`, leads |
-| **Propietarios** | por `cod_cli`/`cod_ofer`/`ref` | vinculado a `cod_ofer` | por `cod_cli` | por `cod_cli` | — | array de propiedades |
-| **Enums** | calidades, tipos, países, ciudades, zonas | — | — | — | — | rate limit: 2/min |
-| **Demandas** | **NO** | **NO** | **NO** | **NO** | **NO** | **No cubierto por REST** |
+
+| Entidad          | GET                                       | POST                   | PUT                  | DELETE              | Buscar                 | Extra                    |
+| ---------------- | ----------------------------------------- | ---------------------- | -------------------- | ------------------- | ---------------------- | ------------------------ |
+| **Clientes**     | por `cod_cli`                             | nombre + datos         | por `cod_cli`        | por `cod_cli`       | por teléfono/email     | —                        |
+| **Propiedades**  | por `cod_ofer`/`ref`                      | JSON (~180 campos)     | mismo POST con `ref` | `nodisponible=true` | listado por `fechaact` | `extrainfo`, leads       |
+| **Propietarios** | por `cod_cli`/`cod_ofer`/`ref`            | vinculado a `cod_ofer` | por `cod_cli`        | por `cod_cli`       | —                      | array de propiedades     |
+| **Enums**        | calidades, tipos, países, ciudades, zonas | —                      | —                    | —                   | —                      | rate limit: 2/min        |
+| **Demandas**     | **NO**                                    | **NO**                 | **NO**               | **NO**              | **NO**                 | **No cubierto por REST** |
+
 
 #### Rate limits operativos
 
-| Entidad | Por minuto | Por 10 minutos |
-|---|---|---|
-| Enums | 2 | 10 |
-| Clientes | 20 | 100 |
-| Propiedades | 10 | 50 |
-| Propietarios | 20 | 100 |
+
+| Entidad      | Por minuto | Por 10 minutos |
+| ------------ | ---------- | -------------- |
+| Enums        | 2          | 10             |
+| Clientes     | 20         | 100            |
+| Propiedades  | 10         | 50             |
+| Propietarios | 20         | 100            |
+
 
 #### Estrategia de integración (Ports & Adapters)
 
@@ -148,10 +152,12 @@ Statefox expone una API REST (`https://statefox.com/public/aapi/props`) de solo 
 
 #### Endpoints disponibles
 
-| Endpoint | Función | Paginación |
-|---|---|---|
+
+| Endpoint          | Función                                                                                                                   | Paginación                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
 | `GET /properties` | Propiedades listadas en portales (Idealista, Fotocasa, Pisos.com, Habitaclia) filtradas por fuente, tipo, housing y fecha | Offset-based (`page`), hasta 500 items |
-| `GET /snapshot` | Estado actual de todas las propiedades rastreadas (activas/inactivas) | Cursor-based (`next`), hasta 250 items |
+| `GET /snapshot`   | Estado actual de todas las propiedades rastreadas (activas/inactivas)                                                     | Cursor-based (`next`), hasta 250 items |
+
 
 Cada propiedad incluye: precio, `pPricePerMeter`, metros (`pMeters`), habitaciones, coordenadas (`pPoint`), zona/ciudad (`pCity`, `pZone`), extras (`pExtras`), imágenes (`pImages`), anunciante (`pAdvert`: particular vs profesional), timestamps de cambios (`pTS`, `pDate`), y detección de cambios (`pChanges`).
 
@@ -173,43 +179,43 @@ Statefox se usa **100% como proveedor de datos vía API**. Los microsites de sel
 ### Core
 
 
-| Componente           | Tecnología                        |
-| -------------------- | --------------------------------- |
-| Framework            | Next.js (App Router) + TypeScript |
-| ORM                  | Prisma (schema-first, migraciones, tipos generados) |
-| Base de datos        | Neon (PostgreSQL serverless)      |
-| Motor IA             | LangGraph + modelos o3 (OpenAI)   |
-| STT                  | OpenAI Whisper API                |
-| Workers              | Node.js + Playwright (solo legacy)|
-| Cron Scheduler       | Upstash QStash (disparo y orquestación de cron-jobs) |
-| API REST Inmovilla   | `procesos.inmovilla.com/api/v1` (clientes, propiedades, propietarios) |
-| API REST Statefox    | `statefox.com/public/aapi/props` (propiedades de mercado, snapshots)  |
+| Componente         | Tecnología                                                            |
+| ------------------ | --------------------------------------------------------------------- |
+| Framework          | Next.js (App Router) + TypeScript                                     |
+| ORM                | Prisma (schema-first, migraciones, tipos generados)                   |
+| Base de datos      | Neon (PostgreSQL serverless)                                          |
+| Motor IA           | LangGraph + modelos o3 (OpenAI)                                       |
+| STT                | OpenAI Whisper API                                                    |
+| Workers            | Node.js + Playwright (solo legacy)                                    |
+| Cron Scheduler     | Upstash QStash (disparo y orquestación de cron-jobs)                  |
+| API REST Inmovilla | `procesos.inmovilla.com/api/v1` (clientes, propiedades, propietarios) |
+| API REST Statefox  | `statefox.com/public/aapi/props` (propiedades de mercado, snapshots)  |
 
 
 ### Integraciones Externas
 
 
-| Servicio          | Proveedor             | Integración                     |
-| ----------------- | --------------------- | ------------------------------- |
-| 2FA Inmovilla (legacy) | Composio + Gmail | Obtención automática del código 2FA por correo para login RPA de demandas. Acción Composio sobre Gmail (OAuth), extracción del código de 6 dígitos. Solo necesario para operaciones legacy (demandas/estados). |
-| WhatsApp Business | 360dialog / Twilio    | API directa (webhooks + envíos) |
-| Firma digital     | Signaturit / DocuSign | API REST desde Next.js          |
-| Calendario        | Google Calendar API   | Micro-frontend de booking       |
-| Almacenamiento    | S3-compatible         | Documentos, contratos, adjuntos |
+| Servicio               | Proveedor                     | Integración                                                                                                                                                                                                    |
+| ---------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2FA Inmovilla (legacy) | Composio + Gmail              | Obtención automática del código 2FA por correo para login RPA de demandas. Acción Composio sobre Gmail (OAuth), extracción del código de 6 dígitos. Solo necesario para operaciones legacy (demandas/estados). |
+| WhatsApp               | **WhatsApp Cloud API (Meta)** | Integración directa con Meta (sin BSP): API REST, webhooks, plantillas. Cuenta Meta Business Manager + WABA. No se usa Twilio, 360dialog ni MessageBird.                                                       |
+| Firma digital          | Signaturit / DocuSign         | API REST desde Next.js                                                                                                                                                                                         |
+| Calendario             | Google Calendar API           | Micro-frontend de booking                                                                                                                                                                                      |
+| Almacenamiento         | Cloudinary                    | Documentos, contratos, adjuntos (upload API, URLs firmadas)                                                                                                                                                     |
 
 
 ### Patrones Arquitectónicos
 
 
-| Patrón                  | Implementación                                                                                           |
-| ----------------------- | -------------------------------------------------------------------------------------------------------- |
-| Event Sourcing          | Cambios registrados como eventos inmutables en Neon                                                      |
-| Job Queue               | Tabla `job_queue` en Neon con reintentos e idempotencia                                                  |
-| API REST Integration    | Clientes REST tipados para Inmovilla y Statefox con auth por token, rate limiting y reintentos            |
-| Server-Side RPA (legacy)| Workers con Playwright que simulan interacción humana — solo para demandas y estados en Inmovilla         |
-| Network Interception    | Cookies + CSRF + clonación de XHR — solo para operaciones no cubiertas por las APIs REST (demandas)      |
-| CQRS                    | Lectura (queries analíticas) separada de escritura (eventos)                                             |
-| Ports & Adapters        | `InmovillaWritePort` / `InmovillaReadPort` con adaptadores REST y legacy intercambiables por feature flag |
+| Patrón                   | Implementación                                                                                            |
+| ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Event Sourcing           | Cambios registrados como eventos inmutables en Neon                                                       |
+| Job Queue                | Tabla `job_queue` en Neon con reintentos e idempotencia                                                   |
+| API REST Integration     | Clientes REST tipados para Inmovilla y Statefox con auth por token, rate limiting y reintentos            |
+| Server-Side RPA (legacy) | Workers con Playwright que simulan interacción humana — solo para demandas y estados en Inmovilla         |
+| Network Interception     | Cookies + CSRF + clonación de XHR — solo para operaciones no cubiertas por las APIs REST (demandas)       |
+| CQRS                     | Lectura (queries analíticas) separada de escritura (eventos)                                              |
+| Ports & Adapters         | `InmovillaWritePort` / `InmovillaReadPort` con adaptadores REST y legacy intercambiables por feature flag |
 
 
 ---
@@ -219,23 +225,23 @@ Statefox se usa **100% como proveedor de datos vía API**. Los microsites de sel
 ### Módulos del sistema (por orden de dependencia)
 
 
-| ID  | Módulo                                                              | Dependencias             | Sprint |
-| --- | ------------------------------------------------------------------- | ------------------------ | ------ |
-| M0  | Infraestructura base (DB, Event Store, Job Queue, proyecto Next.js) | Ninguna                  | S1     |
-| M1  | Ingestion Worker (API REST + polling legacy para demandas)          | M0                       | S1     |
-| M2  | Egestion Worker (API REST + RPA legacy para demandas)               | M0, M1                   | S1     |
-| M3  | Motor de Scoring y Priorización de Leads                            | M0, M1                   | S1     |
-| M4  | Integración WhatsApp Business API                                   | M0                       | S1     |
-| M5  | Smart Matching (cruce demandas + ajuste por IA)                     | M1, M2, M3, M4           | S1     |
-| M6  | Statefox API REST (lectura de mercado) + Microsite propio (selección comprador) | M0                | S1     |
-| M7  | Motor de Pricing y Posicionamiento                                  | M1, M6                   | S2     |
-| M8  | Smart Closing (contratos + voz + firma digital)                     | M1, M2                   | S2     |
-| M9  | Cadencias post-venta                                                | M4, M0                   | S2     |
-| M10 | Dashboard Comercial (rentabilidad por persona)                      | M0, M1                   | S2     |
-| M11 | Dashboard Colaboradores Externos                                    | M0                       | S2     |
-| M12 | Bot de Soporte Mental                                               | M4 (WhatsApp), LangGraph | S3     |
-| M13 | Dashboard CEO (gobierno estratégico)                                | M10, M11, M0             | S2     |
-| M14 | Integración end-to-end y hardening                                  | Todos                    | S3–S4  |
+| ID  | Módulo                                                                          | Dependencias                       | Sprint |
+| --- | ------------------------------------------------------------------------------- | ---------------------------------- | ------ |
+| M0  | Infraestructura base (DB, Event Store, Job Queue, proyecto Next.js)             | Ninguna                            | S1     |
+| M1  | Ingestion Worker (API REST + polling legacy para demandas)                      | M0                                 | S1     |
+| M2  | Egestion Worker (API REST + RPA legacy para demandas)                           | M0, M1                             | S1     |
+| M3  | Motor de Scoring y Priorización de Leads                                        | M0, M1                             | S1     |
+| M4  | Integración WhatsApp Cloud API (Meta)                                           | M0                                 | S1     |
+| M5  | Smart Matching (cruce demandas + ajuste por IA)                                 | M1, M2, M3, M4                     | S1     |
+| M6  | Statefox API REST (lectura de mercado) + Microsite propio (selección comprador) | M0                                 | S1     |
+| M7  | Motor de Pricing y Posicionamiento                                              | M1, M6                             | S2     |
+| M8  | Smart Closing (contratos + voz + firma digital)                                 | M1, M2                             | S2     |
+| M9  | Cadencias post-venta                                                            | M4, M0                             | S2     |
+| M10 | Dashboard Comercial (rentabilidad por persona)                                  | M0, M1                             | S2     |
+| M11 | Dashboard Colaboradores Externos                                                | M0                                 | S2     |
+| M12 | Bot de Soporte Mental                                                           | M4 (WhatsApp Cloud API), LangGraph | S3     |
+| M13 | Dashboard CEO (gobierno estratégico)                                            | M10, M11, M0                       | S2     |
+| M14 | Integración end-to-end y hardening                                              | Todos                              | S3–S4  |
 
 
 ### Grafo de dependencias
@@ -248,7 +254,7 @@ M0 (Infra)
 │                                        ├── M3 (Scoring) ──────────────────────┘
 │                                        └── M10 (Dash Comercial) ──┐
 ├── M6 (Statefox API + Microsite) ──── M7 (Pricing)                ├── M13 (Dash CEO)
-├── M4 (WhatsApp) ──┬── M5                                         │
+├── M4 (WhatsApp Cloud API) ──┬── M5                                         │
 │                    ├── M9 (Post-venta)                            │
 │                    └── M12 (Bot Mental)                           │
 └── M11 (Dash Colaboradores) ──────────────────────────────────────┘
@@ -284,21 +290,21 @@ M0 (Infra)
 ### Cuentas y credenciales (obtener ANTES de Semana 1)
 
 
-| Servicio              | Qué se necesita                                                    | Estado      |
-| --------------------- | ------------------------------------------------------------------ | ----------- |
-| Neon                  | Proyecto creado, connection string (`DATABASE_URL`)                | ☐ Pendiente |
-| Inmovilla (API REST)  | Token API REST generado en Ajustes > Opciones > Token para API Rest (`INMOVILLA_API_TOKEN`) | ☐ Pendiente |
-| Inmovilla (RPA legacy)| Credenciales web (`INMOVILLA_USER`, `INMOVILLA_PASSWORD`, `INMOVILLA_OFFICE_KEY`) para login con Playwright. Solo necesario para demandas y estados. | ☐ Pendiente |
-| Composio + Gmail      | Cuenta Composio (`COMPOSIO_API_KEY`, `COMPOSIO_USER_ID`) con conexión OAuth a Gmail. Necesario para extraer código 2FA de Inmovilla en el flujo legacy de demandas. | ☐ Pendiente |
-| Statefox              | Bearer token para API REST (`statefox.com/public/aapi/props`)      | ☐ Pendiente |
-| OpenAI                | API key con acceso a o3 y Whisper (`OPENAI_API_KEY`)               | ☐ Pendiente |
-| Upstash QStash        | Cuenta Upstash creada, tokens QStash (`QSTASH_URL`, `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`). Se usa para orquestar todos los cron-jobs. | ☐ Pendiente |
-| WhatsApp Business     | Cuenta con proveedor (360dialog/Twilio), API key, sandbox          | ☐ Pendiente |
-| Google Calendar       | Proyecto en GCP, OAuth credentials                                 | ☐ Pendiente |
-| Signaturit / DocuSign | Cuenta sandbox + API key                                           | ☐ Pendiente |
-| S3-compatible         | Bucket creado, access keys                                         | ☐ Pendiente |
-| Vercel (o hosting)    | Cuenta para deploy de staging/producción                           | ☐ Pendiente |
-| GitHub / Git remote   | Repositorio creado, acceso configurado                             | ☐ Pendiente |
+| Servicio               | Qué se necesita                                                                                                                                                          | Estado      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
+| Neon                   | Proyecto creado, connection string (`DATABASE_URL`)                                                                                                                      | ☐ Pendiente |
+| Inmovilla (API REST)   | Token API REST generado en Ajustes > Opciones > Token para API Rest (`INMOVILLA_API_TOKEN`)                                                                              | ☐ Pendiente |
+| Inmovilla (RPA legacy) | Credenciales web (`INMOVILLA_USER`, `INMOVILLA_PASSWORD`, `INMOVILLA_OFFICE_KEY`) para login con Playwright. Solo necesario para demandas y estados.                     | ☐ Pendiente |
+| Composio + Gmail       | Cuenta Composio (`COMPOSIO_API_KEY`, `COMPOSIO_USER_ID`) con conexión OAuth a Gmail. Necesario para extraer código 2FA de Inmovilla en el flujo legacy de demandas.      | ☐ Pendiente |
+| Statefox               | Bearer token para API REST (`statefox.com/public/aapi/props`)                                                                                                            | ☐ Pendiente |
+| OpenAI                 | API key con acceso a o3 y Whisper (`OPENAI_API_KEY`)                                                                                                                     | ☐ Pendiente |
+| Upstash QStash         | Cuenta Upstash creada, tokens QStash (`QSTASH_URL`, `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`). Se usa para orquestar todos los cron-jobs. | ☐ Pendiente |
+| WhatsApp (Cloud API)   | Cuenta Meta Business Manager + WABA, token de acceso, webhook URL                                                                                                        | ☐ Pendiente |
+| Google Calendar        | Proyecto en GCP, OAuth credentials                                                                                                                                       | ☐ Pendiente |
+| Signaturit / DocuSign  | Cuenta sandbox + API key                                                                                                                                                 | ☐ Pendiente |
+| Cloudinary             | Cuenta creada, `CLOUDINARY_CLOUD_NAME` + API key/secret (o `CLOUDINARY_URL`)                                                                                             | ☐ Pendiente |
+| Vercel (o hosting)     | Cuenta para deploy de staging/producción                                                                                                                                 | ☐ Pendiente |
+| GitHub / Git remote    | Repositorio creado, acceso configurado                                                                                                                                   | ☐ Pendiente |
 
 
 ### Variables de entorno requeridas
@@ -330,9 +336,10 @@ QSTASH_TOKEN=...
 QSTASH_CURRENT_SIGNING_KEY=...
 QSTASH_NEXT_SIGNING_KEY=...
 
-# WhatsApp Business (a configurar en Sprint 1, Semana 2)
-# WHATSAPP_API_KEY=...
-# WHATSAPP_WEBHOOK_SECRET=...
+# WhatsApp Cloud API (Meta) — integración directa, sin BSP (a configurar en Sprint 1, Semana 2)
+# META_WHATSAPP_ACCESS_TOKEN=...
+# META_WHATSAPP_PHONE_NUMBER_ID=...
+# META_WHATSAPP_WEBHOOK_VERIFY_TOKEN=...
 
 # Firma digital (a configurar en Sprint 2)
 # SIGNATURIT_API_KEY=...
@@ -341,10 +348,11 @@ QSTASH_NEXT_SIGNING_KEY=...
 # GOOGLE_CALENDAR_CLIENT_ID=...
 # GOOGLE_CALENDAR_CLIENT_SECRET=...
 
-# S3-compatible (a configurar en Sprint 2)
-# S3_BUCKET=...
-# S3_ACCESS_KEY=...
-# S3_SECRET_KEY=...
+# Cloudinary (a configurar en Sprint 2)
+# CLOUDINARY_CLOUD_NAME=...
+# CLOUDINARY_API_KEY=...
+# CLOUDINARY_API_SECRET=...
+# (alternativa: CLOUDINARY_URL=cloudinary://api_key:api_secret@cloud_name)
 
 # Statefox API REST
 # STATEFOX_BEARER_TOKEN=...
@@ -364,7 +372,7 @@ QSTASH_NEXT_SIGNING_KEY=...
 - Al menos 1 contacto de prueba en Inmovilla (verificable vía API REST)
 - Al menos 1 propiedad de prueba en Inmovilla (verificable vía API REST)
 - Al menos 1 demanda de prueba en Inmovilla (con polígono geoespacial definido)
-- Número de WhatsApp de prueba (sandbox)
+- Número de WhatsApp de prueba (registrado en Meta Business / WABA para Cloud API)
 
 ---
 
@@ -613,14 +621,14 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 #### Martes (Día 2) — M1/M2: Integración API REST + Ingeniería Inversa Legacy
 
 
-| Bloque | Horario     | Tarea                                                                                                                                                                                                                                                          | Entregable                                          |
-| ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| AM     | 8:30–10:00  | **Implementar cliente API REST de Inmovilla:** Crear `lib/inmovilla/rest/client.ts` con auth por token estático, base URL `procesos.inmovilla.com/api/v1`, tipado TypeScript para respuestas. Probar con `GET /propiedades/?listado`.                           | Cliente REST tipado y funcional                     |
-| AM     | 10:00–12:30 | **CRUD de propiedades y clientes via REST:** Implementar `getProperty(cod_ofer)`, `createProperty(data)`, `createClient(data)`, `searchClient(telefono, email)`. Tests contra API real. Documentar rate limits observados.                                      | CRUD REST funcional con tests                       |
-| PM     | 12:30–15:00 | **Ingeniería inversa legacy (solo demandas):** Login manual, capturar con DevTools las peticiones de crear demanda, modificar demanda y cambiar estado. Capturar XHR de cada una. Estas operaciones NO están cubiertas por la API REST.                         | `docs/workers/inmovilla-endpoints.md` (demandas)    |
-| PM     | 15:00–17:00 | Instalar Playwright. Escribir script de login silente para operaciones legacy: navegar a Inmovilla, rellenar credenciales, capturar cookies y CSRF token. Solo necesario para demandas y estados.                                                              | Script `scripts/inmovilla-login.ts` funcional       |
-| PM     | 17:00–19:00 | **Enums y catálogos via REST:** Implementar lectura de enums (`GET /enums/?tipos`, `GET /enums/?ciudades`, `GET /enums/?zonas`). Cachear localmente (rate limit: 2/min). Estos catálogos se necesitan para mapear `key_loca`, `key_tipo`, `key_zona`.          | Catálogos cacheados en Neon                         |
-| PM     | 19:00–20:00 | Daily log, push, organizar descubrimientos.                                                                                                                                                                                                                    | Documentación actualizada                           |
+| Bloque | Horario     | Tarea                                                                                                                                                                                                                                                 | Entregable                                       |
+| ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| AM     | 8:30–10:00  | **Implementar cliente API REST de Inmovilla:** Crear `lib/inmovilla/rest/client.ts` con auth por token estático, base URL `procesos.inmovilla.com/api/v1`, tipado TypeScript para respuestas. Probar con `GET /propiedades/?listado`.                 | Cliente REST tipado y funcional                  |
+| AM     | 10:00–12:30 | **CRUD de propiedades y clientes via REST:** Implementar `getProperty(cod_ofer)`, `createProperty(data)`, `createClient(data)`, `searchClient(telefono, email)`. Tests contra API real. Documentar rate limits observados.                            | CRUD REST funcional con tests                    |
+| PM     | 12:30–15:00 | **Ingeniería inversa legacy (solo demandas):** Login manual, capturar con DevTools las peticiones de crear demanda, modificar demanda y cambiar estado. Capturar XHR de cada una. Estas operaciones NO están cubiertas por la API REST.               | `docs/workers/inmovilla-endpoints.md` (demandas) |
+| PM     | 15:00–17:00 | Instalar Playwright. Escribir script de login silente para operaciones legacy: navegar a Inmovilla, rellenar credenciales, capturar cookies y CSRF token. Solo necesario para demandas y estados.                                                     | Script `scripts/inmovilla-login.ts` funcional    |
+| PM     | 17:00–19:00 | **Enums y catálogos via REST:** Implementar lectura de enums (`GET /enums/?tipos`, `GET /enums/?ciudades`, `GET /enums/?zonas`). Cachear localmente (rate limit: 2/min). Estos catálogos se necesitan para mapear `key_loca`, `key_tipo`, `key_zona`. | Catálogos cacheados en Neon                      |
+| PM     | 19:00–20:00 | Daily log, push, organizar descubrimientos.                                                                                                                                                                                                           | Documentación actualizada                        |
 
 
 **Git:** mínimo 5 commits. Branch: `feat/M1-inmovilla-reverse-eng`.
@@ -631,15 +639,17 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 
 **Decisión de infraestructura:** todos los cron-jobs del plan (ingesta, cadencias, alertas y triggers temporales) se orquestan con **Upstash QStash**.
 
-| Bloque | Horario     | Tarea                                                                                                                                                                                                                                                | Entregable                                 |
-| ------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| AM     | 8:30–10:30  | Implementar `Ingestion Worker` v1 para propiedades: cron-job que usa `GET /propiedades/?listado` (API REST) para obtener `cod_ofer` + `fechaact`, compara con estado previo en Neon, y usa `GET /propiedades/?cod_ofer` para las que han cambiado. | Worker ejecutable con detección de cambios |
-| AM     | 10:30–12:30 | Conectar Ingestion Worker al Event Store: cuando detecta un cambio, emitir evento (`PROPIEDAD_CREADA`, `PROPIEDAD_MODIFICADA`, `ESTADO_CAMBIADO`).                                                                                                  | Eventos fluyendo a Neon                    |
-| PM     | 12:30–14:30 | Implementar Ingestion Worker para demandas (vía RPA legacy): leer demandas activas de Inmovilla con polling programático (no hay endpoint REST para demandas), detectar cambios, emitir eventos.                                                     | Lectura de demandas funcional              |
-| PM     | 14:30–16:00 | **Egestion Worker v1:** Escritura vía API REST para clientes/propiedades/propietarios (`POST/PUT /clientes/`, `POST /propiedades/`, etc.). Escritura vía RPA legacy para demandas (login silente con Composio 2FA → CSRF → XHR clonado a `guardar.php`). | Función core de escritura dual |
+
+| Bloque | Horario     | Tarea                                                                                                                                                                                                                                                                                                                                                                                                | Entregable                                      |
+| ------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| AM     | 8:30–10:30  | Implementar `Ingestion Worker` v1 para propiedades: cron-job que usa `GET /propiedades/?listado` (API REST) para obtener `cod_ofer` + `fechaact`, compara con estado previo en Neon, y usa `GET /propiedades/?cod_ofer` para las que han cambiado.                                                                                                                                                   | Worker ejecutable con detección de cambios      |
+| AM     | 10:30–12:30 | Conectar Ingestion Worker al Event Store: cuando detecta un cambio, emitir evento (`PROPIEDAD_CREADA`, `PROPIEDAD_MODIFICADA`, `ESTADO_CAMBIADO`).                                                                                                                                                                                                                                                   | Eventos fluyendo a Neon                         |
+| PM     | 12:30–14:30 | Implementar Ingestion Worker para demandas (vía RPA legacy): leer demandas activas de Inmovilla con polling programático (no hay endpoint REST para demandas), detectar cambios, emitir eventos.                                                                                                                                                                                                     | Lectura de demandas funcional                   |
+| PM     | 14:30–16:00 | **Egestion Worker v1:** Escritura vía API REST para clientes/propiedades/propietarios (`POST/PUT /clientes/`, `POST /propiedades/`, etc.). Escritura vía RPA legacy para demandas (login silente con Composio 2FA → CSRF → XHR clonado a `guardar.php`).                                                                                                                                             | Función core de escritura dual                  |
 | PM     | 16:00–18:00 | **Geocoding y polígonos para demandas (`lib/geo/`):** Implementar módulo que convierte zona/barrio/municipio a polígonos en formato Inmovilla (`;lat1+lng1,lat2+lng2,...`). MVP: mapear `key_zona` de enums REST a polígonos predefinidos. Avanzado: geocoding con Nominatim/OSM → bounding box. **Sin polígono válido, las demandas creadas programáticamente son inútiles para cruce automático.** | Módulo `lib/geo/` con estrategia por `key_zona` |
-| PM     | 18:00–19:30 | Test del Egestion Worker: crear cliente vía API REST y verificar. Crear demanda vía RPA legacy **con polígono válido** (usando `lib/geo/`) y verificar que aparece con zona definida en Inmovilla. | Escritura verificada end-to-end |
-| PM     | 19:30–20:00 | Daily log, push, documentar limitaciones descubiertas (rate limits REST, formato de polígonos). |                                            |
+| PM     | 18:00–19:30 | Test del Egestion Worker: crear cliente vía API REST y verificar. Crear demanda vía RPA legacy **con polígono válido** (usando `lib/geo/`) y verificar que aparece con zona definida en Inmovilla.                                                                                                                                                                                                   | Escritura verificada end-to-end                 |
+| PM     | 19:30–20:00 | Daily log, push, documentar limitaciones descubiertas (rate limits REST, formato de polígonos).                                                                                                                                                                                                                                                                                                      |                                                 |
+
 
 **Git:** mínimo 6 commits. Branches: `feat/M1-ingestion-worker`, `feat/M2-egestion-worker`.
 
@@ -661,14 +671,14 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 #### Viernes (Día 5) — M6: Integración API REST Statefox + Tipos de Dominio + Refactoring
 
 
-| Bloque | Horario     | Tarea                                                                                                                                                                                                                         | Entregable                               |
-| ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Bloque | Horario     | Tarea                                                                                                                                                                                                                       | Entregable                               |
+| ------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
 | AM     | 8:30–10:30  | **Implementar cliente API REST de Statefox:** Crear `lib/statefox/client.ts` con Bearer token, base URL `statefox.com/public/aapi/props`. Implementar `getProperties(filters)` y `getSnapshot(cursor)` con tipado completo. | Cliente REST Statefox tipado y funcional |
-| AM     | 10:30–13:00 | **Probar paginación y filtros:** `GET /properties` (offset-based, hasta 500 items) y `GET /snapshot` (cursor-based, hasta 250 items). Mapear tipos para `Property`, `SnapshotProperty`, `Meta`.                               | Paginación verificada con tests          |
-| PM     | 13:00–15:00 | Crear tipos TypeScript para todas las entidades del dominio: `Property`, `Demand`, `Lead`, `Event`, `Job`, `Match`, `StatefoxProperty`.                                                                                      | `types/domain.ts` completo               |
-| PM     | 15:00–17:00 | Refactoring del código de la semana: extraer utilidades comunes, limpiar imports, asegurar tipado estricto.                                                                                                                   | Codebase limpio                          |
-| PM     | 17:00–19:00 | Escribir tests unitarios para Event Store y Job Queue.                                                                                                                                                                        | Test suite con cobertura > 80% en core   |
-| PM     | 19:00–20:00 | Preparar demo del sábado: qué se puede mostrar, secuencia.                                                                                                                                                                    | Notas de demo                            |
+| AM     | 10:30–13:00 | **Probar paginación y filtros:** `GET /properties` (offset-based, hasta 500 items) y `GET /snapshot` (cursor-based, hasta 250 items). Mapear tipos para `Property`, `SnapshotProperty`, `Meta`.                             | Paginación verificada con tests          |
+| PM     | 13:00–15:00 | Crear tipos TypeScript para todas las entidades del dominio: `Property`, `Demand`, `Lead`, `Event`, `Job`, `Match`, `StatefoxProperty`.                                                                                     | `types/domain.ts` completo               |
+| PM     | 15:00–17:00 | Refactoring del código de la semana: extraer utilidades comunes, limpiar imports, asegurar tipado estricto.                                                                                                                 | Codebase limpio                          |
+| PM     | 17:00–19:00 | Escribir tests unitarios para Event Store y Job Queue.                                                                                                                                                                      | Test suite con cobertura > 80% en core   |
+| PM     | 19:00–20:00 | Preparar demo del sábado: qué se puede mostrar, secuencia.                                                                                                                                                                  | Notas de demo                            |
 
 
 **Git:** mínimo 5 commits.
@@ -676,13 +686,13 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 #### Sábado (Día 6) — DEMO WEEK 1
 
 
-| Bloque | Horario     | Actividad                                                                                                                       |
-| ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| AM     | 8:30–10:00  | Mergear PRs, actualizar CHANGELOG, crear tag `v0.1.0-week-01`                                                                   |
+| Bloque | Horario     | Actividad                                                                                                                                                                                            |
+| ------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AM     | 8:30–10:00  | Mergear PRs, actualizar CHANGELOG, crear tag `v0.1.0-week-01`                                                                                                                                        |
 | AM     | 10:00–12:00 | **DEMO:** Event Store funcionando, Ingestion Worker leyendo propiedades de Inmovilla via API REST en vivo, Egestion Worker creando cliente de prueba vía API REST, lectura de Statefox API funcional |
-| PM     | 12:00–14:00 | Retrospectiva + documentar feedback                                                                                             |
-| PM     | 14:00–17:00 | Refactoring, deuda técnica, documentación                                                                                       |
-| PM     | 17:00–20:00 | Investigación para semana 2: LangGraph setup, WhatsApp Business API docs                                                        |
+| PM     | 12:00–14:00 | Retrospectiva + documentar feedback                                                                                                                                                                  |
+| PM     | 14:00–17:00 | Refactoring, deuda técnica, documentación                                                                                                                                                            |
+| PM     | 17:00–20:00 | Investigación para semana 2: LangGraph setup, WhatsApp Business API docs                                                                                                                             |
 
 
 **Entregable semanal:**
@@ -697,17 +707,19 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 
 ### Semana 2 — Lead Scoring + WhatsApp + Smart Matching v1
 
-#### Lunes (Día 7) — M4: WhatsApp Business API
+> Ajuste post-demo Week 1 (2026-03-15): priorizar en el arranque de la semana la integracion de WhatsApp Cloud API (envío + webhook) y el baseline de LangGraph antes de ampliar funcionalidades secundarias.
+
+#### Lunes (Día 7) — M4: WhatsApp Cloud API (Meta)
 
 
-| Bloque | Horario     | Tarea                                                                                                                                       | Entregable                       |
-| ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| AM     | 8:30–10:30  | Configurar WhatsApp Business API: cuenta con proveedor (360dialog/Twilio), obtener API keys, verificar sandbox.                             | Cuenta WA Business configurada   |
-| AM     | 10:30–13:00 | Implementar servicio de envío de WhatsApp: `sendWhatsAppMessage(to, template, variables)`. API Route: `POST /api/whatsapp/send`.            | Envío de mensajes funcional      |
-| PM     | 13:00–15:00 | Implementar webhook de recepción de WhatsApp: `POST /api/whatsapp/webhook`. Parsear mensajes entrantes, emitir eventos `WHATSAPP_RECIBIDO`. | Webhook funcional                |
-| PM     | 15:00–17:00 | Crear plantillas de WhatsApp: mensaje de match, mensaje de seguimiento, mensaje de validación. Someter a aprobación de Meta.                | Plantillas creadas y en revisión |
-| PM     | 17:00–19:00 | Tests: enviar mensaje de prueba, recibir respuesta, verificar evento en Neon.                                                               | Ciclo WA completo verificado     |
-| PM     | 19:00–20:00 | Daily log, push.                                                                                                                            |                                  |
+| Bloque | Horario     | Tarea                                                                                                                                                       | Entregable                       |
+| ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| AM     | 8:30–10:30  | Configurar **WhatsApp Cloud API (Meta)**: Meta Business Manager + WABA, token de acceso, Phone Number ID, webhook verify token. Sin BSP (Twilio/360dialog). | Cuenta Cloud API configurada     |
+| AM     | 10:30–13:00 | Implementar servicio de envío de WhatsApp: `sendWhatsAppMessage(to, template, variables)`. API Route: `POST /api/whatsapp/send`.                            | Envío de mensajes funcional      |
+| PM     | 13:00–15:00 | Implementar webhook de recepción de WhatsApp: `POST /api/whatsapp/webhook`. Parsear mensajes entrantes, emitir eventos `WHATSAPP_RECIBIDO`.                 | Webhook funcional                |
+| PM     | 15:00–17:00 | Crear plantillas de WhatsApp: mensaje de match, mensaje de seguimiento, mensaje de validación. Someter a aprobación de Meta.                                | Plantillas creadas y en revisión |
+| PM     | 17:00–19:00 | Tests: enviar mensaje de prueba, recibir respuesta, verificar evento en Neon.                                                                               | Ciclo WA completo verificado     |
+| PM     | 19:00–20:00 | Daily log, push.                                                                                                                                            |                                  |
 
 
 **Git:** mínimo 5 commits. Branch: `feat/M4-whatsapp-integration`.
@@ -715,14 +727,14 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 #### Martes (Día 8) — M3: Scoring + SLA + Routing
 
 
-| Bloque | Horario     | Tarea                                                                                                                                                                         | Entregable                   |
-| ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| AM     | 8:30–11:00  | Implementar **motor de scoring MVP (reglas)**: `calculateScore(lead)` con pesos: Pclose 0.55, Value 0.30, Urgency 0.15. Reglas de puntuación para compradores y propietarios. | Función de scoring con tests |
+| Bloque | Horario     | Tarea                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Entregable                   |
+| ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| AM     | 8:30–11:00  | Implementar **motor de scoring MVP (reglas)**: `calculateScore(lead)` con pesos: Pclose 0.55, Value 0.30, Urgency 0.15. Reglas de puntuación para compradores y propietarios.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Función de scoring con tests |
 | AM     | 11:00–13:00 | Implementar **SLA automático**: según score, asignar SLA (≥80: <5min, 60–79: <30min, 40–59: <2h, <40: cadencia) y crear job de seguimiento en la Job Queue. **Nota sobre rate limits vs SLA:** El SLA de <5min mide el tiempo desde que el evento `CONTACTO_INGESTADO` llega a Neon hasta que el comercial recibe la notificación WhatsApp. La detección del contacto nuevo depende de la frecuencia de polling del Ingestion Worker (configurable, e.g. cada 2 min para API REST). Para no bloquear la ingesta por rate limits de Inmovilla (10 prop/min), el scoring y routing operan sobre datos ya ingestados en Neon, no requieren llamadas adicionales a Inmovilla. Las escrituras de vuelta a Inmovilla (asignación, notas) se encolan en la Job Queue y se ejecutan asíncronamente sin bloquear el SLA de notificación. | SLAs funcionando             |
-| PM     | 13:00–15:00 | Implementar **routing de leads**: asignar comercial por ciudad + carga + rendimiento. Tabla `comerciales` en Neon.                                                            | Routing funcional            |
-| PM     | 15:00–17:00 | Conectar scoring al flujo: Ingestion Worker detecta lead → scoring → SLA → asignación → notificación WhatsApp al comercial.                                                   | Flujo semi-automatizado      |
-| PM     | 17:00–19:00 | Implementar cadencias automáticas: cron-job que revisa leads sin respuesta y envía follow-ups (D+1, D+3, D+7).                                                                | Cadencias programadas        |
-| PM     | 19:00–20:00 | Daily log, push.                                                                                                                                                              |                              |
+| PM     | 13:00–15:00 | Implementar **routing de leads**: asignar comercial por ciudad + carga + rendimiento. Tabla `comerciales` en Neon.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Routing funcional            |
+| PM     | 15:00–17:00 | Conectar scoring al flujo: Ingestion Worker detecta lead → scoring → SLA → asignación → notificación WhatsApp al comercial.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Flujo semi-automatizado      |
+| PM     | 17:00–19:00 | Implementar cadencias automáticas: cron-job que revisa leads sin respuesta y envía follow-ups (D+1, D+3, D+7).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Cadencias programadas        |
+| PM     | 19:00–20:00 | Daily log, push.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |                              |
 
 
 **Git:** mínimo 6 commits. Branch: `feat/M3-lead-scoring`.
@@ -755,14 +767,14 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 #### Miércoles (Día 9) — M5: Smart Matching + LangGraph
 
 
-| Bloque | Horario     | Tarea                                                                                                                                                                                                     | Entregable                |
-| ------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| AM     | 8:30–10:30  | Setup LangGraph: instalar dependencias, configurar conexión OpenAI, crear primer grafo de prueba.                                                                                                         | LangGraph operativo       |
-| AM     | 10:30–13:00 | Implementar **agente de clasificación de respuestas WhatsApp**: recibe texto libre del comprador → extrae intención (me encaja / no encaja / busco diferente) + variables (precio, zona, metros, extras). | Agente de NLU funcional   |
-| PM     | 13:00–15:00 | Implementar **Smart Matching v1**: cuando el agente clasifica "no me encaja" + extrae variables → emitir evento `DEMANDA_ACTUALIZADA` → Egestion Worker escribe en Inmovilla.                             | Smart Matching end-to-end |
+| Bloque | Horario     | Tarea                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Entregable                             |
+| ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| AM     | 8:30–10:30  | Setup LangGraph: instalar dependencias, configurar conexión OpenAI, crear primer grafo de prueba.                                                                                                                                                                                                                                                                                                                                                                                                                                      | LangGraph operativo                    |
+| AM     | 10:30–13:00 | Implementar **agente de clasificación de respuestas WhatsApp**: recibe texto libre del comprador → extrae intención (me encaja / no encaja / busco diferente) + variables (precio, zona, metros, extras).                                                                                                                                                                                                                                                                                                                              | Agente de NLU funcional                |
+| PM     | 13:00–15:00 | Implementar **Smart Matching v1**: cuando el agente clasifica "no me encaja" + extrae variables → emitir evento `DEMANDA_ACTUALIZADA` → Egestion Worker escribe en Inmovilla.                                                                                                                                                                                                                                                                                                                                                          | Smart Matching end-to-end              |
 | PM     | 15:00–17:00 | Implementar **cruce de demandas**: función `matchDemandsToProperty(property)` que cruza demandas activas en Neon contra una nueva propiedad. El cruce usa: (1) **zona geoespacial**: verificar que la coordenada de la propiedad cae dentro del polígono de la demanda (usando `lib/geo/` y los polígonos almacenados), o fallback por `key_zona` si ambas comparten zona; (2) **rango de precio**: precio de la propiedad dentro del rango min/max de la demanda; (3) **tipología y metros**: match por `key_tipo` y rango de metros. | Cruce funcional con lógica geoespacial |
-| PM     | 17:00–19:00 | Tests del flujo completo: nueva propiedad → cruce → match → WhatsApp al comprador → respuesta → ajuste de demanda → recruce.                                                                              | Test E2E del módulo 5     |
-| PM     | 19:00–20:00 | Daily log, push.                                                                                                                                                                                          |                           |
+| PM     | 17:00–19:00 | Tests del flujo completo: nueva propiedad → cruce → match → WhatsApp al comprador → respuesta → ajuste de demanda → recruce.                                                                                                                                                                                                                                                                                                                                                                                                           | Test E2E del módulo 5                  |
+| PM     | 19:00–20:00 | Daily log, push.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |                                        |
 
 
 **Git:** mínimo 5 commits. Branch: `feat/M5-smart-matching`.
@@ -770,14 +782,14 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 #### Jueves (Día 10) — Robustez de Workers + Micro-frontends
 
 
-| Bloque | Horario     | Tarea                                                                                                                                                              | Entregable                  |
-| ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------- |
-| AM     | 8:30–10:30  | Robustez del Ingestion Worker: manejo de errores, reconexión automática, logging estructurado, métricas de ejecución.                                              | Worker robusto y observable |
-| AM     | 10:30–13:00 | Robustez del Egestion Worker: retry con backoff exponencial, dead-letter queue para fallos permanentes, alertas.                                                   | Worker resiliente           |
-| PM     | 13:00–15:30 | Implementar **micro-frontend post-visita**: formulario Next.js donde el comercial marca interés (alto/medio/bajo) + notas. Conectado a API Route → evento en Neon. | Micro-frontend funcional    |
-| PM     | 15:30–17:30 | Implementar **micro-frontend de agenda**: selección de hora de visita, integración básica con Google Calendar API.                                                 | Formulario de booking       |
+| Bloque | Horario     | Tarea                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Entregable                               |
+| ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| AM     | 8:30–10:30  | Robustez del Ingestion Worker: manejo de errores, reconexión automática, logging estructurado, métricas de ejecución.                                                                                                                                                                                                                                                                                                                                        | Worker robusto y observable              |
+| AM     | 10:30–13:00 | Robustez del Egestion Worker: retry con backoff exponencial, dead-letter queue para fallos permanentes, alertas.                                                                                                                                                                                                                                                                                                                                             | Worker resiliente                        |
+| PM     | 13:00–15:30 | Implementar **micro-frontend post-visita**: formulario Next.js donde el comercial marca interés (alto/medio/bajo) + notas. Conectado a API Route → evento en Neon.                                                                                                                                                                                                                                                                                           | Micro-frontend funcional                 |
+| PM     | 15:30–17:30 | Implementar **micro-frontend de agenda**: selección de hora de visita, integración básica con Google Calendar API.                                                                                                                                                                                                                                                                                                                                           | Formulario de booking                    |
 | PM     | 17:30–19:30 | Conectar micro-frontends al flujo principal: visita → interés → scoring actualizado → consulta a Statefox API para stock de mercado + decisión de generar microsite. **Implementar traductor demanda→filtros Statefox** (`lib/statefox/query-builder.ts`): zona de la demanda (`key_zona`/polígono) → `pCity`/`pZone` de Statefox; tipología → `pHousing` (flat/house/penthouse/etc.); rango de precio → filtro por `pPrice`; metros → filtro por `pMeters`. | Flujo integrado + query builder Statefox |
-| PM     | 19:30–20:00 | Daily log, push.                                                                                                                                                   |                             |
+| PM     | 19:30–20:00 | Daily log, push.                                                                                                                                                                                                                                                                                                                                                                                                                                             |                                          |
 
 
 **Git:** mínimo 5 commits. Branches: `feat/M1-worker-resilience`, `feat/M4-micro-frontend-visita`.
@@ -785,14 +797,14 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 #### Viernes (Día 11) — M6: Microsite de Selección + Validación + Refactoring
 
 
-| Bloque | Horario     | Tarea                                                                                                                                                                                                                                                                                              | Entregable                     |
-| ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| AM     | 8:30–11:00  | Implementar **microsite de selección para compradores v1**: cuando demanda cumple criterios → consultar Statefox API (`GET /properties` filtrando por zona, tipo, precio, metros) → seleccionar propiedades relevantes → generar página Next.js con token único (`/seleccion/{token}`).             | Microsite funcional            |
-| AM     | 11:00–13:00 | Implementar **backend del microsite**: persistir en Neon qué propiedades se mostraron, a qué comprador, cuándo. Fichas con imágenes (`pImages`), precio, metros, zona, extras. Botones "Me interesa" / "No me encaja" que generan eventos (`SELECCION_COMPRADOR`).                                 | Backend + tracking funcional   |
-| PM     | 13:00–15:00 | Implementar **flujo de validación**: notificación al comercial → micro-frontend de aprobación (revisión de propiedades seleccionadas, 30–60s) → evento `SELECCION_VALIDADA` → envío del enlace del microsite al comprador por WhatsApp. SLA de validación: 2 horas, escalado si se incumple.       | Flujo de validación end-to-end |
-| PM     | 15:00–17:00 | Refactoring general de Sprint 1: limpiar código, extraer utilidades, mejorar tipos.                                                                                                                                                                                                                | Codebase limpio                |
-| PM     | 17:00–19:00 | Tests de integración del Sprint 1 completo.                                                                                                                                                                                                                                                        | Suite de tests robusta         |
-| PM     | 19:00–20:00 | Preparar demo del sábado.                                                                                                                                                                                                                                                                          |                                |
+| Bloque | Horario     | Tarea                                                                                                                                                                                                                                                                                        | Entregable                     |
+| ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| AM     | 8:30–11:00  | Implementar **microsite de selección para compradores v1**: cuando demanda cumple criterios → consultar Statefox API (`GET /properties` filtrando por zona, tipo, precio, metros) → seleccionar propiedades relevantes → generar página Next.js con token único (`/seleccion/{token}`).      | Microsite funcional            |
+| AM     | 11:00–13:00 | Implementar **backend del microsite**: persistir en Neon qué propiedades se mostraron, a qué comprador, cuándo. Fichas con imágenes (`pImages`), precio, metros, zona, extras. Botones "Me interesa" / "No me encaja" que generan eventos (`SELECCION_COMPRADOR`).                           | Backend + tracking funcional   |
+| PM     | 13:00–15:00 | Implementar **flujo de validación**: notificación al comercial → micro-frontend de aprobación (revisión de propiedades seleccionadas, 30–60s) → evento `SELECCION_VALIDADA` → envío del enlace del microsite al comprador por WhatsApp. SLA de validación: 2 horas, escalado si se incumple. | Flujo de validación end-to-end |
+| PM     | 15:00–17:00 | Refactoring general de Sprint 1: limpiar código, extraer utilidades, mejorar tipos.                                                                                                                                                                                                          | Codebase limpio                |
+| PM     | 17:00–19:00 | Tests de integración del Sprint 1 completo.                                                                                                                                                                                                                                                  | Suite de tests robusta         |
+| PM     | 19:00–20:00 | Preparar demo del sábado.                                                                                                                                                                                                                                                                    |                                |
 
 
 **Git:** mínimo 5 commits. Branch: `feat/M6-statefox-microsite`.
@@ -800,12 +812,12 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 #### Sábado (Día 12) — DEMO WEEK 2
 
 
-| Bloque | Horario     | Actividad                                                                                                                                                                     |
-| ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| AM     | 8:30–10:00  | Mergear, CHANGELOG, tag `v0.1.1-week-02`                                                                                                                                      |
+| Bloque | Horario     | Actividad                                                                                                                                                                                                               |
+| ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AM     | 8:30–10:00  | Mergear, CHANGELOG, tag `v0.1.1-week-02`                                                                                                                                                                                |
 | AM     | 10:00–12:00 | **DEMO:** Flujo completo en vivo: lead entra → scoring → WhatsApp al comercial → respuesta del comprador → Smart Matching → cruce → consulta Statefox API → microsite generado → validación → envío enlace al comprador |
-| PM     | 12:00–14:00 | Retrospectiva Sprint 1                                                                                                                                                        |
-| PM     | 14:00–20:00 | Deuda técnica, docs, prep Sprint 2                                                                                                                                            |
+| PM     | 12:00–14:00 | Retrospectiva Sprint 1                                                                                                                                                                                                  |
+| PM     | 14:00–20:00 | Deuda técnica, docs, prep Sprint 2                                                                                                                                                                                      |
 
 
 **Entregable Sprint 1:**
@@ -833,7 +845,7 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 | AM     | 11:00–13:00 | Implementar generación programática de docx: usando librería TypeScript (docx.js o similar), crear plantilla de arras con variables inyectables.                              | Generación de docx funcional              |
 | PM     | 13:00–15:30 | Implementar **extracción de datos para contratos**: función que recopila comprador + vendedor + inmueble + operación desde Neon + Inmovilla y construye el payload completo.  | Función de extracción completa            |
 | PM     | 15:30–18:00 | Implementar **validación de campos obligatorios**: si faltan datos (DNI, domicilio, precio, plazos), emitir evento `DATOS_INCOMPLETOS` y crear tarea para el comercial.       | Validación funcional                      |
-| PM     | 18:00–20:00 | Test: cambiar estado en Inmovilla → Ingestion detecta → extraer datos → generar borrador v1 → guardar en S3.                                                                  | Flujo de generación end-to-end            |
+| PM     | 18:00–20:00 | Test: cambiar estado en Inmovilla → Ingestion detecta → extraer datos → generar borrador v1 → guardar en Cloudinary.                                                           | Flujo de generación end-to-end            |
 
 
 **Git:** mínimo 5 commits. Branch: `feat/M8-smart-closing-templates`.
@@ -861,13 +873,13 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 #### Miércoles (Día 15) — M8: Firma Digital + M7: Motor de Pricing
 
 
-| Bloque | Horario     | Tarea                                                                                                                                                                                      | Entregable                     |
-| ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------ |
-| AM     | 8:30–11:00  | Integrar **firma digital** (Signaturit o DocuSign): API para enviar documento a firma, webhook para recibir confirmación de firma. Recordatorios automáticos si no se firma.               | Integración de firma           |
-| AM     | 11:00–13:00 | Flujo post-firma: guardar documento firmado → adjuntar en Inmovilla vía Egestion Worker → actualizar estado de operación.                                                                  | Flujo post-firma end-to-end    |
-| PM     | 13:00–15:30 | Comenzar **Motor de Pricing v1**: función que extrae variables del inmueble de Neon y consulta directamente la API REST de Statefox (`GET /properties` filtrando por `pCity`, `pHousing`, rango de `pPrice`). Usar `pPricePerMeter` ya calculado por Statefox. | Extracción + consulta API        |
-| PM     | 15:30–18:00 | Implementar **análisis de cluster comparativo**: filtrar comparables de Statefox API (misma zona ±15–20% metros, tipología similar, segmentar por `pAdvert.type` particular vs profesional) → calcular precio medio €/m², desviación, rango.                  | Análisis estadístico funcional   |
-| PM     | 18:00–20:00 | Implementar **motor de recomendación con LangGraph**: recibe análisis estadístico → genera diagnóstico textual + recomendaciones estratégicas (mantener/ajustar/reposicionar).             | Agente de pricing              |
+| Bloque | Horario     | Tarea                                                                                                                                                                                                                                                          | Entregable                     |
+| ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| AM     | 8:30–11:00  | Integrar **firma digital** (Signaturit o DocuSign): API para enviar documento a firma, webhook para recibir confirmación de firma. Recordatorios automáticos si no se firma.                                                                                   | Integración de firma           |
+| AM     | 11:00–13:00 | Flujo post-firma: guardar documento firmado → adjuntar en Inmovilla vía Egestion Worker → actualizar estado de operación.                                                                                                                                      | Flujo post-firma end-to-end    |
+| PM     | 13:00–15:30 | Comenzar **Motor de Pricing v1**: función que extrae variables del inmueble de Neon y consulta directamente la API REST de Statefox (`GET /properties` filtrando por `pCity`, `pHousing`, rango de `pPrice`). Usar `pPricePerMeter` ya calculado por Statefox. | Extracción + consulta API      |
+| PM     | 15:30–18:00 | Implementar **análisis de cluster comparativo**: filtrar comparables de Statefox API (misma zona ±15–20% metros, tipología similar, segmentar por `pAdvert.type` particular vs profesional) → calcular precio medio €/m², desviación, rango.                   | Análisis estadístico funcional |
+| PM     | 18:00–20:00 | Implementar **motor de recomendación con LangGraph**: recibe análisis estadístico → genera diagnóstico textual + recomendaciones estratégicas (mantener/ajustar/reposicionar).                                                                                 | Agente de pricing              |
 
 
 **Git:** mínimo 5 commits. Branches: `feat/M8-firma-digital`, `feat/M7-pricing-engine`.
@@ -946,13 +958,13 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 #### Martes (Día 20) — M11: Colaboradores Externos
 
 
-| Bloque | Horario     | Tarea                                                                                                                                                                                                                                                                            | Entregable              |
-| ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| AM     | 8:30–11:00  | Diseñar schema de **colaboradores externos** en Neon: entidad colaborador, tipo (banco/abogado/tasador/arquitecto), ciudad, SLA, hitos, métricas.                                                                                                                                | Schema + migrations     |
+| Bloque | Horario     | Tarea                                                                                                                                                                                                                                                                                                                                                                                                             | Entregable              |
+| ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| AM     | 8:30–11:00  | Diseñar schema de **colaboradores externos** en Neon: entidad colaborador, tipo (banco/abogado/tasador/arquitecto), ciudad, SLA, hitos, métricas.                                                                                                                                                                                                                                                                 | Schema + migrations     |
 | AM     | 11:00–13:00 | Implementar **micro-frontend portal de colaboradores**: interfaz propia donde banco/abogado/tasador ve sus operaciones asignadas, sube documentos y actualiza estados tipo kanban. Este flujo vive 100% en Neon + micro-frontend porque Inmovilla no modela hitos operativos de colaboradores (no hay entidad banco/abogado/tasador en su modelo). No hay datos de colaboradores que reconciliar desde Inmovilla. | Portal funcional        |
-| PM     | 13:00–15:30 | Implementar **tracking de hitos**: cada cambio de estado del colaborador registra timestamp en Neon. Cálculo automático de tiempos. Hitos estándar por tipo (banco: documentación → estudio → preaprobación → aprobación; abogado: revisión → observaciones → validación).       | Tracking funcional      |
-| PM     | 15:30–18:00 | Implementar **alertas SLA de colaboradores**: cron-job que detecta retrasos → alerta al jefe de zona o CEO según severidad.                                                                                                                                                      | Alertas funcionales     |
-| PM     | 18:00–20:00 | Implementar **clasificación automática de colaboradores**: partner estratégico / funcional / lento / crítico (basada en datos, no afinidad).                                                                                                                                     | Clasificación funcional |
+| PM     | 13:00–15:30 | Implementar **tracking de hitos**: cada cambio de estado del colaborador registra timestamp en Neon. Cálculo automático de tiempos. Hitos estándar por tipo (banco: documentación → estudio → preaprobación → aprobación; abogado: revisión → observaciones → validación).                                                                                                                                        | Tracking funcional      |
+| PM     | 15:30–18:00 | Implementar **alertas SLA de colaboradores**: cron-job que detecta retrasos → alerta al jefe de zona o CEO según severidad.                                                                                                                                                                                                                                                                                       | Alertas funcionales     |
+| PM     | 18:00–20:00 | Implementar **clasificación automática de colaboradores**: partner estratégico / funcional / lento / crítico (basada en datos, no afinidad).                                                                                                                                                                                                                                                                      | Clasificación funcional |
 
 
 **Git:** mínimo 5 commits. Branch: `feat/M11-colaboradores-externos`.
@@ -989,13 +1001,13 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 #### Viernes (Día 23) — Integración Sprint 2 + Feedback Loop
 
 
-| Bloque | Horario     | Tarea                                                                                                                                                                                                                      | Entregable               |
-| ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| AM     | 8:30–11:00  | Tests de integración de todos los dashboards. Verificar que los datos fluyen correctamente desde eventos hasta visualización.                                                                                              | Tests suite              |
+| Bloque | Horario     | Tarea                                                                                                                                                                                                                                                                                                                            | Entregable               |
+| ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| AM     | 8:30–11:00  | Tests de integración de todos los dashboards. Verificar que los datos fluyen correctamente desde eventos hasta visualización.                                                                                                                                                                                                    | Tests suite              |
 | AM     | 11:00–13:00 | Implementar **feedback loop completo del comprador**: interacción en microsite propio ("Me interesa" / "No me encaja") → evento `SELECCION_COMPRADOR` → LangGraph interpreta preferencias → actualiza demanda en Neon → Egestion Worker escribe en Inmovilla (RPA legacy) → nueva consulta a Statefox API → regenerar microsite. | Feedback loop end-to-end |
-| PM     | 13:00–16:00 | **Integración end-to-end Sprint 2**: verificar que todos los módulos interactúan correctamente. Ejecutar flujo completo desde lead hasta cierre.                                                                           | Flujo verificado         |
-| PM     | 16:00–19:00 | Corregir bugs encontrados en integración. Hardening de error handling.                                                                                                                                                     | Bugs resueltos           |
-| PM     | 19:00–20:00 | Preparar demo + CHANGELOG.                                                                                                                                                                                                 |                          |
+| PM     | 13:00–16:00 | **Integración end-to-end Sprint 2**: verificar que todos los módulos interactúan correctamente. Ejecutar flujo completo desde lead hasta cierre.                                                                                                                                                                                 | Flujo verificado         |
+| PM     | 16:00–19:00 | Corregir bugs encontrados en integración. Hardening de error handling.                                                                                                                                                                                                                                                           | Bugs resueltos           |
+| PM     | 19:00–20:00 | Preparar demo + CHANGELOG.                                                                                                                                                                                                                                                                                                       |                          |
 
 
 **Git:** mínimo 5 commits.
@@ -1073,13 +1085,13 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 #### Jueves (Día 28) — Hardening de Workers
 
 
-| Bloque | Horario     | Tarea                                                                                                                                                             | Entregable              |
-| ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| AM     | 8:30–11:00  | **Hardening Ingestion Worker**: manejar errores de API REST (rate limits 429, token expirado 401), fallback a cache local si API no responde. Para demandas legacy: manejar cambios de UI (selectores rotos), fallback a selectores alternativos. | Worker hardened         |
-| AM     | 11:00–13:00 | **Hardening Egestion Worker**: implementar circuit breaker (si X escrituras fallan → pausar y alertar), verificación post-escritura. Para REST: reintentos con backoff ante rate limits. Para legacy: verificación post-escritura leyendo la ficha.  | Worker hardened         |
-| PM     | 13:00–15:30 | Implementar **idempotencia total**: verificar que reprocessar eventos no causa duplicados ni inconsistencias.                                                     | Idempotencia verificada |
-| PM     | 15:30–18:00 | Implementar **dead-letter queue**: jobs que fallan N veces se mueven a DLQ con contexto completo para debugging manual.                                           | DLQ funcional           |
-| PM     | 18:00–20:00 | Documentar todo el sistema de Workers: `docs/workers/ingestion.md`, `docs/workers/egestion.md`, diagramas de flujo.                                               | Docs de workers         |
+| Bloque | Horario     | Tarea                                                                                                                                                                                                                                               | Entregable              |
+| ------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| AM     | 8:30–11:00  | **Hardening Ingestion Worker**: manejar errores de API REST (rate limits 429, token expirado 401), fallback a cache local si API no responde. Para demandas legacy: manejar cambios de UI (selectores rotos), fallback a selectores alternativos.   | Worker hardened         |
+| AM     | 11:00–13:00 | **Hardening Egestion Worker**: implementar circuit breaker (si X escrituras fallan → pausar y alertar), verificación post-escritura. Para REST: reintentos con backoff ante rate limits. Para legacy: verificación post-escritura leyendo la ficha. | Worker hardened         |
+| PM     | 13:00–15:30 | Implementar **idempotencia total**: verificar que reprocessar eventos no causa duplicados ni inconsistencias.                                                                                                                                       | Idempotencia verificada |
+| PM     | 15:30–18:00 | Implementar **dead-letter queue**: jobs que fallan N veces se mueven a DLQ con contexto completo para debugging manual.                                                                                                                             | DLQ funcional           |
+| PM     | 18:00–20:00 | Documentar todo el sistema de Workers: `docs/workers/ingestion.md`, `docs/workers/egestion.md`, diagramas de flujo.                                                                                                                                 | Docs de workers         |
 
 
 **Git:** mínimo 5 commits.
@@ -1192,11 +1204,11 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 #### Lunes (Día 37) — Deploy a Staging
 
 
-| Bloque | Horario     | Tarea                                                                                                                                  | Entregable         |
-| ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| AM     | 8:30–12:00  | Configurar **entorno de staging**: desplegar Next.js (Vercel o servidor propio), configurar Neon de staging, variables de entorno.     | Staging operativo  |
+| Bloque | Horario     | Tarea                                                                                                                                                                              | Entregable         |
+| ------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| AM     | 8:30–12:00  | Configurar **entorno de staging**: desplegar Next.js (Vercel o servidor propio), configurar Neon de staging, variables de entorno.                                                 | Staging operativo  |
 | PM     | 12:00–16:00 | Configurar **workers en staging**: cron-jobs ejecutándose con API REST de Inmovilla/Statefox contra datos reales en modo lectura. RPA legacy de demandas contra entorno de prueba. | Workers en staging |
-| PM     | 16:00–20:00 | Deploy completo a staging. Verificar que todo funciona fuera de localhost.                                                             | Sistema en staging |
+| PM     | 16:00–20:00 | Deploy completo a staging. Verificar que todo funciona fuera de localhost.                                                                                                         | Sistema en staging |
 
 
 #### Martes (Día 38) — Testing en Staging
@@ -1326,18 +1338,18 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 ### Sprint 1 — Cimientos del Orquestador
 
 
-| #   | Criterio                                                 | Verificación                                                      |
-| --- | -------------------------------------------------------- | ----------------------------------------------------------------- |
-| 1   | Event Store persiste y recupera eventos correctamente    | Test unitario: append + get devuelve datos consistentes           |
-| 2   | Job Queue procesa y reintenta jobs                       | Test: job falla → se reintenta → completa                         |
-| 3   | Ingestion Worker lee propiedades y demandas de Inmovilla | Demostración en vivo: ejecutar worker y ver eventos en Neon       |
-| 4   | Egestion Worker escribe en Inmovilla                     | Demostración: escribir campo de prueba, verificar en Inmovilla    |
-| 5   | WhatsApp envía y recibe mensajes                         | Demo: enviar mensaje a sandbox, recibir respuesta, evento en Neon |
-| 6   | Scoring asigna score y SLA correcto                      | Test: lead con preaprobación obtiene score ≥80, SLA <5min         |
-| 7   | Smart Matching extrae variables de texto libre           | Test: "quiero más metros y otra zona" → extrae metros y zona      |
-| 8   | Cruce de demandas genera matches correctos               | Test: propiedad nueva → matches contra demandas compatibles       |
+| #   | Criterio                                                 | Verificación                                                                   |
+| --- | -------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| 1   | Event Store persiste y recupera eventos correctamente    | Test unitario: append + get devuelve datos consistentes                        |
+| 2   | Job Queue procesa y reintenta jobs                       | Test: job falla → se reintenta → completa                                      |
+| 3   | Ingestion Worker lee propiedades y demandas de Inmovilla | Demostración en vivo: ejecutar worker y ver eventos en Neon                    |
+| 4   | Egestion Worker escribe en Inmovilla                     | Demostración: escribir campo de prueba, verificar en Inmovilla                 |
+| 5   | WhatsApp envía y recibe mensajes                         | Demo: enviar mensaje a sandbox, recibir respuesta, evento en Neon              |
+| 6   | Scoring asigna score y SLA correcto                      | Test: lead con preaprobación obtiene score ≥80, SLA <5min                      |
+| 7   | Smart Matching extrae variables de texto libre           | Test: "quiero más metros y otra zona" → extrae metros y zona                   |
+| 8   | Cruce de demandas genera matches correctos               | Test: propiedad nueva → matches contra demandas compatibles                    |
 | 9   | Statefox API lee propiedades + microsite generado        | Demo: consulta API devuelve propiedades, microsite con branding propio visible |
-| 10  | Pipeline lead-to-notification funciona E2E               | Demo: lead entra → scoring → asignación → WhatsApp                |
+| 10  | Pipeline lead-to-notification funciona E2E               | Demo: lead entra → scoring → asignación → WhatsApp                             |
 
 
 ### Sprint 2 — Módulos Avanzados
@@ -1396,16 +1408,16 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 ## Resumen de Entregables por Semana
 
 
-| Semana | Tag              | Entregable principal                                                       |
-| ------ | ---------------- | -------------------------------------------------------------------------- |
-| S1     | `v0.1.0-week-01` | Event Store + Workers (API REST + legacy) + Statefox API + Tipos de dominio       |
+| Semana | Tag              | Entregable principal                                                                |
+| ------ | ---------------- | ----------------------------------------------------------------------------------- |
+| S1     | `v0.1.0-week-01` | Event Store + Workers (API REST + legacy) + Statefox API + Tipos de dominio         |
 | S2     | `v0.1.1-week-02` | Lead scoring + WhatsApp + Smart Matching + Microsite de selección + Micro-frontends |
-| S3     | `v0.2.0-week-03` | Smart Closing (plantillas + voz + firma) + Motor de Pricing + Post-venta   |
-| S4     | `v0.2.1-week-04` | Dashboards (Comercial + Colaboradores + CEO con 6 capas)                   |
-| S5     | `v0.3.0-week-05` | Bot Mental + IA refinada v2 + Auth + Hardening Workers                     |
-| S6     | `v0.3.1-week-06` | Integración E2E + UI final + Documentación completa                        |
-| S7     | `v0.4.0-week-07` | Staging completo + Testing exhaustivo + Plan de rollback                   |
-| S8     | `v1.0.0`         | Producción + Go-live gradual + Documentación final                         |
+| S3     | `v0.2.0-week-03` | Smart Closing (plantillas + voz + firma) + Motor de Pricing + Post-venta            |
+| S4     | `v0.2.1-week-04` | Dashboards (Comercial + Colaboradores + CEO con 6 capas)                            |
+| S5     | `v0.3.0-week-05` | Bot Mental + IA refinada v2 + Auth + Hardening Workers                              |
+| S6     | `v0.3.1-week-06` | Integración E2E + UI final + Documentación completa                                 |
+| S7     | `v0.4.0-week-07` | Staging completo + Testing exhaustivo + Plan de rollback                            |
+| S8     | `v1.0.0`         | Producción + Go-live gradual + Documentación final                                  |
 
 
 ---
@@ -1441,14 +1453,14 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 ### Métricas de producto (post-lanzamiento)
 
 
-| Métrica                                        | Objetivo    |
-| ---------------------------------------------- | ----------- |
-| Tiempo de primera respuesta a lead (score ≥80) | < 5 minutos |
-| Tasa de leads procesados automáticamente       | > 90%       |
-| Uptime de workers                              | > 99%       |
-| Tasa de errores de escritura en Inmovilla (API REST) | < 1%   |
-| Tasa de errores de escritura en Inmovilla (RPA legacy, demandas) | < 5% |
-| Contratos generados sin intervención manual    | > 80%       |
+| Métrica                                                          | Objetivo    |
+| ---------------------------------------------------------------- | ----------- |
+| Tiempo de primera respuesta a lead (score ≥80)                   | < 5 minutos |
+| Tasa de leads procesados automáticamente                         | > 90%       |
+| Uptime de workers                                                | > 99%       |
+| Tasa de errores de escritura en Inmovilla (API REST)             | < 1%        |
+| Tasa de errores de escritura en Inmovilla (RPA legacy, demandas) | < 5%        |
+| Contratos generados sin intervención manual                      | > 80%       |
 
 
 ---
@@ -1458,19 +1470,19 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 ### Riesgos técnicos
 
 
-| Riesgo                                   | Prob. | Impacto | Mitigación                                                  | Contingencia                                                          |
-| ---------------------------------------- | ----- | ------- | ----------------------------------------------------------- | --------------------------------------------------------------------- |
-| Inmovilla cambia UI/endpoints legacy     | Media | Alto    | API REST para clientes/propiedades/propietarios no depende de UI. Solo demandas usan RPA legacy con selectores con fallback, alertas inmediatas, modo degradado | Activar modo manual para demandas mientras se adaptan selectores. DLQ acumula jobs. API REST sigue operando. |
-| WhatsApp rechaza plantillas              | Media | Medio   | Plantillas alternativas pre-aprobadas, texto conservador    | Usar plantillas genéricas aprobadas mientras se resubmiten            |
-| LangGraph produce outputs inconsistentes | Media | Medio   | Validación de schema con zod en outputs, fallback a reglas  | Degradar a motor de reglas puro, alertar para revisión manual         |
-| Neon tiene latencia alta                 | Baja  | Medio   | Connection pooling, queries optimizadas, caché local        | Caché de lectura local, reintentos con backoff                        |
-| Statefox API cambia contratos            | Baja  | Medio   | Versionado de cliente REST, tests de contrato, tipado estricto | Caché local de propiedades, degradación a datos almacenados en Neon    |
-| API REST Inmovilla rate limits bloquean ingesta | Media | Medio | Estrategia de listado+diff (`fechaact`) para minimizar calls. Caché de enums. Backoff exponencial ante 408. | Fallback a polling legacy para lectura masiva de propiedades |
-| Token API REST Inmovilla caduca (3 meses sin uso) | Baja | Alto | Monitoreo de expiración, health check periódico del token | Regenerar token manual en Ajustes > Opciones, alertar al equipo |
-| Composio/Gmail falla o cambia OAuth      | Media | Alto    | Health check periódico de la conexión Composio-Gmail. Alertar si el login legacy falla. | Login manual temporal para operaciones de demandas urgentes. Las operaciones vía API REST (clientes/propiedades) no se ven afectadas. |
-| Upstash QStash tiene downtime            | Baja  | Medio   | Health check del scheduler. Cron-jobs críticos tienen fallback a ejecución manual vía npm scripts. | Ejecutar cron-jobs manualmente con scripts npm mientras se restablece QStash. |
-| Polígonos geoespaciales incorrectos      | Media | Alto    | Validación de polígonos antes de enviar a Inmovilla. Tests con zonas conocidas. Verificación post-escritura. | Fallback a `key_zona` de enums (menos preciso pero funcional). Cruce por zona textual en vez de geoespacial. |
-| Firma digital falla o tarda              | Baja  | Bajo    | Recordatorios automáticos, alternativa de firma presencial  | Generar PDF sin firma digital, firmar manualmente                     |
+| Riesgo                                            | Prob. | Impacto | Mitigación                                                                                                                                                      | Contingencia                                                                                                                          |
+| ------------------------------------------------- | ----- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Inmovilla cambia UI/endpoints legacy              | Media | Alto    | API REST para clientes/propiedades/propietarios no depende de UI. Solo demandas usan RPA legacy con selectores con fallback, alertas inmediatas, modo degradado | Activar modo manual para demandas mientras se adaptan selectores. DLQ acumula jobs. API REST sigue operando.                          |
+| WhatsApp rechaza plantillas                       | Media | Medio   | Plantillas alternativas pre-aprobadas, texto conservador                                                                                                        | Usar plantillas genéricas aprobadas mientras se resubmiten                                                                            |
+| LangGraph produce outputs inconsistentes          | Media | Medio   | Validación de schema con zod en outputs, fallback a reglas                                                                                                      | Degradar a motor de reglas puro, alertar para revisión manual                                                                         |
+| Neon tiene latencia alta                          | Baja  | Medio   | Connection pooling, queries optimizadas, caché local                                                                                                            | Caché de lectura local, reintentos con backoff                                                                                        |
+| Statefox API cambia contratos                     | Baja  | Medio   | Versionado de cliente REST, tests de contrato, tipado estricto                                                                                                  | Caché local de propiedades, degradación a datos almacenados en Neon                                                                   |
+| API REST Inmovilla rate limits bloquean ingesta   | Media | Medio   | Estrategia de listado+diff (`fechaact`) para minimizar calls. Caché de enums. Backoff exponencial ante 408.                                                     | Fallback a polling legacy para lectura masiva de propiedades                                                                          |
+| Token API REST Inmovilla caduca (3 meses sin uso) | Baja  | Alto    | Monitoreo de expiración, health check periódico del token                                                                                                       | Regenerar token manual en Ajustes > Opciones, alertar al equipo                                                                       |
+| Composio/Gmail falla o cambia OAuth               | Media | Alto    | Health check periódico de la conexión Composio-Gmail. Alertar si el login legacy falla.                                                                         | Login manual temporal para operaciones de demandas urgentes. Las operaciones vía API REST (clientes/propiedades) no se ven afectadas. |
+| Upstash QStash tiene downtime                     | Baja  | Medio   | Health check del scheduler. Cron-jobs críticos tienen fallback a ejecución manual vía npm scripts.                                                              | Ejecutar cron-jobs manualmente con scripts npm mientras se restablece QStash.                                                         |
+| Polígonos geoespaciales incorrectos               | Media | Alto    | Validación de polígonos antes de enviar a Inmovilla. Tests con zonas conocidas. Verificación post-escritura.                                                    | Fallback a `key_zona` de enums (menos preciso pero funcional). Cruce por zona textual en vez de geoespacial.                          |
+| Firma digital falla o tarda                       | Baja  | Bajo    | Recordatorios automáticos, alternativa de firma presencial                                                                                                      | Generar PDF sin firma digital, firmar manualmente                                                                                     |
 
 
 ### Riesgos de proyecto
@@ -1488,38 +1500,40 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 
 ## Glosario
 
-| Término                     | Definición                                                                                                                                |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| **La Bóveda**               | Inmovilla CRM. Repositorio pasivo de datos legales. Expone API REST v1 para clientes, propiedades y propietarios; demandas y estados requieren RPA legacy. |
-| **Ingestion Worker**        | Proceso server-side que lee datos de Inmovilla (API REST para propiedades, polling legacy para demandas) y de Statefox (API REST) y emite eventos.          |
-| **Egestion Worker**         | Proceso server-side que escribe datos en Inmovilla: vía API REST para clientes/propiedades/propietarios, vía RPA legacy para demandas y estados.            |
-| **Event Store**             | Tabla en Neon donde se persisten todos los eventos del sistema como registros inmutables.                                                 |
-| **Job Queue**               | Tabla en Neon que gestiona tareas asíncronas con reintentos, idempotencia y dead-letter queue.                                            |
-| **Cron Scheduler**          | **Upstash QStash** se usa para disparar y orquestar todos los cron-jobs del sistema.                                                      |
-| **Proyección**              | Vista materializada del estado actual, calculada a partir de los eventos del Event Store.                                                 |
-| **Smart Matching**          | Módulo de IA (LangGraph) que interpreta respuestas de texto libre y ajusta demandas automáticamente en Inmovilla.                         |
-| **Smart Closing**           | Sistema de generación de contratos con variables + revisión por voz (STT + LangGraph) + firma digital.                                    |
-| **Motor de Pricing**        | Sistema que compara un inmueble contra el mercado real (vía Statefox) y genera diagnóstico + recomendaciones.                             |
-| **SLA**                     | Service Level Agreement. Tiempo máximo para atender un lead según su score (ej: ≥80 → <5 min).                                            |
-| **Score**                   | Puntuación 0–100 de un lead. Fórmula: `0.55 × Pclose + 0.30 × Value + 0.15 × Urgency`.                                                    |
-| **Cadencia**                | Secuencia automática de mensajes programados por tiempo (ej: D+1, D+3, D+7 para follow-up).                                               |
-| **Circuit Breaker**         | Patrón de resiliencia: si X operaciones consecutivas fallan, el worker se pausa y alerta.                                                 |
-| **DLQ (Dead-Letter Queue)** | Cola donde van los jobs que fallan N veces. Se preserva contexto completo para debugging.                                                 |
-| **ADR**                     | Architecture Decision Record. Documento que registra una decisión técnica importante con contexto y consecuencias.                        |
-| **Micro-frontend**          | Interfaz web ligera y específica (Next.js) para una tarea concreta (post-visita, validación, dashboard).                                  |
-| **Network Interception**    | Técnica de capturar y reproducir peticiones HTTP internas de un sistema cerrado. Solo necesaria para demandas y estados en Inmovilla (no cubiertos por API REST). |
-| **API REST Inmovilla**      | `procesos.inmovilla.com/api/v1` — CRUD de clientes, propiedades y propietarios con token estático. Rate limits: 10 prop/min, 20 clientes/min. No cubre demandas. |
-| **API REST Statefox**       | `statefox.com/public/aapi/props` — Lectura de propiedades de mercado y snapshots con Bearer token. Solo lectura, sin escritura ni webhooks.                       |
-| **Microsite de selección**  | Micro-frontend Next.js propio que muestra propiedades de Statefox al comprador con branding Urus Capital. Reemplaza los enlaces privados de Statefox.             |
-| **LangGraph**               | Framework para orquestar flujos agénticos con LLMs. Se usa para Smart Matching, Pricing, Smart Closing y Bot Mental.                      |
-| **Neon**                    | Base de datos PostgreSQL serverless. Almacena Event Store, Job Queue, proyecciones y analítica.                                           |
-| **Composio**                | Plataforma de integración que conecta con Gmail vía OAuth para extraer automáticamente el código 2FA de Inmovilla. Solo necesario para el flujo RPA legacy de demandas/estados. |
-| **Prisma**                  | ORM para TypeScript/Node.js. Se usa para definir el schema de Neon (Event Store, Job Queue), generar tipos y ejecutar migraciones. |
-| **Upstash QStash**          | Servicio serverless de scheduling. Se usa para disparar y orquestar todos los cron-jobs del sistema (ingesta, cadencias, alertas, triggers temporales). |
+
+| Término                     | Definición                                                                                                                                                                                                                                      |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **La Bóveda**               | Inmovilla CRM. Repositorio pasivo de datos legales. Expone API REST v1 para clientes, propiedades y propietarios; demandas y estados requieren RPA legacy.                                                                                      |
+| **Ingestion Worker**        | Proceso server-side que lee datos de Inmovilla (API REST para propiedades, polling legacy para demandas) y de Statefox (API REST) y emite eventos.                                                                                              |
+| **Egestion Worker**         | Proceso server-side que escribe datos en Inmovilla: vía API REST para clientes/propiedades/propietarios, vía RPA legacy para demandas y estados.                                                                                                |
+| **Event Store**             | Tabla en Neon donde se persisten todos los eventos del sistema como registros inmutables.                                                                                                                                                       |
+| **Job Queue**               | Tabla en Neon que gestiona tareas asíncronas con reintentos, idempotencia y dead-letter queue.                                                                                                                                                  |
+| **Cron Scheduler**          | **Upstash QStash** se usa para disparar y orquestar todos los cron-jobs del sistema.                                                                                                                                                            |
+| **Proyección**              | Vista materializada del estado actual, calculada a partir de los eventos del Event Store.                                                                                                                                                       |
+| **Smart Matching**          | Módulo de IA (LangGraph) que interpreta respuestas de texto libre y ajusta demandas automáticamente en Inmovilla.                                                                                                                               |
+| **Smart Closing**           | Sistema de generación de contratos con variables + revisión por voz (STT + LangGraph) + firma digital.                                                                                                                                          |
+| **Motor de Pricing**        | Sistema que compara un inmueble contra el mercado real (vía Statefox) y genera diagnóstico + recomendaciones.                                                                                                                                   |
+| **SLA**                     | Service Level Agreement. Tiempo máximo para atender un lead según su score (ej: ≥80 → <5 min).                                                                                                                                                  |
+| **Score**                   | Puntuación 0–100 de un lead. Fórmula: `0.55 × Pclose + 0.30 × Value + 0.15 × Urgency`.                                                                                                                                                          |
+| **Cadencia**                | Secuencia automática de mensajes programados por tiempo (ej: D+1, D+3, D+7 para follow-up).                                                                                                                                                     |
+| **Circuit Breaker**         | Patrón de resiliencia: si X operaciones consecutivas fallan, el worker se pausa y alerta.                                                                                                                                                       |
+| **DLQ (Dead-Letter Queue)** | Cola donde van los jobs que fallan N veces. Se preserva contexto completo para debugging.                                                                                                                                                       |
+| **ADR**                     | Architecture Decision Record. Documento que registra una decisión técnica importante con contexto y consecuencias.                                                                                                                              |
+| **Micro-frontend**          | Interfaz web ligera y específica (Next.js) para una tarea concreta (post-visita, validación, dashboard).                                                                                                                                        |
+| **Network Interception**    | Técnica de capturar y reproducir peticiones HTTP internas de un sistema cerrado. Solo necesaria para demandas y estados en Inmovilla (no cubiertos por API REST).                                                                               |
+| **API REST Inmovilla**      | `procesos.inmovilla.com/api/v1` — CRUD de clientes, propiedades y propietarios con token estático. Rate limits: 10 prop/min, 20 clientes/min. No cubre demandas.                                                                                |
+| **API REST Statefox**       | `statefox.com/public/aapi/props` — Lectura de propiedades de mercado y snapshots con Bearer token. Solo lectura, sin escritura ni webhooks.                                                                                                     |
+| **Microsite de selección**  | Micro-frontend Next.js propio que muestra propiedades de Statefox al comprador con branding Urus Capital. Reemplaza los enlaces privados de Statefox.                                                                                           |
+| **LangGraph**               | Framework para orquestar flujos agénticos con LLMs. Se usa para Smart Matching, Pricing, Smart Closing y Bot Mental.                                                                                                                            |
+| **Neon**                    | Base de datos PostgreSQL serverless. Almacena Event Store, Job Queue, proyecciones y analítica.                                                                                                                                                 |
+| **Composio**                | Plataforma de integración que conecta con Gmail vía OAuth para extraer automáticamente el código 2FA de Inmovilla. Solo necesario para el flujo RPA legacy de demandas/estados.                                                                 |
+| **Prisma**                  | ORM para TypeScript/Node.js. Se usa para definir el schema de Neon (Event Store, Job Queue), generar tipos y ejecutar migraciones.                                                                                                              |
+| **Upstash QStash**          | Servicio serverless de scheduling. Se usa para disparar y orquestar todos los cron-jobs del sistema (ingesta, cadencias, alertas, triggers temporales).                                                                                         |
 | **Polígono geoespacial**    | Área de búsqueda de un comprador en Inmovilla, definida como serie de coordenadas (`;lat1+lng1,lat2+lng2,...`). Necesario para que las demandas sirvan para cruce automático. Sin polígono, la demanda no tiene zona y es inútil para matching. |
-| **Contacto (Inmovilla)**    | Entidad en Inmovilla que representa una persona (comprador, vendedor, inversor). Accesible vía API REST (`/clientes/`). Lo que el plan llama "lead" se materializa como Contacto + Demanda. |
-| **Demanda (Inmovilla)**     | Entidad en Inmovilla que representa una búsqueda activa de un comprador, con criterios (precio, metros, tipología) y polígono geoespacial. NO accesible vía API REST; requiere RPA legacy. |
-| **Statefox**                | Plataforma de análisis de mercado inmobiliario. Se consume exclusivamente por API REST para obtener stock externo y comparables de pricing. Los microsites se generan localmente. |
+| **Contacto (Inmovilla)**    | Entidad en Inmovilla que representa una persona (comprador, vendedor, inversor). Accesible vía API REST (`/clientes/`). Lo que el plan llama "lead" se materializa como Contacto + Demanda.                                                     |
+| **Demanda (Inmovilla)**     | Entidad en Inmovilla que representa una búsqueda activa de un comprador, con criterios (precio, metros, tipología) y polígono geoespacial. NO accesible vía API REST; requiere RPA legacy.                                                      |
+| **Statefox**                | Plataforma de análisis de mercado inmobiliario. Se consume exclusivamente por API REST para obtener stock externo y comparables de pricing. Los microsites se generan localmente.                                                               |
+
 
 ---
 

@@ -126,7 +126,7 @@ export const nluGraph = new StateGraph(NLUState)
 
 // ── Función de entrada pública ────────────────────────────────────────────────
 
-export async function clasificarRespuestaWhatsApp(
+export async function classifyWhatsAppResponse(
   input: NLUGraphInput
 ): Promise<NLUResult> {
   const result = await nluGraph.invoke({ input });

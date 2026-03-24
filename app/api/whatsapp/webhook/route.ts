@@ -17,6 +17,7 @@ import {
 } from "@/lib/whatsapp";
 import type { ParsedWebhookMessage } from "@/lib/whatsapp";
 import { appendEvent } from "@/lib/event-store";
+import { enqueueJob } from "@/lib/job-queue";
 
 // ---- GET: verificación del challenge ----
 
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const results = await Promise.allSettled(
     events
       .filter((e): e is ParsedWebhookMessage => e.kind === "message")
-        .map((e) => {
+        .map(async (e) => {
           const msg = e.message as Record<string, unknown>;
           const content: Record<string, unknown> = {
             messageId: e.message.id,
@@ -74,14 +75,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           if (e.message.type === "text" && "text" in msg) content["text"] = msg["text"];
           if (e.message.type === "interactive" && "interactive" in msg) content["interactive"] = msg["interactive"];
           if (e.message.type === "button" && "button" in msg) content["button"] = msg["button"];
+          if ("context" in msg) content["context"] = msg["context"];
 
-          return appendEvent({
+          const stored = await appendEvent({
             type: "WHATSAPP_RECIBIDO",
             aggregateType: "WHATSAPP_CONVERSATION",
             aggregateId: e.waId,
             payload: content as import("@/lib/event-store").JsonValue,
             metadata: { source: "whatsapp_webhook" },
           });
+
+          // Dispara el pipeline: consumer (PROCESS_EVENT) → handler WHATSAPP_RECIBIDO → NLU → DEMANDA_ACTUALIZADA
+          await enqueueJob({
+            type: "PROCESS_EVENT",
+            payload: { eventId: stored.id, eventType: stored.type },
+            sourceEventId: stored.id,
+            idempotencyKey: `process-event:${stored.id}`,
+          });
+
+          return stored;
         }),
   );
 

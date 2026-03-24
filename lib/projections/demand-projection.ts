@@ -8,6 +8,8 @@ type DemandPayloadSnapshot = {
   codigo: string;
   ref: string;
   nombre: string;
+  /** Teléfono contacto/comprador si la ingesta lo incluye. */
+  telefono?: string;
   estadoId: string;
   estadoNombre: string;
   presupuestoMin: number;
@@ -20,6 +22,7 @@ type DemandPayloadSnapshot = {
 };
 
 type DemandModifiedAfter = {
+  telefono?: string;
   estadoId: string;
   estadoNombre: string;
   presupuestoMin: number;
@@ -30,6 +33,19 @@ type DemandModifiedAfter = {
   fechaActualizacion: string;
 };
 
+function listToString(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    const cleaned = value
+      .filter((v): v is string => typeof v === "string")
+      .map((v) => v.trim())
+      .filter(Boolean);
+    if (cleaned.length === 0) return undefined;
+    return cleaned.join(", ");
+  }
+  return undefined;
+}
+
 function snapshotToUpsertData(
   snapshot: DemandPayloadSnapshot,
   event: EventRecord,
@@ -37,6 +53,7 @@ function snapshotToUpsertData(
   const base = {
     ref: str(snapshot.ref),
     nombre: str(snapshot.nombre),
+    telefono: str(snapshot.telefono ?? ""),
     estadoId: str(snapshot.estadoId),
     estadoNombre: str(snapshot.estadoNombre),
     presupuestoMin: num(snapshot.presupuestoMin),
@@ -91,6 +108,7 @@ export async function applyDemandProjection(
         where: { codigo },
         create: {
           codigo,
+          telefono: str(after.telefono ?? ""),
           estadoId: str(after.estadoId),
           estadoNombre: str(after.estadoNombre),
           presupuestoMin: num(after.presupuestoMin),
@@ -104,6 +122,7 @@ export async function applyDemandProjection(
           lastEventAt: event.occurredAt,
         },
         update: {
+          ...(typeof after.telefono === "string" ? { telefono: str(after.telefono) } : {}),
           estadoId: str(after.estadoId),
           estadoNombre: str(after.estadoNombre),
           presupuestoMin: num(after.presupuestoMin),
@@ -136,6 +155,59 @@ export async function applyDemandProjection(
       });
 
       console.log(`[projection:demand] DEMANDA_ESTADO_CAMBIADO codigo=${codigo} — upserted`);
+      return { success: true, aggregateId: codigo };
+    }
+
+    case "DEMANDA_ACTUALIZADA": {
+      const payload = event.payload as {
+        variables?: {
+          precioMin?: number;
+          precioMax?: number;
+          habitacionesMin?: number;
+          zonas?: string[] | string;
+          tipos?: string[] | string;
+        };
+        detectedAt?: string;
+      };
+
+      const v = payload.variables ?? {};
+      const updatedAt =
+        typeof payload.detectedAt === "string" ? payload.detectedAt : new Date().toISOString();
+
+      const tipos = listToString(v.tipos);
+      const zonas = listToString(v.zonas);
+
+      await prisma.demandCurrent.upsert({
+        where: { codigo },
+        create: {
+          codigo,
+          telefono: "",
+          presupuestoMin: num(v.precioMin ?? 0),
+          presupuestoMax: num(v.precioMax ?? 0),
+          habitacionesMin: int(v.habitacionesMin ?? 0),
+          tipos: str(tipos ?? ""),
+          zonas: str(zonas ?? ""),
+          fechaActualizacion: str(updatedAt),
+          lastEventId: event.id,
+          lastEventPosition: event.position,
+          lastEventAt: event.occurredAt,
+        },
+        update: {
+          ...(typeof v.precioMin === "number" ? { presupuestoMin: num(v.precioMin) } : {}),
+          ...(typeof v.precioMax === "number" ? { presupuestoMax: num(v.precioMax) } : {}),
+          ...(typeof v.habitacionesMin === "number"
+            ? { habitacionesMin: int(v.habitacionesMin) }
+            : {}),
+          ...(tipos ? { tipos: str(tipos) } : {}),
+          ...(zonas ? { zonas: str(zonas) } : {}),
+          fechaActualizacion: str(updatedAt),
+          lastEventId: event.id,
+          lastEventPosition: event.position,
+          lastEventAt: event.occurredAt,
+        },
+      });
+
+      console.log(`[projection:demand] DEMANDA_ACTUALIZADA codigo=${codigo} — updated`);
       return { success: true, aggregateId: codigo };
     }
 

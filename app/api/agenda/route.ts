@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { appendEvent } from "@/lib/event-store/event-store";
 import { AggregateType, EventType } from "@/app/generated/prisma/client";
+import { enqueueJob } from "@/lib/job-queue";
 import {
   createCalendarEvent,
   type CalendarEventInput,
@@ -77,6 +78,13 @@ export async function POST(request: Request) {
         calendarLink: calendarResult.link || null,
         calendarSuccess: calendarResult.success,
       },
+    });
+
+    await enqueueJob({
+      type: "PROCESS_EVENT",
+      payload: { eventId: event.id },
+      sourceEventId: event.id,
+      idempotencyKey: `process_event:${event.id}`,
     });
 
     return NextResponse.json({

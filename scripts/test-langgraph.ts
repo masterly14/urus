@@ -1,12 +1,14 @@
 /**
- * Script de prueba del setup LangGraph — Día 9.
- * Valida que el grafo NLU está operativo con OpenAI.
+ * Script de validación del agente de clasificación de respuestas WhatsApp.
+ * Invoca la implementación oficial en lib/agents (classifyWhatsAppResponse)
+ * con varios mensajes de ejemplo para comprobar que LangGraph + OpenAI responden.
  *
- * Uso: npx tsx scripts/test-langgraph.ts
+ * El agente en sí está en lib/agents/nlu-graph.ts; este script solo lo llama.
+ * Uso: npm run agents:test-langgraph
  */
 
 import "dotenv/config";
-import { clasificarRespuestaWhatsApp } from "@/lib/agents";
+import { classifyWhatsAppResponse } from "@/lib/agents";
 
 const CASOS_PRUEBA = [
   {
@@ -31,7 +33,7 @@ async function main() {
     console.log(`Mensaje: "${caso.mensaje}"`);
 
     try {
-      const result = await clasificarRespuestaWhatsApp({
+      const result = await classifyWhatsAppResponse({
         messageText: caso.mensaje,
         buyerPhone: "34600000000",
         demandId: "test-demand-001",
