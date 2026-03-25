@@ -76,7 +76,7 @@ export default function ContratosPage() {
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight">Automatización Legal</h1>
                         <p className="text-sm text-muted-foreground">
-                            Contratos automáticos con Voice-to-Action y firma digital
+                            Smart Closing: revisión por voz, vista previa y firma digital
                         </p>
                     </div>
                 </div>
