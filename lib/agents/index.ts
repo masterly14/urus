@@ -11,6 +11,14 @@
 
 export { llm, llmWithStructuredOutput } from "./llm";
 export { nluGraph, classifyWhatsAppResponse } from "./nlu-graph";
+export {
+  contractInstructionGraph,
+  interpretContractVoiceInstructions,
+} from "./contract-instruction-graph";
+export type {
+  ContractInstructionGraphInput,
+  ContractVoiceStructuredPatch,
+} from "./contract-instruction-types";
 export type {
   IntentionWhatsApp,
   DemandVariables,
