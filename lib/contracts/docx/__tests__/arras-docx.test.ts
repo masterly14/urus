@@ -3,7 +3,9 @@ import type { ArrasContractPayload, ContractTemplateInput } from "@/types/contra
 import { buildArrasRenderModel } from "../builders/arras";
 import { generateContractDocx } from "../index";
 
-function buildArrasInput(overrides?: Partial<ArrasContractPayload>): ContractTemplateInput {
+type ArrasInput = Extract<ContractTemplateInput, { kind: "arras" }>;
+
+function buildArrasInput(overrides?: Partial<ArrasContractPayload>): ArrasInput {
   const basePayload: ArrasContractPayload = {
     documentDateIso: "2026-05-21",
     signPlace: "Cordoba",
