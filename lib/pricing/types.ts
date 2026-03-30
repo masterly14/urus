@@ -5,6 +5,7 @@
  */
 
 import type { StatefoxHousing, StatefoxListingType } from "@/lib/statefox/types";
+import type { PricingRecommendation } from "./recommendation-types";
 
 // ---------------------------------------------------------------------------
 // Input: variables extraídas del inmueble en Neon
@@ -97,6 +98,8 @@ export interface PricingAnalysisResult {
     totalResultsFromAPI: number;
     filteredResults: number;
   };
+  recommendation?: PricingRecommendation;
+  recommendationError?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,6 +113,8 @@ export interface PricingOptions {
   maxPages?: number;
   /** Mínimo de comparables antes de dejar de paginar. Default 5. */
   minComparables?: number;
+  /** Invocar motor de recomendación LangGraph tras el análisis estadístico. Default true. */
+  generateRecommendation?: boolean;
 }
 
 // ---------------------------------------------------------------------------
