@@ -79,6 +79,24 @@ export async function getKeyZonaByZonaAndKeyLoca(
 }
 
 /**
+ * Devuelve el nombre textual de un tipo de propiedad por su valor numérico (key_tipo).
+ * Inversa de getKeyTipoByNombre. Ej: 3 → "Piso".
+ */
+export async function getNombreTipoByKeyTipo(
+  prisma: PrismaClient,
+  keyTipoValor: number,
+): Promise<string | null> {
+  const row = await prisma.inmovillaEnumTipo.findFirst({
+    where: {
+      tipo: "key_tipo",
+      valor: keyTipoValor,
+    },
+    select: { nombre: true },
+  });
+  return row?.nombre ?? null;
+}
+
+/**
  * Lista ciudades por país (valor de InmovillaEnumPais.valor).
  */
 export async function getCiudadesByPais(
