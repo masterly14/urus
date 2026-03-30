@@ -6,17 +6,21 @@
  *   2. Consulta Statefox API REST (/snapshot, inventario completo) y filtra en memoria
  *   3. Calcula estadísticas del cluster (media, mediana, desviación, segmentación)
  *   4. Asigna semáforo y persiste evento PRICING_ANALISIS_GENERADO en Event Store
+ *   5. (Opcional) Invoca motor de recomendación LangGraph → diagnóstico + recomendaciones
  */
 
 import { extractPropertyForPricing } from "./extract-property";
 import { fetchPricingComparables } from "./fetch-comparables";
 import { analyzeCluster } from "./analyze-cluster";
+import { generatePricingRecommendation } from "@/lib/agents/pricing-recommendation-graph";
 import { appendEvent } from "@/lib/event-store";
 import { mapTiposToHousing } from "@/lib/statefox/query-builder";
 import type { PricingAnalysisResult, PricingOptions } from "./types";
 
 export type { PricingAnalysisResult, PricingOptions } from "./types";
 export type { PricingPropertyInput, PricingComparable, PricingClusterStats, SemaforoStatus } from "./types";
+export type { PricingRecommendation, PricingAction } from "./recommendation-types";
+export { PricingRecommendationSchema } from "./recommendation-types";
 export { PricingDataIncompleteError } from "./types";
 export { extractPropertyForPricing } from "./extract-property";
 export { fetchPricingComparables } from "./fetch-comparables";
@@ -66,6 +70,35 @@ export async function runPricingAnalysis(
       comparablesCount: comparables.length,
     },
   });
+
+  // Motor de recomendación IA (LangGraph) — degradación graceful si falla
+  if (options?.generateRecommendation !== false) {
+    try {
+      const recommendation = await generatePricingRecommendation(result);
+      result.recommendation = recommendation;
+
+      await appendEvent({
+        type: "PRICING_RECOMENDACION_GENERADA",
+        aggregateType: "PROPERTY",
+        aggregateId: propertyCode,
+        payload: {
+          accion: recommendation.accion,
+          diagnostico: recommendation.diagnostico,
+          recomendaciones: recommendation.recomendaciones,
+          precioSugeridoMin: recommendation.precioSugeridoMin,
+          precioSugeridoMax: recommendation.precioSugeridoMax,
+          confidence: recommendation.confidence,
+          analyzedAt: result.analyzedAt,
+        },
+      });
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[pricing] Error en motor de recomendación para ${propertyCode}: ${errorMsg}`,
+      );
+      result.recommendationError = errorMsg;
+    }
+  }
 
   return result;
 }
