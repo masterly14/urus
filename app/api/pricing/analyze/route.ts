@@ -10,6 +10,7 @@ const RequestSchema = z.object({
   metersRangePercent: z.number().min(1).max(100).optional(),
   maxPages: z.number().min(1).max(100).optional(),
   minComparables: z.number().min(1).max(100).optional(),
+  generateRecommendation: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { propertyCode, priceRangePercent, metersRangePercent, maxPages, minComparables } = parsed.data;
+  const { propertyCode, priceRangePercent, metersRangePercent, maxPages, minComparables, generateRecommendation } = parsed.data;
 
   try {
     const result = await runPricingAnalysis(propertyCode, {
@@ -36,10 +37,11 @@ export async function POST(request: Request) {
       metersRangePercent,
       maxPages,
       minComparables,
+      generateRecommendation,
     });
 
     console.log(
-      `[pricing/analyze] Análisis completado: property=${propertyCode} comparables=${result.stats.totalComparables} semaforo=${result.stats.semaforo}`,
+      `[pricing/analyze] Análisis completado: property=${propertyCode} comparables=${result.stats.totalComparables} semaforo=${result.stats.semaforo} recomendacion=${result.recommendation?.accion ?? result.recommendationError ?? "skipped"}`,
     );
 
     return NextResponse.json(result);
