@@ -17,12 +17,38 @@ import {
 import type { ContractFieldIssue, ContractTemplateInput } from "@/types/contracts";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 
+/** Contexto para persistir CONTRATO_VERSIONADO tras voice-apply (Neon). */
+export interface SmartClosingVersioningContext {
+  propertyCode: string;
+  operationId: string;
+  actorUserId?: string;
+  recordVersionEvent?: boolean;
+}
+
 export type SmartClosingPhase =
   | "idle"
   | "loading_initial"
   | "converting_preview"
   | "applying_voice"
   | "error";
+
+export type SignaturePhase = "idle" | "sending" | "sent" | "error";
+
+export interface SignatureSigner {
+  name: string;
+  email: string;
+  phone?: string;
+  role?: string;
+}
+
+export interface SignatureResult {
+  signatureRequestId: string;
+  signaturitSignatureId: string;
+  signaturitDocumentId: string | null;
+  signingUrl: string | null;
+  status: string;
+  normalizedToPdf: boolean;
+}
 
 function isVoiceApplyResponse(data: unknown): data is VoiceApplyClientResponse {
   if (typeof data !== "object" || data === null) return false;
@@ -40,7 +66,13 @@ function isVoiceApplyResponse(data: unknown): data is VoiceApplyClientResponse {
   return Array.isArray(d.validationIssues) && d.updatedInput !== undefined;
 }
 
-export function useSmartClosingSession(initialInput: ContractTemplateInput) {
+export function useSmartClosingSession(
+  initialInput: ContractTemplateInput,
+  options?: { versioningContext?: SmartClosingVersioningContext },
+) {
+  const versioningContextRef = useRef(options?.versioningContext);
+  versioningContextRef.current = options?.versioningContext;
+
   const [phase, setPhase] = useState<SmartClosingPhase>("loading_initial");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [docState, setDocState] = useState<SmartClosingDocState>({
@@ -53,6 +85,9 @@ export function useSmartClosingSession(initialInput: ContractTemplateInput) {
   const [appliedSummaries, setAppliedSummaries] = useState<string[]>([]);
   const [validationIssues, setValidationIssues] = useState<ContractFieldIssue[]>([]);
   const [approved, setApproved] = useState(false);
+  const [signaturePhase, setSignaturePhase] = useState<SignaturePhase>("idle");
+  const [signatureResult, setSignatureResult] = useState<SignatureResult | null>(null);
+  const [signatureError, setSignatureError] = useState<string | null>(null);
 
   const docStateRef = useRef(docState);
   useEffect(() => {
@@ -182,12 +217,21 @@ export function useSmartClosingSession(initialInput: ContractTemplateInput) {
 
       try {
         const current = docStateRef.current;
+        const vc = versioningContextRef.current;
         const res = await fetch("/api/contracts/voice-apply", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             transcript: trimmed,
             contractTemplateInput: current.contractTemplateInput,
+            ...(vc
+              ? {
+                  versioningContext: {
+                    ...vc,
+                    recordVersionEvent: vc.recordVersionEvent !== false,
+                  },
+                }
+              : {}),
           }),
         });
 
@@ -225,7 +269,25 @@ export function useSmartClosingSession(initialInput: ContractTemplateInput) {
     [approved, refreshPreviewFromBase64],
   );
 
-  const approveDraft = useCallback(() => {
+  const approveDraft = useCallback(async () => {
+    const vc = versioningContextRef.current;
+    if (vc?.operationId && vc?.propertyCode) {
+      try {
+        const current = docStateRef.current;
+        await fetch("/api/contracts/approve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            operationId: vc.operationId,
+            propertyCode: vc.propertyCode,
+            documentKind: current.contractTemplateInput.kind,
+            templateVersion: current.contractTemplateInput.templateVersion,
+          }),
+        });
+      } catch {
+        // MVP: si falla la persistencia, el flujo continúa (FIRMA_ENVIADA implica aprobación)
+      }
+    }
     setApproved(true);
     setPhase("idle");
     setErrorMessage(null);
@@ -233,7 +295,69 @@ export function useSmartClosingSession(initialInput: ContractTemplateInput) {
 
   const resetApproval = useCallback(() => {
     setApproved(false);
+    setSignaturePhase("idle");
+    setSignatureResult(null);
+    setSignatureError(null);
   }, []);
+
+  const sendToSignature = useCallback(
+    async (signers: SignatureSigner[]) => {
+      const current = docStateRef.current;
+      if (!current.docxBase64) {
+        setSignatureError("No hay documento DOCX para enviar a firma.");
+        setSignaturePhase("error");
+        return;
+      }
+
+      const vc = versioningContextRef.current;
+      if (!vc?.operationId || !vc?.propertyCode) {
+        setSignatureError("Falta contexto de operación (operationId / propertyCode).");
+        setSignaturePhase("error");
+        return;
+      }
+
+      if (signers.length === 0) {
+        setSignatureError("Se requiere al menos un firmante con nombre y email.");
+        setSignaturePhase("error");
+        return;
+      }
+
+      setSignaturePhase("sending");
+      setSignatureError(null);
+      setSignatureResult(null);
+
+      try {
+        const res = await fetch("/api/contracts/sign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            operationId: vc.operationId,
+            propertyCode: vc.propertyCode,
+            documentKind: current.contractTemplateInput.kind,
+            templateVersion: current.contractTemplateInput.templateVersion,
+            docxBase64: current.docxBase64,
+            signers,
+          }),
+        });
+
+        const data: unknown = await res.json();
+
+        if (!res.ok) {
+          const err = data as { error?: string; detail?: string };
+          setSignatureError(err.error ?? `Error HTTP ${res.status}`);
+          setSignaturePhase("error");
+          return;
+        }
+
+        setSignatureResult(data as SignatureResult);
+        setSignaturePhase("sent");
+      } catch (e) {
+        setSignatureError(e instanceof Error ? e.message : "Error de red al enviar a firma");
+        setSignaturePhase("error");
+      }
+    },
+    [],
+  );
 
   const dismissError = useCallback(() => {
     setErrorMessage(null);
@@ -259,5 +383,9 @@ export function useSmartClosingSession(initialInput: ContractTemplateInput) {
       const b64 = docStateRef.current.docxBase64;
       if (b64) void refreshPreviewFromBase64(b64);
     },
+    signaturePhase,
+    signatureResult,
+    signatureError,
+    sendToSignature,
   };
 }
