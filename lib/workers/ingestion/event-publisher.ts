@@ -10,12 +10,14 @@ import type {
   PropertyCreatedEventPayload,
   PropertyModifiedEventPayload,
   PropertyStatusChangedEventPayload,
+  PropertyRemovedEventPayload,
 } from "./types";
 
 const EVENT_ORDER = {
   PROPIEDAD_CREADA: 0,
   PROPIEDAD_MODIFICADA: 1,
   ESTADO_CAMBIADO: 2,
+  PROPIEDAD_ELIMINADA: 3,
 } as const;
 
 type PublishCandidate = {
@@ -24,7 +26,8 @@ type PublishCandidate = {
   payload:
     | PropertyCreatedEventPayload
     | PropertyModifiedEventPayload
-    | PropertyStatusChangedEventPayload;
+    | PropertyStatusChangedEventPayload
+    | PropertyRemovedEventPayload;
   changedFields: DiffField[];
 };
 
@@ -71,6 +74,8 @@ function buildCandidates(
         ciudad: change.property.ciudad,
         zona: change.property.zona,
         estado: change.property.estado,
+        nodisponible: change.property.nodisponible,
+        prospecto: change.property.prospecto,
         fechaActualizacion: change.property.fechaActualizacion,
       },
       changedFields: change.changedFields,
@@ -92,7 +97,17 @@ function buildCandidates(
     changedFields: ["estado", ...change.otherChangedFields],
   }));
 
-  return [...created, ...modified, ...statusChanged].sort((a, b) => {
+  const removed: PublishCandidate[] = diff.removed.map((change) => ({
+    eventType: "PROPIEDAD_ELIMINADA",
+    aggregateId: change.codigo,
+    payload: {
+      previousEstado: change.previousEstado,
+      detectedAt,
+    },
+    changedFields: [],
+  }));
+
+  return [...created, ...modified, ...statusChanged, ...removed].sort((a, b) => {
     if (a.aggregateId === b.aggregateId) {
       return EVENT_ORDER[a.eventType] - EVENT_ORDER[b.eventType];
     }

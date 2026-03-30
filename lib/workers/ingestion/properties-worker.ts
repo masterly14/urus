@@ -11,7 +11,8 @@ import type { PropiedadCompleta } from "@/lib/inmovilla/rest/types";
 import type { InmovillaProperty } from "@/lib/inmovilla/api/types";
 import { loginToInmovilla } from "@/lib/inmovilla/auth/login";
 import { fetchAllProperties } from "@/lib/inmovilla/api/properties";
-import { loadPreviousSnapshot, saveCurrentSnapshot } from "./snapshot-repo";
+import { loadEnumLookupMaps, type EnumLookupMaps } from "@/lib/inmovilla/rest/enum-lookup";
+import { loadPreviousSnapshot, saveCurrentSnapshot, removeFromSnapshot } from "./snapshot-repo";
 import type { SnapshotMap } from "./snapshot-repo";
 import { computePropertyDiff } from "./properties-diff";
 import { publishEventsForDiff } from "./event-publisher";
@@ -58,6 +59,10 @@ function listadoDiff(
   const unchanged = new Map<string, PropertySnapshotData>();
 
   for (const item of listado) {
+    // Pre-filtro temprano: si Inmovilla ya marca la propiedad como no disponible
+    // o como prospecto en el listado, no vale la pena ni fetchear la ficha completa.
+    if (item.nodisponible || item.prospecto) continue;
+
     const codigo = String(item.cod_ofer);
     const prev = previousSnapshot.get(codigo);
     const fechaact = item.fechaact ?? "";
@@ -65,7 +70,13 @@ function listadoDiff(
     if (!prev || prev.fechaActualizacion !== fechaact) {
       toFetch.push(codigo);
     } else {
-      unchanged.set(codigo, prev);
+      // Solo incluir en unchanged si estaba marcada como Libre en el snapshot anterior.
+      // Si tenía otro estado, se re-fetcha para confirmar su estado actual.
+      if (prev.estado === "Libre") {
+        unchanged.set(codigo, prev);
+      } else {
+        toFetch.push(codigo);
+      }
     }
   }
 
@@ -153,6 +164,7 @@ async function getPropertyWithRetry(
 async function fetchPropertiesViaRest(
   previousSnapshot: SnapshotMap,
   log: ReturnType<typeof propertiesLogger.child>,
+  enumMaps?: EnumLookupMaps,
 ): Promise<{
   properties: InmovillaProperty[];
   fetched: number;
@@ -196,7 +208,13 @@ async function fetchPropertiesViaRest(
       totalRetries += retries;
 
       if (result) {
-        currentProperties.push(normalizePropertyFromRest(result));
+        const normalized = normalizePropertyFromRest(result, enumMaps);
+        // Solo sincronizamos propiedades en estado Libre
+        if (normalized.estado === "Libre") {
+          currentProperties.push(normalized);
+        } else {
+          log.debug(`[${i + 1}/${toFetch.length}] Ignorada (estado="${normalized.estado}")`, { codigo });
+        }
         fetched++;
         log.debug(`[${i + 1}/${toFetch.length}] OK`, { codigo, retries });
       } else {
@@ -256,6 +274,23 @@ export async function runPropertiesIngestionCycle(): Promise<IngestionCycleResul
       snapshotSize: previousSnapshot.size,
     });
 
+    // ── Fase 1b: cargar enum maps para resolución key_loca/key_zona/estadoficha ──
+    let enumMaps: EnumLookupMaps | undefined;
+    if (useRest) {
+      try {
+        enumMaps = await loadEnumLookupMaps();
+        log.info("Enum lookup maps cargados", {
+          ciudades: enumMaps.ciudadByKeyLoca.size,
+          zonas: enumMaps.zonaByLocaZona.size,
+          estados: enumMaps.estadoByValue.size,
+        });
+      } catch (err) {
+        log.warn("No se pudieron cargar enum maps — ciudad/zona/estado podrían quedar como código", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
     // ── Fase 2: leer propiedades ──────────────────────────────────────────
     t = new PhaseTimer();
     let properties: InmovillaProperty[];
@@ -264,7 +299,7 @@ export async function runPropertiesIngestionCycle(): Promise<IngestionCycleResul
 
     if (useRest) {
       log.info("Modo API REST: listado + fichas cambiadas");
-      const restResult = await fetchPropertiesViaRest(previousSnapshot, log);
+      const restResult = await fetchPropertiesViaRest(previousSnapshot, log, enumMaps);
       properties = restResult.properties;
       itemsFetched = restResult.fetched;
       itemsFailed = restResult.failed;
@@ -292,6 +327,7 @@ export async function runPropertiesIngestionCycle(): Promise<IngestionCycleResul
       created: diff.created.length,
       modified: diff.modified.length,
       statusChanged: diff.statusChanged.length,
+      removed: diff.removed.length,
       unchanged: diff.unchanged,
     });
 
@@ -307,6 +343,11 @@ export async function runPropertiesIngestionCycle(): Promise<IngestionCycleResul
     t = new PhaseTimer();
     log.info("Guardando snapshot actual...");
     await saveCurrentSnapshot(properties, startedAt);
+    if (diff.removed.length > 0) {
+      const removedCodes = diff.removed.map((r) => r.codigo);
+      log.info("Eliminando del snapshot propiedades no-Libre", { count: removedCodes.length });
+      await removeFromSnapshot(removedCodes);
+    }
     phases.saveSnapshot = t.end();
     log.phase("saveSnapshot", phases.saveSnapshot);
 
@@ -324,6 +365,7 @@ export async function runPropertiesIngestionCycle(): Promise<IngestionCycleResul
         created: diff.created.length,
         modified: diff.modified.length,
         statusChanged: diff.statusChanged.length,
+        removed: diff.removed.length,
         unchanged: diff.unchanged,
       },
     };
@@ -395,7 +437,7 @@ export async function runPropertiesIngestionCycle(): Promise<IngestionCycleResul
       durationMs,
       propertiesRead: 0,
       eventsEmitted: 0,
-      diff: { created: 0, modified: 0, statusChanged: 0, unchanged: 0 },
+      diff: { created: 0, modified: 0, statusChanged: 0, removed: 0, unchanged: 0 },
       error: classified.message,
     };
   }
