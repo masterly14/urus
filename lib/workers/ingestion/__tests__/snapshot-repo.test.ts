@@ -21,6 +21,8 @@ function makeProperty(
     ciudad: "Test",
     zona: "Test",
     estado: "Activo",
+    nodisponible: false,
+    prospecto: false,
     fechaAlta: "2026-01-01 00:00:00",
     fechaActualizacion: "2026-03-01 00:00:00",
     numFotos: 5,

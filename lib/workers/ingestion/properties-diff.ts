@@ -8,6 +8,7 @@ import {
   type PropertyCreatedChange,
   type PropertyModifiedChange,
   type PropertyStatusChangedChange,
+  type PropertyRemovedChange,
 } from "./types";
 
 function getChangedFields(
@@ -34,6 +35,8 @@ function pickDiffFields(
     ciudad: snapshot.ciudad,
     zona: snapshot.zona,
     estado: snapshot.estado,
+    nodisponible: snapshot.nodisponible,
+    prospecto: snapshot.prospecto,
     fechaActualizacion: snapshot.fechaActualizacion,
   };
 }
@@ -45,7 +48,18 @@ export function computePropertyDiff(
   const created: PropertyCreatedChange[] = [];
   const modified: PropertyModifiedChange[] = [];
   const statusChanged: PropertyStatusChangedChange[] = [];
+  const removed: PropertyRemovedChange[] = [];
   let unchanged = 0;
+
+  // Códigos presentes en el ciclo actual (ya filtrados a Libre)
+  const currentCodigos = new Set(currentProperties.map((p) => p.codigo));
+
+  // Propiedades en snapshot previo que ya no aparecen como Libre
+  for (const [codigo, prev] of previousSnapshot) {
+    if (!currentCodigos.has(codigo)) {
+      removed.push({ type: "removed", codigo, previousEstado: prev.estado });
+    }
+  }
 
   for (const property of currentProperties) {
     const prev = previousSnapshot.get(property.codigo);
@@ -82,5 +96,5 @@ export function computePropertyDiff(
     }
   }
 
-  return { created, modified, statusChanged, unchanged };
+  return { created, modified, statusChanged, removed, unchanged };
 }

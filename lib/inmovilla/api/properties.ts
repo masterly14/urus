@@ -63,6 +63,12 @@ function normalizeProperty(raw: InmovillaPropertyRaw): InmovillaProperty {
       ? (tituloObj.titulo_1 ?? "")
       : String(tituloObj ?? "");
 
+  const nodisponibleRaw = map["nodisponible"];
+  const isNodisponible =
+    nodisponibleRaw === true || nodisponibleRaw === 1 || nodisponibleRaw === "1";
+  const prospectoRaw = map["prospecto"];
+  const isProspecto = prospectoRaw === true || prospectoRaw === 1 || prospectoRaw === "1";
+
   return {
     codigo: String(map["codigo"] ?? map["cod_ofer"] ?? ""),
     ref: String(map["ref"] ?? ""),
@@ -75,6 +81,8 @@ function normalizeProperty(raw: InmovillaPropertyRaw): InmovillaProperty {
     ciudad: String(map["ciudad"] ?? ""),
     zona: String(map["zona"] ?? ""),
     estado: String(map["lisestado"] ?? ""),
+    nodisponible: isNodisponible,
+    prospecto: isProspecto,
     fechaAlta: String(map["fecha"] ?? ""),
     fechaActualizacion: String(map["fechaact"] ?? ""),
     numFotos: Number(map["numfotos"] ?? 0),
