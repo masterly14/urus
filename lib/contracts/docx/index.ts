@@ -1,5 +1,6 @@
 import { Packer, type Document } from "docx";
 import type { ContractFieldIssue, ContractTemplateInput } from "@/types/contracts";
+import { isCanonicalContractVersionStem } from "@/lib/contracts/naming";
 import { buildArrasDocument } from "./builders/arras";
 import { buildSenalCompraDocument } from "./builders/senal-compra";
 import { buildOfertaFirmeDocument } from "./builders/oferta-firme";
@@ -60,6 +61,8 @@ export async function generateContractDocx(
   const buffer = await Packer.toBuffer(doc);
   const versionSuffix = input.templateVersion ?? "m8-v1";
   const prefix = KIND_FILE_PREFIX[input.kind] ?? input.kind;
-  const fileName = `${prefix}_${versionSuffix}.docx`;
+  const fileName = isCanonicalContractVersionStem(versionSuffix)
+    ? `${versionSuffix}.docx`
+    : `${prefix}_${versionSuffix}.docx`;
   return { ok: true, buffer, fileName };
 }

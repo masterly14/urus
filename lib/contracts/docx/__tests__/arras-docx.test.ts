@@ -91,6 +91,15 @@ describe("contracts/docx arras generator", () => {
     expect(result.fileName).toContain("Contrato_Arras");
   });
 
+  it("usa basename canónico sin prefijo Contrato_Arras cuando templateVersion es stem M8", async () => {
+    const input = buildArrasInput();
+    input.templateVersion = "OP-2026-0001_Arras_v1";
+    const result = await generateContractDocx(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.fileName).toBe("OP-2026-0001_Arras_v1.docx");
+  });
+
   it("renderiza clausula penitencial o confirmatoria segun flags.arrasRegime", () => {
     const penitencialModel = buildArrasRenderModel(buildArrasInput().payload);
     const confirmatoriaModel = buildArrasRenderModel(
