@@ -3,6 +3,7 @@
  * Alineados con los tests del motor DOCX; ids coinciden con `lib/mock-data/contratos`.
  */
 
+import type { Contrato } from "@/lib/mock-data/types";
 import type {
   ArrasContractPayload,
   ContractTemplateInput,
@@ -235,4 +236,23 @@ export function getContractTemplateFixtureByListId(id: string): ContractTemplate
 
 export function listSmartClosingFixtureIds(): string[] {
   return Object.keys(FIXTURES);
+}
+
+/** Contexto de versionado mock: `propertyCode` = código operación lista; `operationId` estilo plan. */
+export function smartClosingVersioningFromContrato(
+  row: Contrato,
+): {
+  propertyCode: string;
+  operationId: string;
+  recordVersionEvent: true;
+} {
+  const num = /^op-(\d+)$/i.exec(row.operacion.trim())?.[1];
+  const operationId = num
+    ? `OP-2026-${num.padStart(4, "0")}`
+    : `OP-2026-${row.operacion.replace(/\s+/g, "")}`;
+  return {
+    propertyCode: row.operacion,
+    operationId,
+    recordVersionEvent: true,
+  };
 }
