@@ -8,6 +8,9 @@ import {
 } from "@/lib/contracts/extraction";
 import { generateContractDocx } from "@/lib/contracts/docx";
 import { uploadContractDocument } from "@/lib/cloudinary";
+import { buildContractVersionStem } from "@/lib/contracts/naming";
+import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/app/generated/prisma/client";
 
 interface GenerateContractDraftPayload {
   propertyCode: string;
@@ -56,6 +59,7 @@ export async function handleGenerateContractDraft(
 
   const demandId = payload.demandId ?? propertyCode;
   const operationId = payload.operationId ?? `OP-${propertyCode}`;
+  const initialTemplateVersion = buildContractVersionStem(operationId, "arras", 1);
 
   console.log(
     `[smart-closing] GENERATE_CONTRACT_DRAFT job=${job.id} property=${propertyCode} estado="${newEstado ?? "?"}"`,
@@ -67,6 +71,7 @@ export async function handleGenerateContractDraft(
     {
       demandId,
       propertyCode,
+      templateVersion: initialTemplateVersion,
       operation: {
         operationId,
         totalPurchasePriceAmount: 0,
@@ -107,13 +112,35 @@ export async function handleGenerateContractDraft(
       operationId,
       propertyCode,
       estado: newEstado ?? "",
-      templateVersion: extractionResult.input.templateVersion ?? "m8-v1",
+      templateVersion: extractionResult.input.templateVersion ?? initialTemplateVersion,
     },
   });
 
   console.log(
     `[smart-closing] DOCX subido a Cloudinary: ${uploadResult.secureUrl} (${uploadResult.bytes} bytes)`,
   );
+
+  const resolvedVersion = extractionResult.input.templateVersion ?? initialTemplateVersion;
+
+  await prisma.legalDocument.upsert({
+    where: {
+      operationId_documentKind: { operationId, documentKind: "arras" },
+    },
+    create: {
+      operationId,
+      propertyCode,
+      documentKind: "arras",
+      templateVersion: resolvedVersion,
+      status: "DRAFT",
+      contractInput: extractionResult.input as unknown as Prisma.JsonObject,
+      cloudinaryUrl: uploadResult.secureUrl,
+    },
+    update: {
+      templateVersion: resolvedVersion,
+      contractInput: extractionResult.input as unknown as Prisma.JsonObject,
+      cloudinaryUrl: uploadResult.secureUrl,
+    },
+  });
 
   await appendEvent({
     type: "CONTRATO_BORRADOR_GENERADO",
@@ -124,7 +151,7 @@ export async function handleGenerateContractDraft(
       demandId,
       propertyCode,
       documentKind: "arras",
-      templateVersion: extractionResult.input.templateVersion ?? "m8-v1",
+      templateVersion: resolvedVersion,
       fileName: docxResult.fileName,
       cloudinary: {
         publicId: uploadResult.publicId,

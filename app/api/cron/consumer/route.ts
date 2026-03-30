@@ -34,6 +34,9 @@ export async function POST(request: Request) {
       "GENERATE_MICROSITE",
       "NOTIFY_MICROSITE_PENDING_VALIDATION",
       "SEND_MICROSITE_TO_BUYER",
+      "WRITE_TO_INMOVILLA",
+      "GENERATE_CONTRACT_DRAFT",
+      "NOTIFY_CONTRACT_DATA_INCOMPLETE",
     ],
   });
 

@@ -8,6 +8,9 @@ import { handleDemandaActualizada } from "./write-demand-update-handler";
 import { handleWhatsAppRecibido } from "./whatsapp-nlu-handler";
 import { handleVisitaEvaluada } from "./visita-evaluada-handler";
 import { handleEstadoCambiado } from "./smart-closing-handler";
+import { handleFirmaCompletada } from "./firma-completada-handler";
+import { handleContratoBorradorGenerado } from "./contrato-borrador-handler";
+import { handleFirmaEnviada } from "./firma-enviada-handler";
 
 const registry = new Map<EventType, EventHandler>();
 
@@ -99,7 +102,17 @@ registerHandler("SELECCION_RECHAZADA", placeholderHandler());
 
 // --- Smart Closing (M8) ---
 registerHandler("DATOS_INCOMPLETOS", placeholderHandler());
-registerHandler("CONTRATO_BORRADOR_GENERADO", placeholderHandler());
+registerHandler("CONTRATO_BORRADOR_GENERADO", handleContratoBorradorGenerado);
+registerHandler("CONTRATO_VERSIONADO", placeholderHandler());
+registerHandler("CONTRATO_APROBADO", placeholderHandler());
+
+// --- Firma Digital (M8) ---
+registerHandler("FIRMA_ENVIADA", handleFirmaEnviada);
+registerHandler("FIRMA_COMPLETADA", handleFirmaCompletada);
+registerHandler("FIRMA_RECHAZADA", placeholderHandler());
+registerHandler("FIRMA_EXPIRADA", placeholderHandler());
+registerHandler("FIRMA_RECORDATORIO_ENVIADO", placeholderHandler());
+registerHandler("FIRMA_SLA_ESCALADO", placeholderHandler());
 
 // --- Placeholders (futuras implementaciones) ---
 registerHandler("LEAD_SCORED", placeholderHandler());

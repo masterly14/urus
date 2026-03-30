@@ -352,3 +352,237 @@ export async function sendMicrositeValidationEscalation(
   ];
   return sendTextMessage(to, lines.join("\n"), options);
 }
+
+// ---------------------------------------------------------------------------
+// Firma digital — recordatorios y escalado (M8 Smart Closing)
+// ---------------------------------------------------------------------------
+
+export type SignatureReminderParams = {
+  signerName: string;
+  documentKind: string;
+  operationRef: string;
+  signingUrl: string;
+};
+
+const REMINDER_TEMPLATE_NAMES: Record<number, string> = {
+  1:
+    process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D1 ??
+    "contrato_firma_recordatorio_d1",
+  3:
+    process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D3 ??
+    "contrato_firma_recordatorio_d3",
+  5:
+    process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D5 ??
+    "contrato_firma_recordatorio_d5",
+};
+
+/**
+ * Envía un recordatorio de firma al firmante (D+1, D+3 o D+5).
+ * Usa plantillas Meta UTILITY es_ES con 4 variables de cuerpo.
+ * MVP: texto libre. Producción: sustituir por sendTemplateMessage.
+ */
+export async function sendSignatureReminderToSigner(
+  to: string,
+  params: SignatureReminderParams & { reminderDay: number },
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  const templateName = REMINDER_TEMPLATE_NAMES[params.reminderDay];
+
+  if (options?.useTemplate && templateName) {
+    const template: TemplateObject = {
+      name: templateName,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.signerName },
+            { type: "text", text: params.documentKind },
+            { type: "text", text: params.operationRef },
+            { type: "text", text: params.signingUrl },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const isLast = params.reminderDay >= 5;
+  const lines = [
+    `📄 *Recordatorio: documento pendiente de firma*`,
+    ``,
+    `• Firmante: ${params.signerName}`,
+    `• Documento: ${params.documentKind}`,
+    `• Referencia: ${params.operationRef}`,
+    ``,
+    `Firma aquí: ${params.signingUrl}`,
+  ];
+  if (isLast) {
+    lines.push(
+      ``,
+      `⚠️ Este es el último recordatorio automático antes del escalado.`,
+    );
+  }
+  return sendTextMessage(to, lines.join("\n"), options);
+}
+
+export type SignatureSlaEscalationParams = {
+  operationRef: string;
+  documentKind: string;
+  trackingUrl: string;
+};
+
+const SLA_ESCALATION_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_SLA_ESCALADO ??
+  "contrato_firma_sla_escalado";
+
+/**
+ * Escalado por SLA de firma: notifica al comercial y al gestor (BO).
+ * Plantilla Meta UTILITY es_ES con 3 variables de cuerpo.
+ */
+export async function sendSignatureSlaEscalation(
+  to: string,
+  params: SignatureSlaEscalationParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: SLA_ESCALATION_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.operationRef },
+            { type: "text", text: params.documentKind },
+            { type: "text", text: params.trackingUrl },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const lines = [
+    `🔴 *SLA de firma incumplido*`,
+    ``,
+    `• Operación: ${params.operationRef}`,
+    `• Documento: ${params.documentKind}`,
+    ``,
+    `Han pasado más de 5 días sin firma completa.`,
+    `Seguimiento: ${params.trackingUrl}`,
+  ];
+  return sendTextMessage(to, lines.join("\n"), options);
+}
+
+// ---------------------------------------------------------------------------
+// Smart Closing — notificaciones de borrador, envío a firma y post-firma (M8)
+// ---------------------------------------------------------------------------
+
+export type ContractDraftReadyParams = {
+  operationId: string;
+  documentKind: string;
+  cloudinaryUrl: string;
+  legalUiUrl: string;
+};
+
+/**
+ * Notifica al gestor/comercial que hay un borrador de contrato listo para revisión.
+ * MVP: texto libre. Producción: plantilla "contrato_borrador_listo".
+ */
+export async function sendContractDraftReadyNotification(
+  to: string,
+  params: ContractDraftReadyParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const lines = [
+    `📄 *Borrador de contrato listo*`,
+    ``,
+    `• Operación: ${params.operationId}`,
+    `• Tipo: ${params.documentKind}`,
+    ``,
+    `Documento: ${params.cloudinaryUrl}`,
+    ``,
+    `Revisar en el panel:`,
+    params.legalUiUrl,
+  ];
+  return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
+}
+
+export type SignatureInitialNotificationParams = {
+  signerName: string;
+  documentKind: string;
+  operationRef: string;
+  signingUrl: string;
+};
+
+const FIRMA_ENVIADA_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_ENVIADA ??
+  "contrato_firma_enviada";
+
+/**
+ * Envía la URL de firma al firmante inmediatamente después de crear la petición.
+ * MVP: texto libre. Producción: plantilla "contrato_firma_enviada".
+ */
+export async function sendSignatureInitialNotification(
+  to: string,
+  params: SignatureInitialNotificationParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: FIRMA_ENVIADA_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.signerName },
+            { type: "text", text: params.documentKind },
+            { type: "text", text: params.operationRef },
+            { type: "text", text: params.signingUrl },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const lines = [
+    `📄 *Documento pendiente de firma*`,
+    ``,
+    `• Firmante: ${params.signerName}`,
+    `• Documento: ${params.documentKind}`,
+    `• Referencia: ${params.operationRef}`,
+    ``,
+    `Firma aquí: ${params.signingUrl}`,
+  ];
+  return sendTextMessage(to, lines.join("\n"), options);
+}
+
+export type FirmaCompletadaConfirmationParams = {
+  operationRef: string;
+  documentKind: string;
+  legalDocUrl: string;
+};
+
+/**
+ * Confirmación tras firma completa: notifica al comercial y al vendedor.
+ * MVP: texto libre.
+ */
+export async function sendFirmaCompletadaConfirmation(
+  to: string,
+  params: FirmaCompletadaConfirmationParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const lines = [
+    `✅ *Documento firmado correctamente*`,
+    ``,
+    `• Operación: ${params.operationRef}`,
+    `• Documento: ${params.documentKind}`,
+    ``,
+    `Todas las partes han firmado.`,
+    `Ver documento: ${params.legalDocUrl}`,
+  ];
+  return sendTextMessage(to, lines.join("\n"), options);
+}
