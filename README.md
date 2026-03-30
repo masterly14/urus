@@ -27,6 +27,8 @@ Escenario de migración a API REST (contactos, propiedades, propietarios) docume
 ### Comandos útiles
 
 - **Tests**: `npm test` (requiere `DATABASE_URL` configurada en el entorno).
+- **Testeo cercano a producción (lógica):** además de la suite anterior, el proyecto usa **scripts** (`scripts/` y comandos `npm run …`) para ejecutar flujos de negocio e integración con la misma configuración que el runtime real en la medida de lo posible. Detalle y reglas en `AGENTS.md` y en `docs/plan.md` (*Estrategia de testeo*).
+- **UI con datos mock:** las rutas con interfaz relevante deben soportar un **query parameter** documentado que active fixtures/mock y permita **previsualizar la UI** sin datos reales. Convención y obligaciones descritas en `AGENTS.md` y `docs/plan.md`.
 - **Build**: `npm run build`
 - **Inmovilla — login**: `npm run inmovilla:login` (requiere `INMOVILLA_USER`, `INMOVILLA_PASSWORD`, `INMOVILLA_OFFICE_KEY` y Composio/Gmail para 2FA).
 - **Inmovilla — lectura propiedades**: `npm run inmovilla:read-properties`
@@ -83,10 +85,10 @@ Es la **fuente de verdad inamovible**. Su única función es almacenar los datos
 
 - Propiedades activas
 - Historiales de clientes (contactos)
-- Facturas y contratos
+- Facturas
 - Demandas y cruces
 
-**Ningún dato vive de forma definitiva fuera de Inmovilla.** Expone API REST v1 (`procesos.inmovilla.com/api/v1`) para clientes, propiedades y propietarios. No cubre demandas (que requieren polígonos geoespaciales), no mide tiempos y no dispara automatizaciones.
+**Ningún dato estructurado vive de forma definitiva fuera de Inmovilla** cuando existe cobertura en su API. Sin embargo, la API REST no expone gestión documental (adjuntar PDFs/DOCXs a propiedades, clientes ni propietarios), por lo que **los documentos legales (contratos, audit trails) se almacenan en Cloudinary/S3 con metadatos en Neon** — mismo patrón que colaboradores externos y microsites. Expone API REST v1 (`procesos.inmovilla.com/api/v1`) para clientes, propiedades y propietarios. No cubre demandas (que requieren polígonos geoespaciales), no mide tiempos y no dispara automatizaciones.
 
 > **Nota terminológica:** En Inmovilla no existe una entidad "Lead". Lo que el sector llama "lead" se materializa como un **Contacto** (persona) + una **Demanda** (búsqueda activa con polígono geoespacial). Los contactos son accesibles vía API REST; las demandas solo vía RPA legacy.
 
@@ -757,7 +759,7 @@ Cuando una operación pasa a "Reserva/Señal / Arras / Cierre acordado" en Inmov
 3. El gestor revisa hablando (modo conversación) y pide modificaciones.
 4. El sistema aplica cambios, genera nueva versión y vuelve a presentar.
 5. Se envía a firma digital.
-6. Se archiva y se actualiza Inmovilla con estados y documentos.
+6. Se archiva en Cloudinary/Neon y se actualiza el estado de la propiedad en Inmovilla (la API REST de Inmovilla no soporta adjuntar documentos).
 
 ### Disparador
 
@@ -798,9 +800,9 @@ flowchart TD
 
     I --> M[Enviar a firma digital]
     M --> N{¿Firmado?}
-    N -->|No| O[Recordatorios automáticos + seguimiento]
-    N -->|Sí| P[Guardar firmado + adjuntar en Inmovilla vía Egestion Worker]
-    P --> Q[Actualizar Inmovilla: estado, fechas, docs, auditoría]
+    N -->|No| O[Recordatorios WhatsApp +1/+3/+5 días + escalado SLA 5d]
+    N -->|Sí| P[Guardar firmado en Cloudinary/Neon + actualizar estado en Inmovilla]
+    P --> Q[Egestion Worker: actualizar estado de propiedad en Inmovilla vía API REST]
 ```
 
 ### Pipeline de Revisión por Voz
@@ -828,9 +830,35 @@ Si hay ambigüedad (confidence score bajo), el sistema pregunta al gestor: "¿qu
 
 Integración programática con servicios de firma electrónica:
 
-- **Signaturit** (habitual en España) / DocuSign / Dropbox Sign.
-- Envío y seguimiento automatizado desde API Routes de Next.js.
-- Recordatorios automáticos si no se firma.
+- **Proveedor:** **Signaturit** (habitual en España) / DocuSign / Dropbox Sign — **API REST** desde **API Routes** de Next.js.
+- **Confirmación legal:** **webhook** del proveedor hacia una ruta pública de Next.js (firma completa, rechazo, expiración según exponga el proveedor). Persistir estado e ids de petición en **Neon**; aplicar **idempotencia** al procesar eventos duplicados del webhook.
+- **URL del webhook (Signaturit):** usar `{NEXT_PUBLIC_APP_URL}/api/signaturit/webhook.json` en `events_url` al crear la firma. Signaturit envía el cuerpo en **JSON** solo si la URL termina en `.json` (véase `docs/signaturing-docs/index.md`, *Events URL*). Detalle técnico y tabla de mapeo: [docs/firma-digital.md](docs/firma-digital.md).
+- **Envío a proveedor:** `POST /api/contracts/sign` normaliza a **PDF obligatorio** antes de crear la petición en Signaturit. Si el origen no es PDF y no hay conversor (`SIGNATURIT_PDF_CONVERTER_URL`), responde `422`.
+- **Seguridad del endpoint de envío:** proteger con `SIGNATURIT_SIGN_API_TOKEN` (o fallback `CRON_SECRET`) para evitar uso público no autorizado.
+- **Recordatorios si no se firma:** canal **WhatsApp Cloud API (Meta)** — misma integración directa que el resto del producto. No se definen recordatorios genéricos sin canal: el seguimiento operativo al firmante es por **WhatsApp** usando **plantillas aprobadas por Meta** cuando la política de la plataforma lo requiera.
+
+**SLAs y cadencia (construcción):**
+
+| Concepto | Valor documentado | Notas |
+| --- | --- | --- |
+| **SLA de firma completa** | **5 días naturales** desde el envío al proveedor hasta todas las firmas requeridas | Parametrizable vía config/env. Fuente de verdad del “completado”: **webhook** del proveedor. |
+| **Recordatorios al firmante** | **Día +1**, **día +3** y **día +5** (naturales desde el envío) | Solo mientras el estado siga pendiente. El mensaje del día +5 indica **último recordatorio automático** antes del escalado. |
+| **Escalado por SLA** | Tras **5 días naturales** sin firma completa | **WhatsApp** al **comercial asignado** y al **gestor (BO)** con operación, documento y enlace de seguimiento; registro en **Neon** (evento o tarea) para auditoría. |
+
+**Orquestación:** evaluación periódica del estado pendiente mediante **cron-job** (p. ej. **Upstash QStash**) o jobs en la cola del proyecto; evitar envíos duplicados el mismo día.
+
+**Plantillas WhatsApp (Meta Business Manager)** — categoría **UTILITY**, idioma **`es_ES`**. Los nombres coinciden con el `name` en la Cloud API. El cuerpo usa variables en el orden indicado (equivalente a `{{1}}`, `{{2}}`, … en Meta y al orden de `components[].parameters` en el envío).
+
+| Nombre en Meta | Uso | Variables del cuerpo (orden) |
+| --- | --- | --- |
+| `contrato_firma_recordatorio_d1` | Recordatorio al firmante, **día +1** natural desde el envío al proveedor | **{{1}}** nombre corto del firmante · **{{2}}** tipo de documento (p. ej. «Contrato de arras», alineado con `ContractDocumentKind`) · **{{3}}** referencia de operación (`operationId` o stem `OP-…_Arras_vN`) · **{{4}}** URL de firma del proveedor (Signaturit / DocuSign) |
+| `contrato_firma_recordatorio_d3` | Igual, **día +3** | Mismo orden: **{{1}}**–**{{4}}** |
+| `contrato_firma_recordatorio_d5` | Igual, **día +5**; el texto fijo de la plantilla debe indicar **último recordatorio automático** antes del escalado por SLA | Mismo orden: **{{1}}**–**{{4}}** |
+| `contrato_firma_sla_escalado` | Tras **5 días naturales** sin firma completa: **comercial asignado** y **gestor (BO)** | **{{1}}** referencia de operación · **{{2}}** tipo de documento · **{{3}}** enlace absoluto de seguimiento (`{NEXT_PUBLIC_APP_URL}/legal/contratos/{id}`) |
+
+**Variables de entorno opcionales** (si el código resuelve el nombre de plantilla por config): `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D1`, `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D3`, `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D5`, `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_SLA_ESCALADO` — valores por defecto los nombres de la tabla anterior.
+
+**Resto de implementación:** IDs internos de plantilla en Meta (si se usan), variables de entorno del proveedor de firma (`SIGNATURIT_*` o equivalente), y tabla de **mapeo de eventos del webhook → eventos/tabla en Neon** (incl. idempotencia) en [docs/firma-digital.md](docs/firma-digital.md).
 
 ### Control de Versiones y Auditoría
 
@@ -842,7 +870,7 @@ OP-2026-000123_Arras_v2_CambiosGestor.pdf
 OP-2026-000123_Arras_Firmado.pdf
 ```
 
-Registro en Neon (evento `CONTRATO_VERSIONADO`): versión, fecha, autor (gestor), resumen de cambios. Sincronizado con Inmovilla vía `Egestion Worker`.
+Registro en Neon (evento `CONTRATO_VERSIONADO`): versión, fecha, autor (gestor), resumen de cambios. Persistido en la tabla `legal_documents` de Neon. El estado de la propiedad se sincroniza con Inmovilla vía `Egestion Worker` (la API de Inmovilla no tiene endpoints de gestión documental).
 
 ### Qué se autorellena (regla de oro)
 
@@ -872,8 +900,9 @@ El gestor dice "modifica X", el sistema cambia variable/bloque, regenera el docu
 **SYS:**
 - Genera borradores, versiona y registra cambios.
 - Interpreta voz y transforma en instrucciones estructuradas.
-- Envía a firma digital y archiva.
-- Actualiza Inmovilla con todo (incluyendo auditoría).
+- Envía a firma digital (API proveedor), procesa **webhook** de resultado y archiva en Cloudinary/Neon (tabla `legal_documents`).
+- Lanza **recordatorios por WhatsApp** (+1/+3/+5 días) y **escalado** a comercial y gestor si se incumple el **SLA de 5 días naturales**.
+- Actualiza el estado de la propiedad en Inmovilla vía Egestion Worker (`PUT /propiedades/` con `estadoficha`). Los documentos se almacenan en Cloudinary/Neon porque la API de Inmovilla no tiene endpoints de gestión documental.
 
 ### Tiempo Ahorrado
 
@@ -1661,7 +1690,7 @@ El sistema ofrece lectura **estratégica**, no psicológica:
 |---|---|---|
 | **Autenticación Inmovilla (2FA)** | **Composio + Gmail** | Obtención automática del código de verificación por correo: acción Composio sobre Gmail (listar/buscar correos de Inmovilla), extracción del código de 6 dígitos, envío al endpoint `login2Fa/verifyCode`. Ver `docs/workers/inmovilla-endpoints.md`. |
 | WhatsApp | **WhatsApp Cloud API (Meta)** | Integración directa con Meta (sin BSP): API REST, webhooks, plantillas. Cuenta Meta Business + WABA. |
-| Firma digital | **Signaturit / DocuSign** | API REST desde Next.js |
+| Firma digital | **Signaturit / DocuSign** | API REST desde Next.js; webhooks de confirmación; recordatorios y escalados **SLA** vía **WhatsApp Cloud API** (plantillas Meta) |
 | Calendario | **Google Calendar API** | Micro-frontend de booking |
 | Almacenamiento | **Cloudinary** | Documentos, contratos, adjuntos |
 
