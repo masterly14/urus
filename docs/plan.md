@@ -93,7 +93,7 @@ El principio fundacional es la **Segregación de Responsabilidades**. Inmovilla 
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Capa 1 — La Bóveda (Inmovilla CRM):** Fuente de verdad inamovible. Almacena datos finales y legales. No toma decisiones, no mide tiempos, no dispara automatizaciones. Repositorio pasivo que el sistema lee y escribe programáticamente. Expone API REST v1 (`procesos.inmovilla.com/api/v1`) para clientes, propiedades y propietarios.
+**Capa 1 — La Bóveda (Inmovilla CRM):** Fuente de verdad inamovible. Almacena datos estructurados finales y legales. No toma decisiones, no mide tiempos, no dispara automatizaciones. Repositorio pasivo que el sistema lee y escribe programáticamente. Expone API REST v1 (`procesos.inmovilla.com/api/v1`) para clientes, propiedades y propietarios. **No soporta gestión documental** (adjuntar PDFs/DOCXs); los documentos legales (contratos, audit trails) se almacenan en Cloudinary/S3 con metadatos y relaciones en Neon — mismo patrón que colaboradores externos y microsites.
 
 **Capa 2 — Workers de Integración (API REST + RPA Legacy):**
 
@@ -374,6 +374,15 @@ QSTASH_NEXT_SIGNING_KEY=...
 - Al menos 1 demanda de prueba en Inmovilla (con polígono geoespacial definido)
 - Número de WhatsApp de prueba (registrado en Meta Business / WABA para Cloud API)
 
+### Estrategia de testeo (lógica vs UI)
+
+Esta política se declara también en `README.md` y `AGENTS.md` y debe aplicarse al implementar features.
+
+- **Funciones y lógica:** complementar tests unitarios/integración (`npm test`, `__tests__/`) con **scripts ejecutables** (preferentemente en `scripts/` y expuestos vía `package.json`) que recorran el mismo camino que **producción en la medida de lo posible**: variables de entorno alineadas con el runtime, Neon/PostgreSQL, colas, llamadas a APIs externas respetando rate limits. Esos scripts son el vehículo principal para acercar la verificación al comportamiento real sin sustituir integraciones críticas por mocks opacos.
+- **UI:** cada pantalla o flujo visual relevante debe poder abrirse con un **query parameter** acordado y **documentado en la ruta** que active **modo mock** (fixtures o datos estáticos) para **visualizar y validar la interfaz** sin sesión ni datos de producción.
+
+En los PR que toquen lógica de negocio o integraciones, incluir o actualizar el **script de verificación** cercano a producción cuando aplique; en los PR que toquen UI, incluir o actualizar el **parámetro de mock** y su documentación mínima.
+
 ---
 
 ## Reglas Inquebrantables del Proyecto
@@ -437,7 +446,7 @@ Cada feature branch se mergea a `develop` mediante PR con:
 - **Descripción:** qué cambia, por qué, cómo probarlo.
 - **Checklist obligatorio en cada PR:**
   - Build pasa sin errores
-  - Tests relevantes añadidos o actualizados
+  - Tests relevantes añadidos o actualizados (y, según *Estrategia de testeo*, scripts «casi producción» y/o query de mock UI documentado cuando aplique)
   - Sin secretos ni credenciales hardcodeadas
   - Tipos de TypeScript correctos (sin `any` injustificado)
   - Variables de entorno documentadas en `.env.example`
@@ -875,14 +884,35 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 
 | Bloque | Horario     | Tarea                                                                                                                                                                                                                                                          | Entregable                     |
 | ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| AM     | 8:30–11:00  | Integrar **firma digital** (Signaturit o DocuSign): API para enviar documento a firma, webhook para recibir confirmación de firma. Recordatorios automáticos si no se firma.                                                                                   | Integración de firma           |
-| AM     | 11:00–13:00 | Flujo post-firma: guardar documento firmado → adjuntar en Inmovilla vía Egestion Worker → actualizar estado de operación.                                                                                                                                      | Flujo post-firma end-to-end    |
+| AM     | 8:30–11:00  | Integrar **firma digital** (Signaturit o DocuSign): API para enviar documento a firma, **webhook** para confirmación/rechazo y persistencia de estado en Neon. **Recordatorios y escalados vía WhatsApp Cloud API** según SLAs y cadencia definidos bajo esta tabla. Documentar plantillas Meta, env vars y contrato del webhook para implementación. | Integración de firma + spec SLA |
+| AM     | 11:00–13:00 | Flujo post-firma: guardar documento firmado en Cloudinary/S3 → persistir URLs y metadatos en Neon (tabla `legal_documents`) → actualizar estado de la propiedad en Inmovilla vía Egestion Worker (`PUT /propiedades/` con `estadoficha`). **Nota:** la API REST de Inmovilla no tiene endpoints de gestión documental (adjuntar PDFs); los documentos se almacenan localmente en Neon + storage externo.                                                                                                                                      | Flujo post-firma end-to-end    |
 | PM     | 13:00–15:30 | Comenzar **Motor de Pricing v1**: función que extrae variables del inmueble de Neon y consulta directamente la API REST de Statefox (`GET /properties` filtrando por `pCity`, `pHousing`, rango de `pPrice`). Usar `pPricePerMeter` ya calculado por Statefox. | Extracción + consulta API      |
 | PM     | 15:30–18:00 | Implementar **análisis de cluster comparativo**: filtrar comparables de Statefox API (misma zona ±15–20% metros, tipología similar, segmentar por `pAdvert.type` particular vs profesional) → calcular precio medio €/m², desviación, rango.                   | Análisis estadístico funcional |
 | PM     | 18:00–20:00 | Implementar **motor de recomendación con LangGraph**: recibe análisis estadístico → genera diagnóstico textual + recomendaciones estratégicas (mantener/ajustar/reposicionar).                                                                                 | Agente de pricing              |
 
 
 **Git:** mínimo 5 commits. Branches: `feat/M8-firma-digital`, `feat/M7-pricing-engine`.
+
+**Firma digital — recordatorios por WhatsApp y SLAs (especificación de construcción):**
+
+- **Canal de recordatorios y escalados:** **WhatsApp Cloud API (Meta)**, misma línea que el resto del sistema (integración directa, sin BSP). Los mensajes proactivos deben usar **plantillas aprobadas por Meta** donde la política de la plataforma lo exija.
+- **SLA de firma completa:** **5 días naturales** desde el envío efectivo al proveedor hasta que **todas** las firmas requeridas figuren como completadas (fuente de verdad: **webhook** del proveedor). Plazo **parametrizable** (config/env) para afinar por tipo de documento u operación.
+- **Cadencia de recordatorios WhatsApp** (mientras el estado sea pendiente según Neon y/o consulta al proveedor): envíos en **día +1**, **día +3** y **día +5** (días naturales desde el envío). El mensaje del día +5 indica que es el **último recordatorio automático** antes del escalado por SLA.
+- **Escalado por incumplimiento de SLA:** si tras **5 días naturales** no hay firma completa, **WhatsApp** al **comercial asignado** y al **gestor (BO)** con identificador de operación, tipo de documento y enlace al seguimiento en el micro-frontend; registrar en **Neon** evento o tarea equivalente para auditoría y dashboards.
+- **Separación de responsabilidades:** el **webhook** del proveedor aporta la confirmación legal y el artefacto firmado; los recordatorios WhatsApp son **seguimiento operativo** y no sustituyen el webhook.
+- **Orquestación:** job recurrente (**Upstash QStash** u otro cron del proyecto) que evalúe peticiones en estado pendiente, de-duplique envíos y respete la cadencia anterior.
+- **Documentación obligatoria para implementar:** en **README** (sección Smart Closing / Firma) y, si hace falta detalle técnico adicional, un archivo bajo `docs/` con: nombres/IDs de **plantillas WhatsApp** usadas para recordatorios y escalado, variables de entorno (`SIGNATURIT_*` o equivalente, URLs de webhook públicas), y tabla de **mapeo webhook proveedor → eventos Neon** (incl. idempotencia).
+
+**Plantillas WhatsApp (Meta) — firma digital (creadas en WABA; categoría UTILITY, idioma `es_ES`):**
+
+| Nombre en Meta | Uso | Variables del cuerpo (orden {{1}}… en Meta / API) |
+| --- | --- | --- |
+| `contrato_firma_recordatorio_d1` | Recordatorio firmante **día +1** | **{{1}}** nombre corto · **{{2}}** tipo documento (p. ej. «Contrato de arras», coherente con `ContractDocumentKind`) · **{{3}}** referencia operación (`operationId` o stem `OP-…_Arras_vN`) · **{{4}}** URL de firma (proveedor) |
+| `contrato_firma_recordatorio_d3` | Recordatorio firmante **día +3** | Mismo orden **{{1}}**–**{{4}}** |
+| `contrato_firma_recordatorio_d5` | Recordatorio firmante **día +5** (texto con **último recordatorio automático** antes de escalado) | Mismo orden **{{1}}**–**{{4}}** |
+| `contrato_firma_sla_escalado` | Escalado a **comercial** y **gestor (BO)** tras SLA sin firma completa | **{{1}}** referencia operación · **{{2}}** tipo documento · **{{3}}** enlace seguimiento `{NEXT_PUBLIC_APP_URL}/legal/contratos/{id}` |
+
+Variables de entorno opcionales para nombres de plantilla: `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D1`, `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D3`, `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D5`, `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_SLA_ESCALADO` (valores por defecto = nombres de la tabla). Detalle ampliado en **README** (Smart Closing / Firma Digital).
 
 #### Jueves (Día 16) — M7: UI de Pricing + M9: Post-Venta
 
@@ -1359,7 +1389,7 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 | --- | -------------------------------------------------- | ----------------------------------------------------------------- |
 | 1   | Motor de plantillas genera contrato desde datos    | Test: datos completos → docx generado con variables correctas     |
 | 2   | STT transcribe audio y extrae instrucciones        | Demo: grabar "cambia honorarios a 3%" → variable modificada       |
-| 3   | Firma digital envía y captura firma                | Test: enviar doc a firma, recibir webhook de confirmación         |
+| 3   | Firma digital envía, webhook y recordatorios WhatsApp | Test: envío a firma → webhook de confirmación; pendiente simulado → recordatorios en +1/+3/+5 días y escalado a comercial y gestor tras SLA |
 | 4   | Motor de Pricing genera informe con semáforo       | Demo: inmueble → análisis → informe con diagnóstico               |
 | 5   | Post-venta ejecuta cadencias según fecha de cierre | Test: simular cierre → verificar mensajes en D0, D3, D10, D21     |
 | 6   | Dashboard Comercial muestra métricas por persona   | Demo: datos de Neon → tabla con ranking y clasificación           |
@@ -1482,7 +1512,7 @@ En Inmovilla **no existe una entidad "Lead"**. Lo que el sector llama "lead" se 
 | Composio/Gmail falla o cambia OAuth               | Media | Alto    | Health check periódico de la conexión Composio-Gmail. Alertar si el login legacy falla.                                                                         | Login manual temporal para operaciones de demandas urgentes. Las operaciones vía API REST (clientes/propiedades) no se ven afectadas. |
 | Upstash QStash tiene downtime                     | Baja  | Medio   | Health check del scheduler. Cron-jobs críticos tienen fallback a ejecución manual vía npm scripts.                                                              | Ejecutar cron-jobs manualmente con scripts npm mientras se restablece QStash.                                                         |
 | Polígonos geoespaciales incorrectos               | Media | Alto    | Validación de polígonos antes de enviar a Inmovilla. Tests con zonas conocidas. Verificación post-escritura.                                                    | Fallback a `key_zona` de enums (menos preciso pero funcional). Cruce por zona textual en vez de geoespacial.                          |
-| Firma digital falla o tarda                       | Baja  | Bajo    | Recordatorios automáticos, alternativa de firma presencial                                                                                                      | Generar PDF sin firma digital, firmar manualmente                                                                                     |
+| Firma digital falla o tarda                       | Baja  | Bajo    | Recordatorios **WhatsApp** (cadencia +1/+3/+5 días), **SLA 5 días naturales** con escalado a comercial y gestor, alternativa de firma presencial                  | Generar PDF sin firma digital, firmar manualmente                                                                                     |
 
 
 ### Riesgos de proyecto
