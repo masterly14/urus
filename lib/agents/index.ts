@@ -1,12 +1,11 @@
 /**
- * M5 — Módulo de agentes LangGraph.
+ * Módulo de agentes LangGraph.
  * Punto de entrada público para todos los grafos de IA del sistema.
  *
- * Agente de clasificación de respuestas WhatsApp (implementación oficial):
- * - Grafo: nluGraph
- * - Función de invocación: classifyWhatsAppResponse(input) → NLUResult
- * - Ubicación: lib/agents/nlu-graph.ts
- * - Documentación: lib/agents/README.md
+ * Grafos disponibles:
+ * - nluGraph (M5): clasificación de respuestas WhatsApp
+ * - contractInstructionGraph (M8): transcripción → parche de contrato
+ * - pricingRecommendationGraph (M7): análisis estadístico → diagnóstico + recomendaciones
  */
 
 export { llm, llmWithStructuredOutput } from "./llm";
@@ -15,6 +14,10 @@ export {
   contractInstructionGraph,
   interpretContractVoiceInstructions,
 } from "./contract-instruction-graph";
+export {
+  pricingRecommendationGraph,
+  generatePricingRecommendation,
+} from "./pricing-recommendation-graph";
 export type {
   ContractInstructionGraphInput,
   ContractVoiceStructuredPatch,
