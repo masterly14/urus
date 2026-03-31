@@ -644,3 +644,244 @@ export async function sendPricingReportToCommercial(
   ];
   return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
 }
+
+// ---------------------------------------------------------------------------
+// Post-Venta — cadencias automatizadas (M9)
+// ---------------------------------------------------------------------------
+
+export type PostventaAgradecimientoParams = {
+  buyerName: string;
+  agencyName: string;
+  comercialName: string;
+};
+
+const POSTVENTA_AGRADECIMIENTO_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_POSTVENTA_AGRADECIMIENTO ??
+  "postventa_agradecimiento";
+
+/**
+ * D0: Mensaje de agradecimiento inmediato tras cierre de operación.
+ * Business-initiated — requiere plantilla Meta UTILITY es_ES.
+ * MVP: texto libre. Producción: plantilla "postventa_agradecimiento".
+ */
+export async function sendPostventaAgradecimiento(
+  to: string,
+  params: PostventaAgradecimientoParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: POSTVENTA_AGRADECIMIENTO_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.buyerName },
+            { type: "text", text: params.agencyName },
+            { type: "text", text: params.comercialName },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const lines = [
+    `🎉 *¡Enhorabuena por tu nueva vivienda!*`,
+    ``,
+    `Hola ${params.buyerName}, gracias por confiar en ${params.agencyName} y en tu agente ${params.comercialName}.`,
+    ``,
+    `Si necesitas algo durante estos primeros días, estamos aquí. ¡Disfrútala!`,
+  ];
+  return sendTextMessage(to, lines.join("\n"), options);
+}
+
+export type PostventaSoporteParams = {
+  buyerName: string;
+  guideUrl: string;
+};
+
+const POSTVENTA_SOPORTE_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_POSTVENTA_SOPORTE ?? "postventa_soporte";
+
+/**
+ * D3: Soporte temprano — verificar que todo va bien con la entrega.
+ * Business-initiated — requiere plantilla Meta UTILITY es_ES.
+ * MVP: texto libre. Producción: plantilla "postventa_soporte".
+ */
+export async function sendPostventaSoporte(
+  to: string,
+  params: PostventaSoporteParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: POSTVENTA_SOPORTE_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.buyerName },
+            { type: "text", text: params.guideUrl },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const lines = [
+    `🏠 *¿Todo bien con tu nueva vivienda?*`,
+    ``,
+    `Hola ${params.buyerName}, ya llevas unos días en tu nuevo hogar.`,
+    `¿Todo correcto con la entrega, llaves y suministros?`,
+    ``,
+    `Accede a nuestra guía práctica aquí:`,
+    params.guideUrl,
+  ];
+  return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
+}
+
+export type PostventaResenaParams = {
+  buyerName: string;
+  reviewUrl: string;
+};
+
+const POSTVENTA_RESENA_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_POSTVENTA_RESENA ?? "postventa_resena";
+
+/**
+ * D10: Solicitud de reseña — solo si no hay incidencias abiertas.
+ * Business-initiated — requiere plantilla Meta UTILITY es_ES.
+ * MVP: texto libre. Producción: plantilla "postventa_resena".
+ */
+export async function sendPostventaResena(
+  to: string,
+  params: PostventaResenaParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: POSTVENTA_RESENA_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.buyerName },
+            { type: "text", text: params.reviewUrl },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const lines = [
+    `⭐ *Tu opinión nos ayuda mucho*`,
+    ``,
+    `Hola ${params.buyerName}, nos alegra que todo vaya bien.`,
+    `¿Podrías dejarnos una reseña? Solo toma un minuto:`,
+    params.reviewUrl,
+    ``,
+    `¡Gracias!`,
+  ];
+  return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
+}
+
+export type PostventaReferidosParams = {
+  buyerName: string;
+  referralUrl: string;
+};
+
+const POSTVENTA_REFERIDOS_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_POSTVENTA_REFERIDOS ?? "postventa_referidos";
+
+/**
+ * D21: Activación de referidos — solo si no hay incidencias abiertas.
+ * Business-initiated — requiere plantilla Meta UTILITY es_ES.
+ * MVP: texto libre. Producción: plantilla "postventa_referidos".
+ */
+export async function sendPostventaReferidos(
+  to: string,
+  params: PostventaReferidosParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: POSTVENTA_REFERIDOS_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.buyerName },
+            { type: "text", text: params.referralUrl },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const lines = [
+    `🤝 *¿Conoces a alguien que busque vivienda?*`,
+    ``,
+    `Hola ${params.buyerName}, si conoces a alguien que esté pensando en comprar o vender,`,
+    `estaremos encantados de ayudarle como hicimos contigo.`,
+    ``,
+    `Comparte este enlace:`,
+    params.referralUrl,
+  ];
+  return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
+}
+
+export type PostventaRecaptacionParams = {
+  buyerName: string;
+  comercialName: string;
+  contactUrl: string;
+};
+
+const POSTVENTA_RECAPTACION_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_POSTVENTA_RECAPTACION ??
+  "postventa_recaptacion";
+
+/**
+ * D90: Re-captación a largo plazo — solo si no hay incidencias abiertas.
+ * Business-initiated — requiere plantilla Meta UTILITY es_ES.
+ * MVP: texto libre. Producción: plantilla "postventa_recaptacion".
+ */
+export async function sendPostventaRecaptacion(
+  to: string,
+  params: PostventaRecaptacionParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: POSTVENTA_RECAPTACION_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.buyerName },
+            { type: "text", text: params.comercialName },
+            { type: "text", text: params.contactUrl },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const lines = [
+    `👋 *¿Cómo va todo en tu vivienda?*`,
+    ``,
+    `Hola ${params.buyerName}, han pasado unos meses y queríamos saber si necesitas algo.`,
+    `Si te planteas vender o conoces a alguien interesado, tu agente ${params.comercialName} está disponible:`,
+    params.contactUrl,
+  ];
+  return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
+}
