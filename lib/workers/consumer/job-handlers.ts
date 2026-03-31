@@ -486,3 +486,10 @@ import { handleNotifyPricingWhatsApp } from "./pricing-notify-handler";
 
 registerJobHandler("RUN_PRICING_ANALYSIS", handlePricingAnalysis);
 registerJobHandler("NOTIFY_PRICING_WHATSAPP", handleNotifyPricingWhatsApp);
+
+// --- Post-Venta (M9) ---
+import { handleStartPostventaCadence } from "@/lib/postventa/start-cadence-handler";
+import { handleSendPostventaMessage } from "@/lib/postventa/send-message-handler";
+
+registerJobHandler("START_POSTVENTA_CADENCE", handleStartPostventaCadence);
+registerJobHandler("SEND_POSTVENTA_MESSAGE", handleSendPostventaMessage);

@@ -33,9 +33,26 @@ export function isSmartClosingTrigger(newEstado: string): boolean {
 }
 
 /**
+ * Estados de Inmovilla que indican cierre definitivo de una operación.
+ * Disparan la cadencia de post-venta (M9).
+ */
+export const OPERACION_CERRADA_KEYWORDS = [
+  "vendido",
+  "vendida",
+  "alquilado",
+  "alquilada",
+] as const;
+
+export function isOperacionCerrada(newEstado: string): boolean {
+  const normalized = newEstado.toLowerCase();
+  return OPERACION_CERRADA_KEYWORDS.some((kw) => normalized.includes(kw));
+}
+
+/**
  * Handler de ESTADO_CAMBIADO que:
  *  1. Siempre encola UPDATE_PROPERTY_PROJECTION (preserva comportamiento existente).
  *  2. Si `newEstado` matchea con estados de Reserva/Arras, encola GENERATE_CONTRACT_DRAFT.
+ *  3. Si `newEstado` indica cierre definitivo (Vendido/Alquilado), encola START_POSTVENTA_CADENCE.
  */
 export async function handleEstadoCambiado(event: Event): Promise<HandlerResult> {
   const followUpJobs: EnqueueJobInput[] = [
@@ -49,10 +66,16 @@ export async function handleEstadoCambiado(event: Event): Promise<HandlerResult>
 
   const payload = event.payload;
 
-  if (isStatusChangedPayload(payload) && isSmartClosingTrigger(payload.newEstado)) {
-    const propertyCode =
-      payload.snapshot?.codigo ?? event.aggregateId;
+  if (!isStatusChangedPayload(payload)) {
+    console.log(
+      `[consumer] ESTADO_CAMBIADO aggregateId=${event.aggregateId} → UPDATE_PROPERTY_PROJECTION`,
+    );
+    return { success: true, followUpJobs };
+  }
 
+  const propertyCode = payload.snapshot?.codigo ?? event.aggregateId;
+
+  if (isSmartClosingTrigger(payload.newEstado)) {
     console.log(
       `[smart-closing] ESTADO_CAMBIADO → "${payload.previousEstado}" → "${payload.newEstado}" para ${propertyCode} — disparando generación de borrador`,
     );
@@ -68,7 +91,27 @@ export async function handleEstadoCambiado(event: Event): Promise<HandlerResult>
       idempotencyKey: `generate_contract_draft:${propertyCode}:${event.id}`,
       sourceEventId: event.id,
     });
-  } else {
+  }
+
+  if (isOperacionCerrada(payload.newEstado)) {
+    console.log(
+      `[postventa] ESTADO_CAMBIADO → "${payload.previousEstado}" → "${payload.newEstado}" para ${propertyCode} — disparando cadencia post-venta`,
+    );
+
+    followUpJobs.push({
+      type: "START_POSTVENTA_CADENCE",
+      payload: {
+        propertyCode,
+        newEstado: payload.newEstado,
+        closedAt: new Date().toISOString(),
+        sourceEventId: event.id,
+      },
+      idempotencyKey: `start_postventa:${propertyCode}:${event.id}`,
+      sourceEventId: event.id,
+    });
+  }
+
+  if (!isSmartClosingTrigger(payload.newEstado) && !isOperacionCerrada(payload.newEstado)) {
     console.log(
       `[consumer] ESTADO_CAMBIADO aggregateId=${event.aggregateId} → UPDATE_PROPERTY_PROJECTION`,
     );

@@ -140,6 +140,10 @@ registerHandler("FIRMA_EXPIRADA", placeholderHandler());
 registerHandler("FIRMA_RECORDATORIO_ENVIADO", placeholderHandler());
 registerHandler("FIRMA_SLA_ESCALADO", placeholderHandler());
 
+// --- Post-Venta (M9) ---
+registerHandler("INCIDENCIA_POSTVENTA_ABIERTA", placeholderHandler());
+registerHandler("INCIDENCIA_POSTVENTA_RESUELTA", placeholderHandler());
+
 // --- Placeholders (futuras implementaciones) ---
 registerHandler("LEAD_SCORED", placeholderHandler());
 registerHandler("LEAD_CONTACTADO", placeholderHandler());
