@@ -16,9 +16,10 @@ export {
   sendMatchNotification,
   sendLeadAssignedToCommercial,
   sendFollowUpToCommercial,
+  sendPricingReportToCommercial,
 } from "./send";
 
-export type { LeadAssignedParams, FollowUpParams } from "./send";
+export type { LeadAssignedParams, FollowUpParams, PricingReportParams } from "./send";
 
 export {
   verifyWebhookChallenge,

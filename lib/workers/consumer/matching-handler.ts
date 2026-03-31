@@ -60,6 +60,12 @@ export async function handlePropertyMatching(event: Event): Promise<HandlerResul
       idempotencyKey: `update_property_projection:${event.id}`,
       sourceEventId: event.id,
     },
+    {
+      type: "RUN_PRICING_ANALYSIS",
+      payload: { propertyCode: propertyId },
+      idempotencyKey: `run-pricing:${event.id}`,
+      sourceEventId: event.id,
+    },
   ];
 
   try {

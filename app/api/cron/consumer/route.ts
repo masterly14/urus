@@ -37,6 +37,8 @@ export async function POST(request: Request) {
       "WRITE_TO_INMOVILLA",
       "GENERATE_CONTRACT_DRAFT",
       "NOTIFY_CONTRACT_DATA_INCOMPLETE",
+      "RUN_PRICING_ANALYSIS",
+      "NOTIFY_PRICING_WHATSAPP",
     ],
   });
 

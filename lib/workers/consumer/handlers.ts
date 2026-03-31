@@ -38,6 +38,13 @@ function buildProjectionJob(
   };
 }
 
+const PRICING_RELEVANT_FIELDS = new Set([
+  "precio",
+  "metrosConstruidos",
+  "habitaciones",
+  "banyos",
+]);
+
 function propertyHandler(
   jobType: "UPDATE_PROPERTY_PROJECTION",
 ): EventHandler {
@@ -45,10 +52,29 @@ function propertyHandler(
     console.log(
       `[consumer] ${event.type} aggregateId=${event.aggregateId} → ${jobType}`,
     );
-    return {
-      success: true,
-      followUpJobs: [buildProjectionJob(event.id, jobType)],
-    };
+
+    const followUpJobs: EnqueueJobInput[] = [
+      buildProjectionJob(event.id, jobType),
+    ];
+
+    const payload = event.payload as Record<string, unknown> | null;
+    const changedFields = Array.isArray(payload?.changedFields)
+      ? (payload.changedFields as string[])
+      : [];
+    const hasPricingRelevantChange = changedFields.some((f) =>
+      PRICING_RELEVANT_FIELDS.has(f),
+    );
+
+    if (hasPricingRelevantChange) {
+      followUpJobs.push({
+        type: "RUN_PRICING_ANALYSIS",
+        payload: { propertyCode: event.aggregateId },
+        idempotencyKey: `run-pricing:${event.id}`,
+        sourceEventId: event.id,
+      });
+    }
+
+    return { success: true, followUpJobs };
   };
 }
 

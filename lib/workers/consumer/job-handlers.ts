@@ -479,3 +479,10 @@ registerJobHandler("NOTIFY_CONTRACT_DATA_INCOMPLETE", handleNotifyContractDataIn
 
 // --- Smart Closing: generación de borrador de contrato (M8) ---
 registerJobHandler("GENERATE_CONTRACT_DRAFT", handleGenerateContractDraft);
+
+// --- Pricing automático (M7) ---
+import { handlePricingAnalysis } from "./pricing-handler";
+import { handleNotifyPricingWhatsApp } from "./pricing-notify-handler";
+
+registerJobHandler("RUN_PRICING_ANALYSIS", handlePricingAnalysis);
+registerJobHandler("NOTIFY_PRICING_WHATSAPP", handleNotifyPricingWhatsApp);

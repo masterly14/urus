@@ -586,3 +586,61 @@ export async function sendFirmaCompletadaConfirmation(
   ];
   return sendTextMessage(to, lines.join("\n"), options);
 }
+
+// ---------------------------------------------------------------------------
+// Motor de Pricing — informe generado (M7)
+// ---------------------------------------------------------------------------
+
+export type PricingReportParams = {
+  comercialNombre: string;
+  propertyCode: string;
+  semaforo: string;
+  gapPorcentaje: string;
+  informeUrl: string;
+};
+
+const PRICING_INFORME_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_PRICING_INFORME ?? "pricing_informe_listo";
+
+/**
+ * Notifica al comercial que se ha generado un informe de pricing.
+ * Business-initiated → requiere plantilla aprobada en Meta.
+ * MVP: texto libre. Producción: plantilla "pricing_informe_listo".
+ */
+export async function sendPricingReportToCommercial(
+  to: string,
+  params: PricingReportParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: PRICING_INFORME_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.comercialNombre },
+            { type: "text", text: params.propertyCode },
+            { type: "text", text: params.semaforo },
+            { type: "text", text: params.gapPorcentaje },
+            { type: "text", text: params.informeUrl },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const lines = [
+    `📊 *Informe de pricing generado*`,
+    ``,
+    `• Inmueble: ${params.propertyCode}`,
+    `• Semáforo: ${params.semaforo}`,
+    `• Gap vs mercado: ${params.gapPorcentaje}`,
+    ``,
+    `Consulta el informe completo:`,
+    params.informeUrl,
+  ];
+  return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
+}
