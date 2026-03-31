@@ -27,6 +27,12 @@ import { normalizeWhatsAppDigits } from "@/lib/microsite/buyer-phone";
 import { enqueueJob } from "@/lib/job-queue";
 import type { DemandFilterInput } from "@/lib/statefox";
 import { handleGenerateContractDraft } from "./contract-draft-handler";
+import {
+  handleSendPostSaleMessage,
+  handleSendReviewRequest,
+  handleSendReviewReminder,
+  handleSendReferralRequest,
+} from "./post-sale-job-handler";
 
 export type JobHandler = (job: JobRecord) => Promise<HandlerResult>;
 
@@ -479,3 +485,9 @@ registerJobHandler("NOTIFY_CONTRACT_DATA_INCOMPLETE", handleNotifyContractDataIn
 
 // --- Smart Closing: generación de borrador de contrato (M8) ---
 registerJobHandler("GENERATE_CONTRACT_DRAFT", handleGenerateContractDraft);
+
+// --- Post-Venta (M9): cadencia de mensajes al cliente ---
+registerJobHandler("SEND_POST_SALE_MESSAGE", handleSendPostSaleMessage);
+registerJobHandler("SEND_REVIEW_REQUEST", handleSendReviewRequest);
+registerJobHandler("SEND_REVIEW_REMINDER", handleSendReviewReminder);
+registerJobHandler("SEND_REFERRAL_REQUEST", handleSendReferralRequest);

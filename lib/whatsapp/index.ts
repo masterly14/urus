@@ -16,9 +16,20 @@ export {
   sendMatchNotification,
   sendLeadAssignedToCommercial,
   sendFollowUpToCommercial,
+  sendPostSaleMessage,
+  sendReviewRequest,
+  sendReviewReminder,
+  sendReferralRequest,
 } from "./send";
 
-export type { LeadAssignedParams, FollowUpParams } from "./send";
+export type {
+  LeadAssignedParams,
+  FollowUpParams,
+  PostSaleMessageParams,
+  ReviewRequestParams,
+  ReviewReminderParams,
+  ReferralRequestParams,
+} from "./send";
 
 export {
   verifyWebhookChallenge,

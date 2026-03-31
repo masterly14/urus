@@ -34,6 +34,10 @@ export async function POST(request: Request) {
       "GENERATE_MICROSITE",
       "NOTIFY_MICROSITE_PENDING_VALIDATION",
       "SEND_MICROSITE_TO_BUYER",
+      "SEND_POST_SALE_MESSAGE",
+      "SEND_REVIEW_REQUEST",
+      "SEND_REVIEW_REMINDER",
+      "SEND_REFERRAL_REQUEST",
     ],
   });
 

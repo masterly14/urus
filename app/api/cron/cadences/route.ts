@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { isAuthorized } from "@/lib/api/cron-auth";
 import { scanAndEnqueueMissingFollowUps } from "@/lib/leads/cadence-scanner";
+import { scanAndEnqueueMissingPostSaleJobs } from "@/lib/post-sale/cadence-scanner";
 
 /**
  * Cron de cadencias automáticas.
  * Ejecutar cada 6–12h (Upstash QStash schedule).
  *
- * Revisa leads sin respuesta (sin evento LEAD_CONTACTADO) que no tengan
- * jobs FOLLOW_UP_LEAD pendientes y encola los que falten como red de seguridad.
+ * 1. Leads: revisa leads sin respuesta y encola follow-ups faltantes.
+ * 2. Post-venta: revisa operaciones cerradas y encola cadencias M9 faltantes.
  */
 export async function POST(request: Request) {
   if (!isAuthorized(request)) {
@@ -15,13 +16,19 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await scanAndEnqueueMissingFollowUps();
+    const [leadResult, postSaleResult] = await Promise.all([
+      scanAndEnqueueMissingFollowUps(),
+      scanAndEnqueueMissingPostSaleJobs(),
+    ]);
 
     console.log(
-      `[cron/cadences] leads=${result.leadsScanned} encolados=${result.followUpsEnqueued} cubiertos=${result.leadsAlreadyCovered}`,
+      `[cron/cadences] leads=${leadResult.leadsScanned} encolados=${leadResult.followUpsEnqueued} cubiertos=${leadResult.leadsAlreadyCovered}`,
+    );
+    console.log(
+      `[cron/cadences] post-venta ops=${postSaleResult.operationsScanned} encolados=${postSaleResult.jobsEnqueued} cubiertos=${postSaleResult.operationsAlreadyCovered}`,
     );
 
-    return NextResponse.json(result);
+    return NextResponse.json({ leads: leadResult, postSale: postSaleResult });
   } catch (err) {
     console.error(
       "[cron/cadences] Error:",

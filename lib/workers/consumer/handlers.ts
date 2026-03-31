@@ -8,6 +8,7 @@ import { handleDemandaActualizada } from "./write-demand-update-handler";
 import { handleWhatsAppRecibido } from "./whatsapp-nlu-handler";
 import { handleVisitaEvaluada } from "./visita-evaluada-handler";
 import { handleEstadoCambiado } from "./smart-closing-handler";
+import { handleOperacionCerrada } from "@/lib/post-sale/post-sale-handler";
 
 const registry = new Map<EventType, EventHandler>();
 
@@ -100,6 +101,9 @@ registerHandler("SELECCION_RECHAZADA", placeholderHandler());
 // --- Smart Closing (M8) ---
 registerHandler("DATOS_INCOMPLETOS", placeholderHandler());
 registerHandler("CONTRATO_BORRADOR_GENERADO", placeholderHandler());
+
+// --- Post-Venta (M9) ---
+registerHandler("OPERACION_CERRADA", handleOperacionCerrada);
 
 // --- Placeholders (futuras implementaciones) ---
 registerHandler("LEAD_SCORED", placeholderHandler());

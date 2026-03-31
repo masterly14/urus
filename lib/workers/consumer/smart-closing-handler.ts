@@ -1,5 +1,7 @@
 import type { Event } from "@/types/domain";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
+import { appendEvent } from "@/lib/event-store";
+import { isClosedOperation } from "@/lib/post-sale/closed-operation";
 import type { HandlerResult } from "./types";
 
 /**
@@ -36,6 +38,7 @@ export function isSmartClosingTrigger(newEstado: string): boolean {
  * Handler de ESTADO_CAMBIADO que:
  *  1. Siempre encola UPDATE_PROPERTY_PROJECTION (preserva comportamiento existente).
  *  2. Si `newEstado` matchea con estados de Reserva/Arras, encola GENERATE_CONTRACT_DRAFT.
+ *  3. Si `newEstado` indica cierre (vendido/alquilado), emite OPERACION_CERRADA.
  */
 export async function handleEstadoCambiado(event: Event): Promise<HandlerResult> {
   const followUpJobs: EnqueueJobInput[] = [
@@ -49,10 +52,16 @@ export async function handleEstadoCambiado(event: Event): Promise<HandlerResult>
 
   const payload = event.payload;
 
-  if (isStatusChangedPayload(payload) && isSmartClosingTrigger(payload.newEstado)) {
-    const propertyCode =
-      payload.snapshot?.codigo ?? event.aggregateId;
+  if (!isStatusChangedPayload(payload)) {
+    console.log(
+      `[consumer] ESTADO_CAMBIADO aggregateId=${event.aggregateId} → UPDATE_PROPERTY_PROJECTION`,
+    );
+    return { success: true, followUpJobs };
+  }
 
+  const propertyCode = payload.snapshot?.codigo ?? event.aggregateId;
+
+  if (isSmartClosingTrigger(payload.newEstado)) {
     console.log(
       `[smart-closing] ESTADO_CAMBIADO → "${payload.previousEstado}" → "${payload.newEstado}" para ${propertyCode} — disparando generación de borrador`,
     );
@@ -68,7 +77,37 @@ export async function handleEstadoCambiado(event: Event): Promise<HandlerResult>
       idempotencyKey: `generate_contract_draft:${propertyCode}:${event.id}`,
       sourceEventId: event.id,
     });
-  } else {
+  }
+
+  if (isClosedOperation(payload.newEstado)) {
+    const closedEvent = await appendEvent({
+      type: "OPERACION_CERRADA",
+      aggregateType: "OPERACION",
+      aggregateId: propertyCode,
+      payload: {
+        previousEstado: payload.previousEstado,
+        newEstado: payload.newEstado,
+        propertyCode,
+        closedAt: event.occurredAt?.toISOString?.() ?? new Date().toISOString(),
+        sourceEstadoCambiadoEventId: event.id,
+      },
+      correlationId: event.correlationId ?? undefined,
+      causationId: event.id,
+    });
+
+    followUpJobs.push({
+      type: "PROCESS_EVENT",
+      payload: { eventId: closedEvent.id },
+      idempotencyKey: `process_operacion_cerrada:${propertyCode}:${event.id}`,
+      sourceEventId: closedEvent.id,
+    });
+
+    console.log(
+      `[post-sale] ESTADO_CAMBIADO → "${payload.previousEstado}" → "${payload.newEstado}" para ${propertyCode} — OPERACION_CERRADA emitida (${closedEvent.id})`,
+    );
+  }
+
+  if (!isSmartClosingTrigger(payload.newEstado) && !isClosedOperation(payload.newEstado)) {
     console.log(
       `[consumer] ESTADO_CAMBIADO aggregateId=${event.aggregateId} → UPDATE_PROPERTY_PROJECTION`,
     );

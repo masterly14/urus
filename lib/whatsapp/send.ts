@@ -352,3 +352,210 @@ export async function sendMicrositeValidationEscalation(
   ];
   return sendTextMessage(to, lines.join("\n"), options);
 }
+
+// ---------------------------------------------------------------------------
+// Post-Venta (M9) — cadencia de mensajes al cliente tras cierre
+// ---------------------------------------------------------------------------
+
+export type PostSalePhase =
+  | "agradecimiento"
+  | "soporte"
+  | "resena"
+  | "referidos"
+  | "recaptacion";
+
+export interface PostSaleMessageParams {
+  propertyCode: string;
+  phase: PostSalePhase;
+  newEstado: string;
+  clientName?: string;
+  comercialName?: string;
+  postVentaUrl?: string;
+}
+
+const OPERATION_TYPE_LABEL: Record<string, string> = {
+  vendid: "venta",
+  alquilad: "alquiler",
+  traspaso: "traspaso",
+};
+
+function operationLabel(newEstado: string): string {
+  const lower = newEstado.toLowerCase();
+  for (const [kw, label] of Object.entries(OPERATION_TYPE_LABEL)) {
+    if (lower.includes(kw)) return label;
+  }
+  return "operación";
+}
+
+function buildAgradecimientoMessage(params: PostSaleMessageParams): string {
+  const name = params.clientName ? ` ${params.clientName}` : "";
+  const op = operationLabel(params.newEstado);
+  return [
+    `🏡 *Enhorabuena${name}!*`,
+    ``,
+    `Su ${op} se ha completado con éxito.`,
+    `Gracias por confiar en URUS Capital.`,
+    ``,
+    params.comercialName
+      ? `Su comercial de referencia es *${params.comercialName}*. No dude en contactarle para cualquier consulta.`
+      : `Nuestro equipo queda a su disposición para lo que necesite.`,
+  ].join("\n");
+}
+
+function buildSoporteMessage(params: PostSaleMessageParams): string {
+  const name = params.clientName ? ` ${params.clientName}` : "";
+  const lines = [
+    `👋 *Hola${name}*`,
+    ``,
+    `Queremos asegurarnos de que todo va bien tras la entrega.`,
+    `¿Necesita ayuda con algo?`,
+  ];
+  if (params.postVentaUrl) {
+    lines.push(``, `Puede indicarnos aquí:`, params.postVentaUrl);
+  } else {
+    lines.push(``, `Responda a este mensaje y le atenderemos encantados.`);
+  }
+  return lines.join("\n");
+}
+
+function buildRecaptacionMessage(params: PostSaleMessageParams): string {
+  const name = params.clientName ? ` ${params.clientName}` : "";
+  return [
+    `🔑 *Hola${name}*`,
+    ``,
+    `Han pasado unos meses desde que cerramos su operación.`,
+    `¿Le gustaría conocer nuevas oportunidades en su zona?`,
+    ``,
+    `Responda "Sí" y le enviaremos las opciones más interesantes.`,
+  ].join("\n");
+}
+
+const PHASE_BUILDERS: Record<
+  "agradecimiento" | "soporte" | "recaptacion",
+  (params: PostSaleMessageParams) => string
+> = {
+  agradecimiento: buildAgradecimientoMessage,
+  soporte: buildSoporteMessage,
+  recaptacion: buildRecaptacionMessage,
+};
+
+/**
+ * Envía un mensaje de post-venta genérico (agradecimiento / soporte / re-captación).
+ * MVP: texto libre. Producción: plantilla aprobada por fase.
+ */
+export async function sendPostSaleMessage(
+  to: string,
+  params: PostSaleMessageParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const builder = PHASE_BUILDERS[params.phase as keyof typeof PHASE_BUILDERS];
+  if (!builder) {
+    throw new Error(`No message builder for post-sale phase: ${params.phase}`);
+  }
+  return sendTextMessage(to, builder(params), options);
+}
+
+export interface ReviewRequestParams {
+  propertyCode: string;
+  clientName?: string;
+  googleReviewUrl?: string;
+}
+
+/**
+ * Solicita una reseña de Google al cliente (fase 3 de post-venta).
+ * Solo se envía si no hay incidencias abiertas.
+ * MVP: texto libre. Producción: plantilla "solicitud_resena".
+ */
+export async function sendReviewRequest(
+  to: string,
+  params: ReviewRequestParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const name = params.clientName ? ` ${params.clientName}` : "";
+  const lines = [
+    `⭐ *Hola${name}*`,
+    ``,
+    `Esperamos que todo esté yendo genial en su nuevo hogar.`,
+    `Su opinión nos ayuda a mejorar y a que más personas confíen en nosotros.`,
+    ``,
+    `¿Nos dejaría una reseña? Solo le tomará un minuto:`,
+  ];
+  if (params.googleReviewUrl) {
+    lines.push(params.googleReviewUrl);
+  } else {
+    lines.push(`Le enviaremos el enlace en breve.`);
+  }
+  lines.push(``, `¡Muchas gracias!`);
+  return sendTextMessage(to, lines.join("\n"), options);
+}
+
+export interface ReviewReminderParams {
+  propertyCode: string;
+  clientName?: string;
+  googleReviewUrl?: string;
+}
+
+/**
+ * Recordatorio de reseña (D+17 aprox): se envía si el cliente no respondió a la solicitud inicial.
+ * MVP: texto libre. Producción: plantilla "recordatorio_resena" (es_ES).
+ */
+export async function sendReviewReminder(
+  to: string,
+  params: ReviewReminderParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const name = params.clientName ? ` ${params.clientName}` : "";
+  const lines = [
+    `⭐ *Hola${name}*`,
+    ``,
+    `Hace unos días le pedimos su opinión sobre la experiencia con URUS Capital.`,
+    `Si aún no ha tenido ocasión, le agradeceríamos mucho una reseña:`,
+  ];
+  if (params.googleReviewUrl) {
+    lines.push(``, params.googleReviewUrl);
+  } else {
+    lines.push(``, `Le enviaremos el enlace en breve.`);
+  }
+  lines.push(``, `¡Gracias por su tiempo!`, `El equipo de URUS Capital`);
+  return sendTextMessage(to, lines.join("\n"), options);
+}
+
+export interface ReferralRequestParams {
+  propertyCode: string;
+  clientName?: string;
+  clientType?: "comprador" | "inversor" | "vendedor";
+  referralFormUrl?: string;
+}
+
+/**
+ * Activa referidos (fase 4 de post-venta): mensaje personalizado según tipo de cliente.
+ * MVP: texto libre. Producción: plantilla "activacion_referidos".
+ */
+export async function sendReferralRequest(
+  to: string,
+  params: ReferralRequestParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const name = params.clientName ? ` ${params.clientName}` : "";
+
+  const cta =
+    params.clientType === "inversor"
+      ? `¿Conoce a alguien que también busque invertir en inmuebles?`
+      : params.clientType === "vendedor"
+        ? `¿Tiene algún conocido que quiera vender su propiedad?`
+        : `¿Conoce a alguien que esté buscando una nueva casa?`;
+
+  const lines = [
+    `🤝 *Hola${name}*`,
+    ``,
+    cta,
+    ``,
+    `Si nos recomienda, ofreceremos un trato preferencial a su contacto.`,
+  ];
+  if (params.referralFormUrl) {
+    lines.push(``, `Puede compartir este enlace:`, params.referralFormUrl);
+  } else {
+    lines.push(``, `Responda con el nombre y teléfono, y nos pondremos en contacto.`);
+  }
+  return sendTextMessage(to, lines.join("\n"), options);
+}
