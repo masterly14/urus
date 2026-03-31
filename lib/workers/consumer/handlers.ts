@@ -3,10 +3,12 @@ import type { Event } from "@/types/domain";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import type { EventHandler, HandlerResult } from "./types";
 import { handleLeadIngestado } from "./lead-scoring-handler";
+import { handleLeadContactado } from "./lead-contacted-handler";
 import { handlePropertyMatching } from "./matching-handler";
 import { handleDemandaActualizada } from "./write-demand-update-handler";
 import { handleWhatsAppRecibido } from "./whatsapp-nlu-handler";
 import { handleVisitaEvaluada } from "./visita-evaluada-handler";
+import { handleVisitaAgendada } from "./visita-agendada-handler";
 import { handleEstadoCambiado } from "./smart-closing-handler";
 import { handleOperacionCerrada } from "@/lib/post-sale/post-sale-handler";
 
@@ -93,7 +95,7 @@ registerHandler("DEMANDA_ACTUALIZADA", handleDemandaActualizada);
 
 // --- Micro-frontends (M4) ---
 registerHandler("VISITA_EVALUADA", handleVisitaEvaluada);
-registerHandler("VISITA_AGENDADA", placeholderHandler());
+registerHandler("VISITA_AGENDADA", handleVisitaAgendada);
 registerHandler("SELECCION_COMPRADOR", placeholderHandler());
 registerHandler("SELECCION_VALIDADA", placeholderHandler());
 registerHandler("SELECCION_RECHAZADA", placeholderHandler());
@@ -107,7 +109,7 @@ registerHandler("OPERACION_CERRADA", handleOperacionCerrada);
 
 // --- Placeholders (futuras implementaciones) ---
 registerHandler("LEAD_SCORED", placeholderHandler());
-registerHandler("LEAD_CONTACTADO", placeholderHandler());
+registerHandler("LEAD_CONTACTADO", handleLeadContactado);
 registerHandler("SLA_INICIADO", placeholderHandler());
 registerHandler("MATCH_GENERADO", placeholderHandler());
 registerHandler("WHATSAPP_ENVIADO", placeholderHandler());

@@ -16,6 +16,7 @@ import type { DemandFilterInput } from "@/lib/statefox";
 import { prisma } from "@/lib/prisma";
 import { createStatefoxClient, getProperties } from "@/lib/statefox";
 import { buildStatefoxQuery, filterStatefoxResults } from "@/lib/statefox";
+import { upsertCommercialVisitEvaluationFactFromVisitaEvaluadaEvent } from "@/lib/dashboard/comercial/facts";
 
 // ---------------------------------------------------------------------------
 // Constantes de negocio
@@ -112,6 +113,16 @@ export async function handleVisitaEvaluada(event: Event): Promise<HandlerResult>
       `[consumer:visita-evaluada] Demanda ${demandId} no encontrada en DemandCurrent — posible lag en proyección`,
     );
     return { success: true };
+  }
+
+  // Persistencia best-effort para dashboard (no debe bloquear el flujo principal).
+  try {
+    await upsertCommercialVisitEvaluationFactFromVisitaEvaluadaEvent(event);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `[analytics] No se pudo upsert CommercialVisitEvaluationFact demandId=${demandId}: ${message}`,
+    );
   }
 
   // 2. Score ajustado por interés

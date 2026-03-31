@@ -564,3 +564,126 @@ model Referral {
   @@index([comercialId])
   @@map("referrals")
 }
+
+// ---------------------------------------------------------------------------
+// Analytics / Dashboard Comercial (M10)
+// ---------------------------------------------------------------------------
+
+model CommercialLeadFact {
+  /// Lead aggregateId (EventStore aggregateId)
+  leadId String @id
+
+  /// Id del evento LEAD_INGESTADO que originó el lead (si se conoce)
+  ingestedEventId String? @unique
+
+  tipo   String @default("") // comprador | propietario
+  ciudad String @default("")
+  source String @default("") // origen (web, inmovilla, referido...)
+
+  score    Int?
+  slaLevel String?
+
+  assignedComercialId     String?
+  assignedComercialNombre String?
+
+  contactedAt            DateTime?
+  contactedEventId       String?
+  contactedByComercialId String?
+  contactChannel         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  raw Json?
+
+  @@index([assignedComercialId, createdAt])
+  @@index([createdAt])
+  @@index([ciudad])
+  @@index([source])
+  @@map("commercial_lead_facts")
+}
+
+model CommercialVisitFact {
+  id            String @id @default(cuid())
+  sourceEventId String @unique
+
+  demandId String
+
+  comercialId     String?
+  comercialNombre String @default("")
+
+  /// Fecha/hora original del microsite de agenda (para evitar problemas de TZ)
+  fecha      String @default("") // YYYY-MM-DD
+  horaInicio String @default("") // HH:mm
+  horaFin    String @default("") // HH:mm
+  scheduledAt DateTime?
+
+  ubicacion String @default("")
+  notas     String @default("")
+
+  calendarEventId  String?
+  calendarLink     String?
+  calendarSuccess  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([comercialId, scheduledAt])
+  @@index([demandId, createdAt])
+  @@index([scheduledAt])
+  @@map("commercial_visit_facts")
+}
+
+model CommercialVisitEvaluationFact {
+  id            String @id @default(cuid())
+  sourceEventId String @unique
+
+  demandId String
+
+  comercialId     String?
+  comercialNombre String @default("")
+
+  interes String @default("") // alto | medio | bajo
+  notas   String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([comercialId, createdAt])
+  @@index([demandId, createdAt])
+  @@index([interes, createdAt])
+  @@map("commercial_visit_evaluation_facts")
+}
+
+model CommercialOperationFact {
+  id            String @id @default(cuid())
+  sourceEventId String @unique
+
+  propertyCode String
+  propertyRef  String @default("")
+
+  ciudad String @default("")
+  zona   String @default("")
+
+  newEstado String @default("")
+  closedAt  DateTime
+
+  firstSeenAt DateTime?
+  daysToClose Int?
+
+  /// Importe bruto (p.ej. precio de la propiedad). La "facturación" (comisión)
+  /// se calcula a partir de este valor con una regla configurable.
+  grossAmountEur Float?
+
+  comercialId     String?
+  comercialNombre String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([comercialId, closedAt])
+  @@index([ciudad, closedAt])
+  @@index([propertyCode])
+  @@index([closedAt])
+  @@map("commercial_operation_facts")
+}

@@ -2,6 +2,7 @@ import type { Event } from "@/types/domain";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import type { HandlerResult } from "@/lib/workers/consumer/types";
 import { POST_SALE_CADENCE, getPhaseLabel } from "./cadence";
+import { upsertCommercialOperationFactFromOperacionCerradaEvent } from "@/lib/dashboard/comercial/facts";
 
 interface OperacionCerradaPayload {
   previousEstado: string;
@@ -55,6 +56,16 @@ export async function handleOperacionCerrada(
       `[post-sale] OPERACION_CERRADA propertyCode=${propertyCode} — closedAt inválido: ${closedAt}`,
     );
     return { success: true };
+  }
+
+  // Persistencia best-effort para Dashboard Comercial (M10). No debe bloquear cadencias.
+  try {
+    await upsertCommercialOperationFactFromOperacionCerradaEvent(event);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `[analytics] No se pudo upsert CommercialOperationFact propertyCode=${propertyCode}: ${message}`,
+    );
   }
 
   const followUpJobs: EnqueueJobInput[] = [];

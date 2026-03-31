@@ -10,6 +10,7 @@ import {
   getActiveAgentsByCity,
   incrementAgentLoad,
 } from "@/lib/routing/agent-repo";
+import { upsertCommercialLeadFactFromLeadIngestedEvent } from "@/lib/dashboard/comercial/facts";
 
 export type AgentFetcher = (ciudad: string) => Promise<AgentProfile[]>;
 export type LoadIncrementer = (agentId: string) => Promise<void>;
@@ -164,7 +165,33 @@ export async function handleLeadIngestadoCore(
 export async function handleLeadIngestado(
   event: Event,
 ): Promise<HandlerResult> {
-  return handleLeadIngestadoCore(event);
+  const result = await handleLeadIngestadoCore(event);
+
+  if (result.success) {
+    try {
+      const scored = result.scoredPayload ?? {};
+      await upsertCommercialLeadFactFromLeadIngestedEvent({
+        event,
+        scoredPayload: {
+          score: typeof scored["score"] === "number" ? scored["score"] : undefined,
+          slaLevel: typeof scored["slaLevel"] === "string" ? scored["slaLevel"] : undefined,
+          assignedAgentId:
+            typeof scored["assignedAgentId"] === "string" ? scored["assignedAgentId"] : null,
+          assignedAgentNombre:
+            typeof scored["assignedAgentNombre"] === "string"
+              ? scored["assignedAgentNombre"]
+              : null,
+        },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[analytics] No se pudo upsert CommercialLeadFact para ${event.aggregateId}: ${message}`,
+      );
+    }
+  }
+
+  return result;
 }
 
 function priorityFromSla(level: string): number {

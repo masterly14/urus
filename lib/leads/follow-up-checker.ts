@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { enqueueJob } from "@/lib/job-queue";
 
 export interface FollowUpCheckResult {
   shouldFollowUp: boolean;
@@ -64,6 +65,14 @@ export async function markLeadAsContacted(
       contactedAt: new Date().toISOString(),
       ...metadata,
     },
+  });
+
+  // Permite que el consumer procese el evento (analytics, cancelaciones futuras, etc.)
+  await enqueueJob({
+    type: "PROCESS_EVENT",
+    payload: { eventId: event.id },
+    sourceEventId: event.id,
+    idempotencyKey: `process_event:${event.id}`,
   });
 
   return event.id;
