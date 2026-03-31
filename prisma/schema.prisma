@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client"
   output   = "../app/generated/prisma"
@@ -12,79 +6,6 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-}
-
-enum AggregateType {
-  PROPERTY
-  LEAD
-  DEMAND
-  MATCH
-  SLA
-  SYSTEM
-  WHATSAPP_CONVERSATION
-}
-
-enum EventType {
-  PROPIEDAD_CREADA
-  PROPIEDAD_MODIFICADA
-  ESTADO_CAMBIADO
-  DEMANDA_CREADA
-  DEMANDA_MODIFICADA
-  DEMANDA_ESTADO_CAMBIADO
-  LEAD_INGESTADO
-  LEAD_SCORED
-  LEAD_CONTACTADO
-  SLA_INICIADO
-  DEMANDA_ACTUALIZADA
-  MATCH_GENERADO
-  WHATSAPP_RECIBIDO
-  WHATSAPP_ENVIADO
-  VISITA_EVALUADA
-  VISITA_AGENDADA
-  SELECCION_COMPRADOR
-  SELECCION_VALIDADA
-  SELECCION_RECHAZADA
-  DATOS_INCOMPLETOS
-  CONTRATO_BORRADOR_GENERADO
-}
-
-enum JobType {
-  PROCESS_EVENT
-  UPDATE_PROPERTY_PROJECTION
-  UPDATE_DEMAND_PROJECTION
-  WRITE_TO_INMOVILLA
-  NOTIFY_LEAD_WHATSAPP
-  FOLLOW_UP_LEAD
-  GENERATE_MICROSITE
-  NOTIFY_MICROSITE_PENDING_VALIDATION
-  SEND_MICROSITE_TO_BUYER
-  NOTIFY_CONTRACT_DATA_INCOMPLETE
-  GENERATE_CONTRACT_DRAFT
-}
-
-enum JobStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-  FAILED
-  DEAD_LETTER
-}
-
-enum ProjectionName {
-  PROPERTIES_CURRENT
-  DEMANDS_CURRENT
-}
-
-enum MicrositeSelectionStatus {
-  PENDING_VALIDATION
-  APPROVED
-  REJECTED
-  EXPIRED
-}
-
-enum MicrositeSelectionDecision {
-  ME_INTERESA
-  NO_ME_ENCAJA
 }
 
 model Event {
@@ -100,7 +21,6 @@ model Event {
   causationId   String?
   occurredAt    DateTime      @default(now())
   createdAt     DateTime      @default(now())
-
   jobs          JobQueue[]
 
   @@index([aggregateType, aggregateId, position])
@@ -110,26 +30,25 @@ model Event {
 }
 
 model JobQueue {
-  id             String     @id @default(cuid())
+  id             String    @id @default(cuid())
   type           JobType
-  status         JobStatus  @default(PENDING)
+  status         JobStatus @default(PENDING)
   payload        Json
-  priority       Int        @default(100)
-  attempts       Int        @default(0)
-  maxAttempts    Int        @default(5)
-  availableAt    DateTime   @default(now())
+  priority       Int       @default(100)
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(5)
+  availableAt    DateTime  @default(now())
   lockedAt       DateTime?
   lockedBy       String?
   startedAt      DateTime?
   completedAt    DateTime?
   failedAt       DateTime?
   lastError      String?
-  idempotencyKey String?    @unique
+  idempotencyKey String?   @unique
   sourceEventId  String?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-
-  sourceEvent    Event?     @relation(fields: [sourceEventId], references: [id], onDelete: SetNull)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  sourceEvent    Event?    @relation(fields: [sourceEventId], references: [id])
 
   @@index([status, availableAt, priority])
   @@index([type, status])
@@ -138,12 +57,12 @@ model JobQueue {
 }
 
 model ProjectionCheckpoint {
-  projectionName     ProjectionName @id
-  lastEventId        String?
-  lastEventPosition  BigInt?
-  lastProcessedAt    DateTime?
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  projectionName    ProjectionName @id
+  lastEventId       String?
+  lastEventPosition BigInt?
+  lastProcessedAt   DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
   @@map("projections_checkpoint")
 }
@@ -168,6 +87,8 @@ model PropertySnapshot {
   firstSeenAt        DateTime @default(now())
   lastSeenAt         DateTime @default(now())
   updatedAt          DateTime @updatedAt
+  nodisponible       Boolean  @default(false)
+  prospecto          Boolean  @default(false)
 
   @@map("property_snapshots")
 }
@@ -214,6 +135,8 @@ model PropertyCurrent {
   lastEventAt        DateTime
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+  nodisponible       Boolean  @default(false)
+  prospecto          Boolean  @default(false)
 
   @@index([estado])
   @@index([ciudad, zona])
@@ -225,8 +148,6 @@ model DemandCurrent {
   codigo             String   @id
   ref                String   @default("")
   nombre             String   @default("")
-  /** Teléfono del contacto/comprador si la ingesta lo expone (E.164 o dígitos). */
-  telefono           String   @default("")
   estadoId           String   @default("")
   estadoNombre       String   @default("")
   presupuestoMin     Float    @default(0)
@@ -241,6 +162,8 @@ model DemandCurrent {
   lastEventAt        DateTime
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+  /// * Teléfono del contacto/comprador si la ingesta lo expone (E.164 o dígitos).
+  telefono           String   @default("")
 
   @@index([estadoId])
   @@index([zonas])
@@ -249,27 +172,27 @@ model DemandCurrent {
 }
 
 model IngestionCycleMetric {
-  id               String   @id @default(cuid())
-  cycleId          String   @unique
-  worker           String   // "properties" | "demands"
-  mode             String   // "rest" | "legacy"
-  success          Boolean
-  startedAt        DateTime
-  finishedAt       DateTime
-  durationMs       Int
-  itemsRead        Int      @default(0)
-  itemsFetched     Int      @default(0)
-  itemsFailed      Int      @default(0)
-  snapshotSize     Int      @default(0)
-  eventsEmitted    Int      @default(0)
-  diffCreated      Int      @default(0)
-  diffModified     Int      @default(0)
-  diffStatusChanged Int     @default(0)
-  diffUnchanged    Int      @default(0)
-  errorMessage     String?
-  errorCode        String?
-  phases           Json     @default("{}")
-  createdAt        DateTime @default(now())
+  id                String   @id @default(cuid())
+  cycleId           String   @unique
+  worker            String
+  mode              String
+  success           Boolean
+  startedAt         DateTime
+  finishedAt        DateTime
+  durationMs        Int
+  itemsRead         Int      @default(0)
+  itemsFetched      Int      @default(0)
+  itemsFailed       Int      @default(0)
+  snapshotSize      Int      @default(0)
+  eventsEmitted     Int      @default(0)
+  diffCreated       Int      @default(0)
+  diffModified      Int      @default(0)
+  diffStatusChanged Int      @default(0)
+  diffUnchanged     Int      @default(0)
+  errorMessage      String?
+  errorCode         String?
+  phases            Json     @default("{}")
+  createdAt         DateTime @default(now())
 
   @@index([worker, startedAt])
   @@index([success, startedAt])
@@ -281,42 +204,40 @@ model User {
 }
 
 model Comercial {
-  id                String   @id @default(cuid())
-  nombre            String
-  telefono          String   @default("")
-  email             String   @default("")
-  ciudad            String
-  especialidad      String   @default("general")
-  activo            Boolean  @default(true)
-  cargaActual       Int      @default(0)
-  cargaMaxima       Int      @default(20)
-  leadsAsignados    Int      @default(0)
-  leadsCerrados     Int      @default(0)
-  tasaConversion    Float    @default(0)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id             String   @id @default(cuid())
+  nombre         String
+  telefono       String   @default("")
+  email          String   @default("")
+  ciudad         String
+  especialidad   String   @default("general")
+  activo         Boolean  @default(true)
+  cargaActual    Int      @default(0)
+  cargaMaxima    Int      @default(20)
+  leadsAsignados Int      @default(0)
+  leadsCerrados  Int      @default(0)
+  tasaConversion Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  referrals      Referral[]
 
   @@index([ciudad, activo])
   @@index([activo, cargaActual])
   @@map("comerciales")
 }
 
-// --- Catálogos Inmovilla (cache de GET /enums/?...) ---
-// Escritura por script de sincronización; lectura por catalogs.ts (key_loca, key_tipo, key_zona).
-
 model InmovillaEnumCalidad {
   id        String   @id @default(cuid())
-  campo     String
+  campo     String   @unique
   valores   String
   updatedAt DateTime @updatedAt
 
-  @@unique([campo])
   @@map("inmovilla_enum_calidad")
 }
 
 model InmovillaEnumTipo {
   id        String   @id @default(cuid())
-  tipo      String   // ej. key_tipo, keyacci
+  tipo      String
   nombre    String
   valor     Int
   updatedAt DateTime @updatedAt
@@ -328,23 +249,22 @@ model InmovillaEnumTipo {
 model InmovillaEnumPais {
   id        String   @id @default(cuid())
   pais      String
-  valor     String
-  iso2     String
-  iso3     String
+  valor     String   @unique
+  iso2      String
+  iso3      String
   updatedAt DateTime @updatedAt
 
-  @@unique([valor])
   @@map("inmovilla_enum_pais")
 }
 
 model InmovillaEnumCiudad {
-  id          String   @id @default(cuid())
-  key_loca    Int      @unique
-  ciudad      String
-  provincia   String
-  cod_prov    Int
-  pais_valor  String?
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  key_loca   Int      @unique
+  ciudad     String
+  provincia  String
+  cod_prov   Int
+  pais_valor String?
+  updatedAt  DateTime @updatedAt
 
   @@index([key_loca])
   @@index([ciudad, provincia])
@@ -364,43 +284,37 @@ model InmovillaEnumZona {
 }
 
 model MicrositeSelection {
-  id            String                   @id @default(cuid())
-  /** Token público para el comprador: /seleccion/{token} */
-  token         String                   @unique
-  /** Token opaco para el comercial: /validar-seleccion/{validationToken} */
-  validationToken String                 @unique
-  status        MicrositeSelectionStatus @default(PENDING_VALIDATION)
-
-  demandId      String
-  demandNombre  String                  @default("")
-  comercialId   String                  @default("system")
-  /** Teléfono del comprador resuelto al crear la selección (envío WA). */
-  buyerPhone    String                  @default("")
-
-  /** Query params enviados a Statefox (/properties). */
-  statefoxQuery Json
-  /** Filtros aplicados en memoria (precio/metros/keywords...). */
-  resultFilters Json
-  /** Lista curada para renderizar el microsite. */
-  properties    Json
-
-  stockCount    Int                     @default(0)
-  sourceEventId String?
-  firstViewedAt DateTime?
-  lastViewedAt  DateTime?
-  viewCount     Int                     @default(0)
-
-  /** SLA validación comercial: deadline = createdAt + 2h (M6). */
-  validationDueAt   DateTime?
-  validatedAt       DateTime?
+  id                     String                       @id @default(cuid())
+  /// * Token público para el comprador: /seleccion/{token}
+  token                  String                       @unique
+  status                 MicrositeSelectionStatus     @default(PENDING_VALIDATION)
+  demandId               String
+  demandNombre           String                       @default("")
+  comercialId            String                       @default("system")
+  /// * Query params enviados a Statefox (/properties).
+  statefoxQuery          Json
+  /// * Filtros aplicados en memoria (precio/metros/keywords...).
+  resultFilters          Json
+  /// * Lista curada para renderizar el microsite.
+  properties             Json
+  stockCount             Int                          @default(0)
+  sourceEventId          String?
+  createdAt              DateTime                     @default(now())
+  updatedAt              DateTime                     @updatedAt
+  expiresAt              DateTime?
+  firstViewedAt          DateTime?
+  lastViewedAt           DateTime?
+  viewCount              Int                          @default(0)
+  /// * Token opaco para el comercial: /validar-seleccion/{validationToken}
+  validationToken        String                       @unique
+  /// * Teléfono del comprador resuelto al crear la selección (envío WA).
+  buyerPhone             String                       @default("")
+  /// * SLA validación comercial: deadline = createdAt + 2h (M6).
+  validationDueAt        DateTime?
+  validatedAt            DateTime?
   validatedByComercialId String?
-  escalatedAt       DateTime?
-
-  createdAt     DateTime                 @default(now())
-  updatedAt     DateTime                 @updatedAt
-  expiresAt     DateTime?
-
-  feedbacks     MicrositeSelectionFeedback[]
+  escalatedAt            DateTime?
+  feedbacks              MicrositeSelectionFeedback[]
 
   @@index([demandId, createdAt])
   @@index([token])
@@ -416,10 +330,237 @@ model MicrositeSelectionFeedback {
   payload     Json?
   createdAt   DateTime                   @default(now())
   updatedAt   DateTime                   @updatedAt
-
   selection   MicrositeSelection         @relation(fields: [selectionId], references: [id], onDelete: Cascade)
 
   @@unique([selectionId, propertyId])
   @@index([selectionId, createdAt])
   @@map("microsite_selection_feedback")
+}
+
+model legal_document_parties {
+  id                String          @id
+  legalDocumentId   String
+  role              String
+  fullName          String
+  nifNie            String?
+  email             String?
+  phone             String?
+  address           String?
+  inmovilla_cod_cli String?
+  hasSigned         Boolean         @default(false)
+  signedAt          DateTime?
+  reminderDay       Int             @default(0)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime
+  legal_documents   legal_documents @relation(fields: [legalDocumentId], references: [id], onDelete: Cascade)
+
+  @@unique([legalDocumentId, email])
+  @@index([legalDocumentId, hasSigned])
+}
+
+model legal_documents {
+  id                     String                   @id
+  operationId            String
+  propertyCode           String
+  documentKind           String
+  templateVersion        String?
+  status                 LegalDocumentStatus      @default(DRAFT)
+  contractInput          Json?
+  cloudinaryUrl          String?
+  signedDocumentUrl      String?
+  auditTrailUrl          String?
+  approvedAt             DateTime?
+  approvedByUserId       String?
+  completedAt            DateTime?
+  signatureRequestId     String?                  @unique
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime
+  legal_document_parties legal_document_parties[]
+  signature_requests     signature_requests?      @relation(fields: [signatureRequestId], references: [id])
+
+  @@unique([operationId, documentKind])
+  @@index([propertyCode])
+  @@index([status])
+}
+
+model signature_requests {
+  id                    String                 @id
+  signaturitSignatureId String                 @unique
+  signaturitDocumentId  String?
+  operationId           String
+  propertyCode          String
+  documentKind          String
+  templateVersion       String?
+  cloudinaryUrl         String
+  signingUrl            String?
+  status                SignatureRequestStatus @default(SENT)
+  signerName            String
+  signerEmail           String
+  signerPhone           String?
+  sentAt                DateTime               @default(now())
+  openedAt              DateTime?
+  signedAt              DateTime?
+  completedAt           DateTime?
+  declinedAt            DateTime?
+  expiredAt             DateTime?
+  slaDeadlineDays       Int                    @default(5)
+  slaDeadline           DateTime
+  lastReminderDay       Int                    @default(0)
+  escalatedAt           DateTime?
+  signedDocumentUrl     String?
+  auditTrailUrl         String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime
+  legal_documents       legal_documents?
+
+  @@index([operationId])
+  @@index([status, slaDeadline])
+}
+
+enum AggregateType {
+  PROPERTY
+  LEAD
+  DEMAND
+  MATCH
+  SLA
+  SYSTEM
+  WHATSAPP_CONVERSATION
+  OPERACION
+}
+
+enum EventType {
+  PROPIEDAD_CREADA
+  PROPIEDAD_MODIFICADA
+  ESTADO_CAMBIADO
+  LEAD_INGESTADO
+  SLA_INICIADO
+  DEMANDA_ACTUALIZADA
+  MATCH_GENERADO
+  DEMANDA_CREADA
+  DEMANDA_MODIFICADA
+  DEMANDA_ESTADO_CAMBIADO
+  WHATSAPP_RECIBIDO
+  WHATSAPP_ENVIADO
+  LEAD_SCORED
+  LEAD_CONTACTADO
+  VISITA_EVALUADA
+  VISITA_AGENDADA
+  SELECCION_COMPRADOR
+  SELECCION_VALIDADA
+  SELECCION_RECHAZADA
+  DATOS_INCOMPLETOS
+  CONTRATO_BORRADOR_GENERADO
+  CONTRATO_VERSIONADO
+  FIRMA_ENVIADA
+  FIRMA_COMPLETADA
+  FIRMA_RECHAZADA
+  FIRMA_EXPIRADA
+  FIRMA_RECORDATORIO_ENVIADO
+  FIRMA_SLA_ESCALADO
+  CONTRATO_APROBADO
+  PRICING_ANALISIS_GENERADO
+  PROPIEDAD_ELIMINADA
+  OPERACION_CERRADA
+  RESENA_SOLICITADA
+  RESENA_RECIBIDA
+  RECORDATORIO_RESENA_ENVIADO
+  REFERIDO_CAPTURADO
+  REFERIDO_ASIGNADO
+  REFERIDO_SOLICITUD_ENVIADA
+}
+
+enum JobType {
+  PROCESS_EVENT
+  UPDATE_PROPERTY_PROJECTION
+  UPDATE_DEMAND_PROJECTION
+  WRITE_TO_INMOVILLA
+  NOTIFY_LEAD_WHATSAPP
+  FOLLOW_UP_LEAD
+  GENERATE_MICROSITE
+  NOTIFY_MICROSITE_PENDING_VALIDATION
+  SEND_MICROSITE_TO_BUYER
+  NOTIFY_CONTRACT_DATA_INCOMPLETE
+  GENERATE_CONTRACT_DRAFT
+  SEND_SIGNATURE_REQUEST
+  PROCESS_SIGNATURE_WEBHOOK
+  NOTIFY_SIGNATURE_REMINDER
+  SEND_POST_SALE_MESSAGE
+  SEND_REVIEW_REQUEST
+  SEND_REFERRAL_REQUEST
+  SEND_REVIEW_REMINDER
+}
+
+enum JobStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  DEAD_LETTER
+}
+
+enum ProjectionName {
+  PROPERTIES_CURRENT
+  DEMANDS_CURRENT
+}
+
+enum MicrositeSelectionStatus {
+  PENDING_VALIDATION
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum MicrositeSelectionDecision {
+  ME_INTERESA
+  NO_ME_ENCAJA
+}
+
+enum LegalDocumentStatus {
+  DRAFT
+  APPROVED
+  SENT_TO_SIGNATURE
+  SIGNED
+  DECLINED
+  EXPIRED
+  CANCELED
+}
+
+enum SignatureRequestStatus {
+  SENT
+  OPENED
+  SIGNED
+  COMPLETED
+  DECLINED
+  EXPIRED
+  CANCELED
+  ERROR
+}
+
+enum ReferralStatus {
+  PENDIENTE_ASIGNACION
+  ASIGNADO
+  CONTACTADO
+  DESCARTADO
+}
+
+model Referral {
+  id            String         @id @default(cuid())
+  propertyCode  String
+  referrerName  String
+  referrerPhone String
+  referredName  String
+  referredPhone String
+  referredEmail String         @default("")
+  notes         String         @default("")
+  status        ReferralStatus @default(PENDIENTE_ASIGNACION)
+  comercialId   String?
+  comercial     Comercial?     @relation(fields: [comercialId], references: [id])
+  assignedAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([status])
+  @@index([propertyCode])
+  @@index([comercialId])
+  @@map("referrals")
 }
