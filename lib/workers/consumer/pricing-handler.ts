@@ -7,6 +7,7 @@
 
 import type { JobRecord } from "@/lib/job-queue/types";
 import type { HandlerResult } from "./types";
+import type { PricingOptions } from "@/lib/pricing";
 import {
   runPricingAnalysis,
   PricingDataIncompleteError,
@@ -27,12 +28,19 @@ export async function handlePricingAnalysis(
     return { success: false, error: "Job sin propertyCode" };
   }
 
+  const trigger = typeof payload.trigger === "string" ? payload.trigger : undefined;
+  const options: PricingOptions = {};
+  if (typeof payload.maxPages === "number") options.maxPages = payload.maxPages;
+  if (typeof payload.generateRecommendation === "boolean")
+    options.generateRecommendation = payload.generateRecommendation;
+
   console.log(
-    `[consumer:pricing] Ejecutando análisis de pricing para ${propertyCode}`,
+    `[consumer:pricing] Ejecutando análisis de pricing para ${propertyCode}` +
+      (trigger ? ` (trigger=${trigger})` : ""),
   );
 
   try {
-    const result = await runPricingAnalysis(propertyCode);
+    const result = await runPricingAnalysis(propertyCode, options);
 
     console.log(
       `[consumer:pricing] Análisis completado: ${propertyCode} semáforo=${result.stats.semaforo} gap=${result.stats.gapPorcentaje}% comparables=${result.stats.totalComparables}`,
