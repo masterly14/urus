@@ -1408,7 +1408,6 @@ Se activan automáticamente cuando Neon registra el evento `OPERACION_CERRADA` (
 
 - Mensaje: "Si conoces a alguien que esté pensando en comprar o vender, estaremos encantados de ayudarle como hicimos contigo."
 - Enlace directo a WhatsApp / formulario de referido (micro-frontend).
-- Posible incentivo (opcional y legal).
 
 > Se pide cuando la satisfacción es alta, no en frío.
 
