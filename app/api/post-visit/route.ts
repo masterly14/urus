@@ -6,7 +6,7 @@ import { enqueueJob } from "@/lib/job-queue";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { demandId, interes, notas, comercialId } = body;
+    const { demandId, interes, notas, comercialId, propertyCode } = body;
 
     if (!demandId || !interes) {
       return NextResponse.json(
@@ -20,9 +20,10 @@ export async function POST(request: Request) {
       aggregateType: AggregateType.DEMAND,
       aggregateId: demandId,
       payload: {
-        interes, // alto, medio, bajo
+        interes,
         notas: notas || "",
         comercialId: comercialId || "system",
+        ...(propertyCode ? { propertyCode } : {}),
       },
     });
 
