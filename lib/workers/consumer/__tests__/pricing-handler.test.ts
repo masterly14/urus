@@ -106,7 +106,7 @@ describe("handlePricingAnalysis (RUN_PRICING_ANALYSIS)", () => {
     const result = await handlePricingAnalysis(job);
 
     expect(result.success).toBe(true);
-    expect(mockRunPricing).toHaveBeenCalledWith("PROP-001");
+    expect(mockRunPricing).toHaveBeenCalledWith("PROP-001", {});
     expect(mockEnqueue).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "NOTIFY_PRICING_WHATSAPP",
