@@ -17,6 +17,7 @@ Documentación de decisiones:
 
 - `docs/adr/001-event-sourcing-sobre-crud.md`
 - `docs/adr/002-neon-como-job-queue.md`
+- **Dashboard Comercial (métricas / KPIs)**: `docs/dashboard-comercial-metricas.md`
 
 Escenario de migración a API REST (contactos, propiedades, propietarios) documentado en `docs/plan.md` — estrategia de transición sin romper el flujo actual.
 
@@ -1057,6 +1058,23 @@ No es un dashboard informativo, es un **sistema de gobierno del negocio**:
 
 > Sin dashboard: se gestiona por sensaciones.
 > Con dashboard: **se gestiona por datos**.
+
+### Implementación (M10) — Sistema de métricas (facts + queries)
+
+Además de la parte conceptual, el repo incluye una implementación v1 del sistema de métricas para el dashboard:
+
+- **Read-model analítico (facts)** en Neon/Prisma:
+  - `commercial_lead_facts` (leads asignados/contactados/perdidos por falta de seguimiento)
+  - `commercial_visit_facts` (visitas agendadas)
+  - `commercial_visit_evaluation_facts` (evaluaciones post-visita)
+  - `commercial_operation_facts` (cierres y volumen/facturación estimada)
+- **Proyección “best-effort”** al consumir eventos (no bloquea el flujo si falla la analítica).
+- **Queries analíticas** en `lib/dashboard/comercial/queries.ts`.
+- **API Routes**:
+  - `GET /api/dashboard/comerciales`
+  - `GET /api/dashboard/comercial/:id`
+
+Detalles completos (KPIs, definiciones, tablas, variables y mapeo evento→fact): `docs/dashboard-comercial-metricas.md`.
 
 ### Estructura (5 Capas)
 
