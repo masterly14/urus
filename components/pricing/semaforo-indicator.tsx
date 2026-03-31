@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import type { SemaforoStatus } from "@/lib/mock-data/types";
+import type { SemaforoStatus } from "@/lib/pricing/types";
 
 interface SemaforoIndicatorProps {
     status: SemaforoStatus;
@@ -12,8 +12,9 @@ interface SemaforoIndicatorProps {
 
 const semaforoConfig: Record<SemaforoStatus, { color: string; label: string; bgLight: string }> = {
     verde: { color: "var(--urus-success)", label: "Bien posicionado", bgLight: "color-mix(in oklch, var(--urus-success) 12%, transparent)" },
-    amarillo: { color: "var(--urus-warning)", label: "Riesgo", bgLight: "color-mix(in oklch, var(--urus-warning) 12%, transparent)" },
+    amarillo: { color: "var(--urus-warning)", label: "Riesgo comercial", bgLight: "color-mix(in oklch, var(--urus-warning) 12%, transparent)" },
     rojo: { color: "var(--urus-danger)", label: "Fuera de mercado", bgLight: "color-mix(in oklch, var(--urus-danger) 12%, transparent)" },
+    sin_datos: { color: "var(--urus-muted, #6b7280)", label: "Sin datos de mercado", bgLight: "color-mix(in oklch, #6b7280 12%, transparent)" },
 };
 
 const sizeMap = {
