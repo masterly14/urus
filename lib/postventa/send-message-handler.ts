@@ -148,11 +148,12 @@ function buildTemplateSenders(): Record<string, TemplateSender> {
         comercialName,
       });
     },
-    soporte: async (buyer, _pc) => {
+    soporte: async (buyer, propertyCode) => {
       const guideUrl = `${appUrl}/postventa/guia`;
       await sendPostventaSoporte(buyer.phone, {
         buyerName: buyer.name,
         guideUrl,
+        propertyCode,
       });
     },
     resena: async (buyer) => {

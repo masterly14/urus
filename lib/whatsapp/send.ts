@@ -700,6 +700,7 @@ export async function sendPostventaAgradecimiento(
 export type PostventaSoporteParams = {
   buyerName: string;
   guideUrl: string;
+  propertyCode: string;
 };
 
 const POSTVENTA_SOPORTE_TEMPLATE =
@@ -707,8 +708,12 @@ const POSTVENTA_SOPORTE_TEMPLATE =
 
 /**
  * D3: Soporte temprano — verificar que todo va bien con la entrega.
- * Business-initiated — requiere plantilla Meta UTILITY es_ES.
- * MVP: texto libre. Producción: plantilla "postventa_soporte".
+ * Business-initiated — requiere plantilla Meta UTILITY es_ES con 2 botones quick_reply.
+ * MVP: mensaje interactivo con botones reply nativos de WhatsApp.
+ * Produccion: plantilla "postventa_soporte" con botones "Todo OK" / "Necesito ayuda".
+ *
+ * El payload de cada boton lleva el propertyCode para identificar la operacion
+ * cuando el webhook recibe la respuesta del comprador.
  */
 export async function sendPostventaSoporte(
   to: string,
@@ -727,12 +732,24 @@ export async function sendPostventaSoporte(
             { type: "text", text: params.guideUrl },
           ],
         },
+        {
+          type: "button",
+          sub_type: "quick_reply",
+          index: "0",
+          parameters: [{ type: "payload", payload: `POSTVENTA_OK:${params.propertyCode}` }],
+        },
+        {
+          type: "button",
+          sub_type: "quick_reply",
+          index: "1",
+          parameters: [{ type: "payload", payload: `POSTVENTA_AYUDA:${params.propertyCode}` }],
+        },
       ],
     };
     return sendTemplateMessage(to, template, options);
   }
 
-  const lines = [
+  const bodyText = [
     `🏠 *¿Todo bien con tu nueva vivienda?*`,
     ``,
     `Hola ${params.buyerName}, ya llevas unos días en tu nuevo hogar.`,
@@ -740,8 +757,19 @@ export async function sendPostventaSoporte(
     ``,
     `Accede a nuestra guía práctica aquí:`,
     params.guideUrl,
-  ];
-  return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
+  ].join("\n");
+
+  const interactive: InteractiveObject = {
+    type: "button",
+    body: { text: bodyText },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: `POSTVENTA_OK:${params.propertyCode}`, title: "Todo OK ✅" } },
+        { type: "reply", reply: { id: `POSTVENTA_AYUDA:${params.propertyCode}`, title: "Necesito ayuda" } },
+      ],
+    },
+  };
+  return sendInteractiveMessage(to, interactive, options);
 }
 
 export type PostventaResenaParams = {
