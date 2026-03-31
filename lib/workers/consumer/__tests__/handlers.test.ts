@@ -42,6 +42,7 @@ describe("handler registry", () => {
       "SELECCION_COMPRADOR",
       "SELECCION_VALIDADA",
       "SELECCION_RECHAZADA",
+      "OPERACION_CERRADA",
     ];
 
     for (const type of expectedTypes) {
@@ -132,4 +133,61 @@ describe("placeholder handlers", () => {
       expect(result.followUpJobs).toBeUndefined();
     });
   }
+});
+
+describe("OPERACION_CERRADA handler", () => {
+  it("debe retornar success con 5 follow-up jobs de cadencia post-venta", async () => {
+    const handler = getHandler("OPERACION_CERRADA")!;
+    expect(handler).toBeDefined();
+
+    const event = makeEvent("OPERACION_CERRADA", {
+      aggregateType: "OPERACION",
+      aggregateId: "PROP-100",
+      payload: {
+        propertyCode: "PROP-100",
+        newEstado: "Vendida",
+        previousEstado: "Reservada",
+        closedAt: new Date().toISOString(),
+        sourceEstadoCambiadoEventId: "evt-src-001",
+      },
+    });
+
+    const result = await handler(event);
+
+    expect(result.success).toBe(true);
+    expect(result.followUpJobs).toHaveLength(5);
+
+    const phases = result.followUpJobs!.map(
+      (j) => (j.payload as Record<string, unknown>).phase,
+    );
+    expect(phases).toEqual([
+      "agradecimiento",
+      "soporte",
+      "resena",
+      "referidos",
+      "recaptacion",
+    ]);
+
+    const jobTypes = result.followUpJobs!.map((j) => j.type);
+    expect(jobTypes).toContain("SEND_POST_SALE_MESSAGE");
+    expect(jobTypes).toContain("SEND_REVIEW_REQUEST");
+    expect(jobTypes).toContain("SEND_REFERRAL_REQUEST");
+
+    for (const job of result.followUpJobs!) {
+      expect(job.idempotencyKey).toMatch(/^post_sale:PROP-100:/);
+      expect(job.sourceEventId).toBe(event.id);
+    }
+  });
+
+  it("retorna success sin jobs si el payload es inválido", async () => {
+    const handler = getHandler("OPERACION_CERRADA")!;
+    const event = makeEvent("OPERACION_CERRADA", {
+      payload: { invalid: true },
+    });
+
+    const result = await handler(event);
+
+    expect(result.success).toBe(true);
+    expect(result.followUpJobs).toBeUndefined();
+  });
 });

@@ -222,7 +222,22 @@ describe("handleEstadoCambiado", () => {
     );
   });
 
-  it("solo encola UPDATE_PROPERTY_PROJECTION cuando el estado no es trigger", async () => {
+  it("encola UPDATE_PROPERTY_PROJECTION + PROCESS_EVENT (OPERACION_CERRADA) cuando el estado indica cierre", async () => {
+    mockAppendEvent.mockResolvedValueOnce({
+      id: "evt-closed-001",
+      position: 2n,
+      type: "OPERACION_CERRADA",
+      aggregateType: "OPERACION",
+      aggregateId: "1001",
+      version: null,
+      payload: {},
+      metadata: null,
+      correlationId: null,
+      causationId: "evt-e2e-001",
+      occurredAt: new Date(),
+      createdAt: new Date(),
+    });
+
     const event = fakeEvent({
       payload: {
         previousEstado: "Activa",
@@ -236,8 +251,16 @@ describe("handleEstadoCambiado", () => {
     const result = await handleEstadoCambiado(event);
 
     expect(result.success).toBe(true);
-    expect(result.followUpJobs).toHaveLength(1);
+    expect(result.followUpJobs).toHaveLength(2);
     expect(result.followUpJobs![0].type).toBe("UPDATE_PROPERTY_PROJECTION");
+    expect(result.followUpJobs![1].type).toBe("PROCESS_EVENT");
+    expect(mockAppendEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "OPERACION_CERRADA",
+        aggregateType: "OPERACION",
+        aggregateId: "1001",
+      }),
+    );
   });
 });
 
