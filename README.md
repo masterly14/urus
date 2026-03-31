@@ -37,6 +37,7 @@ Escenario de migración a API REST (contactos, propiedades, propietarios) docume
 - **Ingestion — demandas**: `npm run ingestion:demands`
 - **Consumer (procesador de eventos)**: `npm run consumer` — procesa jobs `PROCESS_EVENT` y encola proyecciones.
 - **Proyecciones (worker)**: `npm run projections` — materializa estado actual en `properties_current` y `demands_current` desde la job queue (`UPDATE_PROPERTY_PROJECTION`, `UPDATE_DEMAND_PROJECTION`). Cron: `POST /api/cron/projections` (requiere `CRON_SECRET`).
+- **Reevaluación de pricing (M7)**: cron `POST /api/cron/pricing-reevaluation` — escanea `properties_current` y encola `RUN_PRICING_ANALYSIS` para inmuebles sin leads prolongados o con visitas sin oferta (ver sección *Motor de Pricing*). Requiere `CRON_SECRET`; orquestación recomendada con Upstash QStash (p. ej. 1×/día).
 - **Sincronizar catálogos Inmovilla (enums)**: `npm run inmovilla:sync-enums` (opción `--skip-zonas` para omitir zonas). Requiere `INMOVILLA_API_TOKEN` y `DATABASE_URL`.
 
 **Contribuir:** ramas, commits, PRs y releases siguen la [Guía de contribución (CONTRIBUTING.md)](CONTRIBUTING.md).
@@ -276,6 +277,8 @@ Aquí entra el agente, pero con rol **limitado y claro**.
 - Nota cualitativa breve (máx. 2 líneas).
 
 **Nada más.** Todo lo demás ya está automatizado. Los datos del agente se recogen mediante un micro-frontend en Next.js (formulario rápido post-visita) que alimenta la Capa 3 directamente.
+
+El endpoint `POST /api/post-visit` emite `VISITA_EVALUADA` sobre la demanda. Para que el **cron de reevaluación de pricing** pueda contar visitas por inmueble, el cuerpo puede incluir **`propertyCode`** (opcional, código de oferta / ficha en Inmovilla); si no se envía, el trigger “visitas sin ofertas” no atribuye visitas a una propiedad concreta.
 
 ---
 
@@ -617,15 +620,25 @@ Cuando se sube o modifica un inmueble en Inmovilla, el sistema:
 
 ### Disparadores (Triggers)
 
-El `Ingestion Worker` detecta cualquiera de estos eventos en Inmovilla:
+**Reactivos (ingestión + cola)**  
+El `Ingestion Worker` detecta cambios en Inmovilla y la Capa 3 materializa eventos en Neon; el consumer encola `RUN_PRICING_ANALYSIS` cuando aplica:
 
-| Evento | Descripción |
+| Origen | Descripción |
 |---|---|
-| Alta de inmueble | Nuevo inmueble creado |
-| Cambio de precio | Modificación del precio de venta |
-| Cambio de estado | Publicado / relanzado |
-| Sin leads X días | Inmueble sin interacción prolongada |
-| Visitas sin ofertas | Muchas visitas pero ninguna oferta |
+| Alta de inmueble | Tras `PROPIEDAD_CREADA` (cruce de demandas + análisis de pricing). |
+| Cambio de precio, metros, habitaciones o baños | Tras `PROPIEDAD_MODIFICADA` cuando el diff de ingesta incluye alguno de esos campos (otros cambios de ficha no encolan pricing por sí solos). |
+
+**Proactivos (cron de reevaluación)**  
+Además, un **cron-job** evalúa el stock ya proyectado en Neon sin esperar un nuevo diff de Inmovilla:
+
+| Condición | Fuentes de datos (schema Prisma) | Comportamiento implementado |
+|---|---|---|
+| Inmueble sin leads X días | Tabla `properties_current` (edad vía `fechaAlta` o `createdAt`) + tabla `events` con `type = MATCH_GENERADO` y `aggregateId` terminado en `:{codigo}` (demanda:propiedad) | Si no hay ningún match y la ficha lleva al menos **14 días** (constante en `lib/pricing/reevaluation-scanner.ts`), se encola reevaluación. |
+| Inmueble con visitas sin ofertas | `events` con `type = VISITA_EVALUADA` y `payload.propertyCode` = código + `events` `ESTADO_CAMBIADO` sobre la propiedad con `newEstado` que indique oferta aceptada (mismas palabras clave que Smart Closing: reserva, señal, arras) | Si hay **≥3** visitas con `propertyCode` y **ningún** cambio de estado de oferta, se encola reevaluación. |
+
+Orquestación: `POST /api/cron/pricing-reevaluation` (`CRON_SECRET`) → `scanPropertiesForPricingReevaluation()` → jobs `RUN_PRICING_ANALYSIS` con payload que reduce carga (ver siguiente apartado).
+
+**Mitigación de cuellos de botella** en esas reevaluaciones en lote: menos páginas de Statefox por job (`maxPages` reducido), sin llamada a LangGraph por defecto (`generateRecommendation: false`, solo semáforo y cluster estadístico), `availableAt` escalonado entre jobs, `idempotencyKey` diaria por propiedad, exclusión si hubo `PRICING_ANALISIS_GENERADO` en los últimos **7 días** (cooldown), y tope de **100** propiedades encoladas por ejecución del scanner.
 
 ### Diagrama de Flujo
 
@@ -644,6 +657,19 @@ flowchart TD
     K -->|Mantener| L[Seguimiento automático]
     K -->|Ajustar precio| M[Propuesta de nuevo precio]
     K -->|Reposicionar| N[Recomendaciones de mejora]
+```
+
+**Reevaluación proactiva (cron)** — flujo paralelo cuando el disparador es tiempo/inactividad, no un diff nuevo de Inmovilla:
+
+```mermaid
+flowchart TD
+    Cron["POST /api/cron/pricing-reevaluation"] --> Scan["scanPropertiesForPricingReevaluation"]
+    Scan --> PC["properties_current nodisponible=false"]
+    PC --> Cool["Skip si PRICING_ANALISIS_GENERADO reciente"]
+    Cool --> Eval["Triggers: sin leads 14d sin match o visitas sin oferta"]
+    Eval --> Job["RUN_PRICING_ANALYSIS opciones reducidas"]
+    Job --> Consumer["Consumer y runPricingAnalysis"]
+    Consumer --> WA["NOTIFY_PRICING_WHATSAPP e informe"]
 ```
 
 ### Datos que se vuelcan desde Inmovilla
@@ -691,7 +717,9 @@ La Capa 3 consulta la API REST de Statefox (`GET /properties`) filtrando por zon
 
 ### Motor de Recomendación (LangGraph)
 
-El sistema no solo analiza, **recomienda**. Ejemplos reales de output:
+El sistema no solo analiza, **recomienda**. En análisis disparados por **alta o modificación** de propiedad, el flujo completo incluye recomendación textual vía LangGraph cuando está habilitado. En jobs originados por el **cron de reevaluación**, la recomendación LLM se omite por defecto para limitar coste y latencia en lote; el comercial sigue recibiendo semáforo, gap y comparables vía el mismo informe y notificación.
+
+Ejemplos reales de output (cuando el LLM está activo):
 
 **Diagnóstico automático:**
 > "El inmueble está un 8,7% por encima del precio medio del mercado para su zona y tipología."
@@ -712,7 +740,7 @@ El sistema no solo analiza, **recomienda**. Ejemplos reales de output:
 
 ### Entrega al Comercial
 
-El comercial recibe automáticamente (vía micro-frontend o WhatsApp):
+El comercial recibe automáticamente (vía micro-frontend o WhatsApp), tanto tras **alta o cambio** de ficha como tras una **reevaluación por cron** cuando el job completa con datos suficientes:
 
 - **Informe resumen** (1 página).
 - **Semáforo:**
