@@ -136,6 +136,7 @@ describe("handleSendPostventaMessage", () => {
       expect.objectContaining({
         buyerName: "Juan García",
         guideUrl: "https://app.test/postventa/guia",
+        propertyCode: "P-1",
       }),
     );
   });
