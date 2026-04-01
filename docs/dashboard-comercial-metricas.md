@@ -219,9 +219,57 @@ Ambos endpoints incluyen la clasificacion:
 
 ---
 
+## Control de acceso por rol
+
+### Roles implementados (v1)
+
+| Rol | Vista dashboard | Acceso API |
+|-----|----------------|------------|
+| **CEO** | Tabla completa de comerciales, detalle de cualquier comercial, alertas | Sin restriccion |
+| **Comercial** | Solo su propio perfil ("Mis Resultados") | Solo su `comercialId`; 403 si intenta ver otro |
+
+> **Jefe de zona** se difiere a la implementacion del modulo de zonas. La infraestructura soporta extension futura con nuevos roles sin cambios estructurales.
+
+### Sesion simulada (hasta que exista auth real)
+
+No existe autenticacion real (NextAuth). La identidad del usuario se transmite via headers HTTP:
+
+| Header | Valor | Descripcion |
+|--------|-------|-------------|
+| `X-Simulated-Role` | `ceo` / `comercial` | Rol del usuario |
+| `X-Simulated-ComercialId` | ID del comercial | Requerido cuando role=comercial |
+| `X-Simulated-Nombre` | Nombre a mostrar | Opcional |
+
+La funcion `getSession(request)` en `lib/auth/session.ts` es el **unico punto** que lee estos headers. Cuando se implemente NextAuth, solo se cambia ese archivo para leer la sesion real.
+
+En el cliente, el `SessionProvider` (`lib/hooks/use-session.tsx`) inyecta estos headers en cada llamada a la API via `sessionHeaders`. El selector de usuario en el top-bar permite simular distintos logins.
+
+### Comportamiento por capa
+
+**API (server-side enforcement):**
+- `GET /api/dashboard/comerciales` — si role=comercial, filtra `rows` para devolver solo la fila del comercialId de la sesion.
+- `GET /api/dashboard/comercial/:id` — si role=comercial y `:id !== session.comercialId`, retorna HTTP 403.
+
+**Frontend:**
+- `/rendimiento/comerciales` (tabla equipo) — si role=comercial, redirige a `/rendimiento/comerciales/{miId}`.
+- `/rendimiento/comerciales/:id` (detalle) — si role=comercial y id != miId, muestra "Acceso denegado" con enlace a su propio perfil.
+- `/rendimiento/comercial/me` — resuelve el comercialId de la sesion y redirige al detalle Prisma-backed.
+- Layout tabs — comercial solo ve "Mis Resultados"; CEO ve Equipo, Comerciales, Alertas.
+- Sidebar — secciones `ceoOnly` (BI, Alertas) se ocultan para comerciales.
+
+### Archivos de sesion y acceso
+
+- Abstraccion server: `lib/auth/session.ts`
+- Tests: `lib/auth/__tests__/session.test.ts`
+- Provider cliente: `lib/hooks/use-session.tsx`
+- Shim backward-compat: `lib/hooks/use-role.tsx`
+- Endpoint picker: `app/api/comerciales/activos/route.ts`
+
+---
+
 ## Archivos clave
 
-- Modelo/migración:
+- Modelo/migracion:
   - `prisma/schema.prisma`
   - `prisma/migrations/20260331180000_m10_dashboard_comercial_metrics/migration.sql`
   - `prisma/migrations/20260401120000_m10_commercial_classifications/migration.sql`
@@ -235,12 +283,19 @@ Ambos endpoints incluyen la clasificacion:
 - Clasificacion:
   - `lib/dashboard/comercial/classify.ts`
   - `lib/dashboard/comercial/__tests__/classify.test.ts`
+- Sesion y acceso:
+  - `lib/auth/session.ts`
+  - `lib/auth/__tests__/session.test.ts`
+  - `lib/hooks/use-session.tsx`
+  - `app/api/comerciales/activos/route.ts`
 - API:
   - `app/api/dashboard/comerciales/route.ts`
   - `app/api/dashboard/comercial/[id]/route.ts`
 - UI:
   - `app/rendimiento/comerciales/page.tsx`
   - `app/rendimiento/comerciales/[id]/page.tsx`
+  - `app/rendimiento/comercial/[id]/page.tsx` (redirect "Mis Resultados")
+  - `app/rendimiento/layout.tsx`
 - Hook:
   - `lib/hooks/use-dashboard-comercial.ts`
 
