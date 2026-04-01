@@ -127,6 +127,7 @@ const navItems: NavItem[] = [
         icon: Award,
         children: [
             { label: "Equipo", href: "/rendimiento/equipo", icon: UsersRound },
+            { label: "Comerciales", href: "/rendimiento/comerciales", icon: TrendingUp },
             { label: "Alertas", href: "/rendimiento/alertas", icon: AlertTriangle, ceoOnly: true },
         ],
     },

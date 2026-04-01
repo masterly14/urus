@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import {
     AlertOctagon,
     BarChart3,
+    TrendingUp,
     Users,
 } from "lucide-react";
 
@@ -15,6 +16,7 @@ interface PerformanceLayoutProps {
 
 const navItems = [
     { name: "Equipo", href: "/rendimiento/equipo", icon: Users },
+    { name: "Comerciales", href: "/rendimiento/comerciales", icon: TrendingUp },
     { name: "Mis Resultados", href: "/rendimiento/comercial/me", icon: BarChart3 },
     { name: "Alertas", href: "/rendimiento/alertas", icon: AlertOctagon },
 ];
