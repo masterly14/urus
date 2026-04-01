@@ -9,31 +9,50 @@ import {
     TrendingUp,
     Users,
 } from "lucide-react";
+import { useSession } from "@/lib/hooks/use-session";
 
 interface PerformanceLayoutProps {
     children: React.ReactNode;
 }
 
-const navItems = [
-    { name: "Equipo", href: "/rendimiento/equipo", icon: Users },
-    { name: "Comerciales", href: "/rendimiento/comerciales", icon: TrendingUp },
+interface NavItem {
+    name: string;
+    href: string;
+    icon: React.ElementType;
+    ceoOnly?: boolean;
+    comercialOnly?: boolean;
+}
+
+const navItems: NavItem[] = [
+    { name: "Equipo", href: "/rendimiento/equipo", icon: Users, ceoOnly: true },
+    { name: "Comerciales", href: "/rendimiento/comerciales", icon: TrendingUp, ceoOnly: true },
     { name: "Mis Resultados", href: "/rendimiento/comercial/me", icon: BarChart3 },
-    { name: "Alertas", href: "/rendimiento/alertas", icon: AlertOctagon },
+    { name: "Alertas", href: "/rendimiento/alertas", icon: AlertOctagon, ceoOnly: true },
 ];
 
 export default function PerformanceLayout({ children }: PerformanceLayoutProps) {
     const pathname = usePathname();
+    const { isCeo, isComercial } = useSession();
+
+    const filteredItems = navItems.filter((item) => {
+        if (item.ceoOnly && !isCeo) return false;
+        if (item.comercialOnly && !isComercial) return false;
+        return true;
+    });
 
     return (
         <div className="flex flex-col h-full space-y-6">
             <div className="flex flex-col space-y-2">
                 <h1 className="text-3xl font-bold tracking-tight">Performance Management</h1>
                 <p className="text-muted-foreground">
-                    Sistema de gestión de rendimiento basado en arquetipos.
+                    {isCeo
+                        ? "Sistema de gestión de rendimiento basado en arquetipos."
+                        : "Tu panel de rendimiento personal."
+                    }
                 </p>
             </div>
             <div className="flex items-center space-x-1 border-b border-border/40 pb-2">
-                {navItems.map((item) => {
+                {filteredItems.map((item) => {
                     const isActive = pathname.startsWith(item.href);
                     const Icon = item.icon;
                     return (

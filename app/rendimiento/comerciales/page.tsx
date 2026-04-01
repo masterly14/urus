@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -11,6 +11,7 @@ import {
     Calendar,
     Filter,
 } from "lucide-react";
+import { useSession } from "@/lib/hooks/use-session";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -91,8 +92,17 @@ function formatPercent(value: number): string {
 
 export default function ComercialesDashboardPage() {
     const router = useRouter();
+    const { isComercial, comercialId } = useSession();
     const [filters, setFilters] = useState<DashboardComercialesFilters>({});
     const { data, loading, error } = useDashboardComerciales(filters);
+
+    useEffect(() => {
+        if (isComercial && comercialId) {
+            router.replace(`/rendimiento/comerciales/${comercialId}`);
+        }
+    }, [isComercial, comercialId, router]);
+
+    if (isComercial && comercialId) return null;
 
     const rows = data?.rows ?? [];
 

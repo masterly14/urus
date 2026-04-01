@@ -12,6 +12,7 @@ import {
     Eye,
     AlertTriangle,
     MapPin,
+    ShieldAlert,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +32,7 @@ import {
     PROFILE_LABELS,
     type ComercialProfile,
 } from "@/lib/dashboard/comercial/classify";
+import { useSession } from "@/lib/hooks/use-session";
 
 const PROFILE_CARD_STYLES: Record<ComercialProfile, { border: string; bg: string; text: string }> = {
     top_performer: { border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-800" },
@@ -56,7 +58,9 @@ function formatEur(value: number): string {
 
 export default function ComercialDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
-    const { data, loading, error } = useDashboardComercialDetail(id);
+    const { isComercial, comercialId } = useSession();
+    const forbidden = isComercial && comercialId !== null && comercialId !== id;
+    const { data, loading, error } = useDashboardComercialDetail(forbidden ? null : id);
 
     const summary = data?.summary ?? null;
     const weekly = data?.weekly ?? [];
@@ -74,6 +78,27 @@ export default function ComercialDetailPage({ params }: { params: Promise<{ id: 
             })),
         [weekly],
     );
+
+    if (forbidden) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <Card className="max-w-md">
+                    <CardContent className="p-6 text-center space-y-3">
+                        <ShieldAlert className="h-10 w-10 text-red-500 mx-auto" />
+                        <p className="text-base font-semibold">Acceso denegado</p>
+                        <p className="text-sm text-muted-foreground">
+                            Solo puedes ver tu propio perfil de rendimiento.
+                        </p>
+                        <Link href={`/rendimiento/comerciales/${comercialId}`}>
+                            <Button variant="outline" size="sm" className="mt-2">
+                                Ir a mi perfil
+                            </Button>
+                        </Link>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
 
     if (error) {
         return (
