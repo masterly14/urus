@@ -18,6 +18,7 @@ Documentación de decisiones:
 - `docs/adr/001-event-sourcing-sobre-crud.md`
 - `docs/adr/002-neon-como-job-queue.md`
 - **Dashboard Comercial (métricas / KPIs)**: `docs/dashboard-comercial-metricas.md`
+- **Dashboard Comercial (UI / rutas / hooks)**: `docs/dashboard-comercial-ui.md`
 
 Escenario de migración a API REST (contactos, propiedades, propietarios) documentado en `docs/plan.md` — estrategia de transición sin romper el flujo actual.
 
@@ -1073,8 +1074,12 @@ Además de la parte conceptual, el repo incluye una implementación v1 del siste
 - **API Routes**:
   - `GET /api/dashboard/comerciales`
   - `GET /api/dashboard/comercial/:id`
+- **UI (micro-frontend en Rendimiento)**:
+  - Rutas: `/rendimiento/comerciales` (ranking + KPIs + gráficos) y `/rendimiento/comerciales/[id]` (detalle + evolución semanal).
+  - Hook cliente: `lib/hooks/use-dashboard-comercial.ts`.
+  - Navegación: pestaña y entrada de sidebar bajo **Rendimiento → Comerciales**.
 
-Detalles completos (KPIs, definiciones, tablas, variables y mapeo evento→fact): `docs/dashboard-comercial-metricas.md`.
+Detalles de KPIs, facts y SQL: `docs/dashboard-comercial-metricas.md`. Infraestructura de la capa UI (rutas, componentes, límites): `docs/dashboard-comercial-ui.md`.
 
 ### Estructura (5 Capas)
 
