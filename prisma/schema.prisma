@@ -673,11 +673,12 @@ model CommercialVisitEvaluationFact {
 }
 
 model CommercialOperationFact {
-  id            String @id @default(cuid())
-  sourceEventId String @unique
+  id            String  @id @default(cuid())
+  sourceEventId String  @unique
 
+  operacionId  String?
   propertyCode String
-  propertyRef  String @default("")
+  propertyRef  String  @default("")
 
   ciudad String @default("")
   zona   String @default("")
@@ -700,6 +701,7 @@ model CommercialOperationFact {
   @@index([ciudad, closedAt])
   @@index([propertyCode])
   @@index([closedAt])
+  @@index([operacionId])
   @@map("commercial_operation_facts")
 }
 
@@ -739,4 +741,197 @@ model DashboardAlert {
   @@index([type, severity])
   @@index([resolvedAt, createdAt])
   @@map("dashboard_alerts")
+}
+
+// ---------------------------------------------------------------------------
+// Operacion formal (M11 — ancla para colaboradores, contratos, post-venta)
+// ---------------------------------------------------------------------------
+
+enum OperacionEstado {
+  EN_CURSO
+  RESERVA
+  ARRAS
+  PENDIENTE_FIRMA
+  CERRADA_VENTA
+  CERRADA_ALQUILER
+  CERRADA_TRASPASO
+  CANCELADA
+}
+
+model Operacion {
+  id             String          @id @default(cuid())
+  codigo         String          @unique
+  propertyCode   String
+  demandId       String?
+  buyerClientId  String?
+  sellerClientId String?
+  comercialId    String?
+  ciudad         String          @default("")
+  estado         OperacionEstado @default(EN_CURSO)
+  closedAt       DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  asignaciones ColaboradorAsignacion[]
+
+  @@index([propertyCode, estado])
+  @@index([comercialId, createdAt])
+  @@index([ciudad, estado])
+  @@index([estado, closedAt])
+  @@map("operaciones")
+}
+
+// ---------------------------------------------------------------------------
+// Colaboradores Externos (M11)
+// ---------------------------------------------------------------------------
+
+model Colaborador {
+  id               String   @id @default(cuid())
+  nombre           String
+  tipo             String
+  ciudad           String   @default("")
+  especialidad     String   @default("")
+  contactoNombre   String   @default("")
+  contactoEmail    String   @default("")
+  contactoTelefono String   @default("")
+  activo           Boolean  @default(true)
+  notas            String   @default("")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  asignaciones       ColaboradorAsignacion[]
+  configuracionesSla ColaboradorSlaConfig[]
+
+  @@index([tipo, ciudad, activo])
+  @@index([activo])
+  @@map("colaboradores")
+}
+
+model ColaboradorTipo {
+  id          String   @id @default(cuid())
+  nombre      String   @unique
+  descripcion String   @default("")
+  activo      Boolean  @default(true)
+  orden       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  hitos HitoPlantilla[]
+
+  @@map("colaborador_tipos")
+}
+
+model HitoPlantilla {
+  id                String   @id @default(cuid())
+  colaboradorTipoId String
+  nombre            String
+  orden             Int
+  descripcion       String   @default("")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  colaboradorTipo ColaboradorTipo @relation(fields: [colaboradorTipoId], references: [id], onDelete: Cascade)
+
+  @@unique([colaboradorTipoId, orden])
+  @@index([colaboradorTipoId])
+  @@map("hito_plantillas")
+}
+
+model ColaboradorSlaConfig {
+  id              String   @id @default(cuid())
+  colaboradorId   String
+  hitoPlantillaId String?
+  slaDias         Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+
+  @@unique([colaboradorId, hitoPlantillaId])
+  @@map("colaborador_sla_configs")
+}
+
+// ---------------------------------------------------------------------------
+// Asignaciones y tracking de hitos (M11)
+// ---------------------------------------------------------------------------
+
+enum AsignacionEstado {
+  PENDIENTE
+  EN_PROGRESO
+  COMPLETADA
+  BLOQUEADA
+  CANCELADA
+}
+
+enum HitoEstado {
+  PENDIENTE
+  EN_PROGRESO
+  COMPLETADO
+  BLOQUEADO
+  CANCELADO
+}
+
+model ColaboradorAsignacion {
+  id            String           @id @default(cuid())
+  colaboradorId String
+  operacionId   String
+  estado        AsignacionEstado @default(PENDIENTE)
+  notas         String           @default("")
+  assignedAt    DateTime         @default(now())
+  completedAt   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
+  operacion   Operacion   @relation(fields: [operacionId], references: [id])
+  hitos       ColaboradorHito[]
+  documentos  DocumentoColaborador[]
+
+  @@unique([colaboradorId, operacionId])
+  @@index([operacionId, estado])
+  @@index([colaboradorId, estado])
+  @@map("colaborador_asignaciones")
+}
+
+model ColaboradorHito {
+  id              String     @id @default(cuid())
+  asignacionId    String
+  hitoPlantillaId String?
+  nombre          String
+  orden           Int
+  estado          HitoEstado @default(PENDIENTE)
+  iniciadoAt      DateTime?
+  completadoAt    DateTime?
+  slaDias         Int?
+  slaVenceAt      DateTime?
+  notas           String     @default("")
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  asignacion ColaboradorAsignacion @relation(fields: [asignacionId], references: [id], onDelete: Cascade)
+  documentos DocumentoColaborador[]
+
+  @@index([asignacionId, orden])
+  @@index([estado, slaVenceAt])
+  @@map("colaborador_hitos")
+}
+
+model DocumentoColaborador {
+  id            String   @id @default(cuid())
+  asignacionId  String
+  hitoId        String?
+  nombre        String
+  cloudinaryUrl String
+  publicId      String
+  formato       String
+  bytes         Int
+  uploadedBy    String   @default("")
+  createdAt     DateTime @default(now())
+
+  asignacion ColaboradorAsignacion @relation(fields: [asignacionId], references: [id], onDelete: Cascade)
+  hito       ColaboradorHito?      @relation(fields: [hitoId], references: [id], onDelete: SetNull)
+
+  @@index([asignacionId])
+  @@index([hitoId])
+  @@map("documentos_colaborador")
 }
