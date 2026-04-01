@@ -16,6 +16,8 @@ type PropertyPayloadSnapshot = {
   ciudad: string;
   zona: string;
   estado: string;
+  nodisponible?: boolean;
+  prospecto?: boolean;
   fechaAlta: string;
   fechaActualizacion: string;
   numFotos: number;
@@ -30,6 +32,8 @@ type PropertyModifiedAfter = {
   ciudad: string;
   zona: string;
   estado: string;
+  nodisponible?: boolean;
+  prospecto?: boolean;
   fechaActualizacion: string;
 };
 
@@ -48,6 +52,8 @@ function snapshotToUpsertData(
     ciudad: str(snapshot.ciudad),
     zona: str(snapshot.zona),
     estado: str(snapshot.estado),
+    nodisponible: Boolean(snapshot.nodisponible),
+    prospecto: Boolean(snapshot.prospecto),
     fechaAlta: str(snapshot.fechaAlta),
     fechaActualizacion: str(snapshot.fechaActualizacion),
     numFotos: int(snapshot.numFotos),
@@ -128,6 +134,8 @@ export async function applyPropertyProjection(
           ciudad: str(after.ciudad),
           zona: str(after.zona),
           estado: str(after.estado),
+          nodisponible: Boolean(after.nodisponible),
+          prospecto: Boolean(after.prospecto),
           fechaActualizacion: str(after.fechaActualizacion),
           lastEventId: event.id,
           lastEventPosition: event.position,
@@ -141,6 +149,8 @@ export async function applyPropertyProjection(
           ciudad: str(after.ciudad),
           zona: str(after.zona),
           estado: str(after.estado),
+          nodisponible: Boolean(after.nodisponible),
+          prospecto: Boolean(after.prospecto),
           fechaActualizacion: str(after.fechaActualizacion),
           lastEventId: event.id,
           lastEventPosition: event.position,
@@ -166,6 +176,12 @@ export async function applyPropertyProjection(
       });
 
       console.log(`[projection:property] ESTADO_CAMBIADO codigo=${codigo} — upserted`);
+      return { success: true, aggregateId: codigo };
+    }
+
+    case "PROPIEDAD_ELIMINADA": {
+      await prisma.propertyCurrent.deleteMany({ where: { codigo } });
+      console.log(`[projection:property] PROPIEDAD_ELIMINADA codigo=${codigo} — deleted`);
       return { success: true, aggregateId: codigo };
     }
 

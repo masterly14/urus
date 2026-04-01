@@ -8,6 +8,123 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum AggregateType {
+  PROPERTY
+  LEAD
+  DEMAND
+  MATCH
+  SLA
+  SYSTEM
+  WHATSAPP_CONVERSATION
+  OPERACION
+}
+
+enum EventType {
+  PROPIEDAD_CREADA
+  PROPIEDAD_MODIFICADA
+  ESTADO_CAMBIADO
+  PROPIEDAD_ELIMINADA
+  DEMANDA_CREADA
+  DEMANDA_MODIFICADA
+  DEMANDA_ESTADO_CAMBIADO
+  LEAD_INGESTADO
+  LEAD_SCORED
+  LEAD_CONTACTADO
+  SLA_INICIADO
+  DEMANDA_ACTUALIZADA
+  MATCH_GENERADO
+  WHATSAPP_RECIBIDO
+  WHATSAPP_ENVIADO
+  VISITA_EVALUADA
+  VISITA_AGENDADA
+  SELECCION_COMPRADOR
+  SELECCION_VALIDADA
+  SELECCION_RECHAZADA
+  DATOS_INCOMPLETOS
+  CONTRATO_BORRADOR_GENERADO
+  CONTRATO_VERSIONADO
+  CONTRATO_APROBADO
+  FIRMA_ENVIADA
+  FIRMA_COMPLETADA
+  FIRMA_RECHAZADA
+  FIRMA_EXPIRADA
+  FIRMA_RECORDATORIO_ENVIADO
+  FIRMA_SLA_ESCALADO
+  PRICING_ANALISIS_GENERADO
+  PRICING_RECOMENDACION_GENERADA
+  INCIDENCIA_POSTVENTA_ABIERTA
+  INCIDENCIA_POSTVENTA_RESUELTA
+  OPERACION_CERRADA
+  RESENA_SOLICITADA
+  RESENA_RECIBIDA
+  RECORDATORIO_RESENA_ENVIADO
+  REFERIDO_CAPTURADO
+  REFERIDO_ASIGNADO
+  REFERIDO_SOLICITUD_ENVIADA
+}
+
+enum JobType {
+  PROCESS_EVENT
+  UPDATE_PROPERTY_PROJECTION
+  UPDATE_DEMAND_PROJECTION
+  WRITE_TO_INMOVILLA
+  NOTIFY_LEAD_WHATSAPP
+  FOLLOW_UP_LEAD
+  GENERATE_MICROSITE
+  NOTIFY_MICROSITE_PENDING_VALIDATION
+  SEND_MICROSITE_TO_BUYER
+  NOTIFY_CONTRACT_DATA_INCOMPLETE
+  GENERATE_CONTRACT_DRAFT
+  SEND_SIGNATURE_REQUEST
+  PROCESS_SIGNATURE_WEBHOOK
+  NOTIFY_SIGNATURE_REMINDER
+  RUN_PRICING_ANALYSIS
+  NOTIFY_PRICING_WHATSAPP
+  START_POSTVENTA_CADENCE
+  SEND_POSTVENTA_MESSAGE
+  SEND_POST_SALE_MESSAGE
+  SEND_REVIEW_REQUEST
+  SEND_REFERRAL_REQUEST
+  SEND_REVIEW_REMINDER
+}
+
+enum JobStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  DEAD_LETTER
+}
+
+enum ProjectionName {
+  PROPERTIES_CURRENT
+  DEMANDS_CURRENT
+}
+
+enum SignatureRequestStatus {
+  SENT
+  OPENED
+  SIGNED
+  COMPLETED
+  DECLINED
+  EXPIRED
+  CANCELED
+  ERROR
+}
+
+enum MicrositeSelectionStatus {
+  PENDING_VALIDATION
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum MicrositeSelectionDecision {
+  ME_INTERESA
+  NO_ME_ENCAJA
+}
+
+
 model Event {
   id            String        @id @default(cuid())
   position      BigInt        @unique @default(autoincrement())
@@ -79,6 +196,8 @@ model PropertySnapshot {
   ciudad             String   @default("")
   zona               String   @default("")
   estado             String   @default("")
+  nodisponible       Boolean  @default(false)
+  prospecto          Boolean  @default(false)
   fechaAlta          String   @default("")
   fechaActualizacion String   @default("")
   numFotos           Int      @default(0)
@@ -87,8 +206,6 @@ model PropertySnapshot {
   firstSeenAt        DateTime @default(now())
   lastSeenAt         DateTime @default(now())
   updatedAt          DateTime @updatedAt
-  nodisponible       Boolean  @default(false)
-  prospecto          Boolean  @default(false)
 
   @@map("property_snapshots")
 }
@@ -126,6 +243,8 @@ model PropertyCurrent {
   ciudad             String   @default("")
   zona               String   @default("")
   estado             String   @default("")
+  nodisponible       Boolean  @default(false)
+  prospecto          Boolean  @default(false)
   fechaAlta          String   @default("")
   fechaActualizacion String   @default("")
   numFotos           Int      @default(0)
@@ -135,8 +254,6 @@ model PropertyCurrent {
   lastEventAt        DateTime
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
-  nodisponible       Boolean  @default(false)
-  prospecto          Boolean  @default(false)
 
   @@index([estado])
   @@index([ciudad, zona])
@@ -337,183 +454,7 @@ model MicrositeSelectionFeedback {
   @@map("microsite_selection_feedback")
 }
 
-model legal_document_parties {
-  id                String          @id
-  legalDocumentId   String
-  role              String
-  fullName          String
-  nifNie            String?
-  email             String?
-  phone             String?
-  address           String?
-  inmovilla_cod_cli String?
-  hasSigned         Boolean         @default(false)
-  signedAt          DateTime?
-  reminderDay       Int             @default(0)
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime
-  legal_documents   legal_documents @relation(fields: [legalDocumentId], references: [id], onDelete: Cascade)
-
-  @@unique([legalDocumentId, email])
-  @@index([legalDocumentId, hasSigned])
-}
-
-model legal_documents {
-  id                     String                   @id
-  operationId            String
-  propertyCode           String
-  documentKind           String
-  templateVersion        String?
-  status                 LegalDocumentStatus      @default(DRAFT)
-  contractInput          Json?
-  cloudinaryUrl          String?
-  signedDocumentUrl      String?
-  auditTrailUrl          String?
-  approvedAt             DateTime?
-  approvedByUserId       String?
-  completedAt            DateTime?
-  signatureRequestId     String?                  @unique
-  createdAt              DateTime                 @default(now())
-  updatedAt              DateTime
-  legal_document_parties legal_document_parties[]
-  signature_requests     signature_requests?      @relation(fields: [signatureRequestId], references: [id])
-
-  @@unique([operationId, documentKind])
-  @@index([propertyCode])
-  @@index([status])
-}
-
-model signature_requests {
-  id                    String                 @id
-  signaturitSignatureId String                 @unique
-  signaturitDocumentId  String?
-  operationId           String
-  propertyCode          String
-  documentKind          String
-  templateVersion       String?
-  cloudinaryUrl         String
-  signingUrl            String?
-  status                SignatureRequestStatus @default(SENT)
-  signerName            String
-  signerEmail           String
-  signerPhone           String?
-  sentAt                DateTime               @default(now())
-  openedAt              DateTime?
-  signedAt              DateTime?
-  completedAt           DateTime?
-  declinedAt            DateTime?
-  expiredAt             DateTime?
-  slaDeadlineDays       Int                    @default(5)
-  slaDeadline           DateTime
-  lastReminderDay       Int                    @default(0)
-  escalatedAt           DateTime?
-  signedDocumentUrl     String?
-  auditTrailUrl         String?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime
-  legal_documents       legal_documents?
-
-  @@index([operationId])
-  @@index([status, slaDeadline])
-}
-
-enum AggregateType {
-  PROPERTY
-  LEAD
-  DEMAND
-  MATCH
-  SLA
-  SYSTEM
-  WHATSAPP_CONVERSATION
-  OPERACION
-}
-
-enum EventType {
-  PROPIEDAD_CREADA
-  PROPIEDAD_MODIFICADA
-  ESTADO_CAMBIADO
-  LEAD_INGESTADO
-  SLA_INICIADO
-  DEMANDA_ACTUALIZADA
-  MATCH_GENERADO
-  DEMANDA_CREADA
-  DEMANDA_MODIFICADA
-  DEMANDA_ESTADO_CAMBIADO
-  WHATSAPP_RECIBIDO
-  WHATSAPP_ENVIADO
-  LEAD_SCORED
-  LEAD_CONTACTADO
-  VISITA_EVALUADA
-  VISITA_AGENDADA
-  SELECCION_COMPRADOR
-  SELECCION_VALIDADA
-  SELECCION_RECHAZADA
-  DATOS_INCOMPLETOS
-  CONTRATO_BORRADOR_GENERADO
-  CONTRATO_VERSIONADO
-  FIRMA_ENVIADA
-  FIRMA_COMPLETADA
-  FIRMA_RECHAZADA
-  FIRMA_EXPIRADA
-  FIRMA_RECORDATORIO_ENVIADO
-  FIRMA_SLA_ESCALADO
-  CONTRATO_APROBADO
-  PRICING_ANALISIS_GENERADO
-  PROPIEDAD_ELIMINADA
-  OPERACION_CERRADA
-  RESENA_SOLICITADA
-  RESENA_RECIBIDA
-  RECORDATORIO_RESENA_ENVIADO
-  REFERIDO_CAPTURADO
-  REFERIDO_ASIGNADO
-  REFERIDO_SOLICITUD_ENVIADA
-}
-
-enum JobType {
-  PROCESS_EVENT
-  UPDATE_PROPERTY_PROJECTION
-  UPDATE_DEMAND_PROJECTION
-  WRITE_TO_INMOVILLA
-  NOTIFY_LEAD_WHATSAPP
-  FOLLOW_UP_LEAD
-  GENERATE_MICROSITE
-  NOTIFY_MICROSITE_PENDING_VALIDATION
-  SEND_MICROSITE_TO_BUYER
-  NOTIFY_CONTRACT_DATA_INCOMPLETE
-  GENERATE_CONTRACT_DRAFT
-  SEND_SIGNATURE_REQUEST
-  PROCESS_SIGNATURE_WEBHOOK
-  NOTIFY_SIGNATURE_REMINDER
-  SEND_POST_SALE_MESSAGE
-  SEND_REVIEW_REQUEST
-  SEND_REFERRAL_REQUEST
-  SEND_REVIEW_REMINDER
-}
-
-enum JobStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-  FAILED
-  DEAD_LETTER
-}
-
-enum ProjectionName {
-  PROPERTIES_CURRENT
-  DEMANDS_CURRENT
-}
-
-enum MicrositeSelectionStatus {
-  PENDING_VALIDATION
-  APPROVED
-  REJECTED
-  EXPIRED
-}
-
-enum MicrositeSelectionDecision {
-  ME_INTERESA
-  NO_ME_ENCAJA
-}
+// --- Legal Documents (proyección materializada del ciclo contractual) ---
 
 enum LegalDocumentStatus {
   DRAFT
@@ -525,16 +466,95 @@ enum LegalDocumentStatus {
   CANCELED
 }
 
-enum SignatureRequestStatus {
-  SENT
-  OPENED
-  SIGNED
-  COMPLETED
-  DECLINED
-  EXPIRED
-  CANCELED
-  ERROR
+model LegalDocument {
+  id                  String              @id @default(cuid())
+  operationId         String
+  propertyCode        String
+  documentKind        String
+  templateVersion     String?
+  status              LegalDocumentStatus @default(DRAFT)
+  contractInput       Json?
+  cloudinaryUrl       String?
+  signedDocumentUrl   String?
+  auditTrailUrl       String?
+  approvedAt          DateTime?
+  approvedByUserId    String?
+  completedAt         DateTime?
+  signatureRequestId  String?             @unique
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  signatureRequest    SignatureRequest?   @relation(fields: [signatureRequestId], references: [id], onDelete: SetNull)
+  parties             LegalDocumentParty[]
+
+  @@unique([operationId, documentKind])
+  @@index([propertyCode])
+  @@index([status])
+  @@map("legal_documents")
 }
+
+model LegalDocumentParty {
+  id                String        @id @default(cuid())
+  legalDocumentId   String
+  role              String
+  fullName          String
+  nifNie            String?
+  email             String?
+  phone             String?
+  address           String?
+  inmovilla_cod_cli String?
+  hasSigned         Boolean       @default(false)
+  signedAt          DateTime?
+  reminderDay       Int           @default(0)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  legalDocument     LegalDocument @relation(fields: [legalDocumentId], references: [id], onDelete: Cascade)
+
+  @@unique([legalDocumentId, email])
+  @@index([legalDocumentId, hasSigned])
+  @@map("legal_document_parties")
+}
+
+model SignatureRequest {
+  id                     String                 @id @default(cuid())
+  signaturitSignatureId  String                 @unique
+  signaturitDocumentId   String?
+  operationId            String
+  propertyCode           String
+  documentKind           String
+  templateVersion        String?
+  cloudinaryUrl          String
+  signingUrl             String?
+  status                 SignatureRequestStatus  @default(SENT)
+  signerName             String
+  signerEmail            String
+  signerPhone            String?
+  sentAt                 DateTime               @default(now())
+  openedAt               DateTime?
+  signedAt               DateTime?
+  completedAt            DateTime?
+  declinedAt             DateTime?
+  expiredAt              DateTime?
+  slaDeadlineDays        Int                    @default(5)
+  slaDeadline            DateTime
+  lastReminderDay        Int                    @default(0)
+  escalatedAt            DateTime?
+  signedDocumentUrl      String?
+  auditTrailUrl          String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  legalDocument          LegalDocument?
+
+  @@index([status, slaDeadline])
+  @@index([operationId])
+  @@map("signature_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Referidos (M9)
+// ---------------------------------------------------------------------------
 
 enum ReferralStatus {
   PENDIENTE_ASIGNACION
@@ -570,15 +590,13 @@ model Referral {
 // ---------------------------------------------------------------------------
 
 model CommercialLeadFact {
-  /// Lead aggregateId (EventStore aggregateId)
   leadId String @id
 
-  /// Id del evento LEAD_INGESTADO que originó el lead (si se conoce)
   ingestedEventId String? @unique
 
-  tipo   String @default("") // comprador | propietario
+  tipo   String @default("")
   ciudad String @default("")
-  source String @default("") // origen (web, inmovilla, referido...)
+  source String @default("")
 
   score    Int?
   slaLevel String?
@@ -612,10 +630,9 @@ model CommercialVisitFact {
   comercialId     String?
   comercialNombre String @default("")
 
-  /// Fecha/hora original del microsite de agenda (para evitar problemas de TZ)
-  fecha      String @default("") // YYYY-MM-DD
-  horaInicio String @default("") // HH:mm
-  horaFin    String @default("") // HH:mm
+  fecha      String @default("")
+  horaInicio String @default("")
+  horaFin    String @default("")
   scheduledAt DateTime?
 
   ubicacion String @default("")
@@ -643,7 +660,7 @@ model CommercialVisitEvaluationFact {
   comercialId     String?
   comercialNombre String @default("")
 
-  interes String @default("") // alto | medio | bajo
+  interes String @default("")
   notas   String @default("")
 
   createdAt DateTime @default(now())
@@ -671,8 +688,6 @@ model CommercialOperationFact {
   firstSeenAt DateTime?
   daysToClose Int?
 
-  /// Importe bruto (p.ej. precio de la propiedad). La "facturación" (comisión)
-  /// se calcula a partir de este valor con una regla configurable.
   grossAmountEur Float?
 
   comercialId     String?

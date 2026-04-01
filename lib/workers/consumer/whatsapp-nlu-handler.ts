@@ -19,6 +19,7 @@ import { appendEvent } from "@/lib/event-store";
 import type { JsonValue } from "@/lib/event-store/types";
 import { prisma } from "@/lib/prisma";
 import { classifyWhatsAppResponse } from "@/lib/agents";
+import { enqueueJob } from "@/lib/job-queue";
 
 type WhatsAppReceivedPayload = {
   messageId?: string;
@@ -106,9 +107,98 @@ async function resolveDemandContextFromReply(
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Post-Venta: intercepción de botones D3 (Todo OK / Necesito ayuda)
+// ---------------------------------------------------------------------------
+
+type PostventaButtonAction = { action: "ok" | "ayuda"; propertyCode: string };
+
+export function extractPostventaPayload(
+  p: WhatsAppReceivedPayload,
+): PostventaButtonAction | null {
+  const buttonPayload = p.button?.payload ?? "";
+  const interactiveId = p.interactive?.button_reply?.id ?? "";
+  const raw = buttonPayload || interactiveId;
+  if (!raw) return null;
+
+  if (raw.startsWith("POSTVENTA_OK:")) {
+    return { action: "ok", propertyCode: raw.slice("POSTVENTA_OK:".length) };
+  }
+  if (raw.startsWith("POSTVENTA_AYUDA:")) {
+    return { action: "ayuda", propertyCode: raw.slice("POSTVENTA_AYUDA:".length) };
+  }
+  return null;
+}
+
+async function handlePostventaButton(
+  pv: PostventaButtonAction,
+  event: Event,
+  waId: string,
+): Promise<HandlerResult> {
+  if (pv.action === "ok") {
+    console.log(
+      `[consumer:whatsapp] POSTVENTA_OK waId=${waId} propertyCode=${pv.propertyCode}`,
+    );
+    return { success: true };
+  }
+
+  const incidenciaEvent = await appendEvent({
+    type: "INCIDENCIA_POSTVENTA_ABIERTA",
+    aggregateType: "PROPERTY",
+    aggregateId: pv.propertyCode,
+    payload: {
+      buyerPhone: waId,
+      source: "whatsapp_button",
+      description: "",
+      openedAt: new Date().toISOString(),
+    } as unknown as JsonValue,
+    correlationId: event.correlationId ?? undefined,
+    causationId: event.id,
+  });
+
+  const followUpJobs: EnqueueJobInput[] = [
+    {
+      type: "PROCESS_EVENT",
+      payload: { eventId: incidenciaEvent.id, eventType: incidenciaEvent.type },
+      sourceEventId: incidenciaEvent.id,
+      idempotencyKey: `process-event:${incidenciaEvent.id}`,
+    },
+  ];
+
+  const alertPhone = process.env.ALERT_WHATSAPP_TO;
+  if (alertPhone) {
+    await enqueueJob({
+      type: "NOTIFY_LEAD_WHATSAPP",
+      payload: {
+        assignedAgentTelefono: alertPhone,
+        leadAggregateId: pv.propertyCode,
+        score: 0,
+        slaLevel: "INCIDENCIA_POSTVENTA",
+      },
+      idempotencyKey: `notify_incidencia_wa:${incidenciaEvent.id}`,
+      sourceEventId: incidenciaEvent.id,
+    });
+  }
+
+  console.log(
+    `[consumer:whatsapp] POSTVENTA_AYUDA waId=${waId} propertyCode=${pv.propertyCode} — incidencia abierta`,
+  );
+
+  return { success: true, followUpJobs };
+}
+
+// ---------------------------------------------------------------------------
+// Handler principal
+// ---------------------------------------------------------------------------
+
 export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResult> {
   const payload = event.payload as WhatsAppReceivedPayload;
   const waId = event.aggregateId;
+
+  const postventaAction = extractPostventaPayload(payload);
+  if (postventaAction) {
+    return handlePostventaButton(postventaAction, event, waId);
+  }
 
   const messageText = extractMessageText(payload);
   if (!messageText) {

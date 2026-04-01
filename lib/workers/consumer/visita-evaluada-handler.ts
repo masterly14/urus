@@ -40,6 +40,7 @@ interface VisitaEvaluadaPayload {
   interes: "alto" | "medio" | "bajo";
   notas: string;
   comercialId: string;
+  propertyCode?: string;
 }
 
 function parsePayload(payload: unknown): VisitaEvaluadaPayload {
@@ -48,6 +49,7 @@ function parsePayload(payload: unknown): VisitaEvaluadaPayload {
     interes: (p.interes as "alto" | "medio" | "bajo") ?? "bajo",
     notas: typeof p.notas === "string" ? p.notas : "",
     comercialId: typeof p.comercialId === "string" ? p.comercialId : "system",
+    propertyCode: typeof p.propertyCode === "string" ? p.propertyCode : undefined,
   };
 }
 

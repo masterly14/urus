@@ -23,6 +23,8 @@ export interface Property {
   ciudad: string;
   zona: string;
   estado: string;
+  nodisponible: boolean;
+  prospecto: boolean;
   fechaAlta: string;
   fechaActualizacion: string;
   numFotos: number;

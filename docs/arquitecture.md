@@ -750,7 +750,7 @@ flowchart TD
 
     I --> M[Enviar a firma digital]
     M --> N{¿Firmado?}
-    N -->|No| O[Recordatorios automáticos + seguimiento]
+    N -->|No| O[Recordatorios WhatsApp +1/+3/+5 días + escalado SLA 5d]
     N -->|Sí| P[Guardar firmado + adjuntar en Inmovilla vía Egestion Worker]
     P --> Q[Actualizar Inmovilla: estado, fechas, docs, auditoría]
 ```
@@ -778,11 +778,7 @@ Si hay ambigüedad (confidence score bajo), el sistema pregunta al gestor: "¿qu
 
 ### Firma Digital
 
-Integración programática con servicios de firma electrónica:
-
-- **Signaturit** (habitual en España) / DocuSign / Dropbox Sign.
-- Envío y seguimiento automatizado desde API Routes de Next.js.
-- Recordatorios automáticos si no se firma.
+Misma especificación que en **README** (Smart Closing): proveedor **Signaturit** / DocuSign / Dropbox Sign vía **API REST** y **webhook**; recordatorios y escalados por **WhatsApp Cloud API (Meta)** con **plantillas aprobadas**; **SLA 5 días naturales**; cadencia **+1/+3/+5** días; escalado a comercial y gestor; orquestación con **QStash**/cron; documentación de plantillas y mapeo webhook → Neon. Ver README, sección *Firma Digital*.
 
 ### Control de Versiones y Auditoría
 
@@ -824,7 +820,8 @@ El gestor dice "modifica X", el sistema cambia variable/bloque, regenera el docu
 **SYS:**
 - Genera borradores, versiona y registra cambios.
 - Interpreta voz y transforma en instrucciones estructuradas.
-- Envía a firma digital y archiva.
+- Envía a firma digital (API proveedor), procesa **webhook** de resultado y archiva.
+- Lanza **recordatorios por WhatsApp** (+1/+3/+5 días) y **escalado** a comercial y gestor si se incumple el **SLA de 5 días naturales**.
 - Actualiza Inmovilla con todo (incluyendo auditoría).
 
 ### Tiempo Ahorrado
@@ -1610,7 +1607,7 @@ El sistema ofrece lectura **estratégica**, no psicológica:
 |---|---|---|
 | **Autenticación Inmovilla (2FA)** | **Composio + Gmail** | Obtención automática del código de verificación por correo: acción Composio sobre Gmail (listar/buscar correos de Inmovilla), extracción del código de 6 dígitos, envío a `login2Fa/verifyCode`. Ver `docs/workers/inmovilla-endpoints.md`. |
 | WhatsApp Business | **360dialog / Twilio / MessageBird** | API directa desde código (webhooks + envíos) |
-| Firma digital | **Signaturit / DocuSign** | API REST desde Next.js |
+| Firma digital | **Signaturit / DocuSign** | API REST desde Next.js; webhooks; recordatorios y escalados **SLA** vía **WhatsApp** (plantillas Meta). Detalle: README *Smart Closing* → *Firma Digital*. |
 | Calendario | **Google Calendar API** | Micro-frontend de booking |
 | Almacenamiento | **S3-compatible** | Documentos, contratos, adjuntos |
 

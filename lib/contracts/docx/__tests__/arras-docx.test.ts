@@ -3,7 +3,9 @@ import type { ArrasContractPayload, ContractTemplateInput } from "@/types/contra
 import { buildArrasRenderModel } from "../builders/arras";
 import { generateContractDocx } from "../index";
 
-function buildArrasInput(overrides?: Partial<ArrasContractPayload>): ContractTemplateInput {
+type ArrasInput = Extract<ContractTemplateInput, { kind: "arras" }>;
+
+function buildArrasInput(overrides?: Partial<ArrasContractPayload>): ArrasInput {
   const basePayload: ArrasContractPayload = {
     documentDateIso: "2026-05-21",
     signPlace: "Cordoba",
@@ -87,6 +89,15 @@ describe("contracts/docx arras generator", () => {
     expect(result.buffer.length).toBeGreaterThan(1000);
     expect(result.buffer.subarray(0, 2).toString()).toBe("PK");
     expect(result.fileName).toContain("Contrato_Arras");
+  });
+
+  it("usa basename canónico sin prefijo Contrato_Arras cuando templateVersion es stem M8", async () => {
+    const input = buildArrasInput();
+    input.templateVersion = "OP-2026-0001_Arras_v1";
+    const result = await generateContractDocx(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.fileName).toBe("OP-2026-0001_Arras_v1.docx");
   });
 
   it("renderiza clausula penitencial o confirmatoria segun flags.arrasRegime", () => {

@@ -17,6 +17,7 @@ import {
   buildGastosClause,
   buildKeysClause,
 } from "../blocks/shared";
+import { buildLogoHeaderParagraphs } from "../blocks/logo-header";
 import {
   formatDateEsFromIso,
   formatMoneyAmountEur,
@@ -31,10 +32,12 @@ export interface ArrasRenderModel {
   signatureLine: string;
 }
 
+const FONT = "Calibri";
+
 function heading(text: string): Paragraph {
   return new Paragraph({
     spacing: { before: 260, after: 140 },
-    children: [new TextRun({ text, bold: true, size: 24 })],
+    children: [new TextRun({ text, bold: true, size: 24, font: FONT, color: "1A365D" })],
   });
 }
 
@@ -43,7 +46,7 @@ function body(text: string): Paragraph {
     spacing: { after: 140, line: 360, lineRule: LineRuleType.AUTO },
     indent: { firstLine: 420 },
     alignment: AlignmentType.JUSTIFIED,
-    children: [new TextRun({ text, size: 24 })],
+    children: [new TextRun({ text, size: 24, font: FONT })],
   });
 }
 
@@ -109,16 +112,17 @@ export function buildArrasRenderModel(payload: ArrasContractPayload): ArrasRende
   return { title, paragraphs, signatureLine };
 }
 
-export function buildArrasDocument(payload: ArrasContractPayload): Document {
+export async function buildArrasDocument(payload: ArrasContractPayload): Promise<Document> {
   const model = buildArrasRenderModel(payload);
   const p = model.paragraphs;
+  const logoHeader = await buildLogoHeaderParagraphs();
 
   return new Document({
     styles: {
       default: {
         document: {
           run: {
-            font: "Times New Roman",
+            font: FONT,
             size: 24,
           },
           paragraph: {
@@ -134,11 +138,12 @@ export function buildArrasDocument(payload: ArrasContractPayload): Document {
       {
         properties: {},
         children: [
+          ...logoHeader,
           new Paragraph({
             heading: HeadingLevel.HEADING_1,
             spacing: { after: 260 },
             alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: model.title, bold: true, color: "2F6DB5", size: 36 })],
+            children: [new TextRun({ text: model.title, bold: true, color: "1A365D", size: 36, font: FONT })],
           }),
           heading("REUNIDOS"),
           body(p[0]),

@@ -276,7 +276,7 @@ describe("handleGenerateContractDraft — E2E happy path", () => {
       ok: true,
       input: {
         kind: "arras",
-        templateVersion: "m8-v1",
+        templateVersion: "OP-1001_Arras_v1",
         payload: {
           documentDateIso: "2026-05-21",
           signPlace: "Cordoba",
@@ -335,9 +335,9 @@ describe("handleGenerateContractDraft — E2E happy path", () => {
     });
 
     mockUpload.mockResolvedValue({
-      publicId: "contracts/OP-1001/Contrato_Arras_m8-v1",
-      secureUrl: "https://res.cloudinary.com/demo/raw/upload/contracts/OP-1001/Contrato_Arras_m8-v1.docx",
-      url: "http://res.cloudinary.com/demo/raw/upload/contracts/OP-1001/Contrato_Arras_m8-v1.docx",
+      publicId: "contracts/OP-1001/OP-1001_Arras_v1.docx",
+      secureUrl: "https://res.cloudinary.com/demo/raw/upload/contracts/OP-1001/OP-1001_Arras_v1.docx",
+      url: "http://res.cloudinary.com/demo/raw/upload/contracts/OP-1001/OP-1001_Arras_v1.docx",
       bytes: 12345,
       format: "docx",
       resourceType: "raw",
@@ -367,7 +367,10 @@ describe("handleGenerateContractDraft — E2E happy path", () => {
     // Extracción invocada
     expect(mockBuildPayload).toHaveBeenCalledTimes(1);
     expect(mockBuildPayload).toHaveBeenCalledWith(
-      expect.objectContaining({ propertyCode: "1001" }),
+      expect.objectContaining({
+        propertyCode: "1001",
+        templateVersion: "OP-1001_Arras_v1",
+      }),
       expect.anything(),
     );
 
@@ -394,11 +397,12 @@ describe("handleGenerateContractDraft — E2E happy path", () => {
     expect(eventPayload.documentKind).toBe("arras");
     expect(eventPayload.cloudinary).toEqual(
       expect.objectContaining({
-        publicId: expect.stringContaining("Contrato_Arras"),
+        publicId: expect.stringContaining("OP-1001_Arras_v1"),
         secureUrl: expect.stringContaining("cloudinary.com"),
         bytes: 12345,
       }),
     );
+    expect(eventPayload.templateVersion).toBe("OP-1001_Arras_v1");
 
     // No se llamó a emitContractDataIncomplete
     expect(mockEmitIncomplete).not.toHaveBeenCalled();

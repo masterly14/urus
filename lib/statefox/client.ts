@@ -154,7 +154,20 @@ export async function getProperties(
     params.insert = filters.insert;
   }
 
-  return client.get<GetPropertiesResponse>("/properties", params);
+  const raw = await client.get<{
+    properties?: Record<string, unknown>;
+    result?: Record<string, unknown>;
+    meta?: unknown;
+  }>("/properties", params);
+
+  // Compatibilidad: la documentación interna usa `properties`, pero la API real
+  // puede responder con `result`. Normalizamos a `properties`.
+  const normalizedProperties = (raw.properties ?? raw.result ?? {}) as Record<string, unknown>;
+
+  return {
+    properties: normalizedProperties as GetPropertiesResponse["properties"],
+    meta: (raw.meta ?? {}) as GetPropertiesResponse["meta"],
+  };
 }
 
 /**

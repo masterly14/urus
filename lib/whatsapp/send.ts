@@ -354,7 +354,7 @@ export async function sendMicrositeValidationEscalation(
 }
 
 // ---------------------------------------------------------------------------
-// Post-Venta (M9) — cadencia de mensajes al cliente tras cierre
+// Post-Venta (M9) — cadencia de mensajes al cliente tras cierre (MVP simple)
 // ---------------------------------------------------------------------------
 
 export type PostSalePhase =
@@ -439,10 +439,6 @@ const PHASE_BUILDERS: Record<
   recaptacion: buildRecaptacionMessage,
 };
 
-/**
- * Envía un mensaje de post-venta genérico (agradecimiento / soporte / re-captación).
- * MVP: texto libre. Producción: plantilla aprobada por fase.
- */
 export async function sendPostSaleMessage(
   to: string,
   params: PostSaleMessageParams,
@@ -461,11 +457,6 @@ export interface ReviewRequestParams {
   googleReviewUrl?: string;
 }
 
-/**
- * Solicita una reseña de Google al cliente (fase 3 de post-venta).
- * Solo se envía si no hay incidencias abiertas.
- * MVP: texto libre. Producción: plantilla "solicitud_resena".
- */
 export async function sendReviewRequest(
   to: string,
   params: ReviewRequestParams,
@@ -495,10 +486,6 @@ export interface ReviewReminderParams {
   googleReviewUrl?: string;
 }
 
-/**
- * Recordatorio de reseña (D+17 aprox): se envía si el cliente no respondió a la solicitud inicial.
- * MVP: texto libre. Producción: plantilla "recordatorio_resena" (es_ES).
- */
 export async function sendReviewReminder(
   to: string,
   params: ReviewReminderParams,
@@ -527,10 +514,6 @@ export interface ReferralRequestParams {
   referralFormUrl?: string;
 }
 
-/**
- * Activa referidos (fase 4 de post-venta): mensaje personalizado según tipo de cliente.
- * MVP: texto libre. Producción: plantilla "activacion_referidos".
- */
 export async function sendReferralRequest(
   to: string,
   params: ReferralRequestParams,
@@ -558,4 +541,510 @@ export async function sendReferralRequest(
     lines.push(``, `Responda con el nombre y teléfono, y nos pondremos en contacto.`);
   }
   return sendTextMessage(to, lines.join("\n"), options);
+}
+
+// ---------------------------------------------------------------------------
+// Firma digital — recordatorios y escalado (M8 Smart Closing)
+// ---------------------------------------------------------------------------
+
+export type SignatureReminderParams = {
+  signerName: string;
+  documentKind: string;
+  operationRef: string;
+  signingUrl: string;
+};
+
+const REMINDER_TEMPLATE_NAMES: Record<number, string> = {
+  1:
+    process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D1 ??
+    "contrato_firma_recordatorio_d1",
+  3:
+    process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D3 ??
+    "contrato_firma_recordatorio_d3",
+  5:
+    process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D5 ??
+    "contrato_firma_recordatorio_d5",
+};
+
+export async function sendSignatureReminderToSigner(
+  to: string,
+  params: SignatureReminderParams & { reminderDay: number },
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  const templateName = REMINDER_TEMPLATE_NAMES[params.reminderDay];
+
+  if (options?.useTemplate && templateName) {
+    const template: TemplateObject = {
+      name: templateName,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.signerName },
+            { type: "text", text: params.documentKind },
+            { type: "text", text: params.operationRef },
+            { type: "text", text: params.signingUrl },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const isLast = params.reminderDay >= 5;
+  const lines = [
+    `📄 *Recordatorio: documento pendiente de firma*`,
+    ``,
+    `• Firmante: ${params.signerName}`,
+    `• Documento: ${params.documentKind}`,
+    `• Referencia: ${params.operationRef}`,
+    ``,
+    `Firma aquí: ${params.signingUrl}`,
+  ];
+  if (isLast) {
+    lines.push(
+      ``,
+      `⚠️ Este es el último recordatorio automático antes del escalado.`,
+    );
+  }
+  return sendTextMessage(to, lines.join("\n"), options);
+}
+
+export type SignatureSlaEscalationParams = {
+  operationRef: string;
+  documentKind: string;
+  trackingUrl: string;
+};
+
+const SLA_ESCALATION_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_SLA_ESCALADO ??
+  "contrato_firma_sla_escalado";
+
+export async function sendSignatureSlaEscalation(
+  to: string,
+  params: SignatureSlaEscalationParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: SLA_ESCALATION_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.operationRef },
+            { type: "text", text: params.documentKind },
+            { type: "text", text: params.trackingUrl },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const lines = [
+    `🔴 *SLA de firma incumplido*`,
+    ``,
+    `• Operación: ${params.operationRef}`,
+    `• Documento: ${params.documentKind}`,
+    ``,
+    `Han pasado más de 5 días sin firma completa.`,
+    `Seguimiento: ${params.trackingUrl}`,
+  ];
+  return sendTextMessage(to, lines.join("\n"), options);
+}
+
+// ---------------------------------------------------------------------------
+// Smart Closing — notificaciones de borrador, envío a firma y post-firma (M8)
+// ---------------------------------------------------------------------------
+
+export type ContractDraftReadyParams = {
+  operationId: string;
+  documentKind: string;
+  cloudinaryUrl: string;
+  legalUiUrl: string;
+};
+
+export async function sendContractDraftReadyNotification(
+  to: string,
+  params: ContractDraftReadyParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const lines = [
+    `📄 *Borrador de contrato listo*`,
+    ``,
+    `• Operación: ${params.operationId}`,
+    `• Tipo: ${params.documentKind}`,
+    ``,
+    `Documento: ${params.cloudinaryUrl}`,
+    ``,
+    `Revisar en el panel:`,
+    params.legalUiUrl,
+  ];
+  return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
+}
+
+export type SignatureInitialNotificationParams = {
+  signerName: string;
+  documentKind: string;
+  operationRef: string;
+  signingUrl: string;
+};
+
+const FIRMA_ENVIADA_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_ENVIADA ??
+  "contrato_firma_enviada";
+
+export async function sendSignatureInitialNotification(
+  to: string,
+  params: SignatureInitialNotificationParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: FIRMA_ENVIADA_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.signerName },
+            { type: "text", text: params.documentKind },
+            { type: "text", text: params.operationRef },
+            { type: "text", text: params.signingUrl },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const lines = [
+    `📄 *Documento pendiente de firma*`,
+    ``,
+    `• Firmante: ${params.signerName}`,
+    `• Documento: ${params.documentKind}`,
+    `• Referencia: ${params.operationRef}`,
+    ``,
+    `Firma aquí: ${params.signingUrl}`,
+  ];
+  return sendTextMessage(to, lines.join("\n"), options);
+}
+
+export type FirmaCompletadaConfirmationParams = {
+  operationRef: string;
+  documentKind: string;
+  legalDocUrl: string;
+};
+
+export async function sendFirmaCompletadaConfirmation(
+  to: string,
+  params: FirmaCompletadaConfirmationParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const lines = [
+    `✅ *Documento firmado correctamente*`,
+    ``,
+    `• Operación: ${params.operationRef}`,
+    `• Documento: ${params.documentKind}`,
+    ``,
+    `Todas las partes han firmado.`,
+    `Ver documento: ${params.legalDocUrl}`,
+  ];
+  return sendTextMessage(to, lines.join("\n"), options);
+}
+
+// ---------------------------------------------------------------------------
+// Motor de Pricing — informe generado (M7)
+// ---------------------------------------------------------------------------
+
+export type PricingReportParams = {
+  comercialNombre: string;
+  propertyCode: string;
+  semaforo: string;
+  gapPorcentaje: string;
+  informeUrl: string;
+};
+
+const PRICING_INFORME_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_PRICING_INFORME ?? "pricing_informe_listo";
+
+export async function sendPricingReportToCommercial(
+  to: string,
+  params: PricingReportParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: PRICING_INFORME_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.comercialNombre },
+            { type: "text", text: params.propertyCode },
+            { type: "text", text: params.semaforo },
+            { type: "text", text: params.gapPorcentaje },
+            { type: "text", text: params.informeUrl },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const lines = [
+    `📊 *Informe de pricing generado*`,
+    ``,
+    `• Inmueble: ${params.propertyCode}`,
+    `• Semáforo: ${params.semaforo}`,
+    `• Gap vs mercado: ${params.gapPorcentaje}`,
+    ``,
+    `Consulta el informe completo:`,
+    params.informeUrl,
+  ];
+  return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
+}
+
+// ---------------------------------------------------------------------------
+// Post-Venta — cadencias automatizadas con plantillas (M9)
+// ---------------------------------------------------------------------------
+
+export type PostventaAgradecimientoParams = {
+  buyerName: string;
+  agencyName: string;
+  comercialName: string;
+};
+
+const POSTVENTA_AGRADECIMIENTO_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_POSTVENTA_AGRADECIMIENTO ??
+  "postventa_agradecimiento";
+
+export async function sendPostventaAgradecimiento(
+  to: string,
+  params: PostventaAgradecimientoParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: POSTVENTA_AGRADECIMIENTO_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.buyerName },
+            { type: "text", text: params.agencyName },
+            { type: "text", text: params.comercialName },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const lines = [
+    `🎉 *¡Enhorabuena por tu nueva vivienda!*`,
+    ``,
+    `Hola ${params.buyerName}, gracias por confiar en ${params.agencyName} y en tu agente ${params.comercialName}.`,
+    ``,
+    `Si necesitas algo durante estos primeros días, estamos aquí. ¡Disfrútala!`,
+  ];
+  return sendTextMessage(to, lines.join("\n"), options);
+}
+
+export type PostventaSoporteParams = {
+  buyerName: string;
+  guideUrl: string;
+  propertyCode: string;
+};
+
+const POSTVENTA_SOPORTE_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_POSTVENTA_SOPORTE ?? "postventa_soporte";
+
+export async function sendPostventaSoporte(
+  to: string,
+  params: PostventaSoporteParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: POSTVENTA_SOPORTE_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.buyerName },
+            { type: "text", text: params.guideUrl },
+          ],
+        },
+        {
+          type: "button",
+          sub_type: "quick_reply",
+          index: "0",
+          parameters: [{ type: "payload", payload: `POSTVENTA_OK:${params.propertyCode}` }],
+        },
+        {
+          type: "button",
+          sub_type: "quick_reply",
+          index: "1",
+          parameters: [{ type: "payload", payload: `POSTVENTA_AYUDA:${params.propertyCode}` }],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const bodyText = [
+    `🏠 *¿Todo bien con tu nueva vivienda?*`,
+    ``,
+    `Hola ${params.buyerName}, ya llevas unos días en tu nuevo hogar.`,
+    `¿Todo correcto con la entrega, llaves y suministros?`,
+    ``,
+    `Accede a nuestra guía práctica aquí:`,
+    params.guideUrl,
+  ].join("\n");
+
+  const interactive: InteractiveObject = {
+    type: "button",
+    body: { text: bodyText },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: `POSTVENTA_OK:${params.propertyCode}`, title: "Todo OK ✅" } },
+        { type: "reply", reply: { id: `POSTVENTA_AYUDA:${params.propertyCode}`, title: "Necesito ayuda" } },
+      ],
+    },
+  };
+  return sendInteractiveMessage(to, interactive, options);
+}
+
+export type PostventaResenaParams = {
+  buyerName: string;
+  reviewUrl: string;
+};
+
+const POSTVENTA_RESENA_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_POSTVENTA_RESENA ?? "postventa_resena";
+
+export async function sendPostventaResena(
+  to: string,
+  params: PostventaResenaParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: POSTVENTA_RESENA_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.buyerName },
+            { type: "text", text: params.reviewUrl },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const lines = [
+    `⭐ *Tu opinión nos ayuda mucho*`,
+    ``,
+    `Hola ${params.buyerName}, nos alegra que todo vaya bien.`,
+    `¿Podrías dejarnos una reseña? Solo toma un minuto:`,
+    params.reviewUrl,
+    ``,
+    `¡Gracias!`,
+  ];
+  return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
+}
+
+export type PostventaReferidosParams = {
+  buyerName: string;
+  referralUrl: string;
+};
+
+const POSTVENTA_REFERIDOS_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_POSTVENTA_REFERIDOS ?? "postventa_referidos";
+
+export async function sendPostventaReferidos(
+  to: string,
+  params: PostventaReferidosParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: POSTVENTA_REFERIDOS_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.buyerName },
+            { type: "text", text: params.referralUrl },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const lines = [
+    `🤝 *¿Conoces a alguien que busque vivienda?*`,
+    ``,
+    `Hola ${params.buyerName}, si conoces a alguien que esté pensando en comprar o vender,`,
+    `estaremos encantados de ayudarle como hicimos contigo.`,
+    ``,
+    `Comparte este enlace:`,
+    params.referralUrl,
+  ];
+  return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
+}
+
+export type PostventaRecaptacionParams = {
+  buyerName: string;
+  comercialName: string;
+  contactUrl: string;
+};
+
+const POSTVENTA_RECAPTACION_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_POSTVENTA_RECAPTACION ??
+  "postventa_recaptacion";
+
+export async function sendPostventaRecaptacion(
+  to: string,
+  params: PostventaRecaptacionParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (options?.useTemplate) {
+    const template: TemplateObject = {
+      name: POSTVENTA_RECAPTACION_TEMPLATE,
+      language: { code: "es_ES" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.buyerName },
+            { type: "text", text: params.comercialName },
+            { type: "text", text: params.contactUrl },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const lines = [
+    `👋 *¿Cómo va todo en tu vivienda?*`,
+    ``,
+    `Hola ${params.buyerName}, han pasado unos meses y queríamos saber si necesitas algo.`,
+    `Si te planteas vender o conoces a alguien interesado, tu agente ${params.comercialName} está disponible:`,
+    params.contactUrl,
+  ];
+  return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
 }

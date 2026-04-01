@@ -35,10 +35,26 @@ export function isSmartClosingTrigger(newEstado: string): boolean {
 }
 
 /**
+ * Estados de Inmovilla que indican cierre definitivo de una operación.
+ * Disparan la cadencia de post-venta (M9).
+ */
+export const OPERACION_CERRADA_KEYWORDS = [
+  "vendido",
+  "vendida",
+  "alquilado",
+  "alquilada",
+] as const;
+
+export function isOperacionCerrada(newEstado: string): boolean {
+  const normalized = newEstado.toLowerCase();
+  return OPERACION_CERRADA_KEYWORDS.some((kw) => normalized.includes(kw));
+}
+
+/**
  * Handler de ESTADO_CAMBIADO que:
  *  1. Siempre encola UPDATE_PROPERTY_PROJECTION (preserva comportamiento existente).
  *  2. Si `newEstado` matchea con estados de Reserva/Arras, encola GENERATE_CONTRACT_DRAFT.
- *  3. Si `newEstado` indica cierre (vendido/alquilado), emite OPERACION_CERRADA.
+ *  3. Si `newEstado` indica cierre (vendido/alquilado), emite OPERACION_CERRADA y encola START_POSTVENTA_CADENCE.
  */
 export async function handleEstadoCambiado(event: Event): Promise<HandlerResult> {
   const followUpJobs: EnqueueJobInput[] = [
@@ -95,15 +111,28 @@ export async function handleEstadoCambiado(event: Event): Promise<HandlerResult>
       causationId: event.id,
     });
 
-    followUpJobs.push({
-      type: "PROCESS_EVENT",
-      payload: { eventId: closedEvent.id },
-      idempotencyKey: `process_operacion_cerrada:${propertyCode}:${event.id}`,
-      sourceEventId: closedEvent.id,
-    });
+    followUpJobs.push(
+      {
+        type: "PROCESS_EVENT",
+        payload: { eventId: closedEvent.id },
+        idempotencyKey: `process_operacion_cerrada:${propertyCode}:${event.id}`,
+        sourceEventId: closedEvent.id,
+      },
+      {
+        type: "START_POSTVENTA_CADENCE",
+        payload: {
+          propertyCode,
+          newEstado: payload.newEstado,
+          closedAt: new Date().toISOString(),
+          sourceEventId: event.id,
+        },
+        idempotencyKey: `start_postventa:${propertyCode}:${event.id}`,
+        sourceEventId: event.id,
+      },
+    );
 
     console.log(
-      `[post-sale] ESTADO_CAMBIADO → "${payload.previousEstado}" → "${payload.newEstado}" para ${propertyCode} — OPERACION_CERRADA emitida (${closedEvent.id})`,
+      `[post-sale] ESTADO_CAMBIADO → "${payload.previousEstado}" → "${payload.newEstado}" para ${propertyCode} — OPERACION_CERRADA emitida (${closedEvent.id}) + cadencia post-venta`,
     );
   }
 

@@ -20,6 +20,7 @@ export {
   sendReviewRequest,
   sendReviewReminder,
   sendReferralRequest,
+  sendPricingReportToCommercial,
 } from "./send";
 
 export type {
@@ -29,6 +30,7 @@ export type {
   ReviewRequestParams,
   ReviewReminderParams,
   ReferralRequestParams,
+  PricingReportParams,
 } from "./send";
 
 export {

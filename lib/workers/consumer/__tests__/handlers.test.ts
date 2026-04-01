@@ -119,6 +119,8 @@ describe("placeholder handlers", () => {
     "SELECCION_COMPRADOR",
     "SELECCION_VALIDADA",
     "SELECCION_RECHAZADA",
+    "CONTRATO_BORRADOR_GENERADO",
+    "CONTRATO_VERSIONADO",
   ];
 
   for (const eventType of placeholderTypes) {

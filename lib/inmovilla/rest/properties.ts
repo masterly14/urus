@@ -11,6 +11,7 @@ import type {
   CreatePropertyResponse,
 } from "./types";
 import type { InmovillaProperty } from "@/lib/inmovilla/api/types";
+import type { EnumLookupMaps } from "./enum-lookup";
 
 /**
  * Obtiene el listado de propiedades/prospectos ordenado por fecha de actualización.
@@ -43,11 +44,40 @@ export async function getProperty(
 /**
  * Convierte la respuesta REST (PropiedadCompleta) al formato InmovillaProperty del worker.
  * Fuerza todos los campos a sus tipos esperados por Prisma (String/Number).
+ *
+ * Si se pasan `enumMaps`, resuelve key_loca → nombre de ciudad, key_zona → nombre
+ * de zona y estadoficha → etiqueta legible desde los catálogos de Neon.
  */
-export function normalizePropertyFromRest(raw: PropiedadCompleta): InmovillaProperty {
-  const nodisponible = raw.nodisponible === true || raw.nodisponible === 1;
-  const estadoDefault = nodisponible ? "No disponible" : "Disponible";
-  const estadoRaw = raw.estadoficha ?? raw.lisestado ?? estadoDefault;
+export function normalizePropertyFromRest(
+  raw: PropiedadCompleta,
+  enumMaps?: EnumLookupMaps,
+): InmovillaProperty {
+  const isNodisponible = raw.nodisponible === true || raw.nodisponible === 1;
+  const isProspecto = raw.prospecto === true;
+
+  const keyLoca = typeof raw.key_loca === "number" ? raw.key_loca : undefined;
+  const keyZona = typeof raw.key_zona === "number" ? raw.key_zona : undefined;
+
+  const ciudadText =
+    (raw.localidad ? String(raw.localidad).trim() : "") ||
+    (raw.ciudad ? String(raw.ciudad).trim() : "") ||
+    (keyLoca != null && enumMaps ? (enumMaps.ciudadByKeyLoca.get(keyLoca) ?? "") : "");
+
+  const zonaText =
+    (raw.zona && typeof raw.zona === "string" ? raw.zona.trim() : "") ||
+    (keyLoca != null && keyZona != null && enumMaps
+      ? (enumMaps.zonaByLocaZona.get(`${keyLoca}:${keyZona}`) ?? "")
+      : "");
+
+  const estadoFicha =
+    typeof raw.estadoficha === "number" ? raw.estadoficha : undefined;
+  const estadoLabel =
+    (estadoFicha != null && enumMaps
+      ? enumMaps.estadoByValue.get(estadoFicha)
+      : undefined) ??
+    (raw.lisestado ? String(raw.lisestado) : undefined) ??
+    (isNodisponible ? "No disponible" : "Disponible");
+
   return {
     codigo: raw.cod_ofer != null ? String(raw.cod_ofer) : "",
     ref: String(raw.ref ?? ""),
@@ -57,9 +87,11 @@ export function normalizePropertyFromRest(raw: PropiedadCompleta): InmovillaProp
     metrosConstruidos: Number(raw.m_cons ?? 0),
     habitaciones: Number(raw.habitaciones ?? 0),
     banyos: Number(raw.banyos ?? 0),
-    ciudad: String(raw.localidad ?? raw.ciudad ?? ""),
-    zona: String(raw.zona ?? (raw.key_zona != null ? raw.key_zona : "")),
-    estado: String(estadoRaw),
+    ciudad: ciudadText,
+    zona: zonaText,
+    estado: estadoLabel,
+    nodisponible: isNodisponible,
+    prospecto: isProspecto,
     fechaAlta: String(raw.fecha ?? ""),
     fechaActualizacion: String(raw.fechaact ?? ""),
     numFotos: Number(raw.numfotos ?? 0),
