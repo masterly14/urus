@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Bell, Search, LogOut, Settings, User } from "lucide-react";
-import { useRole } from "@/lib/hooks/use-role";
+import { useSession, CEO_USER, type SimulatedUser } from "@/lib/hooks/use-session";
 import { useNotifications } from "@/lib/hooks/use-notifications";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,8 @@ import {
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+
+type ComercialOption = { id: string; nombre: string; ciudad: string };
 
 const severityColors: Record<string, string> = {
     critical: "bg-[var(--urus-danger)]",
@@ -49,9 +52,43 @@ function timeAgo(timestamp: string): string {
     return `hace ${Math.floor(hours / 24)}d`;
 }
 
+function getInitials(name: string): string {
+    return name
+        .split(" ")
+        .slice(0, 2)
+        .map((w) => w[0])
+        .join("")
+        .toUpperCase();
+}
+
 export function TopBar() {
-    const { role, setRole } = useRole();
+    const { session, setSession, isCeo } = useSession();
     const { notifications, unreadCount, markAsRead, markAllRead } = useNotifications();
+    const [comerciales, setComerciales] = useState<ComercialOption[]>([]);
+
+    useEffect(() => {
+        fetch("/api/comerciales/activos")
+            .then((r) => r.json())
+            .then((data) => {
+                if (data.ok && Array.isArray(data.comerciales)) {
+                    setComerciales(data.comerciales);
+                }
+            })
+            .catch(() => {});
+    }, []);
+
+    const handleUserChange = (value: string) => {
+        if (value === "__ceo__") {
+            setSession(CEO_USER);
+            return;
+        }
+        const c = comerciales.find((x) => x.id === value);
+        if (c) {
+            setSession({ role: "comercial", comercialId: c.id, nombre: c.nombre });
+        }
+    };
+
+    const currentSelectValue = isCeo ? "__ceo__" : (session.comercialId ?? "__ceo__");
 
     return (
         <header className="fixed top-0 left-0 right-0 z-50 flex h-16 items-center justify-between border-b border-border/50 bg-card/80 px-4 backdrop-blur-xl">
@@ -81,14 +118,22 @@ export function TopBar() {
 
             {/* Right section */}
             <div className="flex items-center gap-3">
-                {/* Role Selector */}
+                {/* Simulated user selector */}
                 <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value as "ceo" | "comercial")}
-                    className="h-8 rounded-md border border-border/50 bg-accent/30 px-2 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-secondary/50"
+                    value={currentSelectValue}
+                    onChange={(e) => handleUserChange(e.target.value)}
+                    className="h-8 max-w-[200px] truncate rounded-md border border-border/50 bg-accent/30 px-2 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-secondary/50"
                 >
-                    <option value="ceo">👔 CEO</option>
-                    <option value="comercial">🏠 Comercial</option>
+                    <option value="__ceo__">CEO</option>
+                    {comerciales.length > 0 && (
+                        <optgroup label="Comerciales">
+                            {comerciales.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                    {c.nombre} ({c.ciudad})
+                                </option>
+                            ))}
+                        </optgroup>
+                    )}
                 </select>
 
                 {/* Mode Toggle */}
@@ -160,15 +205,15 @@ export function TopBar() {
                         <Button variant="ghost" className="h-9 w-9 rounded-full p-0">
                             <Avatar className="h-8 w-8">
                                 <AvatarFallback className="bg-gradient-to-br from-[var(--urus-gold)] to-[var(--urus-gold)]/70 text-background text-xs font-bold">
-                                    MC
+                                    {getInitials(session.nombre)}
                                 </AvatarFallback>
                             </Avatar>
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
                         <div className="px-3 py-2">
-                            <p className="text-sm font-medium">Miguel CEO</p>
-                            <p className="text-xs text-muted-foreground">miguel@uruscapital.es</p>
+                            <p className="text-sm font-medium">{session.nombre}</p>
+                            <p className="text-xs text-muted-foreground capitalize">{session.role}</p>
                         </div>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem>

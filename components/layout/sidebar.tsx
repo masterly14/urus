@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useRole } from "@/lib/hooks/use-role";
+import { useSession } from "@/lib/hooks/use-session";
 import {
     LayoutDashboard,
     Brain,
@@ -141,7 +141,7 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     const pathname = usePathname();
-    const { isCeo } = useRole();
+    const { isCeo } = useSession();
     const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
     const toggleSection = (label: string) => {
