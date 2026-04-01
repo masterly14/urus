@@ -1,29 +1,34 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
-import type { Role } from "@/lib/mock-data/types";
+/**
+ * Backward-compatibility shim.
+ *
+ * New code should import from `@/lib/hooks/use-session` directly.
+ * This file adapts the old `useRole()` API to the new session context
+ * so that consumers not yet migrated keep working.
+ */
+
+import { useSession, CEO_USER, type SimulatedUser } from "./use-session";
+import type { AppRole } from "@/lib/auth/session";
+
+export { SessionProvider as RoleProvider } from "./use-session";
 
 interface RoleContextValue {
-    role: Role;
-    setRole: (role: Role) => void;
-    isCeo: boolean;
-}
-
-const RoleContext = createContext<RoleContextValue | undefined>(undefined);
-
-export function RoleProvider({ children }: { children: ReactNode }) {
-    const [role, setRole] = useState<Role>("ceo");
-
-    return (
-        <RoleContext.Provider value= {{ role, setRole, isCeo: role === "ceo" }
-}>
-    { children }
-    </RoleContext.Provider>
-    );
+  role: AppRole;
+  setRole: (role: AppRole) => void;
+  isCeo: boolean;
 }
 
 export function useRole(): RoleContextValue {
-    const ctx = useContext(RoleContext);
-    if (!ctx) throw new Error("useRole must be used within a RoleProvider");
-    return ctx;
+  const { session, setSession, isCeo } = useSession();
+
+  const setRole = (role: AppRole) => {
+    if (role === "ceo") {
+      setSession(CEO_USER);
+    } else {
+      setSession({ role: "comercial", comercialId: null, nombre: "Comercial" } satisfies SimulatedUser);
+    }
+  };
+
+  return { role: session.role, setRole, isCeo };
 }

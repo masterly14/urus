@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RoleProvider } from "@/lib/hooks/use-role";
+import { SessionProvider } from "@/lib/hooks/use-session";
 import { TopBar } from "./top-bar";
 import { Sidebar } from "./sidebar";
 import { BreadcrumbNav } from "./breadcrumb-nav";
@@ -12,7 +12,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     return (
-        <RoleProvider>
+        <SessionProvider>
             <TooltipProvider delayDuration={200}>
                 <div className="min-h-screen bg-background text-foreground">
                     <TopBar />
@@ -33,6 +33,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     </main>
                 </div>
             </TooltipProvider>
-        </RoleProvider>
+        </SessionProvider>
     );
 }
