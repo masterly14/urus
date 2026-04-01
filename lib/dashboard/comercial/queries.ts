@@ -311,3 +311,49 @@ export async function getComercialDashboardDetail(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Lead-score stats per comercial (for classification hot-lead bias)
+// ---------------------------------------------------------------------------
+
+export type LeadScoreStatsRow = {
+  comercialId: string;
+  totalLeads: number;
+  highScoreLeads: number;
+  contactedTotal: number;
+  contactedHighScore: number;
+};
+
+export async function getLeadScoreStatsByComercial(
+  range: DashboardDateRange,
+): Promise<LeadScoreStatsRow[]> {
+  return prisma.$queryRaw<LeadScoreStatsRow[]>`
+    WITH score_p75 AS (
+      SELECT COALESCE(
+        percentile_cont(0.75) WITHIN GROUP (ORDER BY score),
+        0
+      )::int AS threshold
+      FROM "commercial_lead_facts"
+      WHERE score IS NOT NULL
+        AND "assignedComercialId" IS NOT NULL
+        AND "createdAt" >= ${range.from}
+        AND "createdAt" < ${range.to}
+    )
+    SELECT
+      f."assignedComercialId" AS "comercialId",
+      COUNT(*)::int AS "totalLeads",
+      COUNT(*) FILTER (WHERE f.score >= sp.threshold AND sp.threshold > 0)::int AS "highScoreLeads",
+      COUNT(*) FILTER (WHERE f."contactedAt" IS NOT NULL)::int AS "contactedTotal",
+      COUNT(*) FILTER (
+        WHERE f."contactedAt" IS NOT NULL
+          AND f.score >= sp.threshold
+          AND sp.threshold > 0
+      )::int AS "contactedHighScore"
+    FROM "commercial_lead_facts" f
+    CROSS JOIN score_p75 sp
+    WHERE f."assignedComercialId" IS NOT NULL
+      AND f."createdAt" >= ${range.from}
+      AND f."createdAt" < ${range.to}
+    GROUP BY f."assignedComercialId";
+  `;
+}
+

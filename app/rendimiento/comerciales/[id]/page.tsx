@@ -19,8 +19,34 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { SimpleAreaChart } from "@/components/bi/charts";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useDashboardComercialDetail } from "@/lib/hooks/use-dashboard-comercial";
+import {
+    PROFILE_LABELS,
+    type ComercialProfile,
+} from "@/lib/dashboard/comercial/classify";
+
+const PROFILE_CARD_STYLES: Record<ComercialProfile, { border: string; bg: string; text: string }> = {
+    top_performer: { border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-800" },
+    productivo_ineficiente: { border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-800" },
+    dependiente_lead_caliente: { border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-800" },
+    bajo_rendimiento_estructural: { border: "border-red-200", bg: "bg-red-50", text: "text-red-800" },
+    sin_datos_suficientes: { border: "border-gray-200", bg: "bg-gray-50", text: "text-gray-600" },
+};
+
+const PROFILE_RECOMMENDATIONS: Record<ComercialProfile, string> = {
+    top_performer: "Rendimiento excepcional. Considerar asignar leads de mayor valor y documentar su método para replicarlo en el equipo.",
+    productivo_ineficiente: "Alta actividad pero baja conversión. Revisar calidad de seguimiento, técnica de cierre y tipo de lead asignado.",
+    dependiente_lead_caliente: "Solo rinde con leads de alto score. Trabajar la capacidad de convertir leads fríos y diversificar la cartera.",
+    bajo_rendimiento_estructural: "Métricas por debajo del equipo en todos los ejes. Requiere intervención directa: plan de mejora con KPIs claros a 30-60 días.",
+    sin_datos_suficientes: "No hay suficientes datos en el periodo seleccionado para clasificar a este comercial.",
+};
 
 function formatEur(value: number): string {
     if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M €`;
@@ -95,6 +121,51 @@ export default function ComercialDetailPage({ params }: { params: Promise<{ id: 
                     </Badge>
                 )}
             </div>
+
+            {/* Classification Card */}
+            {!loading && data?.classification && data.classification.profile !== "sin_datos_suficientes" && (
+                <Card className={cn(
+                    "border",
+                    PROFILE_CARD_STYLES[data.classification.profile].border,
+                    PROFILE_CARD_STYLES[data.classification.profile].bg,
+                )}>
+                    <CardContent className="p-4 flex items-start gap-4">
+                        <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                                <Badge
+                                    variant="outline"
+                                    className={cn(
+                                        "text-xs font-semibold",
+                                        PROFILE_CARD_STYLES[data.classification.profile].border,
+                                        PROFILE_CARD_STYLES[data.classification.profile].text,
+                                    )}
+                                >
+                                    {PROFILE_LABELS[data.classification.profile]}
+                                </Badge>
+                                <TooltipProvider delayDuration={200}>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <span className="text-[10px] text-muted-foreground cursor-default">
+                                                ({Math.round(data.classification.confidence * 100)}% confianza)
+                                            </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="right" className="text-xs max-w-[240px]">
+                                            Nivel de certeza del algoritmo de clasificación respecto
+                                            a este perfil frente a los demás.
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </div>
+                            <p className={cn(
+                                "text-sm",
+                                PROFILE_CARD_STYLES[data.classification.profile].text,
+                            )}>
+                                {PROFILE_RECOMMENDATIONS[data.classification.profile]}
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* KPIs */}
             {loading ? (

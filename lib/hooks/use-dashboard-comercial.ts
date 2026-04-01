@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { ComercialesDashboardRow, ComercialDashboardDetail } from "@/lib/dashboard/comercial/queries";
+import type { ComercialProfile } from "@/lib/dashboard/comercial/classify";
 
 export interface DashboardComercialesFilters {
   from?: string;
@@ -9,9 +10,16 @@ export interface DashboardComercialesFilters {
   includeInactive?: boolean;
 }
 
+export type DashboardRowWithClassification = ComercialesDashboardRow & {
+  classification: {
+    profile: ComercialProfile;
+    confidence: number;
+  };
+};
+
 interface ComercialesResponse {
   ok: boolean;
-  rows: ComercialesDashboardRow[];
+  rows: DashboardRowWithClassification[];
   commissionRate: number;
   range: { from: string; to: string };
 }
@@ -22,6 +30,10 @@ interface ComercialDetailResponse {
   weekly: ComercialDashboardDetail["weekly"];
   commissionRate: number;
   range: { from: string; to: string };
+  classification: {
+    profile: ComercialProfile;
+    confidence: number;
+  } | null;
 }
 
 function buildSearchParams(filters: DashboardComercialesFilters): string {

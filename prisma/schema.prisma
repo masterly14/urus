@@ -687,3 +687,19 @@ model CommercialOperationFact {
   @@index([closedAt])
   @@map("commercial_operation_facts")
 }
+
+model CommercialClassification {
+  id              String   @id @default(cuid())
+  comercialId     String
+  rangeFrom       DateTime
+  rangeTo         DateTime
+  profile         String
+  confidence      Float    @default(0)
+  profileScores   Json
+  metricsSnapshot Json
+  createdAt       DateTime @default(now())
+
+  @@index([comercialId, createdAt])
+  @@index([rangeFrom, rangeTo])
+  @@map("commercial_classifications")
+}

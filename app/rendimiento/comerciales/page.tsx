@@ -26,11 +26,58 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { SimpleBarChart } from "@/components/bi/charts";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
     useDashboardComerciales,
     type DashboardComercialesFilters,
 } from "@/lib/hooks/use-dashboard-comercial";
+import {
+    PROFILE_LABELS,
+    PROFILE_SHORT_LABELS,
+    type ComercialProfile,
+} from "@/lib/dashboard/comercial/classify";
+
+const PROFILE_STYLES: Record<ComercialProfile, string> = {
+    top_performer: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    productivo_ineficiente: "bg-amber-100 text-amber-800 border-amber-200",
+    dependiente_lead_caliente: "bg-blue-100 text-blue-800 border-blue-200",
+    bajo_rendimiento_estructural: "bg-red-100 text-red-800 border-red-200",
+    sin_datos_suficientes: "bg-gray-100 text-gray-600 border-gray-200",
+};
+
+function ProfileBadge({ profile, confidence }: { profile: ComercialProfile; confidence: number }) {
+    return (
+        <TooltipProvider delayDuration={200}>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Badge
+                        variant="outline"
+                        className={cn(
+                            "text-[10px] font-medium whitespace-nowrap cursor-default",
+                            PROFILE_STYLES[profile],
+                        )}
+                    >
+                        {PROFILE_SHORT_LABELS[profile]}
+                    </Badge>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                    <p className="font-medium">{PROFILE_LABELS[profile]}</p>
+                    {profile !== "sin_datos_suficientes" && (
+                        <p className="text-muted-foreground">
+                            Confianza: {Math.round(confidence * 100)}%
+                        </p>
+                    )}
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    );
+}
 
 function formatEur(value: number): string {
     if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M €`;
@@ -273,6 +320,7 @@ export default function ComercialesDashboardPage() {
                                 <TableRow>
                                     <TableHead className="w-[50px] text-center">#</TableHead>
                                     <TableHead>Comercial</TableHead>
+                                    <TableHead>Perfil</TableHead>
                                     <TableHead>Ciudad</TableHead>
                                     <TableHead className="text-right">Leads</TableHead>
                                     <TableHead className="text-right">Visitas</TableHead>
@@ -305,6 +353,14 @@ export default function ComercialesDashboardPage() {
                                         </TableCell>
                                         <TableCell>
                                             <div className="font-medium">{row.comercialNombre}</div>
+                                        </TableCell>
+                                        <TableCell>
+                                            {row.classification && (
+                                                <ProfileBadge
+                                                    profile={row.classification.profile}
+                                                    confidence={row.classification.confidence}
+                                                />
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             <span className="text-sm text-muted-foreground">{row.ciudad}</span>

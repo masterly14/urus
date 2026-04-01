@@ -2,12 +2,62 @@ import { NextResponse } from "next/server";
 import {
   getComercialesDashboard,
   getDefaultDashboardRange,
+  getLeadScoreStatsByComercial,
 } from "@/lib/dashboard/comercial/queries";
+import {
+  classifyTeam,
+  type ClassifiedRow,
+  type LeadScoreStats,
+} from "@/lib/dashboard/comercial/classify";
+import { prisma } from "@/lib/prisma";
 
 function parseIsoDate(value: string | null): Date | null {
   if (!value) return null;
   const d = new Date(value);
   return isNaN(d.getTime()) ? null : d;
+}
+
+async function persistClassifications(
+  classified: ClassifiedRow[],
+  range: { from: Date; to: Date },
+): Promise<void> {
+  try {
+    const data = classified
+      .filter((r) => r.classification.profile !== "sin_datos_suficientes")
+      .map((r) => ({
+        comercialId: r.comercialId,
+        rangeFrom: range.from,
+        rangeTo: range.to,
+        profile: r.classification.profile,
+        confidence: r.classification.confidence,
+        profileScores: r.classification.scores as Record<string, number>,
+        metricsSnapshot: {
+          leadsAssigned: r.leadsAssigned,
+          visits: r.visits,
+          closings: r.closings,
+          conversionLeadToVisit: r.conversionLeadToVisit,
+          conversionVisitToClose: r.conversionVisitToClose,
+          estimatedRevenueEur: r.estimatedRevenueEur,
+          revenuePerLeadAssignedEur: r.revenuePerLeadAssignedEur,
+          revenuePerOperationEur: r.revenuePerOperationEur,
+          lostLeadRate: r.lostLeadRate,
+          avgCloseDays: r.avgCloseDays,
+        },
+      }));
+
+    if (data.length === 0) return;
+
+    await prisma.$transaction(
+      data.map((d) =>
+        prisma.commercialClassification.create({ data: d }),
+      ),
+    );
+  } catch (err) {
+    console.error(
+      "[api/dashboard/comerciales] Classification persistence error (non-blocking):",
+      err instanceof Error ? err.message : err,
+    );
+  }
 }
 
 export async function GET(request: Request) {
@@ -34,8 +84,33 @@ export async function GET(request: Request) {
     url.searchParams.get("includeInactive") === "true";
 
   try {
-    const result = await getComercialesDashboard(range, { includeInactive });
-    return NextResponse.json({ ok: true, ...result });
+    const [dashResult, leadScoreRows] = await Promise.all([
+      getComercialesDashboard(range, { includeInactive }),
+      getLeadScoreStatsByComercial(range),
+    ]);
+
+    const leadScoreMap = new Map<string, LeadScoreStats>(
+      leadScoreRows.map((r) => [r.comercialId, r]),
+    );
+
+    const classifiedRows = classifyTeam(dashResult.rows, leadScoreMap);
+
+    persistClassifications(classifiedRows, range);
+
+    const rows = classifiedRows.map((r) => ({
+      ...r,
+      classification: {
+        profile: r.classification.profile,
+        confidence: r.classification.confidence,
+      },
+    }));
+
+    return NextResponse.json({
+      ok: true,
+      rows,
+      commissionRate: dashResult.commissionRate,
+      range: dashResult.range,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[api/dashboard/comerciales] Error:", message);
@@ -45,4 +120,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

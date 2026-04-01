@@ -1,8 +1,17 @@
 import { NextResponse } from "next/server";
 import {
+  getComercialesDashboard,
   getComercialDashboardDetail,
   getDefaultDashboardRange,
+  getLeadScoreStatsByComercial,
 } from "@/lib/dashboard/comercial/queries";
+import {
+  classifyComercial,
+  computeTeamAverages,
+  getClassifyConfig,
+  type ClassificationResult,
+  type LeadScoreStats,
+} from "@/lib/dashboard/comercial/classify";
 
 function parseIsoDate(value: string | null): Date | null {
   if (!value) return null;
@@ -34,8 +43,34 @@ export async function GET(
   }
 
   try {
-    const result = await getComercialDashboardDetail(comercialId, range);
-    return NextResponse.json({ ok: true, ...result });
+    const [detailResult, teamResult, leadScoreRows] = await Promise.all([
+      getComercialDashboardDetail(comercialId, range),
+      getComercialesDashboard(range),
+      getLeadScoreStatsByComercial(range),
+    ]);
+
+    let classification: Pick<ClassificationResult, "profile" | "confidence"> | null = null;
+
+    if (detailResult.summary) {
+      const config = getClassifyConfig();
+      const teamAvg = computeTeamAverages(teamResult.rows, config.minLeads);
+      const leadStats = leadScoreRows.find(
+        (r: LeadScoreStats) => r.comercialId === comercialId,
+      );
+      const result = classifyComercial(
+        detailResult.summary,
+        teamAvg,
+        leadStats,
+        config,
+      );
+      classification = { profile: result.profile, confidence: result.confidence };
+    }
+
+    return NextResponse.json({
+      ok: true,
+      ...detailResult,
+      classification,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[api/dashboard/comercial/:id] Error:", message);
@@ -45,4 +80,3 @@ export async function GET(
     );
   }
 }
-

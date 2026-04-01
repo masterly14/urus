@@ -142,11 +142,89 @@ Ver `.env.example`:
 
 ---
 
+## Clasificacion automatica de comerciales
+
+### Objetivo
+
+Segmentar a cada comercial en uno de cuatro perfiles de rendimiento, calculados matematicamente a partir de sus KPIs relativos al equipo. Esto permite acciones diferenciadas (formacion, reasignacion de leads, intervencion directa) en lugar de gestion por intuicion.
+
+### Perfiles
+
+| Perfil | Clave | Descripcion |
+|--------|-------|-------------|
+| Top Performer | `top_performer` | Metricas por encima del equipo en conversion, facturacion y seguimiento |
+| Productivo Ineficiente | `productivo_ineficiente` | Alta actividad (muchos leads/visitas) pero baja conversion |
+| Dependiente del Lead Caliente | `dependiente_lead_caliente` | Solo contacta/cierra leads de score alto; ignora el resto |
+| Bajo Rendimiento Estructural | `bajo_rendimiento_estructural` | Baja conversion, alto % perdida, baja facturacion |
+| Sin Datos Suficientes | `sin_datos_suficientes` | Menos de `CLASSIFY_MIN_LEADS` leads asignados en el periodo |
+
+### Algoritmo
+
+1. Se computan **promedios del equipo** (`TeamAverages`) solo con comerciales que tengan >= `CLASSIFY_MIN_LEADS` leads asignados.
+2. Para cada comercial con suficientes datos, se calcula un **score por perfil** basado en ratios vs la media del equipo:
+   - **Top performer**: ratios de conversion, revenue/lead e inversa de tasa de perdida; todas deben superar umbrales absolutos minimos.
+   - **Productivo ineficiente**: ratio de actividad (leads + visitas) alto con ratio de conversion invertido.
+   - **Dependiente del lead caliente**: sesgo de contacto hacia leads de score alto (percentil 75) + revenue/operacion alto + conversion general baja.
+   - **Bajo rendimiento**: inversa de conversion + ratio de perdida + inversa de revenue/lead.
+3. Los scores se **normalizan** a [0, 1] y se asigna el perfil con mayor score.
+4. **Confianza** = diferencia entre el score del perfil asignado y el segundo mas alto.
+
+### Deteccion de "lead caliente" (hot-lead bias)
+
+Se consulta `commercial_lead_facts` para calcular por comercial:
+- Proporcion de leads con score >= P75 entre los asignados.
+- Proporcion de leads contactados con score >= P75.
+- `hotLeadContactBias = (contactedHighScore / contactedTotal) / (highScoreLeads / totalLeads)`.
+
+Un bias >= `CLASSIFY_HOT_LEAD_BIAS_THRESHOLD` indica que el comercial contacta preferentemente leads de alto score.
+
+### Persistencia
+
+Cada vez que se computa la clasificacion (al servir `GET /api/dashboard/comerciales`), se persiste en `commercial_classifications` como side-effect no bloqueante. Cada registro almacena:
+- `comercialId`, `rangeFrom`, `rangeTo`
+- `profile`, `confidence`
+- `profileScores` (JSON con score para cada perfil)
+- `metricsSnapshot` (JSON con las metricas del comercial en ese momento)
+
+Esto permite analisis historico y deteccion de cambios de perfil.
+
+### Variables de entorno
+
+| Variable | Default | Descripcion |
+|----------|---------|-------------|
+| `CLASSIFY_MIN_LEADS` | 3 | Minimo de leads asignados para clasificar |
+| `CLASSIFY_TOP_MIN_CONV_LV` | 0.10 | Conversion lead-visita minima absoluta para Top Performer |
+| `CLASSIFY_TOP_MIN_CONV_VC` | 0.15 | Conversion visita-cierre minima absoluta para Top Performer |
+| `CLASSIFY_HOT_LEAD_BIAS_THRESHOLD` | 1.5 | Sesgo minimo de contacto high-score para Dep. Lead Caliente |
+
+### Archivos de clasificacion
+
+- Motor: `lib/dashboard/comercial/classify.ts`
+- Query lead-score: `getLeadScoreStatsByComercial()` en `lib/dashboard/comercial/queries.ts`
+- Tests: `lib/dashboard/comercial/__tests__/classify.test.ts`
+- Modelo Prisma: `CommercialClassification` en `prisma/schema.prisma`
+- Migracion: `prisma/migrations/20260401120000_m10_commercial_classifications/migration.sql`
+
+### Respuesta de API
+
+Ambos endpoints incluyen la clasificacion:
+
+- `GET /api/dashboard/comerciales` — cada fila de `rows[]` incluye `classification: { profile, confidence }`.
+- `GET /api/dashboard/comercial/:id` — campo `classification: { profile, confidence }` a nivel de respuesta.
+
+### UI
+
+- **Tabla de ranking** (`/rendimiento/comerciales`): columna "Perfil" con badge de color y tooltip con nombre completo + confianza.
+- **Detalle** (`/rendimiento/comerciales/:id`): card destacada con nombre del perfil, confianza y recomendacion estatica.
+
+---
+
 ## Archivos clave
 
 - Modelo/migración:
   - `prisma/schema.prisma`
   - `prisma/migrations/20260331180000_m10_dashboard_comercial_metrics/migration.sql`
+  - `prisma/migrations/20260401120000_m10_commercial_classifications/migration.sql`
 - Ingesta de facts (side-effects):
   - `lib/dashboard/comercial/facts.ts`
   - `lib/workers/consumer/lead-scoring-handler.ts` (LEAD_INGESTADO)
@@ -154,7 +232,15 @@ Ver `.env.example`:
   - `lib/workers/consumer/visita-agendada-handler.ts` (VISITA_AGENDADA)
   - `lib/workers/consumer/visita-evaluada-handler.ts` (VISITA_EVALUADA)
   - `lib/post-sale/post-sale-handler.ts` (OPERACION_CERRADA)
+- Clasificacion:
+  - `lib/dashboard/comercial/classify.ts`
+  - `lib/dashboard/comercial/__tests__/classify.test.ts`
 - API:
   - `app/api/dashboard/comerciales/route.ts`
   - `app/api/dashboard/comercial/[id]/route.ts`
+- UI:
+  - `app/rendimiento/comerciales/page.tsx`
+  - `app/rendimiento/comerciales/[id]/page.tsx`
+- Hook:
+  - `lib/hooks/use-dashboard-comercial.ts`
 
