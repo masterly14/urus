@@ -12,6 +12,7 @@ import {
   type ClassificationResult,
   type LeadScoreStats,
 } from "@/lib/dashboard/comercial/classify";
+import { getSession } from "@/lib/auth/session";
 
 function parseIsoDate(value: string | null): Date | null {
   if (!value) return null;
@@ -24,6 +25,19 @@ export async function GET(
   context: { params: { id: string } },
 ) {
   const comercialId = context.params.id;
+  const session = getSession(request);
+
+  if (
+    session.role === "comercial" &&
+    session.comercialId &&
+    session.comercialId !== comercialId
+  ) {
+    return NextResponse.json(
+      { error: "No tienes permiso para ver este comercial" },
+      { status: 403 },
+    );
+  }
+
   const url = new URL(request.url);
 
   const from = parseIsoDate(url.searchParams.get("from"));

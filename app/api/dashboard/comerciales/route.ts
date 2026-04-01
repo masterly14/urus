@@ -10,6 +10,7 @@ import {
   type LeadScoreStats,
 } from "@/lib/dashboard/comercial/classify";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth/session";
 
 function parseIsoDate(value: string | null): Date | null {
   if (!value) return null;
@@ -83,6 +84,8 @@ export async function GET(request: Request) {
     url.searchParams.get("includeInactive") === "1" ||
     url.searchParams.get("includeInactive") === "true";
 
+  const session = getSession(request);
+
   try {
     const [dashResult, leadScoreRows] = await Promise.all([
       getComercialesDashboard(range, { includeInactive }),
@@ -97,7 +100,14 @@ export async function GET(request: Request) {
 
     persistClassifications(classifiedRows, range);
 
-    const rows = classifiedRows.map((r) => ({
+    let filtered = classifiedRows;
+    if (session.role === "comercial" && session.comercialId) {
+      filtered = classifiedRows.filter(
+        (r) => r.comercialId === session.comercialId,
+      );
+    }
+
+    const rows = filtered.map((r) => ({
       ...r,
       classification: {
         profile: r.classification.profile,

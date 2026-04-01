@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { ComercialesDashboardRow, ComercialDashboardDetail } from "@/lib/dashboard/comercial/queries";
 import type { ComercialProfile } from "@/lib/dashboard/comercial/classify";
+import { useSession } from "@/lib/hooks/use-session";
 
 export interface DashboardComercialesFilters {
   from?: string;
@@ -46,16 +47,21 @@ function buildSearchParams(filters: DashboardComercialesFilters): string {
 }
 
 export function useDashboardComerciales(filters: DashboardComercialesFilters = {}) {
+  const { sessionHeaders } = useSession();
   const [data, setData] = useState<ComercialesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const headersJson = JSON.stringify(sessionHeaders);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const qs = buildSearchParams(filters);
-      const res = await fetch(`/api/dashboard/comerciales${qs}`);
+      const res = await fetch(`/api/dashboard/comerciales${qs}`, {
+        headers: JSON.parse(headersJson) as Record<string, string>,
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? `HTTP ${res.status}`);
@@ -67,7 +73,7 @@ export function useDashboardComerciales(filters: DashboardComercialesFilters = {
     } finally {
       setLoading(false);
     }
-  }, [filters.from, filters.to, filters.includeInactive]);
+  }, [filters.from, filters.to, filters.includeInactive, headersJson]);
 
   useEffect(() => {
     fetchData();
@@ -80,9 +86,12 @@ export function useDashboardComercialDetail(
   comercialId: string | null,
   filters: DashboardComercialesFilters = {},
 ) {
+  const { sessionHeaders } = useSession();
   const [data, setData] = useState<ComercialDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const headersJson = JSON.stringify(sessionHeaders);
 
   const fetchData = useCallback(async () => {
     if (!comercialId) return;
@@ -90,7 +99,9 @@ export function useDashboardComercialDetail(
     setError(null);
     try {
       const qs = buildSearchParams(filters);
-      const res = await fetch(`/api/dashboard/comercial/${comercialId}${qs}`);
+      const res = await fetch(`/api/dashboard/comercial/${comercialId}${qs}`, {
+        headers: JSON.parse(headersJson) as Record<string, string>,
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? `HTTP ${res.status}`);
@@ -102,7 +113,7 @@ export function useDashboardComercialDetail(
     } finally {
       setLoading(false);
     }
-  }, [comercialId, filters.from, filters.to, filters.includeInactive]);
+  }, [comercialId, filters.from, filters.to, filters.includeInactive, headersJson]);
 
   useEffect(() => {
     fetchData();
