@@ -244,3 +244,78 @@ Ambos endpoints incluyen la clasificacion:
 - Hook:
   - `lib/hooks/use-dashboard-comercial.ts`
 
+---
+
+## Alertas automatizadas del dashboard
+
+### Objetivo
+
+Detectar de forma proactiva anomalias de rendimiento comercial y SLAs incumplidos, persistirlas en base de datos y notificar via WhatsApp al CEO y al comercial afectado. El cron se ejecuta semanalmente (lunes ~09:00) via Upstash QStash.
+
+### Tipos de alerta
+
+| Tipo | Clave | Descripcion |
+|------|-------|-------------|
+| Caida de rendimiento | `drop` | Alguna metrica (facturacion, conversion, actividad) cae > 30% en las ultimas 2 semanas vs las 4 semanas anteriores |
+| SLA incumplido | `sla_breach` | Leads sin contactar (> umbral), firmas digitales con SLA vencido, microsites sin validar |
+| Desviacion vs media | `deviation` | Comercial a > 1.5 desviaciones estandar por debajo de la media del equipo en conversion o revenue/lead |
+
+### Severidad
+
+- **medium**: 1 metrica afectada o SLA de leads/microsite
+- **high**: 2+ metricas afectadas, SLA de firma digital, o clasificacion `bajo_rendimiento_estructural`
+
+### Deduplicacion
+
+No se genera una alerta si ya existe una del mismo tipo + comercial + metrica sin resolver en los ultimos 7 dias.
+
+### Notificaciones
+
+- **CEO**: via `alertGeneric` de `lib/alerts/` (se envia a `ALERT_WHATSAPP_TO`)
+- **Comercial**: mensaje de texto directo al `telefono` del registro `comerciales`
+
+### Modelo Prisma
+
+`DashboardAlert` en `prisma/schema.prisma`, mapeado a tabla `dashboard_alerts`.
+
+Campos: `id`, `comercialId`, `comercialNombre`, `type`, `severity`, `metric`, `message`, `currentValue`, `baselineValue`, `threshold`, `details` (JSON), `notifiedAt`, `resolvedAt`, `createdAt`.
+
+Migracion: `prisma/migrations/20260401150000_m10_dashboard_alerts/migration.sql`
+
+### Endpoints
+
+- `POST /api/cron/dashboard-alerts` — cron autenticado (Bearer `CRON_SECRET`). Escanea, persiste y notifica.
+- `GET /api/dashboard/alerts` — consulta alertas con filtros:
+  - `from`, `to` (ISO date)
+  - `comercialId`, `severity`, `type`
+  - `resolved` (true/false, default false)
+  - `limit` (default 50), `offset`
+- `PATCH /api/dashboard/alerts/:id/resolve` — marca una alerta como resuelta.
+
+### Variables de entorno
+
+| Variable | Default | Descripcion |
+|----------|---------|-------------|
+| `DASHBOARD_ALERT_DROP_THRESHOLD` | 0.30 | Porcentaje de caida vs baseline para trigger |
+| `DASHBOARD_ALERT_SLA_LOST_LEAD_THRESHOLD` | 3 | Numero de leads sin contactar para alerta SLA |
+| `DASHBOARD_ALERT_DEVIATION_ZSCORE` | 1.5 | Z-score minimo para alerta de desviacion |
+
+Reutiliza: `DASHBOARD_LEAD_NO_FOLLOW_UP_HOURS`, `ALERT_WHATSAPP_TO`, `CRON_SECRET`.
+
+### Archivos
+
+- Scanner: `lib/dashboard/comercial/alert-scanner.ts`
+- Tests: `lib/dashboard/comercial/__tests__/alert-scanner.test.ts`
+- Cron: `app/api/cron/dashboard-alerts/route.ts`
+- API: `app/api/dashboard/alerts/route.ts`, `app/api/dashboard/alerts/[id]/resolve/route.ts`
+- UI: `app/rendimiento/alertas/page.tsx`
+- Hook: `lib/hooks/use-dashboard-alerts.ts`
+
+### QStash schedule (configurar en Upstash Console)
+
+```
+POST {APP_URL}/api/cron/dashboard-alerts
+Header: Authorization: Bearer <CRON_SECRET>
+Cron: 0 9 * * 1    (lunes a las 09:00 UTC)
+```
+

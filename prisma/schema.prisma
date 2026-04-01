@@ -718,3 +718,25 @@ model CommercialClassification {
   @@index([rangeFrom, rangeTo])
   @@map("commercial_classifications")
 }
+
+model DashboardAlert {
+  id              String    @id @default(cuid())
+  comercialId     String
+  comercialNombre String    @default("")
+  type            String
+  severity        String
+  metric          String
+  message         String
+  currentValue    Float?
+  baselineValue   Float?
+  threshold       Float?
+  details         Json      @default("{}")
+  notifiedAt      DateTime?
+  resolvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([comercialId, createdAt])
+  @@index([type, severity])
+  @@index([resolvedAt, createdAt])
+  @@map("dashboard_alerts")
+}
