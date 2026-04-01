@@ -53,6 +53,8 @@ function toSnapshotData(p: InmovillaProperty): PropertySnapshotData {
     ciudad: str(p.ciudad),
     zona: str(p.zona),
     estado: str(p.estado),
+    nodisponible: Boolean(p.nodisponible),
+    prospecto: Boolean(p.prospecto),
     fechaAlta: str(p.fechaAlta),
     fechaActualizacion: str(p.fechaActualizacion),
     numFotos: Number(p.numFotos) || 0,
@@ -79,6 +81,8 @@ export async function loadPreviousSnapshot(): Promise<SnapshotMap> {
       ciudad: row.ciudad,
       zona: row.zona,
       estado: row.estado,
+      nodisponible: row.nodisponible,
+      prospecto: row.prospecto,
       fechaAlta: row.fechaAlta,
       fechaActualizacion: row.fechaActualizacion,
       numFotos: row.numFotos,
@@ -86,6 +90,18 @@ export async function loadPreviousSnapshot(): Promise<SnapshotMap> {
     });
   }
   return map;
+}
+
+/**
+ * Elimina del snapshot las propiedades que ya no son Libre (removidas del ciclo).
+ * Se llama con los códigos detectados como `removed` en el diff.
+ */
+export async function removeFromSnapshot(codes: string[]): Promise<void> {
+  if (codes.length === 0) return;
+  await withDbRetry(
+    () => prisma.propertySnapshot.deleteMany({ where: { codigo: { in: codes } } }),
+    "removeFromSnapshot",
+  );
 }
 
 export async function saveCurrentSnapshot(

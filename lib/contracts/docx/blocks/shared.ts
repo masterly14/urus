@@ -35,6 +35,18 @@ export function buildFueroClause(courtsMunicipality: string): string {
   return `Para cuantas cuestiones deriven del presente contrato, las partes se someten expresamente al fuero de los Juzgados y Tribunales de ${courtsMunicipality}, con renuncia a cualquier otro fuero que pudiera corresponderles.`;
 }
 
+export function buildSenalDesistimientoClause(doubleSenalLine: string): string {
+  return `La propiedad se compromete a no aceptar otras ofertas desde la aceptacion de la presente y hasta la fecha prevista y senalada de firma del contrato de arras. El desistimiento del compromiso adquirido, o si llegada la fecha prevista para el otorgamiento de la escritura de compraventa el COMPRADOR no comparece, perdera la cantidad entregada; si es la parte VENDEDORA quien desiste de la compraventa, debera devolver duplicada la cantidad entregada, esto es ${doubleSenalLine}.`;
+}
+
+export function buildSenalDevolucionClause(): string {
+  return "En caso de que la presente oferta no sea aceptada por la propiedad, se devolvera al ofertante el importe integro entregado en este acto, en el plazo maximo de cuarenta y ocho horas a partir de su desistimiento, mediante devolucion de la transferencia referenciada en el presente documento.";
+}
+
+export function buildFinancingFallbackClause(): string {
+  return "En el caso de que el comprador no pueda conseguir la financiacion hipotecaria se le devolvera al comprador el importe que aporto en el contrato de senal.";
+}
+
 export function buildKeysClause(
   mode: KeysHandoverMode,
   maxKeysHandoverDateEs: string,

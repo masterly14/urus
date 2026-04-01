@@ -9,6 +9,8 @@ export const DIFF_FIELDS = [
   "ciudad",
   "zona",
   "estado",
+  "nodisponible",
+  "prospecto",
   "fechaActualizacion",
 ] as const satisfies readonly (keyof Property)[];
 
@@ -34,15 +36,24 @@ export type PropertyStatusChangedChange = {
   otherChangedFields: DiffField[];
 };
 
+/** Propiedad que estaba en el snapshot pero ya no está en estado Libre en Inmovilla. */
+export type PropertyRemovedChange = {
+  type: "removed";
+  codigo: string;
+  previousEstado: string;
+};
+
 export type PropertyChange =
   | PropertyCreatedChange
   | PropertyModifiedChange
-  | PropertyStatusChangedChange;
+  | PropertyStatusChangedChange
+  | PropertyRemovedChange;
 
 export type PropertyDiffResult = {
   created: PropertyCreatedChange[];
   modified: PropertyModifiedChange[];
   statusChanged: PropertyStatusChangedChange[];
+  removed: PropertyRemovedChange[];
   unchanged: number;
 };
 
@@ -57,6 +68,7 @@ export type IngestionCycleResult = {
     created: number;
     modified: number;
     statusChanged: number;
+    removed: number;
     unchanged: number;
   };
   error?: string;
@@ -82,6 +94,11 @@ export type PropertyStatusChangedEventPayload = {
   detectedAt: string;
 };
 
+export type PropertyRemovedEventPayload = {
+  previousEstado: string;
+  detectedAt: string;
+};
+
 export type IngestionEventMetadata = {
   source: "ingestion:properties";
   cycleId: string;
@@ -90,7 +107,8 @@ export type IngestionEventMetadata = {
   eventType:
     | "PROPIEDAD_CREADA"
     | "PROPIEDAD_MODIFICADA"
-    | "ESTADO_CAMBIADO";
+    | "ESTADO_CAMBIADO"
+    | "PROPIEDAD_ELIMINADA";
   changedFields: DiffField[];
 };
 
@@ -111,6 +129,8 @@ export type PropertySnapshotData = Pick<
   | "ciudad"
   | "zona"
   | "estado"
+  | "nodisponible"
+  | "prospecto"
   | "fechaAlta"
   | "fechaActualizacion"
   | "numFotos"

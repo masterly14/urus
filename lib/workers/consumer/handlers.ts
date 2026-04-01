@@ -8,6 +8,9 @@ import { handleDemandaActualizada } from "./write-demand-update-handler";
 import { handleWhatsAppRecibido } from "./whatsapp-nlu-handler";
 import { handleVisitaEvaluada } from "./visita-evaluada-handler";
 import { handleEstadoCambiado } from "./smart-closing-handler";
+import { handleFirmaCompletada } from "./firma-completada-handler";
+import { handleContratoBorradorGenerado } from "./contrato-borrador-handler";
+import { handleFirmaEnviada } from "./firma-enviada-handler";
 
 const registry = new Map<EventType, EventHandler>();
 
@@ -35,6 +38,13 @@ function buildProjectionJob(
   };
 }
 
+const PRICING_RELEVANT_FIELDS = new Set([
+  "precio",
+  "metrosConstruidos",
+  "habitaciones",
+  "banyos",
+]);
+
 function propertyHandler(
   jobType: "UPDATE_PROPERTY_PROJECTION",
 ): EventHandler {
@@ -42,10 +52,29 @@ function propertyHandler(
     console.log(
       `[consumer] ${event.type} aggregateId=${event.aggregateId} → ${jobType}`,
     );
-    return {
-      success: true,
-      followUpJobs: [buildProjectionJob(event.id, jobType)],
-    };
+
+    const followUpJobs: EnqueueJobInput[] = [
+      buildProjectionJob(event.id, jobType),
+    ];
+
+    const payload = event.payload as Record<string, unknown> | null;
+    const changedFields = Array.isArray(payload?.changedFields)
+      ? (payload.changedFields as string[])
+      : [];
+    const hasPricingRelevantChange = changedFields.some((f) =>
+      PRICING_RELEVANT_FIELDS.has(f),
+    );
+
+    if (hasPricingRelevantChange) {
+      followUpJobs.push({
+        type: "RUN_PRICING_ANALYSIS",
+        payload: { propertyCode: event.aggregateId },
+        idempotencyKey: `run-pricing:${event.id}`,
+        sourceEventId: event.id,
+      });
+    }
+
+    return { success: true, followUpJobs };
   };
 }
 
@@ -99,7 +128,21 @@ registerHandler("SELECCION_RECHAZADA", placeholderHandler());
 
 // --- Smart Closing (M8) ---
 registerHandler("DATOS_INCOMPLETOS", placeholderHandler());
-registerHandler("CONTRATO_BORRADOR_GENERADO", placeholderHandler());
+registerHandler("CONTRATO_BORRADOR_GENERADO", handleContratoBorradorGenerado);
+registerHandler("CONTRATO_VERSIONADO", placeholderHandler());
+registerHandler("CONTRATO_APROBADO", placeholderHandler());
+
+// --- Firma Digital (M8) ---
+registerHandler("FIRMA_ENVIADA", handleFirmaEnviada);
+registerHandler("FIRMA_COMPLETADA", handleFirmaCompletada);
+registerHandler("FIRMA_RECHAZADA", placeholderHandler());
+registerHandler("FIRMA_EXPIRADA", placeholderHandler());
+registerHandler("FIRMA_RECORDATORIO_ENVIADO", placeholderHandler());
+registerHandler("FIRMA_SLA_ESCALADO", placeholderHandler());
+
+// --- Post-Venta (M9) ---
+registerHandler("INCIDENCIA_POSTVENTA_ABIERTA", placeholderHandler());
+registerHandler("INCIDENCIA_POSTVENTA_RESUELTA", placeholderHandler());
 
 // --- Placeholders (futuras implementaciones) ---
 registerHandler("LEAD_SCORED", placeholderHandler());

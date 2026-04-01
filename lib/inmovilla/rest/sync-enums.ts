@@ -16,6 +16,36 @@ import {
 import type { EnumZonasResponse } from "./types";
 
 const THROTTLE_MS = 30_000; // 2 req/min => 1 cada 30s
+const RATE_LIMIT_RECOVERY_MS = 120_000; // 2 min de espera ante 408
+
+/**
+ * Mapa CP prefix (2 dígitos) → nombre de provincia/capital.
+ * Los 2 primeros dígitos del CP español identifican la provincia.
+ */
+const CP_PREFIX_TO_CITY: Record<string, string> = {
+  "01": "Álava", "02": "Albacete", "03": "Alicante", "04": "Almería",
+  "05": "Ávila", "06": "Badajoz", "07": "Baleares", "08": "Barcelona",
+  "09": "Burgos", "10": "Cáceres", "11": "Cádiz", "12": "Castellón",
+  "13": "Ciudad Real", "14": "Córdoba", "15": "A Coruña", "16": "Cuenca",
+  "17": "Girona", "18": "Granada", "19": "Guadalajara", "20": "Gipuzkoa",
+  "21": "Huelva", "22": "Huesca", "23": "Jaén", "24": "León",
+  "25": "Lleida", "26": "La Rioja", "27": "Lugo", "28": "Madrid",
+  "29": "Málaga", "30": "Murcia", "31": "Navarra", "32": "Ourense",
+  "33": "Asturias", "34": "Palencia", "35": "Las Palmas", "36": "Pontevedra",
+  "37": "Salamanca", "38": "S.C. Tenerife", "39": "Cantabria", "40": "Segovia",
+  "41": "Sevilla", "42": "Soria", "43": "Tarragona", "44": "Teruel",
+  "45": "Toledo", "46": "Valencia", "47": "Valladolid", "48": "Bizkaia",
+  "49": "Zamora", "50": "Zaragoza", "51": "Ceuta", "52": "Melilla",
+};
+
+function cityFromCp(cp: string | undefined): string {
+  if (!cp || cp.length < 2) return "";
+  return CP_PREFIX_TO_CITY[cp.slice(0, 2)] ?? "";
+}
+
+function provinciaFromCp(cp: string | undefined): string {
+  return cityFromCp(cp) || "Desconocida";
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -141,9 +171,123 @@ export async function syncEnums(
     const BATCH_SIZE = 20;
     for (let i = 0; i < keyLocasToFetch.length; i += BATCH_SIZE) {
       const batch = keyLocasToFetch.slice(i, i + BATCH_SIZE);
-      const zonasData = await getZonas(client, batch);
-      await throttle();
-      await persistZonas(prisma, batch, zonasData);
+      try {
+        const zonasData = await getZonas(client, batch);
+        await throttle();
+        await persistZonas(prisma, batch, zonasData);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("408") || msg.toLowerCase().includes("rate") || msg.toLowerCase().includes("límite")) {
+          console.warn(`[sync-enums] Rate limit en zonas batch ${i}/${keyLocasToFetch.length}, esperando 2 min...`);
+          await sleep(RATE_LIMIT_RECOVERY_MS);
+          try {
+            const zonasData = await getZonas(client, batch);
+            await throttle();
+            await persistZonas(prisma, batch, zonasData);
+          } catch {
+            console.warn(`[sync-enums] Reintento fallido, omitiendo batch zonas ${batch.slice(0, 3).join(",")}...`);
+          }
+        } else {
+          console.warn(`[sync-enums] Error no retriable en zonas: ${msg}, omitiendo batch`);
+        }
+      }
+    }
+  }
+
+  // 6. Enriquecimiento: key_loca usados por propiedades que no están en inmovilla_enum_ciudad
+  //    La API /enums/?ciudades=724 solo devuelve ~100 ciudades (truncamiento del lado de Inmovilla).
+  //    Para los key_loca que faltan: pedimos zonas (que sí funciona para cualquier key_loca),
+  //    las guardamos, y registramos la ciudad con el nombre derivado del raw de la propiedad.
+  await enrichMissingCities(client, prisma, skipZonas);
+}
+
+async function enrichMissingCities(
+  client: InmovillaRestClient,
+  prisma: PrismaClient,
+  skipZonas: boolean,
+): Promise<void> {
+  const snapshots = await prisma.propertySnapshot.findMany({
+    select: { raw: true },
+  });
+
+  const knownKeyLocas = new Set(
+    (await prisma.inmovillaEnumCiudad.findMany({ select: { key_loca: true } })).map(
+      (r) => r.key_loca,
+    ),
+  );
+
+  const missingMap = new Map<number, { cp?: string; provincia?: string }>();
+  for (const snap of snapshots) {
+    const raw = snap.raw as Record<string, unknown> | null;
+    if (!raw) continue;
+    const kl = typeof raw.key_loca === "number" ? raw.key_loca : Number(raw.key_loca);
+    if (!Number.isFinite(kl) || knownKeyLocas.has(kl) || missingMap.has(kl)) continue;
+    missingMap.set(kl, {
+      cp: typeof raw.cp === "string" ? raw.cp : undefined,
+      provincia: typeof raw.provincia === "string" ? raw.provincia : undefined,
+    });
+  }
+
+  if (missingMap.size === 0) return;
+  console.log(
+    `[sync-enums] ${missingMap.size} key_loca en propiedades no están en el catálogo de ciudades. Enriqueciendo...`,
+  );
+
+  const missingKeyLocas = [...missingMap.keys()];
+
+  if (!skipZonas) {
+    const BATCH_SIZE = 20;
+    for (let i = 0; i < missingKeyLocas.length; i += BATCH_SIZE) {
+      const batch = missingKeyLocas.slice(i, i + BATCH_SIZE);
+      try {
+        const zonasData = await getZonas(client, batch);
+        await throttle();
+        await persistZonas(prisma, batch, zonasData);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("408") || msg.toLowerCase().includes("límite")) {
+          console.warn(`[sync-enums] Rate limit en zonas enriquecimiento, esperando 2 min...`);
+          await sleep(RATE_LIMIT_RECOVERY_MS);
+          try {
+            const zonasData = await getZonas(client, batch);
+            await throttle();
+            await persistZonas(prisma, batch, zonasData);
+          } catch {
+            console.warn(`[sync-enums] Reintento fallido para zonas ${batch.slice(0, 3).join(",")}`);
+          }
+        } else {
+          console.warn(`[sync-enums] Error zonas enriquecimiento: ${msg}`);
+        }
+      }
+    }
+  }
+
+  for (const [keyLoca, info] of missingMap) {
+    const cityName = cityFromCp(info.cp) || (info.cp ? `CP-${info.cp}` : `key_loca-${keyLoca}`);
+    const provincia = cityFromCp(info.cp) ? provinciaFromCp(info.cp) : (info.provincia || "Desconocida");
+
+    try {
+      await prisma.inmovillaEnumCiudad.upsert({
+        where: { key_loca: keyLoca },
+        create: {
+          key_loca: keyLoca,
+          ciudad: cityName,
+          provincia,
+          cod_prov: 0,
+          pais_valor: "724",
+        },
+        update: {
+          ciudad: cityName,
+          provincia,
+        },
+      });
+      console.log(
+        `[sync-enums] Ciudad registrada: key_loca=${keyLoca} → "${cityName}" (${provincia})`,
+      );
+    } catch (err) {
+      console.warn(
+        `[sync-enums] No se pudo registrar key_loca=${keyLoca}: ${err instanceof Error ? err.message : err}`,
+      );
     }
   }
 }
