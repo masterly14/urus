@@ -116,9 +116,22 @@ export async function handleDemandaActualizada(event: Event): Promise<HandlerRes
     sourceEventId: event.id,
   });
 
-  console.log(
-    `[consumer:smart-matching] DEMANDA_ACTUALIZADA demandId=${demandId} → encolado WRITE_TO_INMOVILLA (updateDemandCriteria)`,
-  );
+  const source = (p.source ?? {}) as Record<string, unknown>;
+  if (source.selectionId || source.channel === "whatsapp_feedback") {
+    followUpJobs.push({
+      type: "GENERATE_MICROSITE",
+      payload: { demandId, comercialId: "system", sourceEventId: event.id },
+      idempotencyKey: `generate_microsite:${event.id}`,
+      sourceEventId: event.id,
+    });
+    console.log(
+      `[consumer:smart-matching] DEMANDA_ACTUALIZADA demandId=${demandId} → encolado WRITE_TO_INMOVILLA + GENERATE_MICROSITE (feedback loop)`,
+    );
+  } else {
+    console.log(
+      `[consumer:smart-matching] DEMANDA_ACTUALIZADA demandId=${demandId} → encolado WRITE_TO_INMOVILLA (updateDemandCriteria)`,
+    );
+  }
 
   return { success: true, followUpJobs };
 }

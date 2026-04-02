@@ -14,6 +14,7 @@ import { handleOperacionCerrada } from "@/lib/post-sale/post-sale-handler";
 import { handleFirmaCompletada } from "./firma-completada-handler";
 import { handleContratoBorradorGenerado } from "./contrato-borrador-handler";
 import { handleFirmaEnviada } from "./firma-enviada-handler";
+import { handleSeleccionComprador } from "./seleccion-comprador-handler";
 
 const registry = new Map<EventType, EventHandler>();
 
@@ -125,7 +126,7 @@ registerHandler("DEMANDA_ACTUALIZADA", handleDemandaActualizada);
 // --- Micro-frontends (M4) ---
 registerHandler("VISITA_EVALUADA", handleVisitaEvaluada);
 registerHandler("VISITA_AGENDADA", handleVisitaAgendada);
-registerHandler("SELECCION_COMPRADOR", placeholderHandler());
+registerHandler("SELECCION_COMPRADOR", handleSeleccionComprador);
 registerHandler("SELECCION_VALIDADA", placeholderHandler());
 registerHandler("SELECCION_RECHAZADA", placeholderHandler());
 

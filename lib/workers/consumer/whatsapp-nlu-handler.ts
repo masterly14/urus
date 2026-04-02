@@ -18,7 +18,9 @@ import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import { appendEvent } from "@/lib/event-store";
 import type { JsonValue } from "@/lib/event-store/types";
 import { prisma } from "@/lib/prisma";
-import { classifyWhatsAppResponse } from "@/lib/agents";
+import { classifyBuyerFeedback } from "@/lib/agents";
+import type { PropertySummaryForNLU, ConversationTurn } from "@/lib/agents";
+import { coerceMicrositeCuratedProperties } from "@/lib/microsite/selection";
 import { enqueueJob } from "@/lib/job-queue";
 
 type WhatsAppReceivedPayload = {
@@ -111,8 +113,17 @@ async function resolveDemandContextFromReply(
 // Post-Venta: intercepción de botones D3 (Todo OK / Necesito ayuda)
 // ---------------------------------------------------------------------------
 
-type PostventaButtonAction = { action: "ok" | "ayuda"; propertyCode: string };
+type PostventaButtonAction = {
+  action: "ok" | "ayuda";
+  propertyCode: string;
+  operacionId?: string;
+};
 
+/**
+ * Extrae la acción post-venta del payload de un botón WhatsApp.
+ * El sufijo puede ser un `operacionId` (cuid, ~25 chars alfanuméricos)
+ * o un `propertyCode` legacy (código Inmovilla numérico).
+ */
 export function extractPostventaPayload(
   p: WhatsAppReceivedPayload,
 ): PostventaButtonAction | null {
@@ -121,13 +132,36 @@ export function extractPostventaPayload(
   const raw = buttonPayload || interactiveId;
   if (!raw) return null;
 
+  let action: "ok" | "ayuda" | null = null;
+  let suffix = "";
+
   if (raw.startsWith("POSTVENTA_OK:")) {
-    return { action: "ok", propertyCode: raw.slice("POSTVENTA_OK:".length) };
+    action = "ok";
+    suffix = raw.slice("POSTVENTA_OK:".length);
+  } else if (raw.startsWith("POSTVENTA_AYUDA:")) {
+    action = "ayuda";
+    suffix = raw.slice("POSTVENTA_AYUDA:".length);
   }
-  if (raw.startsWith("POSTVENTA_AYUDA:")) {
-    return { action: "ayuda", propertyCode: raw.slice("POSTVENTA_AYUDA:".length) };
-  }
-  return null;
+
+  if (!action || !suffix) return null;
+
+  const isCuid = /^c[a-z0-9]{20,}$/.test(suffix);
+
+  return {
+    action,
+    propertyCode: isCuid ? "" : suffix,
+    operacionId: isCuid ? suffix : undefined,
+  };
+}
+
+async function resolvePropertyCodeFromOperacion(
+  operacionId: string,
+): Promise<string | null> {
+  const op = await prisma.operacion.findUnique({
+    where: { id: operacionId },
+    select: { propertyCode: true },
+  });
+  return op?.propertyCode ?? null;
 }
 
 async function handlePostventaButton(
@@ -135,9 +169,22 @@ async function handlePostventaButton(
   event: Event,
   waId: string,
 ): Promise<HandlerResult> {
+  let propertyCode = pv.propertyCode;
+
+  if (!propertyCode && pv.operacionId) {
+    const resolved = await resolvePropertyCodeFromOperacion(pv.operacionId);
+    if (!resolved) {
+      console.warn(
+        `[consumer:whatsapp] POSTVENTA operacionId=${pv.operacionId} — Operacion no encontrada`,
+      );
+      return { success: true };
+    }
+    propertyCode = resolved;
+  }
+
   if (pv.action === "ok") {
     console.log(
-      `[consumer:whatsapp] POSTVENTA_OK waId=${waId} propertyCode=${pv.propertyCode}`,
+      `[consumer:whatsapp] POSTVENTA_OK waId=${waId} propertyCode=${propertyCode}${pv.operacionId ? ` operacion=${pv.operacionId}` : ""}`,
     );
     return { success: true };
   }
@@ -145,9 +192,10 @@ async function handlePostventaButton(
   const incidenciaEvent = await appendEvent({
     type: "INCIDENCIA_POSTVENTA_ABIERTA",
     aggregateType: "PROPERTY",
-    aggregateId: pv.propertyCode,
+    aggregateId: propertyCode,
     payload: {
       buyerPhone: waId,
+      operacionId: pv.operacionId,
       source: "whatsapp_button",
       description: "",
       openedAt: new Date().toISOString(),
@@ -171,7 +219,7 @@ async function handlePostventaButton(
       type: "NOTIFY_LEAD_WHATSAPP",
       payload: {
         assignedAgentTelefono: alertPhone,
-        leadAggregateId: pv.propertyCode,
+        leadAggregateId: propertyCode,
         score: 0,
         slaLevel: "INCIDENCIA_POSTVENTA",
       },
@@ -181,10 +229,88 @@ async function handlePostventaButton(
   }
 
   console.log(
-    `[consumer:whatsapp] POSTVENTA_AYUDA waId=${waId} propertyCode=${pv.propertyCode} — incidencia abierta`,
+    `[consumer:whatsapp] POSTVENTA_AYUDA waId=${waId} propertyCode=${propertyCode}${pv.operacionId ? ` operacion=${pv.operacionId}` : ""} — incidencia abierta`,
   );
 
   return { success: true, followUpJobs };
+}
+
+// ---------------------------------------------------------------------------
+// Resolución de contexto del microsite (propiedades + historial)
+// ---------------------------------------------------------------------------
+
+type ResolvedContext = {
+  demandId: string;
+  selectionId?: string;
+  selectionToken?: string;
+  propertyId?: string;
+};
+
+async function resolveFromSession(waId: string): Promise<ResolvedContext | null> {
+  const session = await prisma.whatsAppBuyerSession.findUnique({
+    where: { waId },
+    select: { demandId: true, selectionId: true, selectionToken: true },
+  });
+  if (!session) return null;
+  return {
+    demandId: session.demandId,
+    selectionId: session.selectionId ?? undefined,
+    selectionToken: session.selectionToken ?? undefined,
+  };
+}
+
+async function loadSelectionProperties(
+  selectionId: string,
+): Promise<PropertySummaryForNLU[]> {
+  const sel = await prisma.micrositeSelection.findUnique({
+    where: { id: selectionId },
+    select: { properties: true },
+  });
+  if (!sel) return [];
+
+  const curated = coerceMicrositeCuratedProperties(sel.properties as unknown);
+  return curated.map((p) => ({
+    propertyId: p.propertyId,
+    title: p.title,
+    price: p.price,
+    zone: p.zone,
+    city: p.city,
+    metersBuilt: p.metersBuilt,
+    rooms: p.rooms,
+    extras: p.extras.slice(0, 5),
+  }));
+}
+
+async function loadConversationHistory(
+  waId: string,
+  limit: number = 10,
+): Promise<ConversationTurn[]> {
+  const events = await prisma.event.findMany({
+    where: {
+      aggregateType: "WHATSAPP_CONVERSATION",
+      aggregateId: waId,
+      type: { in: ["WHATSAPP_RECIBIDO", "WHATSAPP_ENVIADO"] },
+    },
+    orderBy: { position: "desc" },
+    take: limit,
+    select: { type: true, payload: true, occurredAt: true },
+  });
+
+  return events.reverse().map((evt) => {
+    const p = (evt.payload ?? {}) as Record<string, unknown>;
+    let text = "";
+    if (evt.type === "WHATSAPP_RECIBIDO") {
+      const textObj = p.text as Record<string, unknown> | undefined;
+      text = typeof textObj?.body === "string" ? textObj.body : "";
+    } else {
+      text = typeof p.kind === "string" ? `[Enviado: ${p.kind}]` : "[Mensaje enviado]";
+    }
+    return {
+      role: evt.type === "WHATSAPP_RECIBIDO" ? "buyer" as const : "system" as const,
+      text,
+      timestamp: evt.occurredAt.toISOString(),
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -208,77 +334,190 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
     return { success: true };
   }
 
-  // 1) Resolver demandId desde un botón interactivo (si lo hay)
+  // --- Resolución de demandId (3 caminos) ---
+
   const interactiveId =
     payload.interactive?.button_reply?.id ?? payload.interactive?.list_reply?.id;
   const matchFromButton =
     typeof interactiveId === "string" ? parseMatchButtonId(interactiveId) : null;
 
-  // 2) Fallback: resolver demandId desde el reply context contra eventos enviados
-  let resolved = matchFromButton;
-  if (!resolved) {
+  let ctx: ResolvedContext | null = matchFromButton
+    ? { demandId: matchFromButton.demandId, propertyId: matchFromButton.propertyId }
+    : null;
+
+  if (!ctx) {
     const contextMessageId = extractContextMessageId(payload);
     if (contextMessageId) {
-      resolved = await resolveDemandContextFromReply(waId, contextMessageId);
+      const fromReply = await resolveDemandContextFromReply(waId, contextMessageId);
+      if (fromReply) {
+        ctx = { demandId: fromReply.demandId, propertyId: fromReply.propertyId };
+      }
     }
   }
 
-  if (!resolved?.demandId) {
+  if (!ctx) {
+    ctx = await resolveFromSession(waId);
+  }
+
+  if (!ctx?.demandId) {
     console.log(
       `[consumer:whatsapp] WHATSAPP_RECIBIDO waId=${waId} sin demandId resolvible — no-op`,
     );
     return { success: true };
   }
 
-  const nlu = await classifyWhatsAppResponse({
-    messageText,
-    buyerPhone: waId,
-    demandId: resolved.demandId,
-  });
+  // --- Cargar contexto del microsite y historial ---
 
-  if (nlu.intention !== "NO_ME_ENCAJA") {
-    console.log(
-      `[consumer:whatsapp] NLU intention=${nlu.intention} waId=${waId} demandId=${resolved.demandId} — no-op`,
-    );
-    return { success: true };
+  let selectionProperties: PropertySummaryForNLU[] = [];
+  if (ctx.selectionId) {
+    selectionProperties = await loadSelectionProperties(ctx.selectionId);
+  } else {
+    const session = await prisma.whatsAppBuyerSession.findUnique({
+      where: { waId },
+      select: { selectionId: true },
+    });
+    if (session?.selectionId) {
+      ctx.selectionId = session.selectionId;
+      selectionProperties = await loadSelectionProperties(session.selectionId);
+    }
   }
 
-  const demandaEvent = await appendEvent({
-    type: "DEMANDA_ACTUALIZADA",
-    aggregateType: "DEMAND",
-    aggregateId: resolved.demandId,
-    payload: {
-      source: {
-        waId,
-        messageId: payload.messageId ?? null,
-        propertyId: resolved.propertyId ?? null,
-        eventId: event.id,
-      },
-      nlu: {
-        intention: nlu.intention,
-        confidence: nlu.confidence,
-        reasoning: nlu.reasoning ?? null,
-      },
-      variables: nlu.variables as unknown as JsonValue,
-      rawText: nlu.rawText,
-      detectedAt: new Date().toISOString(),
-    } as unknown as JsonValue,
-    correlationId: event.correlationId ?? undefined,
-    causationId: event.id,
+  const conversationHistory = await loadConversationHistory(waId);
+
+  // --- NLU contextual ---
+
+  const nlu = await classifyBuyerFeedback({
+    messageText,
+    buyerPhone: waId,
+    demandId: ctx.demandId,
+    selectionProperties,
+    conversationHistory,
   });
 
-  const followUpJobs: EnqueueJobInput[] = [
-    {
+  const followUpJobs: EnqueueJobInput[] = [];
+
+  // --- Emitir SELECCION_COMPRADOR por cada propiedad con feedback ---
+
+  for (const fb of nlu.propertyFeedback) {
+    const scEvent = await appendEvent({
+      type: "SELECCION_COMPRADOR",
+      aggregateType: "DEMAND",
+      aggregateId: ctx.demandId,
+      payload: {
+        demandId: ctx.demandId,
+        selectionId: ctx.selectionId ?? null,
+        propertyId: fb.propertyId,
+        decision: fb.sentiment,
+        source: {
+          channel: "whatsapp_feedback",
+          waId,
+          messageId: payload.messageId ?? null,
+          eventId: event.id,
+        },
+        nlu: {
+          intention: nlu.intention,
+          confidence: nlu.confidence,
+          reasoning: nlu.reasoning ?? null,
+        },
+        respondedAt: new Date().toISOString(),
+      } as unknown as JsonValue,
+      correlationId: event.correlationId ?? undefined,
+      causationId: event.id,
+    });
+
+    followUpJobs.push({
+      type: "PROCESS_EVENT",
+      payload: { eventId: scEvent.id, eventType: scEvent.type },
+      sourceEventId: scEvent.id,
+      idempotencyKey: `process-event:${scEvent.id}`,
+    });
+  }
+
+  if (nlu.propertyFeedback.length > 0) {
+    console.log(
+      `[consumer:whatsapp] Emitidos ${nlu.propertyFeedback.length} SELECCION_COMPRADOR waId=${waId} demandId=${ctx.demandId}`,
+    );
+  }
+
+  // --- Emitir DEMANDA_ACTUALIZADA si hay ajuste de demanda ---
+
+  const hasVariables = Object.keys(nlu.variables).length > 0;
+  const shouldUpdateDemand =
+    (nlu.intention === "NO_ME_ENCAJA" || nlu.intention === "BUSCO_DIFERENTE") && hasVariables;
+
+  if (shouldUpdateDemand) {
+    const demandaEvent = await appendEvent({
+      type: "DEMANDA_ACTUALIZADA",
+      aggregateType: "DEMAND",
+      aggregateId: ctx.demandId,
+      payload: {
+        source: {
+          channel: "whatsapp_feedback",
+          waId,
+          messageId: payload.messageId ?? null,
+          selectionId: ctx.selectionId ?? null,
+          eventId: event.id,
+        },
+        nlu: {
+          intention: nlu.intention,
+          confidence: nlu.confidence,
+          reasoning: nlu.reasoning ?? null,
+        },
+        variables: nlu.variables as unknown as JsonValue,
+        rawText: nlu.rawText,
+        detectedAt: new Date().toISOString(),
+      } as unknown as JsonValue,
+      correlationId: event.correlationId ?? undefined,
+      causationId: event.id,
+    });
+
+    followUpJobs.push({
       type: "PROCESS_EVENT",
       payload: { eventId: demandaEvent.id, eventType: demandaEvent.type },
       sourceEventId: demandaEvent.id,
       idempotencyKey: `process-event:${demandaEvent.id}`,
-    },
-  ];
+    });
 
-  console.log(
-    `[consumer:whatsapp] Emitido DEMANDA_ACTUALIZADA demandId=${resolved.demandId} (desde waId=${waId})`,
-  );
+    console.log(
+      `[consumer:whatsapp] Emitido DEMANDA_ACTUALIZADA demandId=${ctx.demandId} (waId=${waId})`,
+    );
+  }
+
+  // --- Regeneración de microsite si el comprador pide más opciones ---
+
+  if (nlu.wantsMoreOptions) {
+    await enqueueJob({
+      type: "GENERATE_MICROSITE",
+      payload: {
+        demandId: ctx.demandId,
+        comercialId: "system",
+        sourceEventId: event.id,
+      },
+      idempotencyKey: `generate_microsite:wants_more:${event.id}`,
+      sourceEventId: event.id,
+    });
+
+    console.log(
+      `[consumer:whatsapp] Encolado GENERATE_MICROSITE (wantsMoreOptions) demandId=${ctx.demandId}`,
+    );
+  }
+
+  // --- Actualizar session ---
+
+  await prisma.whatsAppBuyerSession.upsert({
+    where: { waId },
+    create: {
+      waId,
+      demandId: ctx.demandId,
+      selectionId: ctx.selectionId,
+      lastMessageAt: new Date(),
+      turnCount: 1,
+    },
+    update: {
+      lastMessageAt: new Date(),
+      turnCount: { increment: 1 },
+    },
+  });
 
   return { success: true, followUpJobs };
 }
