@@ -522,6 +522,174 @@ registerJobHandler("NOTIFY_CONTRACT_DATA_INCOMPLETE", handleNotifyContractDataIn
 // --- Smart Closing: generación de borrador de contrato (M8) ---
 registerJobHandler("GENERATE_CONTRACT_DRAFT", handleGenerateContractDraft);
 
+// --- Firma digital: envío a firma server-side (M8) ---
+import { computeSha256, generateSigningToken, buildSigningUrl } from "@/lib/firma";
+import { normalizeDocumentToPdf } from "@/lib/signaturit/pdf-normalization";
+import { uploadContractDocument } from "@/lib/cloudinary";
+
+async function handleSendSignatureRequest(job: JobRecord): Promise<HandlerResult> {
+  const p = (job.payload ?? {}) as Record<string, unknown>;
+  const operationId = typeof p.operationId === "string" ? p.operationId : "";
+  const propertyCode = typeof p.propertyCode === "string" ? p.propertyCode : "";
+  const documentKind = typeof p.documentKind === "string" ? p.documentKind : "";
+  const templateVersion = typeof p.templateVersion === "string" ? p.templateVersion : null;
+  const cloudinaryUrl = typeof p.cloudinaryUrl === "string" ? p.cloudinaryUrl : "";
+  const signers = Array.isArray(p.signers) ? (p.signers as Array<Record<string, string>>) : [];
+
+  if (!operationId || !propertyCode || !documentKind || !cloudinaryUrl || signers.length === 0) {
+    return {
+      success: false,
+      error: "SEND_SIGNATURE_REQUEST: payload incompleto",
+      permanent: true,
+    };
+  }
+
+  const existing = await prisma.legalDocument.findFirst({
+    where: { operationId, documentKind },
+    select: { signatureRequestId: true },
+  });
+  if (existing?.signatureRequestId) {
+    console.log(
+      `[consumer] SEND_SIGNATURE_REQUEST job ${job.id} — firma ya iniciada (${existing.signatureRequestId}), skip`,
+    );
+    return { success: true };
+  }
+
+  const docRes = await fetch(cloudinaryUrl);
+  if (!docRes.ok) {
+    return {
+      success: false,
+      error: `No se pudo descargar documento de Cloudinary (${docRes.status})`,
+    };
+  }
+  const downloadedBuffer = Buffer.from(await docRes.arrayBuffer());
+  const contentType = docRes.headers.get("content-type");
+  const sourceFileName = `${operationId}_${documentKind}.pdf`;
+
+  let pdfBuffer: Buffer;
+  let convertedToPdf = false;
+  try {
+    const normalized = await normalizeDocumentToPdf({
+      buffer: downloadedBuffer,
+      contentType,
+      sourceFileName,
+    });
+    pdfBuffer = normalized.pdfBuffer;
+    convertedToPdf = normalized.converted;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, error: `Normalización PDF falló: ${msg}` };
+  }
+
+  let finalCloudinaryUrl = cloudinaryUrl;
+  if (convertedToPdf) {
+    try {
+      const pdfUpload = await uploadContractDocument({
+        buffer: pdfBuffer,
+        fileName: `${operationId}_${documentKind}.pdf`,
+        folder: `contracts/${operationId}`,
+        tags: ["pre-signature", "pdf", documentKind],
+        context: { operationId, propertyCode },
+      });
+      finalCloudinaryUrl = pdfUpload.secureUrl;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[consumer] SEND_SIGNATURE_REQUEST — re-upload PDF error: ${msg}`);
+    }
+  }
+
+  const SLA_DAYS = Number(process.env.SIGNATURIT_SLA_DAYS) || 5;
+  const documentHash = computeSha256(pdfBuffer);
+  const signingToken = generateSigningToken();
+  const signingUrl = buildSigningUrl(signingToken);
+  const now = new Date();
+  const slaDeadline = new Date(now.getTime() + SLA_DAYS * 24 * 60 * 60 * 1000);
+
+  const signatureRequest = await prisma.signatureRequest.create({
+    data: {
+      operationId,
+      propertyCode,
+      documentKind,
+      templateVersion,
+      cloudinaryUrl: finalCloudinaryUrl,
+      signingUrl,
+      status: "SENT",
+      signerName: signers[0].name ?? "",
+      signerEmail: signers[0].email ?? "",
+      signerPhone: signers[0].phone ?? null,
+      sentAt: now,
+      slaDeadlineDays: SLA_DAYS,
+      slaDeadline,
+      documentHash,
+      signingToken,
+    },
+  });
+
+  await prisma.legalDocument.update({
+    where: { operationId_documentKind: { operationId, documentKind } },
+    data: {
+      status: "SENT_TO_SIGNATURE",
+      signatureRequestId: signatureRequest.id,
+      cloudinaryUrl: finalCloudinaryUrl,
+    },
+  });
+
+  const legalDoc = await prisma.legalDocument.findFirst({
+    where: { operationId, documentKind },
+    select: { id: true },
+  });
+
+  if (legalDoc) {
+    for (const signer of signers) {
+      if (!signer.email) continue;
+      await prisma.legalDocumentParty.upsert({
+        where: {
+          legalDocumentId_email: {
+            legalDocumentId: legalDoc.id,
+            email: signer.email,
+          },
+        },
+        create: {
+          legalDocumentId: legalDoc.id,
+          role: signer.role ?? "SIGNER",
+          fullName: signer.name ?? "",
+          email: signer.email,
+          phone: signer.phone ?? null,
+        },
+        update: {
+          fullName: signer.name ?? "",
+          phone: signer.phone ?? null,
+        },
+      });
+    }
+  }
+
+  await appendEvent({
+    type: "FIRMA_ENVIADA",
+    aggregateType: "PROPERTY",
+    aggregateId: propertyCode,
+    payload: {
+      signatureRequestId: signatureRequest.id,
+      operationId,
+      documentKind,
+      templateVersion,
+      signingUrl,
+      documentHash,
+      signers: signers.map((s) => ({ name: s.name, email: s.email })),
+      slaDeadline: slaDeadline.toISOString(),
+      triggeredBy: "CONTRATO_APROBADO_HANDLER",
+    },
+  });
+
+  console.log(
+    `[consumer] SEND_SIGNATURE_REQUEST job ${job.id} — firma creada signatureRequestId=${signatureRequest.id} signingUrl=${signingUrl}`,
+  );
+
+  return { success: true };
+}
+
+registerJobHandler("SEND_SIGNATURE_REQUEST", handleSendSignatureRequest);
+
 // --- Pricing automático (M7) ---
 import { handlePricingAnalysis } from "./pricing-handler";
 import { handleNotifyPricingWhatsApp } from "./pricing-notify-handler";

@@ -58,8 +58,8 @@ export async function handleContratoBorradorGenerado(
   });
 
   const legalUiUrl = legalDoc
-    ? `${appUrl}/legal/contratos/${legalDoc.id}`
-    : `${appUrl}/legal/contratos`;
+    ? `${appUrl}/platform/legal/contratos/${legalDoc.id}`
+    : `${appUrl}/platform/legal/contratos`;
 
   const notifyParams = {
     operationId,

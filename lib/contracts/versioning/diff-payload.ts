@@ -97,8 +97,8 @@ export function diffContractTemplatePayload(
   const out: PayloadDiffEntry[] = [];
   diffRecursive(
     "payload",
-    previous.payload as Record<string, unknown>,
-    next.payload as Record<string, unknown>,
+    previous.payload as unknown as Record<string, unknown>,
+    next.payload as unknown as Record<string, unknown>,
     out,
   );
   return out;

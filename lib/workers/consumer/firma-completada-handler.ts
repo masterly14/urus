@@ -91,7 +91,7 @@ export async function handleFirmaCompletada(
     );
 
     const appUrl = getPublicAppUrl();
-    const legalDocUrl = `${appUrl}/legal/contratos/${legalDoc.id}`;
+    const legalDocUrl = `${appUrl}/platform/legal/contratos/${legalDoc.id}`;
     const confirmParams = {
       operationRef: operationId,
       documentKind: sigReq.documentKind,

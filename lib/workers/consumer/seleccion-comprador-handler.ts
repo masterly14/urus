@@ -59,11 +59,11 @@ export async function handleSeleccionComprador(event: Event): Promise<HandlerRes
       selectionId,
       propertyId,
       decision,
-      payload: (p as Record<string, unknown>) ?? {},
+      payload: (p as unknown as import("@/app/generated/prisma/client").Prisma.InputJsonValue) ?? {},
     },
     update: {
       decision,
-      payload: (p as Record<string, unknown>) ?? {},
+      payload: (p as unknown as import("@/app/generated/prisma/client").Prisma.InputJsonValue) ?? {},
     },
   });
 

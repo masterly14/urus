@@ -27,7 +27,7 @@ export default function LoginPage() {
         setTimeout(() => {
             setIsLoading(false);
             localStorage.setItem("isLoggedIn", "true");
-            router.push("/");
+            router.push("/platform");
         }, 1500);
     }
 

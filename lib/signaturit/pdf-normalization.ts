@@ -70,7 +70,7 @@ async function convertUsingRemoteService(
   const sourceMime = /\.docx$/i.test(sourceFileName)
     ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     : "application/octet-stream";
-  form.append("file", new Blob([buffer], { type: sourceMime }), sourceFileName);
+  form.append("file", new Blob([new Uint8Array(buffer)], { type: sourceMime }), sourceFileName);
 
   const timeoutMs = Number(process.env.SIGNATURIT_PDF_CONVERTER_TIMEOUT_MS) || 45_000;
   const res = await fetch(converterUrl, {

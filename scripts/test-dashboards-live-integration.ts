@@ -86,7 +86,7 @@ async function checkStatefox(): Promise<void> {
   try {
     const client = createStatefoxClient();
     const snap = await getSnapshot(client, { items: 10 });
-    const count = snap.properties ? Object.keys(snap.properties).length : 0;
+    const count = snap.result ? Object.keys(snap.result).length : 0;
     record("Statefox snapshot", true, `${count} claves en página (items=10)`);
   } catch (err) {
     record(

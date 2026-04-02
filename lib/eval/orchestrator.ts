@@ -1,3 +1,4 @@
+import type { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { classifyBuyerFeedback } from "@/lib/agents";
 import { generateBuyerMessage } from "./buyer-agent";
@@ -59,7 +60,7 @@ async function processScenario(
       category: scenario.category,
       personaId: scenario.persona.id,
       buyerMessage: buyerOutput.messageText,
-      nluOutput: nluResult as unknown as Record<string, unknown>,
+      nluOutput: nluResult as unknown as Prisma.InputJsonValue,
       propertyResolutionScore: evaluation.propertyResolutionScore,
       sentimentAccuracyScore: evaluation.sentimentAccuracyScore,
       variableExtractionScore: evaluation.variableExtractionScore,
@@ -238,7 +239,7 @@ export async function runEvaluation(
           avgLatencyMs: summary.avgLatencyMs,
           topFailuresCount: summary.topFailures.length,
         },
-      } as unknown as Record<string, unknown>,
+      } as unknown as Prisma.InputJsonValue,
     },
   });
 

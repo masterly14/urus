@@ -8,6 +8,7 @@ import {
   type ContratoVersionadoCloudinary,
 } from "@/lib/contracts/versioning/contrato-versionado-payload";
 import { appendEvent } from "@/lib/event-store/event-store";
+import type { JsonValue } from "@/lib/event-store/types";
 import type { ContractTemplateInput } from "@/types/contracts";
 
 export const runtime = "nodejs";
@@ -158,8 +159,8 @@ export async function POST(request: Request) {
       const cloudinary = await tryUploadVoiceRevisionDocx({
         buffer: buf,
         fileName: result.docx.fileName,
-        operationId: versioningContext.operationId,
-        propertyCode: versioningContext.propertyCode,
+        operationId: versioningContext.operationId ?? "",
+        propertyCode: versioningContext.propertyCode ?? "",
         templateVersion: result.nextTemplateVersion ?? "",
         documentKind: contractTemplateInput.kind,
       });
@@ -186,8 +187,11 @@ export async function POST(request: Request) {
       await appendEvent({
         type: "CONTRATO_VERSIONADO",
         aggregateType: "PROPERTY",
-        aggregateId: versioningContext.propertyCode,
-        payload,
+        aggregateId:
+          versioningContext.propertyCode ??
+          versioningContext.operationId ??
+          "unknown",
+        payload: JSON.parse(JSON.stringify(payload)) as JsonValue,
       });
       versionEventRecorded = true;
     }

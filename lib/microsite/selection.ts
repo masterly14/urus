@@ -113,9 +113,7 @@ function extractEnergyCert(p: StatefoxProperty): { rating: string | null; value:
       ? extras.certenerat.trim()
       : null;
   const value =
-    typeof extras.certeneval === "string" && extras.certeneval.trim()
-      ? extras.certeneval.trim()
-      : null;
+    extras.certeneval != null ? String(extras.certeneval) : null;
   return { rating, value };
 }
 

@@ -14,8 +14,6 @@ export default defineConfig({
     /** Hooks de setup (p. ej. beforeAll con BD + consumer) pueden superar 10s en integración. */
     hookTimeout: 120_000,
     setupFiles: ["./vitest.setup.ts"],
-    environmentMatchGlobs: [
-      ["**/*.test.tsx", "jsdom"],
-    ],
+    environment: "node",
   },
 });

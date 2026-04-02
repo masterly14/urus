@@ -40,7 +40,10 @@ export function EvalCategoryChart({ data }: { data: CategoryData[] }) {
           <Tooltip
             contentStyle={{ backgroundColor: "#171717", border: "1px solid #404040", borderRadius: 8 }}
             labelStyle={{ color: "#e5e5e5" }}
-            formatter={(v: number) => [v.toFixed(3), "Score"]}
+            formatter={(v) => [
+              typeof v === "number" ? v.toFixed(3) : String(v ?? ""),
+              "Score",
+            ]}
           />
           <Bar dataKey="score" radius={[0, 4, 4, 0]}>
             {chartData.map((entry, i) => (

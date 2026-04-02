@@ -757,6 +757,37 @@ export async function sendFirmaCompletadaConfirmation(
 }
 
 // ---------------------------------------------------------------------------
+// Firma rechazada — notificación al comercial/gestor (M8)
+// ---------------------------------------------------------------------------
+
+export type FirmaRechazadaNotificationParams = {
+  operationRef: string;
+  documentKind: string;
+  signerName: string;
+  reason: string | null;
+  legalDocUrl: string;
+};
+
+export async function sendFirmaRechazadaNotification(
+  to: string,
+  params: FirmaRechazadaNotificationParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const lines = [
+    `❌ *Firma rechazada por el firmante*`,
+    ``,
+    `• Operación: ${params.operationRef}`,
+    `• Documento: ${params.documentKind}`,
+    `• Firmante: ${params.signerName}`,
+    ...(params.reason ? [`• Motivo: ${params.reason}`] : []),
+    ``,
+    `El documento ha vuelto a estado borrador para re-negociación.`,
+    `Ver contrato: ${params.legalDocUrl}`,
+  ];
+  return sendTextMessage(to, lines.join("\n"), options);
+}
+
+// ---------------------------------------------------------------------------
 // Motor de Pricing — informe generado (M7)
 // ---------------------------------------------------------------------------
 

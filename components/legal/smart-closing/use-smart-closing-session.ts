@@ -169,14 +169,14 @@ export function useSmartClosingSession(
 
       try {
         const segments = parsePayloadPath(path);
-        const payload = current.payload as Record<string, unknown>;
+        const payload = current.payload as unknown as Record<string, unknown>;
         const oldVal = getValueAtPath(payload, segments);
         const coerced = coerceEditedValue(rawValue, oldVal);
         if (valuesEqualForPayload(coerced, oldVal)) return true;
 
         const nextPayload = structuredClone(payload) as Record<string, unknown>;
         setValueAtPath(nextPayload, segments, coerced);
-        const nextInput = { ...current, payload: nextPayload } as ContractTemplateInput;
+        const nextInput = { ...current, payload: nextPayload } as unknown as ContractTemplateInput;
 
         if (payloadEditInFlight.current) return false;
         payloadEditInFlight.current = true;

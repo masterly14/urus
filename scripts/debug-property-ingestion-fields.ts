@@ -122,7 +122,7 @@ async function main(): Promise<void> {
   let enumMaps: Awaited<ReturnType<typeof loadEnumLookupMaps>> | undefined;
   try {
     enumMaps = await loadEnumLookupMaps();
-    console.log(`Enum maps cargados: ${enumMaps.ciudadByKeyLoca.size} ciudades, ${enumMaps.zonaByKeyZona.size} zonas, ${enumMaps.estadoByValue.size} estados\n`);
+    console.log(`Enum maps cargados: ${enumMaps.ciudadByKeyLoca.size} ciudades, ${enumMaps.zonaByLocaZona.size} zonas, ${enumMaps.estadoByValue.size} estados\n`);
   } catch {
     console.warn("No se pudieron cargar enum maps — resultados sin resolución de códigos\n");
   }

@@ -13,6 +13,7 @@ import { extractPropertyForPricing } from "./extract-property";
 import { fetchPricingComparables } from "./fetch-comparables";
 import { analyzeCluster } from "./analyze-cluster";
 import { generatePricingRecommendation } from "@/lib/agents/pricing-recommendation-graph";
+import type { JsonValue } from "@/lib/event-store";
 import { appendEvent } from "@/lib/event-store";
 import { mapTiposToHousing } from "@/lib/statefox/query-builder";
 import type { PricingAnalysisResult, PricingOptions } from "./types";
@@ -68,7 +69,7 @@ export async function runPricingAnalysis(
       queryMeta: result.queryMeta,
       analyzedAt: result.analyzedAt,
       comparablesCount: comparables.length,
-    },
+    } as unknown as JsonValue,
   });
 
   // Motor de recomendación IA (LangGraph) — degradación graceful si falla

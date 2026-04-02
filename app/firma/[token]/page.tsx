@@ -14,10 +14,23 @@ import {
   ShieldAlert,
   ShieldCheck,
   Smartphone,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface FirmaMetadata {
   operationId: string;
@@ -41,7 +54,7 @@ interface SignResult {
   auditTrailUrl: string;
 }
 
-type FirmaStep = "draw" | "otp_sending" | "otp_input" | "otp_verifying" | "signing" | "done";
+type FirmaStep = "draw" | "otp_sending" | "otp_input" | "otp_verifying" | "signing" | "done" | "declined";
 
 const KIND_LABEL: Record<string, string> = {
   arras: "Contrato de arras",
@@ -54,11 +67,57 @@ const CONSENT_TEXT =
   "Al hacer clic en Firmar, declaro que he leído y acepto el contenido íntegro del presente documento. " +
   "Confirmo que actúo en mi propio nombre y que los datos proporcionados son veraces.";
 
+/** Vista previa de diseño sin backend: `/firma/{cualquier-token}?mock=1` o `?uiMock=1` */
+const MOCK_FIRMA_METADATA: FirmaMetadata = {
+  operationId: "OP-2026-MOCK-001",
+  documentKind: "arras",
+  signerName: "María Ejemplo García",
+  signerEmail: "maria.ejemplo@demo.local",
+  status: "SENT",
+  isTerminal: false,
+  hasPhone: true,
+  phoneMasked: "***1234",
+  pdfUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+  signedDocumentUrl: null,
+  sentAt: new Date().toISOString(),
+  completedAt: null,
+  parties: [
+    {
+      fullName: "María Ejemplo García",
+      role: "BUYER",
+      email: "maria.ejemplo@demo.local",
+    },
+  ],
+};
+
+const MOCK_OTP_ID = "mock-otp-preview";
+
+function readUiMockFromSearch(): boolean {
+  if (typeof window === "undefined") return false;
+  const q = new URLSearchParams(window.location.search);
+  const m = q.get("mock");
+  const u = q.get("uiMock");
+  return (
+    m === "1" ||
+    m === "true" ||
+    u === "1" ||
+    u === "true"
+  );
+}
+
 export default function FirmaPage() {
   const params = useParams<{ token: string }>();
   const token = params.token;
 
+  /** null = aún no hidratado (cliente); evita parpadeo API vs mock */
+  const [isUiMock, setIsUiMock] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setIsUiMock(readUiMockFromSearch());
+  }, []);
+
   const sigCanvasRef = useRef<SignatureCanvas | null>(null);
+  const executeSignRef = useRef<(() => Promise<void>) | null>(null);
   const [meta, setMeta] = useState<FirmaMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +131,14 @@ export default function FirmaPage() {
   const [otpError, setOtpError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isUiMock === null) return;
+
+    if (isUiMock) {
+      setMeta({ ...MOCK_FIRMA_METADATA });
+      setLoading(false);
+      return;
+    }
+
     async function load() {
       try {
         const res = await fetch(`/api/firma/${token}`);
@@ -88,7 +155,7 @@ export default function FirmaPage() {
       }
     }
     load();
-  }, [token]);
+  }, [token, isUiMock]);
 
   const clearSignature = useCallback(() => {
     sigCanvasRef.current?.clear();
@@ -103,6 +170,15 @@ export default function FirmaPage() {
     setStep("otp_sending");
     setError(null);
     setOtpError(null);
+
+    if (isUiMock === true) {
+      await new Promise((r) => setTimeout(r, 450));
+      setOtpId(MOCK_OTP_ID);
+      setOtpPhone(MOCK_FIRMA_METADATA.phoneMasked);
+      setOtpCode("");
+      setStep("otp_input");
+      return;
+    }
 
     try {
       const res = await fetch(`/api/firma/${token}/otp/send`, { method: "POST" });
@@ -120,13 +196,20 @@ export default function FirmaPage() {
       setError("Error de conexión al enviar el código");
       setStep("draw");
     }
-  }, [token]);
+  }, [token, isUiMock]);
 
   const handleVerifyOtp = useCallback(async () => {
     if (!otpId || otpCode.length !== 6) return;
 
     setStep("otp_verifying");
     setOtpError(null);
+
+    if (isUiMock === true) {
+      await new Promise((r) => setTimeout(r, 400));
+      setStep("signing");
+      await executeSignRef.current?.();
+      return;
+    }
 
     try {
       const res = await fetch(`/api/firma/${token}/otp/verify`, {
@@ -143,17 +226,25 @@ export default function FirmaPage() {
       }
 
       setStep("signing");
-      await executeSign();
+      await executeSignRef.current?.();
     } catch {
       setOtpError("Error de conexión al verificar");
       setStep("otp_input");
     }
-  }, [token, otpId, otpCode]);
+  }, [token, otpId, otpCode, isUiMock]);
 
   const handleResendOtp = useCallback(async () => {
     setOtpCode("");
     setOtpError(null);
     setStep("otp_sending");
+
+    if (isUiMock === true) {
+      await new Promise((r) => setTimeout(r, 350));
+      setOtpId(MOCK_OTP_ID);
+      setOtpPhone(MOCK_FIRMA_METADATA.phoneMasked);
+      setStep("otp_input");
+      return;
+    }
 
     try {
       const res = await fetch(`/api/firma/${token}/otp/send`, { method: "POST" });
@@ -170,7 +261,7 @@ export default function FirmaPage() {
       setOtpError("Error de conexión al reenviar");
       setStep("otp_input");
     }
-  }, [token]);
+  }, [token, isUiMock]);
 
   const executeSign = useCallback(async () => {
     setError(null);
@@ -179,6 +270,18 @@ export default function FirmaPage() {
         .getTrimmedCanvas()
         .toDataURL("image/png")
         .replace(/^data:image\/png;base64,/, "");
+
+      if (isUiMock === true) {
+        await new Promise((r) => setTimeout(r, 600));
+        const mockPdf = MOCK_FIRMA_METADATA.pdfUrl;
+        setResult({
+          status: "COMPLETED",
+          signedDocumentUrl: mockPdf,
+          auditTrailUrl: mockPdf,
+        });
+        setStep("done");
+        return;
+      }
 
       const res = await fetch(`/api/firma/${token}/sign`, {
         method: "POST",
@@ -197,7 +300,45 @@ export default function FirmaPage() {
       setError("Error de conexión al firmar");
       setStep("draw");
     }
-  }, [token, otpId]);
+  }, [token, otpId, isUiMock]);
+
+  useEffect(() => {
+    executeSignRef.current = executeSign;
+  }, [executeSign]);
+
+  const [declineReason, setDeclineReason] = useState("");
+  const [declining, setDeclining] = useState(false);
+
+  const handleDecline = useCallback(async () => {
+    setDeclining(true);
+    setError(null);
+
+    if (isUiMock === true) {
+      await new Promise((r) => setTimeout(r, 500));
+      setStep("declined");
+      setDeclining(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/firma/${token}/decline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: declineReason.trim() || undefined }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(data?.error ?? `Error ${res.status}`);
+        setDeclining(false);
+        return;
+      }
+      setStep("declined");
+    } catch {
+      setError("Error de conexión al rechazar la firma");
+    } finally {
+      setDeclining(false);
+    }
+  }, [token, declineReason, isUiMock]);
 
   if (loading) {
     return (
@@ -226,7 +367,8 @@ export default function FirmaPage() {
   if (!meta) return null;
 
   const kindLabel = KIND_LABEL[meta.documentKind] ?? meta.documentKind;
-  const alreadySigned = meta.isTerminal || step === "done";
+  const isTerminalOrDone = meta.isTerminal || step === "done" || step === "declined";
+  const isDeclined = meta.status === "DECLINED" || step === "declined";
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
@@ -240,6 +382,15 @@ export default function FirmaPage() {
             Operación {meta.operationId}
           </span>
         </div>
+        {isUiMock === true && (
+          <div className="border-b border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100">
+            <p className="mx-auto max-w-5xl px-4 py-2 text-center text-xs font-medium">
+              Vista previa (mock): datos y PDF de demostración. Añade{" "}
+              <code className="rounded bg-amber-100/80 px-1 dark:bg-amber-900/60">?mock=1</code> o{" "}
+              <code className="rounded bg-amber-100/80 px-1 dark:bg-amber-900/60">?uiMock=1</code> a la URL.
+            </p>
+          </div>
+        )}
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-6 grid gap-6 lg:grid-cols-[1fr_380px]">
@@ -289,30 +440,45 @@ export default function FirmaPage() {
             </CardContent>
           </Card>
 
-          {alreadySigned ? (
-            <Card className="border-green-500/30 bg-green-50/50 dark:bg-green-950/20">
-              <CardContent className="pt-6 text-center space-y-3">
-                <CheckCircle2 className="mx-auto h-10 w-10 text-green-600" />
-                <p className="text-lg font-semibold text-green-700 dark:text-green-400">
-                  Documento firmado
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {meta.completedAt || result
-                    ? `Firmado el ${new Date(meta.completedAt ?? new Date().toISOString()).toLocaleDateString("es-ES")}`
-                    : "La firma se ha completado correctamente."}
-                </p>
-                {(result?.signedDocumentUrl ?? meta.signedDocumentUrl) && (
-                  <a
-                    href={result?.signedDocumentUrl ?? meta.signedDocumentUrl!}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block text-sm text-primary underline"
-                  >
-                    Descargar documento firmado
-                  </a>
-                )}
-              </CardContent>
-            </Card>
+          {isTerminalOrDone ? (
+            isDeclined ? (
+              <Card className="border-red-500/30 bg-red-50/50 dark:bg-red-950/20">
+                <CardContent className="pt-6 text-center space-y-3">
+                  <XCircle className="mx-auto h-10 w-10 text-red-600" />
+                  <p className="text-lg font-semibold text-red-700 dark:text-red-400">
+                    Firma rechazada
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Has indicado que no deseas firmar este documento.
+                    El equipo de Urus Capital ha sido notificado.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border-green-500/30 bg-green-50/50 dark:bg-green-950/20">
+                <CardContent className="pt-6 text-center space-y-3">
+                  <CheckCircle2 className="mx-auto h-10 w-10 text-green-600" />
+                  <p className="text-lg font-semibold text-green-700 dark:text-green-400">
+                    Documento firmado
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {meta.completedAt || result
+                      ? `Firmado el ${new Date(meta.completedAt ?? new Date().toISOString()).toLocaleDateString("es-ES")}`
+                      : "La firma se ha completado correctamente."}
+                  </p>
+                  {(result?.signedDocumentUrl ?? meta.signedDocumentUrl) && (
+                    <a
+                      href={result?.signedDocumentUrl ?? meta.signedDocumentUrl!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block text-sm text-primary underline"
+                    >
+                      Descargar documento firmado
+                    </a>
+                  )}
+                </CardContent>
+              </Card>
+            )
           ) : (
             <>
               {/* --- Firma manuscrita --- */}
@@ -465,6 +631,58 @@ export default function FirmaPage() {
                     <p className="text-[10px] text-muted-foreground text-center leading-tight">
                       Se enviará un código de verificación a tu teléfono.
                     </p>
+
+                    <div className="pt-2 border-t">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full text-xs text-muted-foreground hover:text-destructive"
+                            disabled={step === "signing"}
+                          >
+                            No deseo firmar este documento
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              ¿Rechazar la firma?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Si rechazas, el documento volverá a estado borrador
+                              y el equipo será notificado. Esta acción no se puede deshacer.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <div className="px-0">
+                            <Textarea
+                              placeholder="Motivo del rechazo (opcional)"
+                              value={declineReason}
+                              onChange={(e) => setDeclineReason(e.target.value)}
+                              rows={3}
+                              className="text-sm"
+                            />
+                          </div>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={handleDecline}
+                              disabled={declining}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              {declining ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Rechazando...
+                                </>
+                              ) : (
+                                "Confirmar rechazo"
+                              )}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </CardContent>
                 </Card>
               )}

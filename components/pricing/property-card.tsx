@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import type { PropertyListItem } from "@/app/pricing/page";
+import type { PropertyListItem } from "@/app/platform/pricing/page";
 
 interface PropertyCardProps {
   property: PropertyListItem;

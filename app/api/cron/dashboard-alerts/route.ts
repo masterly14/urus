@@ -1,3 +1,4 @@
+import type { Prisma } from "@/app/generated/prisma/client";
 import { NextResponse } from "next/server";
 import { isAuthorized } from "@/lib/api/cron-auth";
 import { prisma } from "@/lib/prisma";
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
           currentValue: alert.currentValue,
           baselineValue: alert.baselineValue,
           threshold: alert.threshold,
-          details: alert.details,
+          details: alert.details as Prisma.InputJsonValue,
         },
       });
 

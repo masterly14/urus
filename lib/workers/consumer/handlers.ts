@@ -15,6 +15,11 @@ import { handleFirmaCompletada } from "./firma-completada-handler";
 import { handleContratoBorradorGenerado } from "./contrato-borrador-handler";
 import { handleFirmaEnviada } from "./firma-enviada-handler";
 import { handleSeleccionComprador } from "./seleccion-comprador-handler";
+import { handleMatchGenerado } from "./match-generado-handler";
+import { handleContratoAprobado } from "./contrato-aprobado-handler";
+import { handleContratoVersionado } from "./contrato-versionado-handler";
+import { handleFirmaSlaEscalado } from "./firma-sla-escalado-handler";
+import { handleFirmaRechazada } from "./firma-rechazada-handler";
 
 const registry = new Map<EventType, EventHandler>();
 
@@ -96,10 +101,10 @@ function demandHandler(
   };
 }
 
-function placeholderHandler(): EventHandler {
+function auditOnlyHandler(reason: string): EventHandler {
   return async (event: Event): Promise<HandlerResult> => {
     console.log(
-      `[consumer] ${event.type} aggregateId=${event.aggregateId} → no-op (placeholder)`,
+      `[consumer] ${event.type} aggregateId=${event.aggregateId} — audit-only (${reason})`,
     );
     return { success: true };
   };
@@ -127,33 +132,33 @@ registerHandler("DEMANDA_ACTUALIZADA", handleDemandaActualizada);
 registerHandler("VISITA_EVALUADA", handleVisitaEvaluada);
 registerHandler("VISITA_AGENDADA", handleVisitaAgendada);
 registerHandler("SELECCION_COMPRADOR", handleSeleccionComprador);
-registerHandler("SELECCION_VALIDADA", placeholderHandler());
-registerHandler("SELECCION_RECHAZADA", placeholderHandler());
+registerHandler("SELECCION_VALIDADA", auditOnlyHandler("side effects en API route /validar-seleccion: DB update + job SEND_MICROSITE_TO_BUYER"));
+registerHandler("SELECCION_RECHAZADA", auditOnlyHandler("side effects en API route /validar-seleccion: DB update a REJECTED"));
 
 // --- Smart Closing (M8) ---
-registerHandler("DATOS_INCOMPLETOS", placeholderHandler());
+registerHandler("DATOS_INCOMPLETOS", auditOnlyHandler("emisor emit-incomplete.ts ya encola NOTIFY_CONTRACT_DATA_INCOMPLETE"));
 registerHandler("CONTRATO_BORRADOR_GENERADO", handleContratoBorradorGenerado);
-registerHandler("CONTRATO_VERSIONADO", placeholderHandler());
-registerHandler("CONTRATO_APROBADO", placeholderHandler());
+registerHandler("CONTRATO_VERSIONADO", handleContratoVersionado);
+registerHandler("CONTRATO_APROBADO", handleContratoAprobado);
 
 // --- Firma Digital (M8) ---
 registerHandler("FIRMA_ENVIADA", handleFirmaEnviada);
 registerHandler("FIRMA_COMPLETADA", handleFirmaCompletada);
-registerHandler("FIRMA_RECHAZADA", placeholderHandler());
-registerHandler("FIRMA_EXPIRADA", placeholderHandler());
-registerHandler("FIRMA_RECORDATORIO_ENVIADO", placeholderHandler());
-registerHandler("FIRMA_SLA_ESCALADO", placeholderHandler());
+registerHandler("FIRMA_RECHAZADA", handleFirmaRechazada);
+registerHandler("FIRMA_EXPIRADA", handleFirmaSlaEscalado);
+registerHandler("FIRMA_RECORDATORIO_ENVIADO", auditOnlyHandler("trazabilidad: reminder-scanner ya envió WhatsApp + actualizó lastReminderDay"));
+registerHandler("FIRMA_SLA_ESCALADO", handleFirmaSlaEscalado);
 
 // --- Post-Venta (M9) ---
-registerHandler("INCIDENCIA_POSTVENTA_ABIERTA", placeholderHandler());
-registerHandler("INCIDENCIA_POSTVENTA_RESUELTA", placeholderHandler());
+registerHandler("INCIDENCIA_POSTVENTA_ABIERTA", auditOnlyHandler("API route ya encola NOTIFY_LEAD_WHATSAPP; pausa de cadencia es declarativa via hasOpenIncidencia()"));
+registerHandler("INCIDENCIA_POSTVENTA_RESUELTA", auditOnlyHandler("reanudación automática por cron scanner declarativo en cadence-scanner"));
 
 // --- Post-Venta (M9) ---
 registerHandler("OPERACION_CERRADA", handleOperacionCerrada);
 
-// --- Placeholders (futuras implementaciones) ---
-registerHandler("LEAD_SCORED", placeholderHandler());
+// --- Audit-only (eventos de trazabilidad o reservados) ---
+registerHandler("LEAD_SCORED", auditOnlyHandler("evento legacy no emitido; scoring incrustado en LEAD_INGESTADO"));
 registerHandler("LEAD_CONTACTADO", handleLeadContactado);
-registerHandler("SLA_INICIADO", placeholderHandler());
-registerHandler("MATCH_GENERADO", placeholderHandler());
-registerHandler("WHATSAPP_ENVIADO", placeholderHandler());
+registerHandler("SLA_INICIADO", auditOnlyHandler("evento reservado para métricas futuras; SLA asignado inline en lead-scoring-handler"));
+registerHandler("MATCH_GENERADO", handleMatchGenerado);
+registerHandler("WHATSAPP_ENVIADO", auditOnlyHandler("trazabilidad: job SEND_MICROSITE_TO_BUYER ya envió WhatsApp + upsert sesión"));

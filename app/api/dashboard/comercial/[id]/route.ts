@@ -22,9 +22,9 @@ function parseIsoDate(value: string | null): Date | null {
 
 export async function GET(
   request: Request,
-  context: { params: { id: string } },
+  context: { params: Promise<{ id: string }> },
 ) {
-  const comercialId = context.params.id;
+  const { id: comercialId } = await context.params;
   const session = getSession(request);
 
   if (
