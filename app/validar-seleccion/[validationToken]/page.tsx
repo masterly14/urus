@@ -165,10 +165,40 @@ export default async function ValidarSeleccionPage({
                         {p.zone ? ` · ${p.zone}` : ""}
                       </div>
                       <h2 className="mt-1 line-clamp-2 text-sm font-semibold">{p.title}</h2>
-                      <div className="mt-2 text-sm text-neutral-200">
-                        {formatPrice(p.price)}
-                        {typeof p.metersBuilt === "number" ? ` · ${p.metersBuilt} m²` : ""}
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-neutral-200">
+                        <span className="font-semibold">{formatPrice(p.price)}</span>
+                        {typeof p.metersBuilt === "number" ? (
+                          <span className="text-neutral-400">{p.metersBuilt} m²</span>
+                        ) : null}
+                        {typeof p.rooms === "number" ? (
+                          <span className="text-neutral-400">{p.rooms} hab</span>
+                        ) : null}
+                        {typeof p.baths === "number" ? (
+                          <span className="text-neutral-400">{p.baths} baños</span>
+                        ) : null}
                       </div>
+                      {p.description ? (
+                        <p className="mt-2 line-clamp-2 text-xs text-neutral-500">
+                          {p.description}
+                        </p>
+                      ) : null}
+                      {p.extras.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {p.extras.slice(0, 4).map((extra) => (
+                            <span
+                              key={`${p.propertyId}:${extra}`}
+                              className="rounded-full border border-neutral-700 px-1.5 py-0.5 text-[9px] text-neutral-400"
+                            >
+                              {extra}
+                            </span>
+                          ))}
+                          {p.extras.length > 4 ? (
+                            <span className="text-[9px] text-neutral-600">
+                              +{p.extras.length - 4}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   </article>
                 );
