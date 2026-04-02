@@ -12,6 +12,7 @@ import {
 
 interface SendPostventaPayload {
   propertyCode: string;
+  operacionId?: string;
   step: string;
   template: string;
   closedAt: string;
@@ -31,6 +32,7 @@ function parsePayload(raw: unknown): SendPostventaPayload | null {
   }
   return {
     propertyCode: p.propertyCode,
+    operacionId: typeof p.operacionId === "string" ? p.operacionId : undefined,
     step: p.step,
     template: p.template,
     closedAt: p.closedAt,
@@ -133,7 +135,7 @@ export async function hasOpenIncidencia(
   return !resuelta;
 }
 
-type TemplateSender = (buyer: BuyerInfo, propertyCode: string, comercialName: string) => Promise<void>;
+type TemplateSender = (buyer: BuyerInfo, propertyCode: string, comercialName: string, operacionId?: string) => Promise<void>;
 
 function buildTemplateSenders(): Record<string, TemplateSender> {
   const appUrl = getPublicAppUrl();
@@ -148,12 +150,12 @@ function buildTemplateSenders(): Record<string, TemplateSender> {
         comercialName,
       });
     },
-    soporte: async (buyer, propertyCode) => {
+    soporte: async (buyer, propertyCode, _comercialName, operacionId) => {
       const guideUrl = `${appUrl}/postventa/guia`;
       await sendPostventaSoporte(buyer.phone, {
         buyerName: buyer.name,
         guideUrl,
-        propertyCode,
+        propertyCode: operacionId ?? propertyCode,
       });
     },
     resena: async (buyer) => {
@@ -200,7 +202,7 @@ export async function handleSendPostventaMessage(
     };
   }
 
-  const { propertyCode, step, template, closedAt, requiresNoIncidencia } = payload;
+  const { propertyCode, operacionId, step, template, closedAt, requiresNoIncidencia } = payload;
 
   if (requiresNoIncidencia) {
     const paused = await hasOpenIncidencia(propertyCode, new Date(closedAt));
@@ -235,9 +237,9 @@ export async function handleSendPostventaMessage(
   }
 
   try {
-    await sender(buyer, propertyCode, comercialName);
+    await sender(buyer, propertyCode, comercialName, operacionId);
     console.log(
-      `[postventa] SEND_POSTVENTA_MESSAGE ${step} para ${propertyCode} — enviado a ${buyer.phone}`,
+      `[postventa] SEND_POSTVENTA_MESSAGE ${step} para ${propertyCode}${operacionId ? ` (operacion=${operacionId})` : ""} — enviado a ${buyer.phone}`,
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

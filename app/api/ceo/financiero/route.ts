@@ -19,7 +19,9 @@ export async function GET(request: Request) {
     const result = await getLatestCeoFinancial();
 
     if (!result) {
-      return NextResponse.json({ ok: true, recommendation: null, generatedAt: null });
+      return NextResponse.json(
+        { ok: true, recommendation: null, generatedAt: null },
+      );
     }
 
     return NextResponse.json({ ok: true, ...result });
@@ -47,7 +49,7 @@ export async function POST(request: Request) {
     const result = await generateAndPersistCeoFinancial();
 
     console.log(
-      `[api/ceo/financiero] POST semaforo=${result.recommendation.semaforo_financiero} roi_total=${result.recommendation.roi_automatizaciones_total}% confidence=${result.recommendation.confidence}`,
+      `[api/ceo/financiero] POST semaforo=${result.recommendation.semaforo_financiero} reinversion=${result.recommendation.capacidad_reinversion_eur} confidence=${result.recommendation.confidence}`,
     );
 
     return NextResponse.json({ ok: true, ...result });
@@ -55,7 +57,7 @@ export async function POST(request: Request) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[api/ceo/financiero] POST Error:", message);
     return NextResponse.json(
-      { error: "Error generando análisis financiero" },
+      { error: "Error analizando finanzas" },
       { status: 500 },
     );
   }

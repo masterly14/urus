@@ -109,7 +109,7 @@ export async function scanColaboradorSlaBreaches(
       breach.diasExcedidos >= config.criticalThresholdDays ? "critical" : "warning";
 
     await appendEvent({
-      type: "COLABORADOR_SLA_BREACH" as never,
+      type: "COLABORADOR_SLA_BREACH",
       aggregateType: "OPERACION",
       aggregateId: breach.operacionCodigo,
       payload: {

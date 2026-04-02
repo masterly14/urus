@@ -1,8 +1,8 @@
 /**
  * M13 — Orquestador del Control Financiero (Capa 6).
  *
- * 1. Recopila datos frescos de Capas 1+2 (overview + rendimiento por ciudad)
- * 2. Agrega constantes de automatizaciones asumidas
+ * 1. Recopila datos frescos de Capas 1+2
+ * 2. Inyecta constantes de automatizaciones asumidas
  * 3. Invoca el grafo LangGraph (generateCeoFinancial)
  * 4. Persiste el resultado como evento CEO_FINANZAS_GENERADA
  * 5. Retorna el resultado
@@ -14,48 +14,10 @@ import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store";
 import {
   generateCeoFinancial,
+  AUTOMATIZACIONES_ASUMIDAS,
   type CeoFinancialInput,
-  type AutomationAssumed,
 } from "@/lib/agents/ceo-financial-graph";
 import type { CeoFinancialRecommendation } from "./financial-types";
-
-// ---------------------------------------------------------------------------
-// Automatizaciones activas con valores asumidos
-// Representan las automatizaciones implementadas en el sistema (M5–M12)
-// ---------------------------------------------------------------------------
-
-export const AUTOMATIZACIONES_ASUMIDAS: AutomationAssumed[] = [
-  {
-    nombre: "Cadencia automática postventa",
-    coste_mensual_eur: 50,
-    ahorro_horas_mes: 20,
-    coste_hora_eur: 25,
-  },
-  {
-    nombre: "Sistema de alertas comerciales",
-    coste_mensual_eur: 30,
-    ahorro_horas_mes: 10,
-    coste_hora_eur: 25,
-  },
-  {
-    nombre: "Firma digital Signaturit",
-    coste_mensual_eur: 80,
-    ahorro_horas_mes: 8,
-    coste_hora_eur: 40,
-  },
-  {
-    nombre: "Scoring automático de leads",
-    coste_mensual_eur: 40,
-    ahorro_horas_mes: 15,
-    coste_hora_eur: 25,
-  },
-  {
-    nombre: "Recomendaciones de colaboradores IA",
-    coste_mensual_eur: 35,
-    ahorro_horas_mes: 6,
-    coste_hora_eur: 35,
-  },
-];
 
 // ---------------------------------------------------------------------------
 // Types
@@ -111,7 +73,7 @@ export async function generateAndPersistCeoFinancial(): Promise<CeoFinancialGene
 }
 
 // ---------------------------------------------------------------------------
-// Leer último análisis del Event Store
+// Leer última evaluación del Event Store
 // ---------------------------------------------------------------------------
 
 export async function getLatestCeoFinancial(): Promise<CeoFinancialGeneratorResult | null> {
@@ -133,12 +95,10 @@ export async function getLatestCeoFinancial(): Promise<CeoFinancialGeneratorResu
       costes_variables_eur: (p.costes_variables_eur as number) ?? 0,
       coste_por_operacion_eur: (p.coste_por_operacion_eur as number) ?? 0,
       ratio_fijo_variable: (p.ratio_fijo_variable as number) ?? 0,
-      automatizaciones:
-        (p.automatizaciones as CeoFinancialRecommendation["automatizaciones"]) ?? [],
+      automatizaciones: (p.automatizaciones as CeoFinancialRecommendation["automatizaciones"]) ?? [],
       roi_automatizaciones_total: (p.roi_automatizaciones_total as number) ?? 0,
       capacidad_reinversion_eur: (p.capacidad_reinversion_eur as number) ?? 0,
-      recomendaciones:
-        (p.recomendaciones as CeoFinancialRecommendation["recomendaciones"]) ?? [],
+      recomendaciones: (p.recomendaciones as CeoFinancialRecommendation["recomendaciones"]) ?? [],
       semaforo_financiero:
         (p.semaforo_financiero as CeoFinancialRecommendation["semaforo_financiero"]) ?? "rojo",
       resumen_ejecutivo: (p.resumen_ejecutivo as string) ?? "",

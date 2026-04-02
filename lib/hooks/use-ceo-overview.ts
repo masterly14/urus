@@ -28,6 +28,14 @@ export function useCeoOverview() {
         throw new Error(body.error ?? `HTTP ${res.status}`);
       }
       const json: CeoOverviewResponse = await res.json();
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          "[ceo/overview] Datos recibidos del backend (GET /api/ceo/overview). KPI EBITDA =",
+          json.kpis?.ebitda?.value,
+          "€ — ver terminal del servidor para tabla/columna de origen.",
+          json,
+        );
+      }
       setData(json);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

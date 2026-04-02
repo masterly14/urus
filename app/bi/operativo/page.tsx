@@ -5,6 +5,7 @@ import {
   Building2,
   MapPin,
   TrendingDown,
+  TrendingUp,
   Users,
   Briefcase,
   DollarSign,
@@ -27,15 +28,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { SimpleBarChart } from "@/components/bi/charts";
-import { KpiCard } from "@/components/dashboard/kpi-card";
-import { MockBadge } from "@/components/bi/mock-badge";
 import { cn } from "@/lib/utils";
-import { formatEur, formatEurCompact } from "@/lib/utils/format";
+import { formatEur, formatNum } from "@/lib/utils/format";
+import { MockBadge } from "@/components/bi/mock-badge";
 import { useCeoCityPerformance } from "@/lib/hooks/use-ceo-cities";
 import { useDashboardComerciales } from "@/lib/hooks/use-dashboard-comercial";
 import type { CeoCityRow } from "@/lib/dashboard/ceo/types";
+import { CIUDADES_OPERATIVAS } from "@/lib/dashboard/ceo/types";
 import { salesPerformanceData } from "@/lib/mock-data/bi";
 
 // ---------------------------------------------------------------------------
@@ -99,10 +101,6 @@ const MOCK_CITIES: CeoCityRow[] = [
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function fmtNum(v: number): string {
-  return Math.round(v).toLocaleString("es-ES");
-}
 
 function cityBarData(cities: CeoCityRow[]) {
   return cities.map((c) => ({
@@ -188,47 +186,64 @@ export default function OperationalDashboard() {
 
   return (
     <div className="space-y-6">
-      <MockBadge show={isMock} />
+      {isMock && <MockBadge />}
 
       {/* KPI Cards globales */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <KpiCard
-          title="Comerciales"
-          value={totals.comerciales}
-          sub={`en ${cities.length} ciudades`}
-          icon={Users}
-          format="raw"
-        />
-        <KpiCard
-          title="Propiedades Activas"
-          value={fmtNum(totals.propiedades)}
-          sub="stock disponible total"
-          icon={Building2}
-          format="raw"
-        />
-        <KpiCard
-          title="Operaciones/Mes"
-          value={totals.operaciones}
-          sub="cierres en el período"
-          icon={Briefcase}
-          format="raw"
-        />
-        <KpiCard
-          title="Facturación Total"
-          value={totals.facturacion}
-          sub="estimada con comisión"
-          icon={DollarSign}
-          format="currency"
-        />
-        <KpiCard
-          title="Coste Oportunidad"
-          value={totals.costeOportunidad}
-          sub="potencialmente perdido"
-          icon={AlertTriangle}
-          format="currency"
-          highlight="amber"
-          className="border-amber-200/50 dark:border-amber-800/50"
-        />
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Comerciales</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totals.comerciales}</div>
+            <p className="text-xs text-muted-foreground">
+              en {cities.length} ciudades
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Propiedades Activas</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatNum(totals.propiedades)}</div>
+            <p className="text-xs text-muted-foreground">stock disponible total</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Operaciones/Mes</CardTitle>
+            <Briefcase className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totals.operaciones}</div>
+            <p className="text-xs text-muted-foreground">cierres en el período</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Facturación Total</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatEur(totals.facturacion)}</div>
+            <p className="text-xs text-muted-foreground">estimada con comisión</p>
+          </CardContent>
+        </Card>
+        <Card className="border-amber-200/50 dark:border-amber-800/50">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Coste Oportunidad</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+              {formatEur(totals.costeOportunidad)}
+            </div>
+            <p className="text-xs text-muted-foreground">dinero potencialmente perdido</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Tabs */}
@@ -253,7 +268,7 @@ export default function OperationalDashboard() {
                 data={cityBarData(cities)}
                 index="ciudad"
                 categories={["Facturación", "Coste Oportunidad"]}
-                colors={["hsl(var(--primary))", "hsl(var(--destructive))"]}
+                colors={["#10b981", "#f59e0b"]}
                 height={300}
               />
             </CardContent>
@@ -267,8 +282,9 @@ export default function OperationalDashboard() {
                 Las 8 métricas clave por cada sede operativa.
               </CardDescription>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <Table className="min-w-[800px]">
+            <CardContent>
+              <div className="overflow-x-auto">
+              <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Ciudad</TableHead>
@@ -288,7 +304,7 @@ export default function OperationalDashboard() {
                     return (
                       <TableRow key={city.ciudad}>
                         <TableCell>
-                          <div className="flex items-center gap-2 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
                             <MapPin className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium">{city.ciudad}</span>
                           </div>
@@ -312,13 +328,13 @@ export default function OperationalDashboard() {
                         </TableCell>
                         <TableCell className="text-center">{city.propiedadesActivas}</TableCell>
                         <TableCell className="text-center">{city.operacionesMes}</TableCell>
-                        <TableCell className="text-right font-medium whitespace-nowrap">{formatEur(city.facturacionMes)}</TableCell>
-                        <TableCell className="text-right whitespace-nowrap">
+                        <TableCell className="text-right font-medium">{formatEur(city.facturacionMes)}</TableCell>
+                        <TableCell className="text-right">
                           <span className="font-medium">{formatEur(city.rentabilidadPorComercial)}</span>
                         </TableCell>
-                        <TableCell className="text-right whitespace-nowrap">
+                        <TableCell className="text-right">
                           <span className="text-amber-600 dark:text-amber-400 font-medium">
-                            {formatEurCompact(city.costeOportunidadTotal)}
+                            {formatEur(city.costeOportunidadTotal)}
                           </span>
                         </TableCell>
                       </TableRow>
@@ -326,6 +342,7 @@ export default function OperationalDashboard() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
 
@@ -357,7 +374,7 @@ export default function OperationalDashboard() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Capacidad ociosa</span>
-                    <span className="font-medium">{fmtNum(city.capacidadOciosa)} leads libres</span>
+                    <span className="font-medium">{formatNum(city.capacidadOciosa)} leads libres</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Revenue/lead</span>
@@ -390,8 +407,9 @@ export default function OperationalDashboard() {
                 Ordenados por tasa de conversión lead→cierre. Datos del período actual.
               </CardDescription>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <Table className="min-w-[600px]">
+            <CardContent>
+              <div className="overflow-x-auto">
+              <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Agente</TableHead>
@@ -404,7 +422,7 @@ export default function OperationalDashboard() {
                 <TableBody>
                   {sortedAgents.map((agent) => (
                     <TableRow key={agent.agentId}>
-                      <TableCell className="font-medium whitespace-nowrap">{agent.agentName}</TableCell>
+                      <TableCell className="font-medium">{agent.agentName}</TableCell>
                       <TableCell>{agent.city}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -422,8 +440,8 @@ export default function OperationalDashboard() {
                           <span className="text-sm font-bold tabular-nums">{agent.efficiency}%</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right whitespace-nowrap">{formatEur(agent.revenue)}</TableCell>
-                      <TableCell className="text-right whitespace-nowrap">{formatEur(agent.avgTicket)}</TableCell>
+                      <TableCell className="text-right">{formatEur(agent.revenue)}</TableCell>
+                      <TableCell className="text-right">{formatEur(agent.avgTicket)}</TableCell>
                     </TableRow>
                   ))}
                   {sortedAgents.length === 0 && (
@@ -435,6 +453,7 @@ export default function OperationalDashboard() {
                   )}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
 

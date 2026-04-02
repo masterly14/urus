@@ -16,6 +16,8 @@ interface GenerateContractDraftPayload {
   propertyCode: string;
   demandId?: string;
   operationId?: string;
+  operacionId?: string;
+  operacionCodigo?: string;
   previousEstado?: string;
   newEstado?: string;
   sourceEventId?: string;
@@ -30,6 +32,8 @@ function parsePayload(raw: unknown): GenerateContractDraftPayload | null {
     propertyCode,
     demandId: typeof obj.demandId === "string" ? obj.demandId : undefined,
     operationId: typeof obj.operationId === "string" ? obj.operationId : undefined,
+    operacionId: typeof obj.operacionId === "string" ? obj.operacionId : undefined,
+    operacionCodigo: typeof obj.operacionCodigo === "string" ? obj.operacionCodigo : undefined,
     previousEstado: typeof obj.previousEstado === "string" ? obj.previousEstado : undefined,
     newEstado: typeof obj.newEstado === "string" ? obj.newEstado : undefined,
     sourceEventId: typeof obj.sourceEventId === "string" ? obj.sourceEventId : undefined,
@@ -58,7 +62,8 @@ export async function handleGenerateContractDraft(
   } = payload;
 
   const demandId = payload.demandId ?? propertyCode;
-  const operationId = payload.operationId ?? `OP-${propertyCode}`;
+  const operationId = payload.operacionCodigo ?? payload.operationId ?? `OP-${propertyCode}`;
+  const operacionId = payload.operacionId ?? undefined;
   const initialTemplateVersion = buildContractVersionStem(operationId, "arras", 1);
 
   console.log(
@@ -148,6 +153,7 @@ export async function handleGenerateContractDraft(
     aggregateId: propertyCode,
     payload: {
       operationId,
+      operacionId,
       demandId,
       propertyCode,
       documentKind: "arras",

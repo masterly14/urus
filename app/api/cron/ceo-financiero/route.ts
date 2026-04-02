@@ -11,14 +11,14 @@ export async function POST(request: Request) {
     const result = await generateAndPersistCeoFinancial();
 
     console.log(
-      `[cron/ceo-financiero] semaforo=${result.recommendation.semaforo_financiero} roi_total=${result.recommendation.roi_automatizaciones_total}% confidence=${result.recommendation.confidence}`,
+      `[cron/ceo-financiero] semaforo=${result.recommendation.semaforo_financiero} reinversion=${result.recommendation.capacidad_reinversion_eur} confidence=${result.recommendation.confidence}`,
     );
 
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     console.error("[cron/ceo-financiero] Error:", error);
     return NextResponse.json(
-      { error: "Error generando análisis financiero" },
+      { error: "Error analizando finanzas" },
       { status: 500 },
     );
   }

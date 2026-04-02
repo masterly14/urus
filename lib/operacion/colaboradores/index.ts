@@ -23,3 +23,22 @@ export type {
 
 export { scanColaboradorSlaBreaches } from "./sla-scanner";
 export type { SlaScanResult } from "./sla-scanner";
+
+export { getDashboardColaboradores } from "./dashboard-queries";
+export type {
+  ColaboradorDashboardRow,
+  TipoMetricas,
+  DashboardResumen,
+  DashboardColaboradoresPayload,
+} from "./dashboard-queries";
+
+export { generateAndPersistColaboradoresRecommendation } from "./recommendation-generator";
+export type { RecommendationGeneratorResult } from "./recommendation-generator";
+
+export { ColaboradoresRecommendationSchema } from "./recommendation-types";
+export type {
+  ColaboradoresRecommendation,
+  RecomendacionItem,
+  RecomendacionTipo,
+  RecomendacionPrioridad,
+} from "./recommendation-types";

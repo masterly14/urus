@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 import {
-    ArrowDownRight,
-    ArrowUpRight,
     TrendingDown,
     TrendingUp,
     AlertTriangle,
@@ -45,28 +43,32 @@ export default function FinancialDashboard() {
                 <KpiCard
                     title="Facturación Mensual"
                     value={currentMonth.revenue}
-                    change={revenueChange}
+                    change={parseFloat(revenueChange.toFixed(1))}
+                    trend={revenueChange >= 0 ? "up" : "down"}
                     icon={TrendingUp}
                     format="currency"
                 />
                 <KpiCard
                     title="EBITDA"
                     value={currentMonth.ebitda}
-                    change={ebitdaChange}
+                    change={parseFloat(ebitdaChange.toFixed(1))}
+                    trend={ebitdaChange >= 0 ? "up" : "down"}
                     icon={TrendingUp}
                     format="currency"
                 />
                 <KpiCard
                     title="Cash Flow Neto"
                     value={currentMonth.cashFlow}
-                    change={cashFlowChange}
+                    change={parseFloat(cashFlowChange.toFixed(1))}
+                    trend={cashFlowChange >= 0 ? "up" : "down"}
                     icon={TrendingUp}
                     format="currency"
                 />
                 <KpiCard
                     title="Coste Operativo"
                     value={currentMonth.operatingCost}
-                    change={costChange}
+                    change={parseFloat(costChange.toFixed(1))}
+                    trend={costChange <= 0 ? "down" : "up"}
                     icon={TrendingDown}
                     format="currency"
                 />

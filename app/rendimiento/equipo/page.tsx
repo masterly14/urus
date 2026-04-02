@@ -2,10 +2,10 @@
 
 import {
     ArrowUpRight,
-    TrendingDown,
     TrendingUp,
     User,
     MoreHorizontal,
+    AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +45,7 @@ export default function TeamPerformancePage() {
                     title="Facturación Total"
                     value={785000}
                     change={12.5}
+                    trend="up"
                     icon={TrendingUp}
                     format="currency"
                 />
@@ -52,26 +53,26 @@ export default function TeamPerformancePage() {
                     title="Conversión Global"
                     value={14.2}
                     change={1.8}
+                    trend="up"
                     icon={ArrowUpRight}
                     format="percent"
-                    sub="vs objetivo 12%"
+                    description="vs objetivo 12%"
                 />
                 <KpiCard
                     title="Top Performers"
                     value={topPerformers.length}
                     change={0}
+                    trend="stable"
                     icon={User}
-                    format="raw"
-                    sub="Sin cambios"
+                    description="Sin cambios"
                 />
                 <KpiCard
                     title="Riesgo de Fuga"
                     value={2}
                     change={-1}
-                    icon={TrendingDown}
-                    format="raw"
-                    sub="Agentes en riesgo"
-                    highlight="red"
+                    trend="down"
+                    icon={AlertTriangle}
+                    description="Agentes en riesgo"
                     className="border-l-4 border-l-red-500"
                 />
             </div>

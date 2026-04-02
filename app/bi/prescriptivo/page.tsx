@@ -164,6 +164,7 @@ const PRIORIDAD_VARIANT: Record<string, "destructive" | "secondary" | "outline">
   baja: "outline",
 };
 
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -413,7 +414,7 @@ export default function PrescriptiveDashboard() {
 
   return (
     <div className="space-y-6">
-      <MockBadge show={useMock} />
+      {useMock && <MockBadge />}
 
       <div className="flex items-center justify-between">
         <div />

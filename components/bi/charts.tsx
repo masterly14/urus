@@ -14,14 +14,14 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 
-// Theme colors (using CSS variables where possible or fixed values as fallback)
+// Theme colors
 const COLORS = [
-    "hsl(var(--primary))",
-    "hsl(var(--secondary))",
-    "hsl(var(--accent))",
-    "hsl(var(--destructive))",
     "#10b981", // Success green
+    "#3b82f6", // Blue
     "#f59e0b", // Warning yellow
+    "#ef4444", // Danger red
+    "#8b5cf6", // Purple
+    "#ec4899", // Pink
 ];
 
 interface BaseChartProps {

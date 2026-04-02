@@ -22,6 +22,7 @@ export const POSTVENTA_CADENCE: PostventaStep[] = [
 
 interface StartCadencePayload {
   propertyCode: string;
+  operacionId?: string;
   newEstado: string;
   closedAt: string;
   sourceEventId: string;
@@ -39,6 +40,7 @@ function parsePayload(raw: unknown): StartCadencePayload | null {
   }
   return {
     propertyCode: p.propertyCode,
+    operacionId: typeof p.operacionId === "string" ? p.operacionId : undefined,
     newEstado: typeof p.newEstado === "string" ? p.newEstado : "",
     closedAt: p.closedAt,
     sourceEventId: p.sourceEventId,
@@ -61,19 +63,21 @@ export async function handleStartPostventaCadence(
     };
   }
 
-  const { propertyCode, closedAt, sourceEventId } = payload;
+  const { propertyCode, operacionId, closedAt, sourceEventId } = payload;
   const baseTime = new Date(closedAt).getTime();
+  const idKey = operacionId ?? propertyCode;
 
   let enqueued = 0;
 
   for (const step of POSTVENTA_CADENCE) {
     const availableAt = new Date(baseTime + step.delayMs);
-    const idempotencyKey = `postventa:${propertyCode}:${step.label}`;
+    const idempotencyKey = `postventa:${idKey}:${step.label}`;
 
     await enqueueJob({
       type: "SEND_POSTVENTA_MESSAGE",
       payload: {
         propertyCode,
+        operacionId,
         step: step.label,
         template: step.template,
         closedAt,
@@ -88,7 +92,7 @@ export async function handleStartPostventaCadence(
   }
 
   console.log(
-    `[postventa] START_POSTVENTA_CADENCE job ${job.id} — ${enqueued} mensajes encolados para ${propertyCode}`,
+    `[postventa] START_POSTVENTA_CADENCE job ${job.id} — ${enqueued} mensajes encolados para ${propertyCode}${operacionId ? ` (operacion=${operacionId})` : ""}`,
   );
 
   return { success: true };

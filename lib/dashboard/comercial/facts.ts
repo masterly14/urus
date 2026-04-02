@@ -249,6 +249,11 @@ export async function upsertCommercialOperationFactFromOperacionCerradaEvent(
       ? payload.propertyCode.trim()
       : event.aggregateId;
 
+  const operacionId =
+    typeof payload.operacionId === "string" && payload.operacionId.trim()
+      ? payload.operacionId.trim()
+      : null;
+
   const newEstado = typeof payload.newEstado === "string" ? payload.newEstado : "";
   const closedAt =
     toDateOrNull(payload.closedAt) ??
@@ -281,6 +286,7 @@ export async function upsertCommercialOperationFactFromOperacionCerradaEvent(
     where: { sourceEventId: event.id },
     create: {
       sourceEventId: event.id,
+      operacionId,
       propertyCode,
       propertyRef: property?.ref ?? "",
       ciudad: property?.ciudad ?? "",
@@ -295,6 +301,7 @@ export async function upsertCommercialOperationFactFromOperacionCerradaEvent(
       createdAt: event.occurredAt ?? new Date(),
     },
     update: {
+      operacionId,
       propertyCode,
       propertyRef: property?.ref ?? "",
       ciudad: property?.ciudad ?? "",

@@ -42,6 +42,9 @@ export async function POST(request: Request) {
   });
 
   const eventPayload = (closedEvent?.payload ?? {}) as Record<string, unknown>;
+  const operacionId = typeof eventPayload.operacionId === "string"
+    ? eventPayload.operacionId
+    : undefined;
   const referrerName = typeof eventPayload.clientName === "string"
     ? eventPayload.clientName
     : "Cliente";
@@ -67,6 +70,7 @@ export async function POST(request: Request) {
     aggregateId: propertyCode,
     payload: {
       referralId: referral.id,
+      operacionId,
       referredName,
       referredPhone,
       referredEmail: referredEmail || null,

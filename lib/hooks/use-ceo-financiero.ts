@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { CeoFinancialRecommendation } from "@/lib/dashboard/ceo/financial-types";
 import { useSession } from "@/lib/hooks/use-session";
 
-interface FinancieroResponse {
+interface FinancialResponse {
   ok: boolean;
   recommendation: CeoFinancialRecommendation | null;
   generatedAt: string | null;
@@ -30,7 +30,7 @@ export function useCeoFinanciero() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? `HTTP ${res.status}`);
       }
-      const json: FinancieroResponse = await res.json();
+      const json: FinancialResponse = await res.json();
       setData(json.recommendation);
       setGeneratedAt(json.generatedAt);
     } catch (err) {

@@ -9,6 +9,7 @@ interface OperacionCerradaPayload {
   newEstado: string;
   propertyCode: string;
   closedAt: string;
+  operacionId?: string;
   sourceEstadoCambiadoEventId?: string;
 }
 
@@ -48,7 +49,7 @@ export async function handleOperacionCerrada(
     return { success: true };
   }
 
-  const { propertyCode, newEstado, closedAt } = payload;
+  const { propertyCode, newEstado, closedAt, operacionId } = payload;
   const closedDate = new Date(closedAt);
 
   if (isNaN(closedDate.getTime())) {
@@ -58,7 +59,6 @@ export async function handleOperacionCerrada(
     return { success: true };
   }
 
-  // Persistencia best-effort para Dashboard Comercial (M10). No debe bloquear cadencias.
   try {
     await upsertCommercialOperationFactFromOperacionCerradaEvent(event);
   } catch (err) {
@@ -68,6 +68,7 @@ export async function handleOperacionCerrada(
     );
   }
 
+  const idKey = operacionId ?? propertyCode;
   const followUpJobs: EnqueueJobInput[] = [];
 
   for (const step of POST_SALE_CADENCE) {
@@ -77,6 +78,7 @@ export async function handleOperacionCerrada(
       type: step.jobType,
       payload: {
         propertyCode,
+        operacionId,
         newEstado,
         phase: step.phase,
         stepLabel: step.label,
@@ -84,13 +86,13 @@ export async function handleOperacionCerrada(
         sourceEventId: event.id,
       },
       availableAt,
-      idempotencyKey: `post_sale:${propertyCode}:${step.phase}`,
+      idempotencyKey: `post_sale:${idKey}:${step.phase}`,
       sourceEventId: event.id,
     });
   }
 
   console.log(
-    `[post-sale] OPERACION_CERRADA propertyCode=${propertyCode} estado="${newEstado}" → ${followUpJobs.length} cadencias encoladas: ${POST_SALE_CADENCE.map((s) => `${s.label} (${getPhaseLabel(s.phase)})`).join(", ")}`,
+    `[post-sale] OPERACION_CERRADA propertyCode=${propertyCode}${operacionId ? ` operacion=${operacionId}` : ""} estado="${newEstado}" → ${followUpJobs.length} cadencias encoladas: ${POST_SALE_CADENCE.map((s) => `${s.label} (${getPhaseLabel(s.phase)})`).join(", ")}`,
   );
 
   return { success: true, followUpJobs };

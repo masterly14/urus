@@ -34,6 +34,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { formatEur, formatPercent } from "@/lib/utils/format";
 import {
     useDashboardComerciales,
     type DashboardComercialesFilters,
@@ -43,7 +44,6 @@ import {
     PROFILE_SHORT_LABELS,
     type ComercialProfile,
 } from "@/lib/dashboard/comercial/classify";
-import { formatEur, formatPercent } from "@/lib/utils/format";
 
 const PROFILE_STYLES: Record<ComercialProfile, string> = {
     top_performer: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -304,7 +304,7 @@ export default function ComercialesDashboardPage() {
                         Ordenado por facturación estimada. Click en una fila para ver el detalle.
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="overflow-x-auto">
+                <CardContent>
                     {loading ? (
                         <div className="space-y-3">
                             {Array.from({ length: 5 }).map((_, i) => (
@@ -316,7 +316,8 @@ export default function ComercialesDashboardPage() {
                             No hay datos de comerciales para el rango seleccionado.
                         </p>
                     ) : (
-                        <Table className="min-w-[800px]">
+                        <div className="overflow-x-auto">
+                        <Table>
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-[50px] text-center">#</TableHead>
@@ -405,6 +406,7 @@ export default function ComercialesDashboardPage() {
                                 ))}
                             </TableBody>
                         </Table>
+                        </div>
                     )}
                 </CardContent>
             </Card>

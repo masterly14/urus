@@ -203,7 +203,9 @@ export async function detectSlaBreaches(
       COALESCE(c.nombre, '') AS "comercialNombre",
       COUNT(DISTINCT sr.id)::int AS "count"
     FROM "signature_requests" sr
-    JOIN "commercial_operation_facts" o ON o."propertyCode" = sr."propertyCode"
+    JOIN "commercial_operation_facts" o
+      ON (o."operacionId" IS NOT NULL AND o."operacionId" = sr."operationId")
+      OR (o."operacionId" IS NULL AND o."propertyCode" = sr."propertyCode")
     LEFT JOIN "comerciales" c ON c.id = o."comercialId"
     WHERE sr.status IN ('SENT', 'OPENED')
       AND sr."slaDeadline" < ${now}

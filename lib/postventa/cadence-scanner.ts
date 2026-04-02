@@ -3,6 +3,7 @@ import { enqueueJob } from "@/lib/job-queue";
 import { POSTVENTA_CADENCE } from "./start-cadence-handler";
 import { isOperacionCerrada } from "@/lib/workers/consumer/smart-closing-handler";
 import { hasOpenIncidencia } from "./send-message-handler";
+import type { OperacionEstado } from "@/app/generated/prisma/client";
 
 const MAX_OPERATIONS_PER_SCAN = 100;
 
@@ -15,6 +16,7 @@ export interface PostventaScanResult {
 
 interface ClosedOperation {
   aggregateId: string;
+  operacionId?: string;
   eventId: string;
   occurredAt: Date;
   closedAt: string;
@@ -50,8 +52,14 @@ export async function scanPostventaCadences(): Promise<PostventaScanResult> {
     if (!isOperacionCerrada(newEstado)) continue;
 
     seen.add(ev.aggregateId);
+
+    const opPayload = ev.payload as Record<string, unknown> | null;
+    const payloadOperacionId =
+      typeof opPayload?.operacionId === "string" ? opPayload.operacionId : undefined;
+
     closedOperations.push({
       aggregateId: ev.aggregateId,
+      operacionId: payloadOperacionId,
       eventId: ev.id,
       occurredAt: ev.occurredAt,
       closedAt: ev.occurredAt.toISOString(),
@@ -73,8 +81,25 @@ export async function scanPostventaCadences(): Promise<PostventaScanResult> {
 
     let allCovered = true;
 
+    let resolvedOperacionId = op.operacionId;
+    if (!resolvedOperacionId) {
+      const CLOSED_STATES: OperacionEstado[] = [
+        "CERRADA_VENTA",
+        "CERRADA_ALQUILER",
+        "CERRADA_TRASPASO",
+      ];
+      const opRecord = await prisma.operacion.findFirst({
+        where: { propertyCode: op.aggregateId, estado: { in: CLOSED_STATES } },
+        orderBy: { closedAt: "desc" },
+        select: { id: true },
+      });
+      resolvedOperacionId = opRecord?.id;
+    }
+
+    const idKey = resolvedOperacionId ?? op.aggregateId;
+
     for (const step of POSTVENTA_CADENCE) {
-      const idempotencyKey = `postventa:${op.aggregateId}:${step.label}`;
+      const idempotencyKey = `postventa:${idKey}:${step.label}`;
       const now = Date.now();
       const availableTime = op.occurredAt.getTime() + step.delayMs;
 
@@ -93,6 +118,7 @@ export async function scanPostventaCadences(): Promise<PostventaScanResult> {
         type: "SEND_POSTVENTA_MESSAGE",
         payload: {
           propertyCode: op.aggregateId,
+          operacionId: resolvedOperacionId,
           step: step.label,
           template: step.template,
           closedAt: op.closedAt,

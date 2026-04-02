@@ -34,6 +34,16 @@ export async function POST(request: Request) {
   const { operationId, propertyCode, documentKind, templateVersion } =
     parsed.data;
 
+  const operacionRecord = await prisma.operacion.findFirst({
+    where: { codigo: operationId },
+    select: { id: true },
+  });
+  if (!operacionRecord) {
+    console.warn(
+      `[contracts/approve] Operacion no encontrada para codigo=${operationId} — legacy flow`,
+    );
+  }
+
   const legalDoc = await prisma.legalDocument.findFirst({
     where: { operationId, documentKind },
   });

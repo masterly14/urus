@@ -126,3 +126,7 @@ Solo necesita `OPENAI_API_KEY` (ya existente) y `DATABASE_URL` (ya existente).
 ## Coste estimado por run
 
 ~$0.30 (28 escenarios: gpt-4o-mini para buyer + NLU, gpt-4o para juez).
+
+## Referencia en el plan
+
+La suite está descrita en **`docs/plan.md`** en la sección **Implementación consolidada — Microsite, NLU comprador y suite de evaluación IA** (mitigación explícita del riesgo «LangGraph produce outputs inconsistentes»: métricas en DB + regresión antes de deploy).

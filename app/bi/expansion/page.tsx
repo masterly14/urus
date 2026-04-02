@@ -153,6 +153,7 @@ const CRITERIO_COLOR: Record<CriterioEstado, string> = {
   no_cumplido: "text-red-500 dark:text-red-400",
 };
 
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -406,7 +407,7 @@ export default function ExpansionDashboard() {
 
   return (
     <div className="space-y-6">
-      <MockBadge show={useMock} />
+      {useMock && <MockBadge />}
 
       <div className="flex items-center justify-between">
         <div />
