@@ -61,6 +61,8 @@ enum EventType {
   REFERIDO_CAPTURADO
   REFERIDO_ASIGNADO
   REFERIDO_SOLICITUD_ENVIADA
+  COLABORADOR_SLA_BREACH
+  COLABORADOR_RECOMENDACION_GENERADA
 }
 
 enum JobType {
@@ -934,4 +936,43 @@ model DocumentoColaborador {
   @@index([asignacionId])
   @@index([hitoId])
   @@map("documentos_colaborador")
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard CEO — Gobierno Estratégico (M13)
+// ---------------------------------------------------------------------------
+
+model CeoMonthlySnapshot {
+  id                    String   @id @default(cuid())
+  period                String   @unique // "2026-04"
+  revenueEur            Float    @default(0)
+  grossVolumeEur        Float    @default(0)
+  operationsClosed      Int      @default(0)
+  operationsActive      Int      @default(0)
+  ebitdaEur             Float    @default(0)
+  operatingCostEur      Float    @default(0)
+  cashAvailableEur      Float    @default(0)
+  fixedCostsEur         Float    @default(0)
+  variableCostsEur      Float    @default(0)
+  avgMarginPerOp        Float    @default(0)
+  reinvestmentCapacity  Float    @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([period])
+  @@map("ceo_monthly_snapshots")
+}
+
+model CeoTarget {
+  id                  String   @id @default(cuid())
+  year                Int
+  month               Int?
+  targetRevenueEur    Float    @default(0)
+  targetEbitdaEur     Float    @default(0)
+  maxOperatingCostEur Float    @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([year, month])
+  @@map("ceo_targets")
 }
