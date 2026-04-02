@@ -1,6 +1,7 @@
 import type { JobType } from "@/app/generated/prisma/client";
 import type { JobRecord } from "@/lib/job-queue/types";
 import type { HandlerResult } from "./types";
+import { appendEvent } from "@/lib/event-store";
 import {
   sendLeadAssignedToCommercial,
   sendFollowUpToCommercial,
@@ -376,8 +377,10 @@ async function handleSendMicrositeToBuyer(job: JobRecord): Promise<HandlerResult
   const selection = await prisma.micrositeSelection.findUnique({
     where: { id: selectionId },
     select: {
+      id: true,
       token: true,
       status: true,
+      demandId: true,
       demandNombre: true,
       buyerPhone: true,
     },
@@ -404,19 +407,52 @@ async function handleSendMicrositeToBuyer(job: JobRecord): Promise<HandlerResult
   const base = getPublicAppUrl();
   const buyerUrl = `${base}/seleccion/${selection.token}`;
 
+  let wamid: string | undefined;
   try {
-    await sendMicrositeLinkToBuyer(digits, {
+    const result = await sendMicrositeLinkToBuyer(digits, {
       demandNombre: selection.demandNombre,
       buyerUrl,
     });
+    wamid = result.messages?.[0]?.id;
     console.log(
-      `[consumer] SEND_MICROSITE_TO_BUYER job ${job.id} — enviado al comprador selectionId=${selectionId}`,
+      `[consumer] SEND_MICROSITE_TO_BUYER job ${job.id} — enviado al comprador selectionId=${selectionId} wamid=${wamid ?? "N/A"}`,
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[consumer] SEND_MICROSITE_TO_BUYER — error: ${message}`);
     return { success: false, error: message };
   }
+
+  if (wamid) {
+    await appendEvent({
+      type: "WHATSAPP_ENVIADO",
+      aggregateType: "WHATSAPP_CONVERSATION",
+      aggregateId: digits,
+      payload: {
+        messageId: wamid,
+        demandId: selection.demandId,
+        selectionId: selection.id,
+        selectionToken: selection.token,
+        kind: "microsite_link",
+        buyerUrl,
+      } as unknown as import("@/lib/event-store/types").JsonValue,
+    });
+  }
+
+  await prisma.whatsAppBuyerSession.upsert({
+    where: { waId: digits },
+    create: {
+      waId: digits,
+      demandId: selection.demandId,
+      selectionId: selection.id,
+      selectionToken: selection.token,
+    },
+    update: {
+      demandId: selection.demandId,
+      selectionId: selection.id,
+      selectionToken: selection.token,
+    },
+  });
 
   return { success: true };
 }
