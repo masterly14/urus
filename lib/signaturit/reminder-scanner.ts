@@ -119,7 +119,11 @@ export async function scanAndSendSignatureReminders(): Promise<ScanResult> {
       }
 
       if (action.kind === "escalation") {
-        const trackingUrl = `${appUrl}/legal/contratos/${req.operationId}`;
+        const legalDoc = await prisma.legalDocument.findFirst({
+          where: { operationId: req.operationId, documentKind: req.documentKind },
+          select: { id: true },
+        });
+        const trackingUrl = `${appUrl}/legal/contratos/${legalDoc?.id ?? req.operationId}`;
 
         const comercial = await prisma.comercial.findFirst({
           where: { activo: true },

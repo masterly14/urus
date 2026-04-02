@@ -207,7 +207,7 @@ function SmartClosingContractDetail({
               <AlertDialogHeader>
                 <AlertDialogTitle>Aprobar y enviar a firma digital</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Confirma los datos de los firmantes. El documento se enviará a Signaturit para
+                  Confirma los datos de los firmantes. El documento se enviará para
                   firma digital. No podrás enviar más instrucciones por voz hasta revertir.
                 </AlertDialogDescription>
               </AlertDialogHeader>
@@ -336,7 +336,7 @@ function SmartClosingContractDetail({
             </a>
           )}
           <p className="text-xs text-muted-foreground">
-            ID: {signatureResult.signaturitSignatureId}
+            ID: {signatureResult.signatureRequestId}
             {signatureResult.normalizedToPdf && " · Convertido a PDF"}
           </p>
         </div>

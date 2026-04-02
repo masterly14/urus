@@ -43,11 +43,10 @@ export interface SignatureSigner {
 
 export interface SignatureResult {
   signatureRequestId: string;
-  signaturitSignatureId: string;
-  signaturitDocumentId: string | null;
   signingUrl: string | null;
   status: string;
   normalizedToPdf: boolean;
+  documentHash?: string;
 }
 
 function isVoiceApplyResponse(data: unknown): data is VoiceApplyClientResponse {

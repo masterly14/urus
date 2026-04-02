@@ -9,9 +9,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    signatureRequest: {
-      create: vi.fn(),
-    },
+    operacion: { findFirst: vi.fn().mockResolvedValue(null) },
+    legalDocument: { findFirst: vi.fn().mockResolvedValue(null), upsert: vi.fn() },
+    legalDocumentParty: { upsert: vi.fn() },
+    signatureRequest: { create: vi.fn() },
   },
 }));
 
@@ -19,30 +20,26 @@ vi.mock("@/lib/event-store/event-store", () => ({
   appendEvent: vi.fn(),
 }));
 
-vi.mock("@/lib/signaturit", () => ({
-  createSignaturitClient: vi.fn(),
-}));
-
 vi.mock("@/lib/cloudinary", () => ({
   uploadContractDocument: vi.fn(),
+}));
+
+vi.mock("@/lib/firma", () => ({
+  computeSha256: vi.fn().mockReturnValue("sha256-test-hash"),
+  generateSigningToken: vi.fn().mockReturnValue("testtoken.hmac"),
+  buildSigningUrl: vi.fn().mockReturnValue("https://app.test/firma/testtoken.hmac"),
 }));
 
 import { POST } from "@/app/api/contracts/sign/route";
 import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store/event-store";
-import { createSignaturitClient } from "@/lib/signaturit";
 import { uploadContractDocument } from "@/lib/cloudinary";
 import type { ContractTemplateInput } from "@/types/contracts";
 
 const mockCreate = vi.mocked(prisma.signatureRequest.create);
 const mockAppendEvent = vi.mocked(appendEvent);
-const mockCreateClient = vi.mocked(createSignaturitClient);
 const mockUpload = vi.mocked(uploadContractDocument);
 
-/**
- * Mirrors extractPrimarySignerName from page.tsx.
- * Tested here to ensure the extraction logic is correct across all contract kinds.
- */
 function extractPrimarySignerName(input: ContractTemplateInput): string {
   switch (input.kind) {
     case "arras":
@@ -197,7 +194,7 @@ describe("extractPrimarySignerName", () => {
   });
 });
 
-describe("UI → API round-trip (sendToSignature contract)", () => {
+describe("UI → API round-trip (sendToSignature contract, in-house)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
@@ -205,36 +202,10 @@ describe("UI → API round-trip (sendToSignature contract)", () => {
     delete process.env.SIGNATURIT_SIGN_API_TOKEN;
     delete process.env.SIGNATURIT_PDF_CONVERTER_URL;
     process.env.NEXT_PUBLIC_APP_URL = "https://app.test";
+    process.env.FIRMA_TOKEN_SECRET = "test-secret-64chars-0000000000000000000000000000000000000000000";
   });
 
-  function stubSignaturitSuccess() {
-    const createSignatureRequest = vi.fn().mockResolvedValue({
-      id: "sig-ui-001",
-      created_at: "2026-03-25T18:00:00+0000",
-      data: {},
-      documents: [
-        {
-          id: "doc-ui-001",
-          email: "ana@example.com",
-          name: "Ana López",
-          status: "ready",
-          url: "https://signaturit.app/sign/ui-abc",
-          events: [],
-          file: { name: "OP-2026-0004_arras.pdf", pages: 3, size: 50000 },
-        },
-      ],
-    });
-    mockCreateClient.mockReturnValue({
-      createSignatureRequest,
-      getSignature: vi.fn(),
-      downloadSignedDocument: vi.fn(),
-      downloadAuditTrail: vi.fn(),
-      cancelSignature: vi.fn(),
-    });
-    return createSignatureRequest;
-  }
-
-  it("full round-trip: UI builds body with docxBase64 → endpoint uploads, normalizes, sends to Signaturit, persists", async () => {
+  it("full round-trip: UI builds body with docxBase64 → endpoint uploads, hashes, creates in-house signature", async () => {
     const docxBase64 = Buffer.from("%PDF-1.7 simulated contract").toString("base64");
     const operationId = "OP-2026-0004";
     const propertyCode = "op-4";
@@ -253,12 +224,9 @@ describe("UI → API round-trip (sendToSignature contract)", () => {
       createdAt: "2026-03-25T18:00:00Z",
     });
 
-    const createSigReq = stubSignaturitSuccess();
-
-    mockCreate.mockResolvedValue({
-      id: "sr-ui-1",
-      signaturitSignatureId: "sig-ui-001",
-    } as never);
+    mockCreate.mockResolvedValue({ id: "sr-ui-1" } as never);
+    vi.mocked(prisma.legalDocument.upsert).mockResolvedValue({ id: "ld-1" } as never);
+    vi.mocked(prisma.legalDocumentParty.upsert).mockResolvedValue({} as never);
     mockAppendEvent.mockResolvedValue({} as never);
 
     const requestBody = {
@@ -280,34 +248,11 @@ describe("UI → API round-trip (sendToSignature contract)", () => {
     const json = await res.json();
 
     expect(res.status).toBe(200);
-    expect(json).toEqual({
-      signatureRequestId: "sr-ui-1",
-      signaturitSignatureId: "sig-ui-001",
-      signaturitDocumentId: "doc-ui-001",
-      signingUrl: "https://signaturit.app/sign/ui-abc",
-      status: "SENT",
-      normalizedToPdf: false,
-    });
+    expect(json.signingUrl).toBe("https://app.test/firma/testtoken.hmac");
+    expect(json.documentHash).toBe("sha256-test-hash");
+    expect(json.status).toBe("SENT");
 
     expect(mockUpload).toHaveBeenCalledOnce();
-    expect(mockUpload).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fileName: `${operationId}_${documentKind}.docx`,
-        folder: `contracts/${operationId}`,
-        context: expect.objectContaining({ operationId, propertyCode }),
-      }),
-    );
-
-    expect(createSigReq).toHaveBeenCalledOnce();
-    expect(createSigReq).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fileName: `${operationId}_${documentKind}.pdf`,
-        recipients: [{ name: signerName, email: signerEmail }],
-        deliveryType: "url",
-        eventsUrl: "https://app.test/api/signaturit/webhook.json",
-        data: { operationId, propertyCode, documentKind },
-      }),
-    );
 
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -318,8 +263,8 @@ describe("UI → API round-trip (sendToSignature contract)", () => {
           signerName,
           signerEmail,
           status: "SENT",
-          cloudinaryUrl: expect.stringContaining("cloudinary.com"),
-          templateVersion,
+          documentHash: "sha256-test-hash",
+          signingToken: "testtoken.hmac",
         }),
       }),
     );
@@ -332,54 +277,10 @@ describe("UI → API round-trip (sendToSignature contract)", () => {
         payload: expect.objectContaining({
           operationId,
           documentKind,
-          signingUrl: "https://signaturit.app/sign/ui-abc",
+          documentHash: "sha256-test-hash",
           signers: [{ name: signerName, email: signerEmail }],
         }),
       }),
     );
-  });
-
-  it("round-trip returns error when Signaturit rejects the request", async () => {
-    const docxBase64 = Buffer.from("%PDF-1.7 bad doc").toString("base64");
-
-    mockUpload.mockResolvedValue({
-      publicId: "contracts/OP-ERR/OP-ERR_arras.docx",
-      secureUrl: "https://res.cloudinary.com/demo/raw/upload/contracts/OP-ERR/OP-ERR_arras.docx",
-      url: "http://res.cloudinary.com/demo/raw/upload/contracts/OP-ERR/OP-ERR_arras.docx",
-      bytes: 100,
-      format: "docx",
-      resourceType: "raw",
-      createdAt: "2026-03-25T18:00:00Z",
-    });
-
-    mockCreateClient.mockReturnValue({
-      createSignatureRequest: vi.fn().mockRejectedValue(new Error("Invalid PDF structure")),
-      getSignature: vi.fn(),
-      downloadSignedDocument: vi.fn(),
-      downloadAuditTrail: vi.fn(),
-      cancelSignature: vi.fn(),
-    });
-
-    const req = new Request("https://app.test/api/contracts/sign", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        operationId: "OP-ERR",
-        propertyCode: "P-ERR",
-        documentKind: "arras",
-        docxBase64,
-        signers: [{ name: "Test", email: "test@example.com" }],
-      }),
-    });
-
-    const res = await POST(req);
-    const json = await res.json();
-
-    expect(res.status).toBe(502);
-    expect(json.error).toBe("Signaturit API error");
-    expect(json.detail).toContain("Invalid PDF structure");
-
-    expect(mockCreate).not.toHaveBeenCalled();
-    expect(mockAppendEvent).not.toHaveBeenCalled();
   });
 });

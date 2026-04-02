@@ -1,6 +1,3 @@
-export { createSignaturitClient } from "./client";
-export type { SignaturitClient } from "./client";
-export { handleSignaturitWebhookPost } from "./handle-webhook-post";
 export {
   normalizeDocumentToPdf,
   inferSourceFileNameFromResponse,
@@ -11,14 +8,3 @@ export {
   SIGNATURE_TERMINAL_STATUSES,
   isSignatureTerminalStatus,
 } from "./status";
-
-export type {
-  SignaturitConfig,
-  SignaturitRecipient,
-  CreateSignatureParams,
-  SignaturitSignatureResponse,
-  SignaturitDocument,
-  SignaturitDocumentStatus,
-  SignaturitWebhookPayload,
-  SignaturitWebhookEventType,
-} from "./types";

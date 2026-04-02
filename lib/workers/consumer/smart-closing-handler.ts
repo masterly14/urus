@@ -2,6 +2,9 @@ import type { Event } from "@/types/domain";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import { appendEvent } from "@/lib/event-store";
 import { isClosedOperation } from "@/lib/post-sale/closed-operation";
+import { prisma } from "@/lib/prisma";
+import { generarCodigoOperacion } from "@/lib/operacion/codigo";
+import { mapEstadoFichaToOperacionEstado } from "@/lib/operacion/estado";
 import type { HandlerResult } from "./types";
 
 /**
@@ -20,7 +23,7 @@ export const SMART_CLOSING_TRIGGER_KEYWORDS = [
 interface StatusChangedPayload {
   previousEstado: string;
   newEstado: string;
-  snapshot?: { codigo?: string };
+  snapshot?: { codigo?: string; agente?: string };
 }
 
 function isStatusChangedPayload(p: unknown): p is StatusChangedPayload {
@@ -48,6 +51,52 @@ export const OPERACION_CERRADA_KEYWORDS = [
 export function isOperacionCerrada(newEstado: string): boolean {
   const normalized = newEstado.toLowerCase();
   return OPERACION_CERRADA_KEYWORDS.some((kw) => normalized.includes(kw));
+}
+
+async function resolveOrCreateOperacion(
+  propertyCode: string,
+  estadoFicha: string,
+  snapshot?: { codigo?: string; agente?: string },
+) {
+  const existing = await prisma.operacion.findFirst({
+    where: {
+      propertyCode,
+      estado: {
+        notIn: [
+          "CERRADA_VENTA",
+          "CERRADA_ALQUILER",
+          "CERRADA_TRASPASO",
+          "CANCELADA",
+        ],
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (existing) return existing;
+
+  const estado = mapEstadoFichaToOperacionEstado(estadoFicha) ?? "EN_CURSO";
+  const agente = (snapshot?.agente ?? "").trim();
+
+  let comercialId: string | null = null;
+  if (agente) {
+    const comercial = await prisma.comercial.findFirst({
+      where: { nombre: agente },
+      select: { id: true },
+    });
+    comercialId = comercial?.id ?? null;
+  }
+
+  const codigo = await generarCodigoOperacion();
+
+  return prisma.operacion.create({
+    data: {
+      codigo,
+      propertyCode,
+      estado,
+      comercialId,
+    },
+  });
 }
 
 /**
@@ -78,14 +127,22 @@ export async function handleEstadoCambiado(event: Event): Promise<HandlerResult>
   const propertyCode = payload.snapshot?.codigo ?? event.aggregateId;
 
   if (isSmartClosingTrigger(payload.newEstado)) {
+    const operacion = await resolveOrCreateOperacion(
+      propertyCode,
+      payload.newEstado,
+      payload.snapshot as { codigo?: string; agente?: string } | undefined,
+    );
+
     console.log(
-      `[smart-closing] ESTADO_CAMBIADO → "${payload.previousEstado}" → "${payload.newEstado}" para ${propertyCode} — disparando generación de borrador`,
+      `[smart-closing] ESTADO_CAMBIADO → "${payload.previousEstado}" → "${payload.newEstado}" para ${propertyCode} (operacion=${operacion.codigo}) — disparando generación de borrador`,
     );
 
     followUpJobs.push({
       type: "GENERATE_CONTRACT_DRAFT",
       payload: {
         propertyCode,
+        operacionId: operacion.id,
+        operacionCodigo: operacion.codigo,
         previousEstado: payload.previousEstado,
         newEstado: payload.newEstado,
         sourceEventId: event.id,
@@ -96,6 +153,33 @@ export async function handleEstadoCambiado(event: Event): Promise<HandlerResult>
   }
 
   if (isClosedOperation(payload.newEstado)) {
+    const closedEstado = mapEstadoFichaToOperacionEstado(payload.newEstado);
+    let operacionId: string | undefined;
+
+    const openOp = await prisma.operacion.findFirst({
+      where: {
+        propertyCode,
+        estado: {
+          notIn: [
+            "CERRADA_VENTA",
+            "CERRADA_ALQUILER",
+            "CERRADA_TRASPASO",
+            "CANCELADA",
+          ],
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+
+    if (openOp && closedEstado) {
+      await prisma.operacion.update({
+        where: { id: openOp.id },
+        data: { estado: closedEstado, closedAt: new Date() },
+      });
+      operacionId = openOp.id;
+    }
+
     const closedEvent = await appendEvent({
       type: "OPERACION_CERRADA",
       aggregateType: "OPERACION",
@@ -104,6 +188,7 @@ export async function handleEstadoCambiado(event: Event): Promise<HandlerResult>
         previousEstado: payload.previousEstado,
         newEstado: payload.newEstado,
         propertyCode,
+        operacionId,
         closedAt: event.occurredAt?.toISOString?.() ?? new Date().toISOString(),
         sourceEstadoCambiadoEventId: event.id,
       },
@@ -122,6 +207,7 @@ export async function handleEstadoCambiado(event: Event): Promise<HandlerResult>
         type: "START_POSTVENTA_CADENCE",
         payload: {
           propertyCode,
+          operacionId,
           newEstado: payload.newEstado,
           closedAt: new Date().toISOString(),
           sourceEventId: event.id,
@@ -132,7 +218,7 @@ export async function handleEstadoCambiado(event: Event): Promise<HandlerResult>
     );
 
     console.log(
-      `[post-sale] ESTADO_CAMBIADO → "${payload.previousEstado}" → "${payload.newEstado}" para ${propertyCode} — OPERACION_CERRADA emitida (${closedEvent.id}) + cadencia post-venta`,
+      `[post-sale] ESTADO_CAMBIADO → "${payload.previousEstado}" → "${payload.newEstado}" para ${propertyCode}${operacionId ? ` (operacion=${operacionId})` : ""} — OPERACION_CERRADA emitida (${closedEvent.id}) + cadencia post-venta`,
     );
   }
 

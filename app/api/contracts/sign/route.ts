@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store/event-store";
-import { createSignaturitClient } from "@/lib/signaturit";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
 import {
   inferSourceFileNameFromResponse,
@@ -11,6 +10,7 @@ import {
 } from "@/lib/signaturit/pdf-normalization";
 import { uploadContractDocument } from "@/lib/cloudinary";
 import { isAuthorized } from "@/lib/api/cron-auth";
+import { computeSha256, generateSigningToken, buildSigningUrl } from "@/lib/firma";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -39,7 +39,6 @@ const RequestSchema = z
   });
 
 const SLA_DAYS = Number(process.env.SIGNATURIT_SLA_DAYS) || 5;
-const EXPIRE_DAYS = Number(process.env.SIGNATURIT_EXPIRE_DAYS) || 30;
 
 function isBrowserRequest(req: Request): boolean {
   return Boolean(req.headers.get("origin") || req.headers.get("referer"));
@@ -76,6 +75,16 @@ export async function POST(request: Request) {
     signers,
     signingMode,
   } = parsed.data;
+
+  const operacionRecord = await prisma.operacion.findFirst({
+    where: { codigo: operationId },
+    select: { id: true },
+  });
+  if (!operacionRecord) {
+    console.warn(
+      `[contracts/sign] Operacion no encontrada para codigo=${operationId} — legacy flow`,
+    );
+  }
 
   const existingDoc = await prisma.legalDocument.findFirst({
     where: { operationId, documentKind },
@@ -158,43 +167,32 @@ export async function POST(request: Request) {
     throw err;
   }
 
-  const appUrl = getPublicAppUrl();
-  const eventsUrl = `${appUrl}/api/signaturit/webhook.json`;
-
-  const client = createSignaturitClient();
-
-  let signaturitRes;
-  try {
-    signaturitRes = await client.createSignatureRequest({
-      file: pdfBuffer,
-      fileName: `${operationId}_${documentKind}.pdf`,
-      recipients: signers,
-      eventsUrl,
-      deliveryType: "url",
-      expireTime: EXPIRE_DAYS,
-      signingMode: signingMode ?? "sequential",
-      name: `${operationId} — ${documentKind}`,
-      data: { operationId, propertyCode, documentKind },
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[contracts/sign] Signaturit API error:", message);
-    return NextResponse.json(
-      { error: "Signaturit API error", detail: message },
-      { status: 502 },
-    );
+  if (convertedToPdf) {
+    try {
+      const pdfUpload = await uploadContractDocument({
+        buffer: pdfBuffer,
+        fileName: `${operationId}_${documentKind}.pdf`,
+        folder: `contracts/${operationId}`,
+        tags: ["draft", "pre-signature", "pdf", documentKind],
+        context: { operationId, propertyCode },
+      });
+      cloudinaryUrl = pdfUpload.secureUrl;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("[contracts/sign] Cloudinary PDF re-upload error:", message);
+    }
   }
 
-  const firstDoc = signaturitRes.documents[0];
-  const signingUrl = firstDoc?.url ?? null;
-  const signaturitDocumentId = firstDoc?.id ?? null;
+  const documentHash = computeSha256(pdfBuffer);
+  const signingToken = generateSigningToken();
+  const appUrl = getPublicAppUrl();
+  const signingUrl = buildSigningUrl(signingToken);
+
   const now = new Date();
   const slaDeadline = new Date(now.getTime() + SLA_DAYS * 24 * 60 * 60 * 1000);
 
   const signatureRequest = await prisma.signatureRequest.create({
     data: {
-      signaturitSignatureId: signaturitRes.id,
-      signaturitDocumentId,
       operationId,
       propertyCode,
       documentKind,
@@ -208,6 +206,8 @@ export async function POST(request: Request) {
       sentAt: now,
       slaDeadlineDays: SLA_DAYS,
       slaDeadline,
+      documentHash,
+      signingToken,
     },
   });
 
@@ -260,30 +260,27 @@ export async function POST(request: Request) {
     aggregateId: propertyCode,
     payload: {
       signatureRequestId: signatureRequest.id,
-      signaturitSignatureId: signaturitRes.id,
-      signaturitDocumentId,
       operationId,
       documentKind,
       templateVersion,
       signingUrl,
-      deliveryType: "url",
       signingMode: signingMode ?? "sequential",
       normalizedToPdf: convertedToPdf,
+      documentHash,
       signers: signers.map((s) => ({ name: s.name, email: s.email })),
       slaDeadline: slaDeadline.toISOString(),
     },
   });
 
   console.log(
-    `[contracts/sign] Firma enviada: signatureRequestId=${signatureRequest.id} signaturitId=${signaturitRes.id} operationId=${operationId}`,
+    `[contracts/sign] Firma enviada (in-house): signatureRequestId=${signatureRequest.id} operationId=${operationId} signingUrl=${signingUrl}`,
   );
 
   return NextResponse.json({
     signatureRequestId: signatureRequest.id,
-    signaturitSignatureId: signaturitRes.id,
-    signaturitDocumentId,
     signingUrl,
     status: "SENT",
     normalizedToPdf: convertedToPdf,
+    documentHash,
   });
 }
