@@ -102,9 +102,6 @@ function extractExtras(p: StatefoxProperty): string[] {
   if (typeof extras.heating === "string" && extras.heating.trim()) {
     labels.push(`Calefacción: ${extras.heating.trim()}`);
   }
-  if (typeof extras.condition === "string" && extras.condition.trim()) {
-    labels.push(`Estado: ${extras.condition.trim()}`);
-  }
 
   return Array.from(new Set(labels));
 }

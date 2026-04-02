@@ -94,7 +94,7 @@ export function ImageCarousel({ images, alt }: ImageCarouselProps) {
           <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
             {images.map((src, i) => (
               <button
-                key={src}
+                key={i}
                 type="button"
                 onClick={() => setCurrent(i)}
                 className={`h-16 w-20 flex-shrink-0 overflow-hidden rounded-lg border-2 transition ${
@@ -138,10 +138,10 @@ export function ImageCarousel({ images, alt }: ImageCarouselProps) {
       <div className="flex gap-2 overflow-x-auto p-4">
         {images.map((src, i) => (
           <button
-            key={src}
+            key={i}
             type="button"
             onClick={() => setCurrent(i)}
-            className={`h-14 w-18 flex-shrink-0 overflow-hidden rounded-md border-2 transition ${
+            className={`h-14 w-[72px] flex-shrink-0 overflow-hidden rounded-md border-2 transition ${
               i === current
                 ? "border-white"
                 : "border-transparent opacity-50 hover:opacity-100"

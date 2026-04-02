@@ -174,12 +174,12 @@ Para evitar que clientes, colaboradores externos o comerciales peleen con la int
 | Canal | Implementación |
 |---|---|
 | **WhatsApp** | **WhatsApp Cloud API (Meta)** — integración directa con la API de Meta, sin BSP (Twilio/360dialog/MessageBird). Precalificación de compradores, seguimiento post-venta y notificaciones de matches |
-| **Micro-Frontends** | Rutas dinámicas en Next.js para flujos propios que Inmovilla no modela bien, como estados tipo kanban de colaboradores, subida documental y validaciones rápidas del equipo |
+| **Micro-Frontends** | Rutas dinámicas en Next.js para flujos propios que Inmovilla no modela bien, como gestión interna de hitos de colaboradores, subida documental y validaciones rápidas del equipo |
 | **Notificaciones internas** | Webhooks propios hacia Slack/WhatsApp del equipo |
 
 Una vez que el usuario interactúa con la interfaz ligera, la información viaja a la **Capa 3** para ser procesada y, finalmente, escrita en Inmovilla por la **Capa 2** cuando sea necesario persistir el resultado final en el CRM.
 
-Esto es especialmente importante en el flujo de colaboradores: Inmovilla no modela hitos operativos de bancos, abogados ni tasadores (no hay entidad colaborador en su modelo). Ese flujo vive 100% en un **micro-frontend propio** con Neon como fuente operativa. No hay datos de colaboradores que reconciliar desde Inmovilla.
+Esto es especialmente importante en el flujo de colaboradores: Inmovilla no modela hitos operativos de bancos, abogados ni tasadores (no hay entidad colaborador en su modelo). Ese flujo vive 100% en Neon como fuente operativa y se gestiona desde el **dashboard interno** por el Comercial o el CEO — los colaboradores externos no acceden directamente al sistema. No hay datos de colaboradores que reconciliar desde Inmovilla.
 
 ---
 
@@ -308,8 +308,9 @@ Con las propiedades relevantes del mercado (de Statefox API), el sistema genera 
 
 - Página con token único: `/seleccion/{token}`
 - **Vista demo (mocks):** en desarrollo, abre `/seleccion/demo` para ver fichas de ejemplo sin Neon ni Statefox. En producción, opcionalmente `NEXT_PUBLIC_MICROSITE_MOCK=true` (ver `.env.example`).
-- Fichas con imágenes (`pImages`), precio, metros, zona, extras
-- Botones "Me interesa" / "No me encaja" que generan eventos (`SELECCION_COMPRADOR`)
+- Fichas completas con imágenes, descripción, precio, metros, zona, extras, certificado energético, mapa
+- Página de detalle de propiedad con carrusel, ficha técnica y navegación entre propiedades
+- Feedback del comprador exclusivamente vía WhatsApp (NLU contextual con LangGraph)
 - Tracking de qué se mostró, a quién, cuándo (persistido en Neon)
 
 > Este microsite reemplaza completamente la dependencia de enlaces privados de Statefox, que no ofrece esta funcionalidad vía API.
@@ -1409,9 +1410,9 @@ Se registra automáticamente:
 - Tiempos de respuesta.
 - Resultado final (aprobado / rechazado / retrasado).
 
-Los datos se capturan exclusivamente por los **micro-frontends de Next.js** donde los colaboradores suben documentos, avanzan hitos y cambian estados. Inmovilla no modela hitos operativos de bancos/abogados/tasadores (no hay entidad colaborador en su modelo), por lo que no hay datos que reconciliar desde el CRM. Todo el flujo vive en Neon + micro-frontend propio.
+Los datos se capturan desde el **dashboard interno de Next.js** donde el Comercial o el CEO registra asignaciones, sube documentos en nombre de los colaboradores, avanza hitos y cambia estados. Los colaboradores externos **no acceden al sistema directamente**; toda la interacción se gestiona internamente. Inmovilla no modela hitos operativos de bancos/abogados/tasadores (no hay entidad colaborador en su modelo), por lo que no hay datos que reconciliar desde el CRM. Todo el flujo vive en Neon.
 
-> **Regla clave:** ningún colaborador trabaja fuera del sistema.
+> **Regla clave:** la gestión de colaboradores la realiza el equipo interno (Comercial/CEO), no el colaborador externo.
 
 ---
 
@@ -1470,7 +1471,7 @@ LangGraph genera recomendaciones para el CEO:
    - Abogado: revisión contrato → observaciones → validación final.
 3. **Tracking de tiempos:** cada cambio de estado registra timestamp en Neon, el sistema calcula retrasos.
 4. **Reglas de alerta (cron-jobs):** banco supera SLA → alerta jefe de zona; abogado genera incidencias repetidas → alerta CEO.
-5. **Dashboard dinámico (micro-frontend Next.js):** rendimiento semanal, tendencias mensuales, impacto económico acumulado.
+5. **Dashboard interno (Next.js):** rendimiento semanal, tendencias mensuales, impacto económico acumulado. Gestionado por el Comercial y el CEO, no por los colaboradores externos.
 
 ---
 
@@ -1750,7 +1751,7 @@ El sistema ofrece lectura **estratégica**, no psicológica:
 |---|---|---|
 | Dashboard CEO | **Micro-frontend Next.js** | CEO, dirección |
 | Dashboard comercial | **Micro-frontend Next.js** | Comerciales, jefes de zona |
-| Portal colaboradores | **Micro-frontend Next.js** | Bancos, abogados, tasadores |
+| Gestión de colaboradores | **Dashboard interno Next.js** | Comerciales, CEO |
 | Formularios post-visita | **Micro-frontend Next.js** | Comerciales en campo |
 | Bot de soporte | **LangGraph + WhatsApp** | Comerciales (canal privado) |
 
