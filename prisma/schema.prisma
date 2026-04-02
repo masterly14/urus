@@ -996,3 +996,50 @@ model WhatsAppBuyerSession {
   @@index([demandId])
   @@map("whatsapp_buyer_sessions")
 }
+
+model EvalRun {
+  id            String       @id @default(cuid())
+  name          String
+  agentVersion  String
+  model         String       @default("gpt-4o-mini")
+  temperature   Float        @default(0)
+  scenarioCount Int          @default(0)
+  avgScore      Float?
+  status        String       @default("running")
+  startedAt     DateTime     @default(now())
+  completedAt   DateTime?
+  metadata      Json?
+  results       EvalResult[]
+
+  @@index([status])
+  @@map("eval_runs")
+}
+
+model EvalResult {
+  id                       String   @id @default(cuid())
+  runId                    String
+  run                      EvalRun  @relation(fields: [runId], references: [id])
+  scenarioId               String
+  scenarioName             String
+  category                 String
+  personaId                String
+  buyerMessage             String
+  nluOutput                Json
+  propertyResolutionScore  Float
+  sentimentAccuracyScore   Float
+  variableExtractionScore  Float
+  intentionScore           Float
+  wantsMoreScore           Float
+  hallucinationPenalty     Float
+  overallScore             Float
+  judgeReasoning           String?
+  failures                 String[]
+  latencyMs                Int
+  tokenCount               Int?
+  createdAt                DateTime @default(now())
+
+  @@index([runId])
+  @@index([category])
+  @@index([overallScore])
+  @@map("eval_results")
+}
