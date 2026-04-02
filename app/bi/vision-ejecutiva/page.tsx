@@ -17,8 +17,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { Semaforo } from "@/components/dashboard/semaforo";
 import { SimpleAreaChart } from "@/components/bi/charts";
+import { MockBadge } from "@/components/bi/mock-badge";
 import { useCeoOverview } from "@/lib/hooks/use-ceo-overview";
-import type { CeoOverviewPayload, KpiValue, SemaforoStatus } from "@/lib/dashboard/ceo/types";
+import type { CeoOverviewPayload, KpiValue } from "@/lib/dashboard/ceo/types";
 import { datosFinancieros } from "@/lib/mock-data/financiero";
 import { financialData } from "@/lib/mock-data/bi";
 
@@ -60,12 +61,6 @@ function buildMockPayload(): CeoOverviewPayload {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function formatEur(value: number): string {
-    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M €`;
-    if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K €`;
-    return `${value.toLocaleString("es-ES")} €`;
-}
 
 function trendOf(kpi: KpiValue): "up" | "down" | "stable" {
     if (kpi.changePercent == null || kpi.changePercent === 0) return "stable";
@@ -127,12 +122,14 @@ export default function VisionEjecutivaPage() {
 
     return (
         <div className="space-y-6">
+            <MockBadge show={useMock} />
+
             {/* KPIs principales */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <KpiCard
                     title="Facturación Mensual"
                     value={kpis.facturacionMensual.value}
-                    change={kpis.facturacionMensual.changePercent ?? 0}
+                    change={kpis.facturacionMensual.changePercent}
                     trend={trendOf(kpis.facturacionMensual)}
                     icon={DollarSign}
                     format="currency"
@@ -141,7 +138,7 @@ export default function VisionEjecutivaPage() {
                 <KpiCard
                     title="EBITDA"
                     value={kpis.ebitda.value}
-                    change={kpis.ebitda.changePercent ?? 0}
+                    change={kpis.ebitda.changePercent}
                     trend={trendOf(kpis.ebitda)}
                     icon={TrendingUp}
                     format="currency"
@@ -150,7 +147,7 @@ export default function VisionEjecutivaPage() {
                 <KpiCard
                     title="Cash Disponible"
                     value={kpis.cashDisponible.value}
-                    change={kpis.cashDisponible.changePercent ?? 0}
+                    change={kpis.cashDisponible.changePercent}
                     trend={trendOf(kpis.cashDisponible)}
                     icon={Wallet}
                     format="currency"
@@ -159,7 +156,7 @@ export default function VisionEjecutivaPage() {
                 <KpiCard
                     title="Coste Operativo"
                     value={kpis.costeOperativo.value}
-                    change={kpis.costeOperativo.changePercent ?? 0}
+                    change={kpis.costeOperativo.changePercent}
                     trend={trendOf(kpis.costeOperativo)}
                     icon={Banknote}
                     format="currency"
@@ -185,7 +182,7 @@ export default function VisionEjecutivaPage() {
                             }))}
                             index="period"
                             categories={["Facturación", "Objetivo"]}
-                            colors={["#10b981", "#3b82f6"]}
+                            colors={["hsl(var(--primary))", "hsl(var(--muted-foreground))"]}
                         />
                     </CardContent>
                 </Card>
@@ -222,104 +219,59 @@ export default function VisionEjecutivaPage() {
 
             {/* Tarjetas secundarias */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Margen / Operación
-                        </CardTitle>
-                        <PiggyBank className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{formatEur(kpis.margenPorOperacion.value)}</div>
-                        {kpis.margenPorOperacion.changePercent != null && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                                {kpis.margenPorOperacion.changePercent > 0 ? "+" : ""}
-                                {kpis.margenPorOperacion.changePercent.toFixed(1)}% vs mes anterior
-                            </p>
-                        )}
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Operaciones
-                        </CardTitle>
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{operaciones.activas}</div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            activas · {operaciones.cerradasMes} cerradas este mes
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Equipo Comercial
-                        </CardTitle>
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{equipo.comercialesActivos}</div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            comerciales · carga media {equipo.cargaMedia.toFixed(0)}
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Alertas Abiertas
-                        </CardTitle>
-                        <Activity className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{equipo.alertasAbiertas}</div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            sin resolver en el equipo
-                        </p>
-                    </CardContent>
-                </Card>
+                <KpiCard
+                    title="Margen / Operación"
+                    value={kpis.margenPorOperacion.value}
+                    change={kpis.margenPorOperacion.changePercent}
+                    trend={trendOf(kpis.margenPorOperacion)}
+                    icon={PiggyBank}
+                    format="currency"
+                />
+                
+                <KpiCard
+                    title="Operaciones"
+                    value={operaciones.activas}
+                    sub={`activas · ${operaciones.cerradasMes} cerradas este mes`}
+                    icon={Building2}
+                    format="raw"
+                />
+                
+                <KpiCard
+                    title="Equipo Comercial"
+                    value={equipo.comercialesActivos}
+                    sub={`comerciales · carga media ${equipo.cargaMedia.toFixed(0)}%`}
+                    icon={Users}
+                    format="raw"
+                />
+                
+                <KpiCard
+                    title="Alertas Abiertas"
+                    value={equipo.alertasAbiertas}
+                    sub="sin resolver en el equipo"
+                    icon={Activity}
+                    format="raw"
+                    highlight={equipo.alertasAbiertas > 5 ? "red" : equipo.alertasAbiertas > 0 ? "amber" : "green"}
+                />
             </div>
 
             {/* Facturación trimestral + reinversión */}
             <div className="grid gap-4 md:grid-cols-2">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Facturación Trimestral
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
-                            {formatEur(kpis.facturacionTrimestral.value)}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">últimos 3 meses acumulados</p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Capacidad de Reinversión
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
-                            {formatEur(kpis.capacidadReinversion.value)}
-                        </div>
-                        {kpis.capacidadReinversion.changePercent != null && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                                {kpis.capacidadReinversion.changePercent > 0 ? "+" : ""}
-                                {kpis.capacidadReinversion.changePercent.toFixed(1)}% vs mes anterior
-                            </p>
-                        )}
-                    </CardContent>
-                </Card>
+                <KpiCard
+                    title="Facturación Trimestral"
+                    value={kpis.facturacionTrimestral.value}
+                    sub="últimos 3 meses acumulados"
+                    icon={DollarSign}
+                    format="currency"
+                />
+                
+                <KpiCard
+                    title="Capacidad de Reinversión"
+                    value={kpis.capacidadReinversion.value}
+                    change={kpis.capacidadReinversion.changePercent}
+                    trend={trendOf(kpis.capacidadReinversion)}
+                    icon={Banknote}
+                    format="currency"
+                />
             </div>
         </div>
     );

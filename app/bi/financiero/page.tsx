@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { KPICard } from "@/components/bi/kpi-card";
+import { KpiCard } from "@/components/dashboard/kpi-card";
 import { SimpleAreaChart } from "@/components/bi/charts";
 import { financialData } from "@/lib/mock-data/bi";
 import { cn } from "@/lib/utils";
@@ -42,30 +42,33 @@ export default function FinancialDashboard() {
         <div className="space-y-6">
             {/* Financial Health Overview */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <KPICard
+                <KpiCard
                     title="Facturación Mensual"
-                    value={`€${currentMonth.revenue.toLocaleString()}`}
-                    trend={parseFloat(revenueChange.toFixed(1))}
-                    icon={<TrendingUp className="h-4 w-4" />}
+                    value={currentMonth.revenue}
+                    change={revenueChange}
+                    icon={TrendingUp}
+                    format="currency"
                 />
-                <KPICard
+                <KpiCard
                     title="EBITDA"
-                    value={`€${currentMonth.ebitda.toLocaleString()}`}
-                    trend={parseFloat(ebitdaChange.toFixed(1))}
-                    icon={<TrendingUp className="h-4 w-4" />}
+                    value={currentMonth.ebitda}
+                    change={ebitdaChange}
+                    icon={TrendingUp}
+                    format="currency"
                 />
-                <KPICard
+                <KpiCard
                     title="Cash Flow Neto"
-                    value={`€${currentMonth.cashFlow.toLocaleString()}`}
-                    trend={parseFloat(cashFlowChange.toFixed(1))}
-                    icon={<TrendingUp className="h-4 w-4" />}
+                    value={currentMonth.cashFlow}
+                    change={cashFlowChange}
+                    icon={TrendingUp}
+                    format="currency"
                 />
-                <KPICard
+                <KpiCard
                     title="Coste Operativo"
-                    value={`€${currentMonth.operatingCost.toLocaleString()}`}
-                    trend={parseFloat(costChange.toFixed(1))}
-                    icon={<TrendingDown className="h-4 w-4" />}
-                    Description="vs mes anterior"
+                    value={currentMonth.operatingCost}
+                    change={costChange}
+                    icon={TrendingDown}
+                    format="currency"
                 />
             </div>
 

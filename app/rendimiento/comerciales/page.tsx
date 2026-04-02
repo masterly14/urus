@@ -43,6 +43,7 @@ import {
     PROFILE_SHORT_LABELS,
     type ComercialProfile,
 } from "@/lib/dashboard/comercial/classify";
+import { formatEur, formatPercent } from "@/lib/utils/format";
 
 const PROFILE_STYLES: Record<ComercialProfile, string> = {
     top_performer: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -78,16 +79,6 @@ function ProfileBadge({ profile, confidence }: { profile: ComercialProfile; conf
             </Tooltip>
         </TooltipProvider>
     );
-}
-
-function formatEur(value: number): string {
-    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M €`;
-    if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K €`;
-    return `${value.toLocaleString("es-ES", { maximumFractionDigits: 0 })} €`;
-}
-
-function formatPercent(value: number): string {
-    return `${(value * 100).toFixed(1)}%`;
 }
 
 export default function ComercialesDashboardPage() {
@@ -313,7 +304,7 @@ export default function ComercialesDashboardPage() {
                         Ordenado por facturación estimada. Click en una fila para ver el detalle.
                     </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="overflow-x-auto">
                     {loading ? (
                         <div className="space-y-3">
                             {Array.from({ length: 5 }).map((_, i) => (
@@ -325,7 +316,7 @@ export default function ComercialesDashboardPage() {
                             No hay datos de comerciales para el rango seleccionado.
                         </p>
                     ) : (
-                        <Table>
+                        <Table className="min-w-[800px]">
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-[50px] text-center">#</TableHead>

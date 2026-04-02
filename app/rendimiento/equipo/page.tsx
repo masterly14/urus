@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { teamMembers, archetypeConfig } from "@/lib/mock-data/performance";
-import { KPICard } from "@/components/bi/kpi-card";
+import { KpiCard } from "@/components/dashboard/kpi-card";
 import { SimpleAreaChart } from "@/components/bi/charts";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -41,32 +41,37 @@ export default function TeamPerformancePage() {
         <div className="space-y-6">
             {/* Global KPIs */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <KPICard
+                <KpiCard
                     title="Facturación Total"
-                    value="€785,000"
-                    trend={12.5}
-                    icon={<TrendingUp className="h-4 w-4" />}
+                    value={785000}
+                    change={12.5}
+                    icon={TrendingUp}
+                    format="currency"
                 />
-                <KPICard
+                <KpiCard
                     title="Conversión Global"
-                    value="14.2%"
-                    trend={1.8}
-                    icon={<ArrowUpRight className="h-4 w-4" />}
-                    Description="vs objetivo 12%"
+                    value={14.2}
+                    change={1.8}
+                    icon={ArrowUpRight}
+                    format="percent"
+                    sub="vs objetivo 12%"
                 />
-                <KPICard
+                <KpiCard
                     title="Top Performers"
-                    value={topPerformers.length.toString()}
-                    trend={0}
-                    icon={<User className="h-4 w-4" />}
-                    trendLabel="Sin cambios"
+                    value={topPerformers.length}
+                    change={0}
+                    icon={User}
+                    format="raw"
+                    sub="Sin cambios"
                 />
-                <KPICard
+                <KpiCard
                     title="Riesgo de Fuga"
-                    value="2"
-                    trend={-1}
-                    icon={<TrendingDown className="h-4 w-4" />}
-                    trendLabel="Agentes en riesgo"
+                    value={2}
+                    change={-1}
+                    icon={TrendingDown}
+                    format="raw"
+                    sub="Agentes en riesgo"
+                    highlight="red"
                     className="border-l-4 border-l-red-500"
                 />
             </div>
