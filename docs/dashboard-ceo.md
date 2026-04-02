@@ -9,9 +9,9 @@ Organizado en 6 capas (pestañas en `/bi/`):
 1. **Visión Ejecutiva** — KPIs financieros + semáforos globales (implementada)
 2. **Rendimiento** — Rendimiento comercial por ciudad y persona (implementada)
 3. **Capital Humano** — Estado psicológico y sostenibilidad del equipo (mock)
-4. **Diagnóstico IA** — Recomendaciones automáticas con LangGraph (mock)
-5. **Expansión** — Motor de expansión geográfica (mock)
-6. **Finanzas** — Control financiero, costes y reinversión (mock)
+4. **Diagnóstico IA** — Recomendaciones automáticas con LangGraph (implementada)
+5. **Expansión** — Motor de expansión geográfica (implementada)
+6. **Finanzas** — Control financiero, costes y reinversión (implementada)
 
 ## Modelos Prisma
 
@@ -144,6 +144,146 @@ Acceso restringido al rol `ceo` (403 para otros roles).
 
 Ciudades operativas definidas en `lib/dashboard/ceo/types.ts`: `CIUDADES_OPERATIVAS = ["Córdoba", "Málaga", "Sevilla"]`.
 
+## Endpoint API — Capa 4: Diagnóstico y Recomendaciones IA
+
+### `GET /api/ceo/diagnostic`
+
+Acceso restringido al rol `ceo` (403 para otros roles). Devuelve el último diagnóstico generado del Event Store sin invocar el LLM.
+
+**Respuesta:**
+
+```json
+{
+  "ok": true,
+  "recommendation": {
+    "diagnostico_general": "Urus Capital Group muestra una facturación mensual de 28.500 €...",
+    "recomendaciones": [
+      {
+        "tipo": "contratar",
+        "ciudad": "Málaga",
+        "mensaje": "La carga media en Málaga alcanza el 91%...",
+        "datos_soporte": ["Carga media Málaga: 91%", "Propiedades/comercial: 47"],
+        "accion_sugerida": "Incorporar 1 comercial junior...",
+        "impacto_esperado": "+4.100 €/mes...",
+        "prioridad": "alta"
+      }
+    ],
+    "resumen_ejecutivo": "Málaga necesita contratación urgente...",
+    "semaforo_global": "amarillo",
+    "confidence": 0.85,
+    "reasoning": "Datos suficientes de 3 ciudades..."
+  },
+  "generatedAt": "2026-04-01T07:00:00.000Z"
+}
+```
+
+### `POST /api/ceo/diagnostic`
+
+Regenera el diagnóstico invocando el grafo LangGraph. CEO-only. Recopila datos de Capas 1+2, Dashboard Comercial, Alertas y Colaboradores.
+
+### `POST /api/cron/ceo-diagnostic`
+
+Cron autenticado con `CRON_SECRET`. Invoca el generador completo. Pensado para ejecución diaria (07:00) vía QStash.
+
+### Tipos de recomendación
+
+| Tipo | Disparador |
+|---|---|
+| `contratar` | Carga media > 85% en una ciudad |
+| `expandir` | Facturación estable + margen >= 15% + cash >= 50K |
+| `intervenir_proceso` | Conversión baja + alto volumen de leads |
+| `redistribuir_leads` | Desbalance de carga > 2x entre comerciales |
+| `formacion` | Comerciales bajo_rendimiento_estructural |
+| `ajustar_incentivos` | Productivo_ineficiente con alto volumen pero bajo margen |
+| `reducir_costes` | Coste operativo / revenue > 80% |
+| `investigar` | Datos insuficientes o anomalías |
+
+### Fuentes de datos del diagnóstico
+
+El grafo LangGraph recibe datos consolidados de:
+
+1. **Capa 1** (`getCeoOverview`): KPIs financieros, semáforos, equipo, operaciones
+2. **Capa 2** (`getCeoCityPerformance`): métricas por Córdoba/Málaga/Sevilla
+3. **Dashboard Comercial** (`getComercialesDashboard` + `classifyTeam`): métricas y clasificación de comerciales
+4. **Alertas** (`DashboardAlert`): alertas abiertas con tipo y severidad
+5. **Colaboradores** (último evento `COLABORADOR_RECOMENDACION_GENERADA`): resumen del ecosistema de colaboradores
+
+### Evento persistido
+
+Tipo: `CEO_DIAGNOSTICO_GENERADO`, aggregateType: `CEO`, aggregateId: `ceo-diagnostic`.
+
+## Endpoint API — Capa 5: Motor de Expansión Geográfica
+
+### `GET /api/ceo/expansion`
+
+Acceso restringido al rol `ceo` (403 para otros roles). Devuelve la última evaluación de expansión del Event Store sin invocar el LLM.
+
+**Respuesta:**
+
+```json
+{
+  "ok": true,
+  "recommendation": {
+    "readiness_global": "parcial",
+    "criterios_evaluados": [
+      {
+        "nombre": "Facturación estable",
+        "estado": "cumplido",
+        "valor_actual": "28.500 €/mes",
+        "umbral": "Tendencia no descendente 3+ meses",
+        "comentario": "Facturación estable con ligero crecimiento."
+      }
+    ],
+    "ciudades_recomendadas": [
+      {
+        "ciudad": "Granada",
+        "puntuacion": 8,
+        "justificacion": "Proximidad a Córdoba y Málaga...",
+        "inversion_estimada_eur": 45000,
+        "break_even_meses": 8,
+        "comerciales_iniciales": 2,
+        "riesgos": ["Competencia local", "Estacionalidad"]
+      }
+    ],
+    "plan_expansion": "Preparar expansión a Granada en 90 días...",
+    "resumen_ejecutivo": "La empresa cumple 3 de 5 criterios...",
+    "confidence": 0.72,
+    "reasoning": "3 criterios financieros cumplidos..."
+  },
+  "generatedAt": "2026-04-01T07:00:00.000Z"
+}
+```
+
+### `POST /api/ceo/expansion`
+
+Regenera la evaluación invocando el grafo LangGraph. CEO-only. Recopila datos de Capas 1+2 y comerciales clasificados.
+
+### `POST /api/cron/ceo-expansion`
+
+Cron autenticado con `CRON_SECRET`. Invoca el generador completo. Pensado para ejecución semanal vía QStash.
+
+### 5 criterios de readiness evaluados
+
+| Criterio | Fuente | Umbral |
+|---|---|---|
+| Facturación estable | Histórico 6 meses (`getCeoOverview`) | Tendencia no descendente 3+ meses |
+| Margen operativo | `margenPorOperacion` del overview | >= 15% |
+| Cash disponible | `cashDisponible` del overview | >= 50.000 € |
+| Procesos estables | Alertas/equipo + carga media | Alertas < 25%, carga < 80% |
+| Capacidad de liderazgo | `classifyTeam` (top_performers) | Cualitativo (LLM razona sobre el equipo) |
+
+### Readiness global
+
+| Nivel | Criterios cumplidos | Acción |
+|---|---|---|
+| `apto` | >= 4 de 5 | Recomendar 2-4 ciudades candidatas |
+| `parcial` | 3 de 5 | Recomendar 1-2 ciudades + plan de mejora |
+| `no_apto` | < 3 de 5 | Plan de estabilización, sin ciudades |
+
+### Evento persistido
+
+Tipo: `CEO_EXPANSION_EVALUADA`, aggregateType: `CEO`, aggregateId: `ceo-expansion`.
+
 ## Archivos principales
 
 | Ruta | Descripción |
@@ -160,6 +300,27 @@ Ciudades operativas definidas en `lib/dashboard/ceo/types.ts`: `CIUDADES_OPERATI
 | `app/bi/layout.tsx` | Layout con tabs de las 6 capas + guard CEO |
 | `app/bi/vision-ejecutiva/page.tsx` | UI de la Capa 1 |
 | `app/bi/operativo/page.tsx` | UI de la Capa 2 (rendimiento por ciudad + ranking agentes) |
+| `lib/dashboard/ceo/diagnostic-types.ts` | Schema Zod `CeoDiagnosticSchema` + tipos TS Capa 4 |
+| `lib/agents/ceo-diagnostic-graph.ts` | Grafo LangGraph 1 nodo: datos → diagnóstico estructurado |
+| `lib/dashboard/ceo/diagnostic-generator.ts` | Orquestador: recopila datos, invoca grafo, persiste evento |
+| `app/api/ceo/diagnostic/route.ts` | API Route GET+POST Capa 4 (CEO-only) |
+| `app/api/cron/ceo-diagnostic/route.ts` | Cron POST autenticado para regenerar diagnóstico |
+| `lib/hooks/use-ceo-diagnostic.ts` | Hooks cliente: `useCeoDiagnostic()` + `useRegenerateDiagnostic()` |
+| `app/bi/prescriptivo/page.tsx` | UI de la Capa 4 (diagnóstico IA con recomendaciones) |
+| `lib/dashboard/ceo/expansion-types.ts` | Schema Zod `CeoExpansionSchema` + tipos TS Capa 5 |
+| `lib/agents/ceo-expansion-graph.ts` | Grafo LangGraph 1 nodo: datos → evaluación de expansión |
+| `lib/dashboard/ceo/expansion-generator.ts` | Orquestador: recopila datos, invoca grafo, persiste evento |
+| `app/api/ceo/expansion/route.ts` | API Route GET+POST Capa 5 (CEO-only) |
+| `app/api/cron/ceo-expansion/route.ts` | Cron POST autenticado para reevaluar expansión |
+| `lib/hooks/use-ceo-expansion.ts` | Hooks cliente: `useCeoExpansion()` + `useRegenerateExpansion()` |
+| `app/bi/expansion/page.tsx` | UI de la Capa 5 (motor de expansión geográfica) |
+| `lib/dashboard/ceo/financial-types.ts` | Schema Zod `CeoFinancialSchema` + tipos TS Capa 6 |
+| `lib/agents/ceo-financial-graph.ts` | Grafo LangGraph 1 nodo: datos → análisis control financiero |
+| `lib/dashboard/ceo/financial-generator.ts` | Orquestador Capa 6: costes, automatizaciones, reinversión |
+| `app/api/ceo/financiero/route.ts` | API Route GET+POST Capa 6 (CEO-only) |
+| `app/api/cron/ceo-financiero/route.ts` | Cron POST autenticado para reevaluar control financiero |
+| `lib/hooks/use-ceo-financiero.ts` | Hooks cliente: `useCeoFinanciero()` + `useRegenerateFinanciero()` |
+| `app/bi/reinversion/page.tsx` | UI de la Capa 6 (control financiero y plan de reinversión) |
 | `scripts/seed-ceo-financials.ts` | Seed de datos demo |
 
 ## Cómo probarlo
@@ -177,6 +338,112 @@ Ciudades operativas definidas en `lib/dashboard/ceo/types.ts`: `CIUDADES_OPERATI
 3. La vista "Desglose por Ciudad" muestra las 8 métricas por Córdoba/Málaga/Sevilla
 4. La vista "Rendimiento Agentes" muestra ranking de comerciales con datos reales
 5. Para ver con datos mock sin BD: `/bi/operativo?mock=1`
+
+### Capa 4 — Diagnóstico IA
+1. Iniciar dev server: `npm run dev`
+2. Navegar a `/bi/prescriptivo` (sesión por defecto es CEO)
+3. Si no hay diagnóstico previo, se muestra un botón "Generar diagnóstico"
+4. Pulsar "Regenerar diagnóstico" invoca el LLM con datos reales (requiere OPENAI_API_KEY)
+5. Para ver con datos mock sin BD: `/bi/prescriptivo?mock=1`
+6. Cron periódico: `POST /api/cron/ceo-diagnostic` con header `Authorization: Bearer $CRON_SECRET`
+
+### Capa 5 — Motor de Expansión
+1. Iniciar dev server: `npm run dev`
+2. Navegar a `/bi/expansion` (sesión por defecto es CEO)
+3. Si no hay evaluación previa, se muestra un botón "Evaluar expansión"
+4. Pulsar "Reevaluar expansión" invoca el LLM con datos reales (requiere OPENAI_API_KEY)
+5. Muestra: readiness global, checklist de criterios, ciudades candidatas con inversión/break-even/riesgos
+6. Para ver con datos mock sin BD: `/bi/expansion?mock=1`
+7. Cron periódico: `POST /api/cron/ceo-expansion` con header `Authorization: Bearer $CRON_SECRET`
+
+### Capa 6 — Control Financiero
+1. Iniciar dev server: `npm run dev`
+2. Navegar a `/bi/reinversion` (pestaña "Finanzas" en el nav CEO)
+3. Si no hay análisis previo, se muestra un botón "Generar análisis financiero"
+4. Pulsar "Reevaluar finanzas" invoca el LLM con datos reales (requiere OPENAI_API_KEY)
+5. Muestra: semáforo financiero, KPIs de costes, desglose fijo/variable, tabla ROI automatizaciones, plan de reinversión
+6. Para ver con datos mock sin BD: `/bi/reinversion?mock=1`
+7. Cron periódico: `POST /api/cron/ceo-financiero` con header `Authorization: Bearer $CRON_SECRET`
+
+## Endpoint API — Capa 6: Control Financiero
+
+### GET /api/ceo/financiero
+
+Devuelve el último análisis de control financiero del Event Store.
+
+**Autorización:** rol `ceo` obligatorio (403 si no).
+
+**Respuesta exitosa:**
+```json
+{
+  "ok": true,
+  "recommendation": {
+    "costes_fijos_eur": 18500,
+    "costes_variables_eur": 9800,
+    "coste_por_operacion_eur": 4700,
+    "ratio_fijo_variable": 0.65,
+    "automatizaciones": [...],
+    "roi_automatizaciones_total": 654,
+    "capacidad_reinversion_eur": 22500,
+    "recomendaciones": [...],
+    "semaforo_financiero": "amarillo",
+    "resumen_ejecutivo": "...",
+    "confidence": 0.78,
+    "reasoning": "..."
+  },
+  "generatedAt": "2026-04-01T08:00:00.000Z"
+}
+```
+
+Si no hay análisis previo: `{ "ok": true, "recommendation": null, "generatedAt": null }`
+
+### POST /api/ceo/financiero
+
+Dispara regeneración bajo demanda del análisis financiero.
+
+**Autorización:** rol `ceo` obligatorio (403 si no).
+
+Invoca `generateAndPersistCeoFinancial()` y persiste evento `CEO_FINANZAS_GENERADA`.
+
+## Capa 6 — Datos y criterios
+
+### Datos de entrada al LLM
+
+| Fuente | Datos |
+|--------|-------|
+| `getCeoOverview()` | KPIs financieros globales, histórico 6 meses, semáforos, equipo |
+| `getCeoCityPerformance()` | Rentabilidad por ciudad, carga, operaciones/mes |
+| `AUTOMATIZACIONES_ASUMIDAS` | 5 automatizaciones activas con costes y horas ahorradas (valores estimados) |
+
+### Automatizaciones asumidas
+
+| Automatización | Coste/mes | Ahorro estimado |
+|---|---|---|
+| Cadencia automática postventa | 50 € | 20h × 25€ = 500€/mes |
+| Sistema de alertas comerciales | 30 € | 10h × 25€ = 250€/mes |
+| Firma digital Signaturit | 80 € | 8h × 40€ = 320€/mes |
+| Scoring automático de leads | 40 € | 15h × 25€ = 375€/mes |
+| Recomendaciones de colaboradores IA | 35 € | 6h × 35€ = 210€/mes |
+
+### Semáforo financiero
+
+| Estado | Criterio |
+|---|---|
+| `verde` | EBITDA positivo + costes bajo control (ratio_fijo_variable < 0.7) + cash > 3× costes mensuales |
+| `amarillo` | Uno de los criterios anteriores en zona de precaución |
+| `rojo` | EBITDA negativo O cash < 2× costes mensuales O costes descontrolados |
+
+### Capacidad de reinversión
+
+`reinversion_segura = cash_disponible − (3 × coste_operativo_mensual)`
+
+### Categorías de reinversión
+
+`tecnologia` | `equipo` | `ciudad` | `marketing` | `formacion`
+
+### Evento persistido
+
+Tipo: `CEO_FINANZAS_GENERADA`, aggregateType: `CEO`, aggregateId: `ceo-financiero`.
 
 ## Datos derivados vs manuales
 

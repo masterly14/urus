@@ -6,6 +6,10 @@
  * - nluGraph (M5): clasificación de respuestas WhatsApp
  * - contractInstructionGraph (M8): transcripción → parche de contrato
  * - pricingRecommendationGraph (M7): análisis estadístico → diagnóstico + recomendaciones
+ * - colaboradoresRecommendationGraph (M11): flota de colaboradores → recomendaciones estratégicas
+ * - ceoDiagnosticGraph (M13): datos consolidados → diagnóstico y recomendaciones CEO
+ * - ceoExpansionGraph (M13): datos financieros/operativos → evaluación de expansión geográfica
+ * - ceoFinancialGraph (M13): KPIs financieros + costes + automatizaciones → control financiero y reinversión
  */
 
 export { llm, llmWithStructuredOutput } from "./llm";
@@ -18,6 +22,22 @@ export {
   pricingRecommendationGraph,
   generatePricingRecommendation,
 } from "./pricing-recommendation-graph";
+export {
+  colaboradoresRecommendationGraph,
+  generateColaboradoresRecommendation,
+} from "./colaboradores-recommendation-graph";
+export {
+  ceoDiagnosticGraph,
+  generateCeoDiagnostic,
+} from "./ceo-diagnostic-graph";
+export {
+  ceoExpansionGraph,
+  generateCeoExpansion,
+} from "./ceo-expansion-graph";
+export {
+  ceoFinancialGraph,
+  generateCeoFinancial,
+} from "./ceo-financial-graph";
 export type {
   ContractInstructionGraphInput,
   ContractVoiceStructuredPatch,
