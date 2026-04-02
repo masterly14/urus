@@ -39,15 +39,15 @@ describe("handleSeleccionComprador", () => {
     vi.clearAllMocks();
   });
 
-  it("persiste feedback ME_INTERESA y no encola projection", async () => {
+  it("persiste feedback ME_INTERESA sin follow-up jobs", async () => {
     const event = makeEvent();
     const result = await handleSeleccionComprador(event);
 
     expect(result.success).toBe(true);
-    expect(result.followUpJobs ?? []).toHaveLength(0);
+    expect(result.followUpJobs).toBeUndefined();
   });
 
-  it("persiste feedback NO_ME_ENCAJA y encola UPDATE_DEMAND_PROJECTION", async () => {
+  it("persiste feedback NO_ME_ENCAJA sin follow-up jobs (demand update is handled by DEMANDA_ACTUALIZADA)", async () => {
     const event = makeEvent({
       payload: {
         demandId: "DEM-001",
@@ -60,9 +60,7 @@ describe("handleSeleccionComprador", () => {
     const result = await handleSeleccionComprador(event);
 
     expect(result.success).toBe(true);
-    const jobs = result.followUpJobs ?? [];
-    expect(jobs).toHaveLength(1);
-    expect(jobs[0].type).toBe("UPDATE_DEMAND_PROJECTION");
+    expect(result.followUpJobs).toBeUndefined();
   });
 
   it("skip graceful si payload incompleto (sin selectionId)", async () => {

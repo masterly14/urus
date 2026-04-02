@@ -1,11 +1,12 @@
 /**
- * Script de test cercano a produccion para el feedback loop del comprador.
+ * Test aislado del NLU contextual (classifyBuyerFeedback).
  *
- * Flujo: simula el pipeline completo sin WhatsApp real:
- * 1. Crea una WhatsAppBuyerSession
- * 2. Crea una MicrositeSelection mock con propiedades
- * 3. Invoca classifyBuyerFeedback con texto ambiguo del comprador
- * 4. Verifica que el NLU resuelve propiedades y clasifica sentimiento
+ * Valida que LangGraph resuelve propiedades y clasifica sentimiento
+ * a partir de texto libre + listado de propiedades mock (en memoria).
+ * No toca Prisma, no crea sesiones ni selecciones, no encadena eventos.
+ *
+ * Para el test E2E del pipeline completo (eventos + Inmovilla + regeneración),
+ * ver: scripts/test-feedback-loop-live-rpa.ts
  *
  * USO: npx tsx scripts/test-feedback-loop.ts
  *

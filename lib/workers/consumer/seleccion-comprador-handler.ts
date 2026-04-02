@@ -1,14 +1,16 @@
 /**
  * M6 — Handler de SELECCION_COMPRADOR.
  *
- * Reacciona al feedback del comprador sobre una propiedad del microsite.
- * Persiste el feedback en MicrositeSelectionFeedback (idempotente) y,
- * si la decisión es NO_ME_ENCAJA, encola la actualización de proyección.
+ * Persiste feedback individual del comprador sobre una propiedad del microsite
+ * en MicrositeSelectionFeedback (idempotente por selectionId+propertyId).
+ *
+ * No dispara actualización de demanda ni regeneración de microsite:
+ * eso lo maneja DEMANDA_ACTUALIZADA (emitido por whatsapp-nlu-handler
+ * cuando el NLU detecta variables de ajuste).
  */
 
 import type { Event } from "@/types/domain";
 import type { HandlerResult } from "./types";
-import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import type { MicrositeSelectionDecision } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -65,21 +67,10 @@ export async function handleSeleccionComprador(event: Event): Promise<HandlerRes
     },
   });
 
-  const followUpJobs: EnqueueJobInput[] = [];
-
-  if (decision === "NO_ME_ENCAJA") {
-    followUpJobs.push({
-      type: "UPDATE_DEMAND_PROJECTION",
-      payload: { eventId: event.id },
-      idempotencyKey: `update_demand_projection:${event.id}`,
-      sourceEventId: event.id,
-    });
-  }
-
   const channel = p.source?.channel ?? "unknown";
   console.log(
     `[consumer:seleccion] SELECCION_COMPRADOR demandId=${demandId} property=${propertyId} decision=${decision} channel=${channel}`,
   );
 
-  return { success: true, followUpJobs };
+  return { success: true };
 }
