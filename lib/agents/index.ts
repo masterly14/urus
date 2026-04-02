@@ -9,11 +9,11 @@
  * - colaboradoresRecommendationGraph (M11): flota de colaboradores → recomendaciones estratégicas
  * - ceoDiagnosticGraph (M13): datos consolidados → diagnóstico y recomendaciones CEO
  * - ceoExpansionGraph (M13): datos financieros/operativos → evaluación de expansión geográfica
- * - ceoFinancialGraph (M13): KPIs financieros + costes + automatizaciones → control financiero y reinversión
+ * - ceoFinancialGraph (M13): datos financieros → análisis de costes, ROI y reinversión
  */
 
 export { llm, llmWithStructuredOutput } from "./llm";
-export { nluGraph, classifyWhatsAppResponse } from "./nlu-graph";
+export { nluGraph, classifyWhatsAppResponse, classifyBuyerFeedback } from "./nlu-graph";
 export {
   contractInstructionGraph,
   interpretContractVoiceInstructions,
@@ -48,4 +48,7 @@ export type {
   NLUResult,
   NLUGraphInput,
   NLUGraphOutput,
+  PropertyFeedbackItem,
+  PropertySummaryForNLU,
+  ConversationTurn,
 } from "./types";
