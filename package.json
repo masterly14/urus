@@ -27,6 +27,7 @@
     "daily-log:sync-commit": "tsx scripts/daily-log-sync-commit.ts",
     "whatsapp:test-m4": "tsx scripts/test-whatsapp-m4.ts",
     "agents:test-langgraph": "tsx scripts/test-langgraph.ts",
+    "eval:nlu": "tsx scripts/run-nlu-eval.ts",
     "m8:test-contract-upload": "tsx scripts/test-contract-docx-cloudinary.ts"
   },
   "dependencies": {
