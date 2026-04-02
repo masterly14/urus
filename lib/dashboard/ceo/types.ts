@@ -48,3 +48,35 @@ export interface CeoOverviewPayload {
   equipo: CeoEquipoResumen;
   historico: HistoricoEntry[];
 }
+
+// ---------------------------------------------------------------------------
+// Capa 2 — Rendimiento por Ciudad
+// ---------------------------------------------------------------------------
+
+export const CIUDADES_OPERATIVAS = ["Córdoba", "Málaga", "Sevilla"] as const;
+export type CiudadOperativa = (typeof CIUDADES_OPERATIVAS)[number];
+
+export interface CeoCityRow {
+  ciudad: string;
+  comercialesActivos: number;
+  cargaMedia: number;
+  propiedadesActivas: number;
+  operacionesMes: number;
+  facturacionMes: number;
+  rentabilidadPorComercial: number;
+  costeOportunidadLeadsPerdidos: number;
+  costeOportunidadCapacidadOciosa: number;
+  costeOportunidadTotal: number;
+  /** Datos auxiliares para drill-down */
+  leadsAsignados: number;
+  leadsPerdidos: number;
+  ticketMedio: number;
+  capacidadOciosa: number;
+  revenuePerLead: number;
+}
+
+export interface CeoCityPerformancePayload {
+  cities: CeoCityRow[];
+  range: { from: string; to: string };
+  commissionRate: number;
+}

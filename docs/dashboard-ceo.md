@@ -7,7 +7,7 @@ Panel exclusivo del CEO que integra datos de todos los módulos del sistema para
 Organizado en 6 capas (pestañas en `/bi/`):
 
 1. **Visión Ejecutiva** — KPIs financieros + semáforos globales (implementada)
-2. **Rendimiento** — Rendimiento comercial por ciudad y persona (mock)
+2. **Rendimiento** — Rendimiento comercial por ciudad y persona (implementada)
 3. **Capital Humano** — Estado psicológico y sostenibilidad del equipo (mock)
 4. **Diagnóstico IA** — Recomendaciones automáticas con LangGraph (mock)
 5. **Expansión** — Motor de expansión geográfica (mock)
@@ -89,27 +89,94 @@ Los umbrales están definidos como constantes en `lib/dashboard/ceo/thresholds.t
 | **Expansión** | 3 criterios OK (cash >= 50K, margen >= 15%, revenue >= 80% objetivo) | 2 criterios OK | < 2 criterios |
 | **Costes** | Ratio coste/revenue < 60% | < 80% | >= 80% |
 
+## Endpoint API — Capa 2: Rendimiento por Ciudad
+
+### `GET /api/ceo/cities`
+
+Acceso restringido al rol `ceo` (403 para otros roles).
+
+**Query params:**
+- `from` (ISO date, opcional) — inicio del rango
+- `to` (ISO date, opcional) — fin del rango
+- Si no se envían, rango por defecto: inicio del mes actual → ahora
+
+**Respuesta:**
+
+```json
+{
+  "ok": true,
+  "cities": [
+    {
+      "ciudad": "Córdoba",
+      "comercialesActivos": 5,
+      "cargaMedia": 14.2,
+      "propiedadesActivas": 120,
+      "operacionesMes": 8,
+      "facturacionMes": 72000,
+      "rentabilidadPorComercial": 14400,
+      "costeOportunidadLeadsPerdidos": 18000,
+      "costeOportunidadCapacidadOciosa": 9600,
+      "costeOportunidadTotal": 27600,
+      "leadsAsignados": 45,
+      "leadsPerdidos": 4,
+      "ticketMedio": 4500,
+      "capacidadOciosa": 30,
+      "revenuePerLead": 320
+    }
+  ],
+  "range": { "from": "2026-04-01T00:00:00.000Z", "to": "2026-04-01T21:00:00.000Z" },
+  "commissionRate": 0.03
+}
+```
+
+### Métricas por ciudad
+
+| Métrica | Fuente | Fórmula |
+|---|---|---|
+| N.º comerciales activos | `comerciales` | `COUNT WHERE ciudad=X AND activo=true` |
+| Carga media | `comerciales` | `AVG(cargaActual)` de activos por ciudad |
+| Propiedades activas | `properties_current` | `COUNT WHERE nodisponible=false AND estado NOT IN cerrados` |
+| Operaciones/mes | `commercial_operation_facts` | `COUNT WHERE closedAt IN rango AND ciudad=X` |
+| Facturación/mes | `commercial_operation_facts` | `SUM(grossAmountEur * commissionRate)` |
+| Rentabilidad/comercial | Derivada | `facturacionMes / comercialesActivos` |
+| Coste oportunidad (leads) | `commercial_lead_facts` | `leadsPerdidos * ticketMedio` |
+| Coste oportunidad (capacidad) | `comerciales` + facts | `capacidadOciosa * revenuePerLead` |
+
+Ciudades operativas definidas en `lib/dashboard/ceo/types.ts`: `CIUDADES_OPERATIVAS = ["Córdoba", "Málaga", "Sevilla"]`.
+
 ## Archivos principales
 
 | Ruta | Descripción |
 |---|---|
 | `prisma/schema.prisma` | Modelos `CeoMonthlySnapshot`, `CeoTarget` |
-| `lib/dashboard/ceo/types.ts` | Tipos TypeScript del payload |
+| `lib/dashboard/ceo/types.ts` | Tipos TypeScript: `CeoOverviewPayload`, `CeoCityRow`, `CIUDADES_OPERATIVAS` |
 | `lib/dashboard/ceo/thresholds.ts` | Funciones de evaluación de semáforos |
-| `lib/dashboard/ceo/queries.ts` | Queries cross-módulo y `getCeoOverview()` |
-| `app/api/ceo/overview/route.ts` | API Route GET (CEO-only) |
-| `lib/hooks/use-ceo-overview.ts` | Hook cliente para fetch con sesión |
+| `lib/dashboard/ceo/queries.ts` | Queries Capa 1 y `getCeoOverview()` |
+| `lib/dashboard/ceo/city-queries.ts` | Query Capa 2: `getCeoCityPerformance()` con CTEs por ciudad |
+| `app/api/ceo/overview/route.ts` | API Route GET Capa 1 (CEO-only) |
+| `app/api/ceo/cities/route.ts` | API Route GET Capa 2 (CEO-only) |
+| `lib/hooks/use-ceo-overview.ts` | Hook cliente Capa 1 |
+| `lib/hooks/use-ceo-cities.ts` | Hook cliente Capa 2: `useCeoCityPerformance()` |
 | `app/bi/layout.tsx` | Layout con tabs de las 6 capas + guard CEO |
 | `app/bi/vision-ejecutiva/page.tsx` | UI de la Capa 1 |
+| `app/bi/operativo/page.tsx` | UI de la Capa 2 (rendimiento por ciudad + ranking agentes) |
 | `scripts/seed-ceo-financials.ts` | Seed de datos demo |
 
 ## Cómo probarlo
 
+### Capa 1 — Visión Ejecutiva
 1. Sincronizar schema: `npx prisma db push`
 2. Insertar datos de demo: `npx tsx scripts/seed-ceo-financials.ts`
 3. Iniciar dev server: `npm run dev`
 4. Navegar a `/bi/vision-ejecutiva` (sesión por defecto es CEO)
 5. Para ver con datos mock sin BD: `/bi/vision-ejecutiva?mock=1`
+
+### Capa 2 — Rendimiento por Ciudad
+1. Iniciar dev server: `npm run dev`
+2. Navegar a `/bi/operativo` (sesión por defecto es CEO)
+3. La vista "Desglose por Ciudad" muestra las 8 métricas por Córdoba/Málaga/Sevilla
+4. La vista "Rendimiento Agentes" muestra ranking de comerciales con datos reales
+5. Para ver con datos mock sin BD: `/bi/operativo?mock=1`
 
 ## Datos derivados vs manuales
 

@@ -47,11 +47,11 @@ export const financialData: FinancialMetric[] = [
 ];
 
 export const salesPerformanceData: SalesPerformance[] = [
-    { agentId: "AG01", agentName: "Ana García", city: "Valencia", leads: 45, conversions: 8, revenue: 185000, avgTicket: 23125, efficiency: 92 },
-    { agentId: "AG02", agentName: "Carlos Ruiz", city: "Madrid", leads: 60, conversions: 5, revenue: 140000, avgTicket: 28000, efficiency: 75 },
-    { agentId: "AG03", agentName: "Laura Menéndez", city: "Valencia", leads: 30, conversions: 6, revenue: 155000, avgTicket: 25833, efficiency: 88 },
-    { agentId: "AG04", agentName: "David Torres", city: "Barcelona", leads: 55, conversions: 3, revenue: 95000, avgTicket: 31666, efficiency: 60 },
-    { agentId: "AG05", agentName: "Elena Pastor", city: "Madrid", leads: 40, conversions: 7, revenue: 210000, avgTicket: 30000, efficiency: 95 },
+    { agentId: "AG01", agentName: "Ana García", city: "Córdoba", leads: 45, conversions: 8, revenue: 185000, avgTicket: 23125, efficiency: 92 },
+    { agentId: "AG02", agentName: "Carlos Ruiz", city: "Málaga", leads: 60, conversions: 5, revenue: 140000, avgTicket: 28000, efficiency: 75 },
+    { agentId: "AG03", agentName: "Laura Menéndez", city: "Córdoba", leads: 30, conversions: 6, revenue: 155000, avgTicket: 25833, efficiency: 88 },
+    { agentId: "AG04", agentName: "David Torres", city: "Sevilla", leads: 55, conversions: 3, revenue: 95000, avgTicket: 31666, efficiency: 60 },
+    { agentId: "AG05", agentName: "Elena Pastor", city: "Málaga", leads: 40, conversions: 7, revenue: 210000, avgTicket: 30000, efficiency: 95 },
 ];
 
 export const marketingCampaigns: MarketingCampaign[] = [
