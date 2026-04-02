@@ -3,18 +3,15 @@
 import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
-  ArrowUpRight,
-  BarChart2,
   Banknote,
-  Bot,
-  CheckCircle2,
+  BarChart3,
   Clock,
   Coins,
   Loader2,
+  PieChart,
   RefreshCw,
-  Rocket,
-  TrendingDown,
   TrendingUp,
+  Zap,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -29,165 +26,123 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { formatEur, formatDate } from "@/lib/utils/format";
+import { MockBadge } from "@/components/bi/mock-badge";
 import { useCeoFinanciero, useRegenerateFinanciero } from "@/lib/hooks/use-ceo-financiero";
 import type {
   CeoFinancialRecommendation,
   AutomationRoi,
   ReinversionItem,
   SemaforoFinanciero,
-  ReinversionCategoria,
 } from "@/lib/dashboard/ceo/financial-types";
 
 // ---------------------------------------------------------------------------
-// Mock data (?mock=1)
+// Mock data
 // ---------------------------------------------------------------------------
 
 const MOCK_FINANCIAL: CeoFinancialRecommendation = {
-  costes_fijos_eur: 18500,
-  costes_variables_eur: 9800,
-  coste_por_operacion_eur: 4700,
-  ratio_fijo_variable: 0.65,
+  costes_fijos_eur: 62000,
+  costes_variables_eur: 28000,
+  coste_por_operacion_eur: 12857,
+  ratio_fijo_variable: 0.69,
   automatizaciones: [
-    {
-      nombre: "Cadencia automática postventa",
-      coste_mensual_eur: 50,
-      ahorro_mensual_eur: 500,
-      roi_percent: 900,
-      comentario: "Ahorra 20 horas/mes al equipo comercial en seguimiento manual.",
-    },
-    {
-      nombre: "Sistema de alertas comerciales",
-      coste_mensual_eur: 30,
-      ahorro_mensual_eur: 250,
-      roi_percent: 733,
-      comentario: "Detecta y notifica automáticamente desviaciones de rendimiento.",
-    },
-    {
-      nombre: "Firma digital Signaturit",
-      coste_mensual_eur: 80,
-      ahorro_mensual_eur: 320,
-      roi_percent: 300,
-      comentario: "Elimina desplazamientos para firma presencial, acelera cierres.",
-    },
-    {
-      nombre: "Scoring automático de leads",
-      coste_mensual_eur: 40,
-      ahorro_mensual_eur: 375,
-      roi_percent: 838,
-      comentario: "Prioriza los leads con mayor probabilidad de cierre automáticamente.",
-    },
-    {
-      nombre: "Recomendaciones de colaboradores IA",
-      coste_mensual_eur: 35,
-      ahorro_mensual_eur: 210,
-      roi_percent: 500,
-      comentario: "Genera semanalmente una estrategia de gestión del equipo externo.",
-    },
+    { nombre: "Cadencia automática postventa", coste_mensual_eur: 50, ahorro_mensual_eur: 500, roi_percent: 900 },
+    { nombre: "Sistema alertas comerciales", coste_mensual_eur: 30, ahorro_mensual_eur: 250, roi_percent: 733 },
+    { nombre: "Firma digital in-house", coste_mensual_eur: 15, ahorro_mensual_eur: 385, roi_percent: 2567 },
+    { nombre: "Scoring automático de leads", coste_mensual_eur: 40, ahorro_mensual_eur: 375, roi_percent: 838 },
   ],
-  roi_automatizaciones_total: 654,
-  capacidad_reinversion_eur: 22500,
+  roi_automatizaciones_total: 693,
+  capacidad_reinversion_eur: 35000,
   recomendaciones: [
     {
-      categoria: "equipo",
-      importe_eur: 10000,
+      categoria: "tecnologia",
+      importe_eur: 12000,
       justificacion:
-        "La carga media del equipo supera el 75%. Contratar 1 comercial en Málaga (ciudad con mayor rentabilidad/comercial) permitiría capturar la demanda no atendida y aliviar la saturación actual.",
+        "Invertir en CRM avanzado con IA para mejorar la gestión de leads. El scoring actual ahorra 375€/mes, un módulo predictivo duplicaría el ahorro.",
+      prioridad: "alta",
+      horizonte_meses: 3,
+    },
+    {
+      categoria: "talento",
+      importe_eur: 8000,
+      justificacion:
+        "Contratar 1 comercial junior para Málaga, donde la carga media supera el 85% y la rentabilidad/comercial justifica la inversión.",
       prioridad: "alta",
       horizonte_meses: 2,
     },
     {
-      categoria: "tecnologia",
-      importe_eur: 7500,
+      categoria: "marketing",
+      importe_eur: 6000,
       justificacion:
-        "Con un ROI promedio del 654% en las automatizaciones actuales, ampliar la cobertura con un módulo de análisis predictivo de precios (integración Statefox avanzada) generaría retorno en menos de 6 meses.",
+        "Campaña de captación digital focalizada en Sevilla para incrementar leads de calidad. ROI esperado > 150% basado en conversión actual.",
       prioridad: "media",
-      horizonte_meses: 3,
+      horizonte_meses: 6,
     },
     {
-      categoria: "marketing",
-      importe_eur: 5000,
+      categoria: "formacion",
+      importe_eur: 3000,
       justificacion:
-        "La facturación de Sevilla está por debajo del target en 2 de los últimos 3 meses. Una campaña de captación digital focalizada en la zona norte de la ciudad podría recuperar el pipeline.",
+        "Programa de formación en técnicas de cierre para comerciales bajo_rendimiento. Impacto esperado: +15% conversión.",
       prioridad: "media",
-      horizonte_meses: 1,
+      horizonte_meses: 4,
     },
   ],
-  semaforo_financiero: "amarillo",
+  semaforo_financiero: "verde",
   resumen_ejecutivo:
-    "La empresa mantiene márgenes positivos con EBITDA estable, pero la estructura de costes está algo rígida (65% fijos). Con 22.500 € disponibles para reinvertir, prioridad en equipo para resolver saturación operativa.",
-  confidence: 0.78,
+    "La estructura de costes es saludable con ratio coste/revenue del 58%. Se recomienda reinvertir 29.000 € en tecnología, talento y marketing para acelerar el crecimiento.",
+  confidence: 0.82,
   reasoning:
-    "EBITDA positivo y cash suficiente → no rojo. Ratio fijo/variable 0.65 (moderado) y carga equipo alta → amarillo. Reinversión calculada como cash - 3x coste operativo mensual.",
+    "Datos financieros completos de 6 meses. Costes fijos 69% del total (dentro de rango). ROI de automatizaciones excelente (693% medio). Capacidad de reinversión de 35.000 €.",
 };
 
-const MOCK_GENERATED_AT = "2026-04-01T08:00:00.000Z";
+const MOCK_GENERATED_AT = "2026-04-01T07:00:00.000Z";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatEur(n: number): string {
-  return n.toLocaleString("es-ES") + " €";
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString("es-ES", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
-
-const SEMAFORO_STYLE: Record<SemaforoFinanciero, { bg: string; text: string; label: string; border: string; dot: string }> = {
+const SEMAFORO_STYLE: Record<SemaforoFinanciero, { bg: string; text: string; label: string; border: string }> = {
   verde: {
     bg: "bg-emerald-100 dark:bg-emerald-900/30",
     text: "text-emerald-700 dark:text-emerald-300",
-    label: "Salud financiera óptima",
+    label: "Finanzas saludables",
     border: "border-emerald-300 dark:border-emerald-700",
-    dot: "bg-emerald-500",
   },
   amarillo: {
     bg: "bg-amber-100 dark:bg-amber-900/30",
     text: "text-amber-700 dark:text-amber-300",
-    label: "Zona de precaución",
+    label: "Precaución financiera",
     border: "border-amber-300 dark:border-amber-700",
-    dot: "bg-amber-500",
   },
   rojo: {
     bg: "bg-red-100 dark:bg-red-900/30",
     text: "text-red-700 dark:text-red-300",
-    label: "Atención urgente requerida",
+    label: "Alerta financiera",
     border: "border-red-300 dark:border-red-700",
-    dot: "bg-red-500",
   },
 };
 
-const CATEGORIA_LABEL: Record<ReinversionCategoria, string> = {
-  tecnologia: "Tecnología",
-  equipo: "Equipo",
-  ciudad: "Nueva Ciudad",
-  marketing: "Marketing",
-  formacion: "Formación",
-};
-
-const CATEGORIA_ICON: Record<ReinversionCategoria, typeof Coins> = {
-  tecnologia: Bot,
-  equipo: CheckCircle2,
-  ciudad: TrendingUp,
-  marketing: ArrowUpRight,
-  formacion: BarChart2,
-};
-
-const PRIORIDAD_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  alta: "destructive",
+const PRIORIDAD_VARIANT: Record<ReinversionItem["prioridad"], "default" | "secondary" | "outline"> = {
+  alta: "default",
   media: "secondary",
   baja: "outline",
 };
+
+const CATEGORIA_LABEL: Record<ReinversionItem["categoria"], string> = {
+  tecnologia: "Tecnología",
+  talento: "Talento",
+  marketing: "Marketing",
+  formacion: "Formación",
+  infraestructura: "Infraestructura",
+  expansion: "Expansión",
+};
+
 
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function SemaforoCard({
+function SummaryCard({
   semaforo,
   resumen,
   generatedAt,
@@ -205,8 +160,7 @@ function SemaforoCard({
             <Banknote className="h-5 w-5" />
             Control Financiero
           </CardTitle>
-          <Badge className={cn(style.bg, style.text, "border-0 text-sm gap-1.5")}>
-            <span className={cn("inline-block h-2 w-2 rounded-full", style.dot)} />
+          <Badge className={cn(style.bg, style.text, "border-0 text-sm")}>
             {style.label}
           </Badge>
         </div>
@@ -216,7 +170,7 @@ function SemaforoCard({
         {generatedAt && (
           <p className="text-xs text-muted-foreground flex items-center gap-1">
             <Clock className="h-3 w-3" />
-            Analizado: {formatDate(generatedAt)}
+            Generado: {formatDate(generatedAt)}
           </p>
         )}
       </CardContent>
@@ -224,129 +178,87 @@ function SemaforoCard({
   );
 }
 
-function KpiCard({
-  label,
-  value,
-  sub,
-  icon: Icon,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  icon: typeof Coins;
-  highlight?: "green" | "amber" | "red";
-}) {
-  const color =
-    highlight === "green"
-      ? "text-emerald-600 dark:text-emerald-400"
-      : highlight === "amber"
-        ? "text-amber-600 dark:text-amber-400"
-        : highlight === "red"
-          ? "text-red-600 dark:text-red-400"
-          : "text-foreground";
+function CostesKpiCards({ data }: { data: CeoFinancialRecommendation }) {
+  const total = data.costes_fijos_eur + data.costes_variables_eur;
+  const fijosPct = total > 0 ? (data.costes_fijos_eur / total) * 100 : 0;
+
   return (
-    <Card>
-      <CardContent className="pt-6 pb-4">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
-            <p className={cn("text-2xl font-bold font-mono", color)}>{value}</p>
-            {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+    <div className="grid gap-4 md:grid-cols-4">
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
+              <PieChart className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Costes fijos</p>
+              <p className="text-xl font-bold">{formatEur(data.costes_fijos_eur)}</p>
+            </div>
           </div>
-          <div className="bg-muted p-2 rounded-lg">
-            <Icon className="h-5 w-5 text-muted-foreground" />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-3">
+            <div className="bg-orange-100 dark:bg-orange-900/30 p-2 rounded-lg">
+              <BarChart3 className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Costes variables</p>
+              <p className="text-xl font-bold">{formatEur(data.costes_variables_eur)}</p>
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-3">
+            <div className="bg-purple-100 dark:bg-purple-900/30 p-2 rounded-lg">
+              <Coins className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Coste/operación</p>
+              <p className="text-xl font-bold">{formatEur(data.coste_por_operacion_eur)}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">Ratio fijo/variable</p>
+              <p className="text-sm font-bold">{(data.ratio_fijo_variable * 100).toFixed(0)}%</p>
+            </div>
+            <Progress value={fijosPct} className="h-2" />
+            <div className="flex justify-between text-[10px] text-muted-foreground">
+              <span>Fijos {fijosPct.toFixed(0)}%</span>
+              <span>Variables {(100 - fijosPct).toFixed(0)}%</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
-function CostesCard({
-  fijos,
-  variables,
-  ratio,
-}: {
-  fijos: number;
-  variables: number;
-  ratio: number;
-}) {
-  const total = fijos + variables;
-  const pct = ratio * 100;
-  const rigidez = pct > 70 ? "alta" : pct > 50 ? "media" : "baja";
-  const rigidezColor =
-    rigidez === "alta"
-      ? "text-red-600 dark:text-red-400"
-      : rigidez === "media"
-        ? "text-amber-600 dark:text-amber-400"
-        : "text-emerald-600 dark:text-emerald-400";
-
+function AutomationTable({ items, roiTotal }: { items: AutomationRoi[]; roiTotal: number }) {
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <TrendingDown className="h-5 w-5 text-primary" />
-          Estructura de Costes
-        </CardTitle>
-        <CardDescription>Desglose fijo/variable del coste operativo mensual</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <div className="space-y-3">
-          <div className="flex justify-between text-sm">
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-full bg-primary inline-block" />
-              Costes Fijos
-            </span>
-            <span className="font-mono font-semibold">{formatEur(fijos)}</span>
-          </div>
-          <Progress value={pct} className="h-3" />
-          <div className="flex justify-between text-sm">
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-full bg-muted-foreground/40 inline-block" />
-              Costes Variables
-            </span>
-            <span className="font-mono font-semibold">{formatEur(variables)}</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 text-center">
-          <div className="bg-muted/50 rounded-lg p-3">
-            <p className="text-xs text-muted-foreground">Total mensual</p>
-            <p className="font-bold font-mono text-sm">{formatEur(total)}</p>
-          </div>
-          <div className="bg-muted/50 rounded-lg p-3">
-            <p className="text-xs text-muted-foreground">Rigidez</p>
-            <p className={cn("font-bold text-sm capitalize", rigidezColor)}>
-              {pct.toFixed(0)}% fijo — {rigidez}
-            </p>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function AutomacionesCard({ automatizaciones, roiTotal }: {
-  automatizaciones: AutomationRoi[];
-  roiTotal: number;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-3">
+      <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Bot className="h-5 w-5 text-primary" />
+            <Zap className="h-5 w-5 text-amber-500" />
             ROI de Automatizaciones
           </CardTitle>
-          <Badge variant="outline" className="font-mono gap-1 text-sm">
-            <TrendingUp className="h-3 w-3 text-emerald-500" />
-            {roiTotal.toFixed(0)}% total
+          <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border-0">
+            ROI medio: {roiTotal.toFixed(0)}%
           </Badge>
         </div>
-        <CardDescription>Retorno de cada automatización activa en el sistema</CardDescription>
+        <CardDescription>Retorno de inversión de los sistemas automatizados</CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -357,115 +269,118 @@ function AutomacionesCard({ automatizaciones, roiTotal }: {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {automatizaciones.map((a, i) => (
+            {items.map((a, i) => (
               <TableRow key={i}>
-                <TableCell>
-                  <div>
-                    <p className="text-sm font-medium">{a.nombre}</p>
-                    <p className="text-xs text-muted-foreground">{a.comentario}</p>
-                  </div>
-                </TableCell>
-                <TableCell className="text-right text-muted-foreground font-mono text-sm">
+                <TableCell className="font-medium">{a.nombre}</TableCell>
+                <TableCell className="text-right text-muted-foreground">
                   {formatEur(a.coste_mensual_eur)}
                 </TableCell>
-                <TableCell className="text-right font-mono text-sm text-emerald-600 dark:text-emerald-400">
+                <TableCell className="text-right text-emerald-600 dark:text-emerald-400 font-medium">
                   {formatEur(a.ahorro_mensual_eur)}
                 </TableCell>
                 <TableCell className="text-right">
-                  <span className="font-bold font-mono text-sm text-emerald-600 dark:text-emerald-400">
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      a.roi_percent >= 500
+                        ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                        : a.roi_percent >= 200
+                          ? "border-amber-500 text-amber-600 dark:text-amber-400"
+                          : "border-red-500 text-red-600 dark:text-red-400",
+                    )}
+                  >
                     {a.roi_percent.toFixed(0)}%
-                  </span>
+                  </Badge>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ReinversionCard({ item, totalCapacidad }: {
-  item: ReinversionItem;
-  totalCapacidad: number;
-}) {
-  const Icon = CATEGORIA_ICON[item.categoria];
-  const pct = totalCapacidad > 0 ? (item.importe_eur / totalCapacidad) * 100 : 0;
-
-  return (
-    <Card className="border-l-4 border-l-primary">
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="bg-primary/10 p-1.5 rounded-md">
-              <Icon className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-sm font-semibold">
-                {CATEGORIA_LABEL[item.categoria]}
-              </CardTitle>
-              <p className="text-xs text-muted-foreground">{item.horizonte_meses} mes{item.horizonte_meses !== 1 ? "es" : ""}</p>
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <span className="font-bold font-mono text-sm">{formatEur(item.importe_eur)}</span>
-            <Badge variant={PRIORIDAD_VARIANT[item.prioridad]} className="text-[10px]">
-              Prioridad {item.prioridad}
-            </Badge>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <p className="text-xs text-muted-foreground leading-relaxed">{item.justificacion}</p>
-        <div className="space-y-1">
-          <div className="flex justify-between text-[10px] text-muted-foreground">
-            <span>% de capacidad usada</span>
-            <span>{pct.toFixed(0)}%</span>
-          </div>
-          <Progress value={pct} className="h-1.5" />
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function AnalisisCard({ confidence, reasoning }: {
-  confidence: number;
-  reasoning: string;
+function ReinversionCards({
+  recomendaciones,
+  capacidad,
+}: {
+  recomendaciones: ReinversionItem[];
+  capacidad: number;
 }) {
+  const totalRecomendado = recomendaciones.reduce((sum, r) => sum + r.importe_eur, 0);
+  const usoPct = capacidad > 0 ? (totalRecomendado / capacidad) * 100 : 0;
+
   return (
-    <Card className="bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-violet-950/20 dark:to-indigo-950/20 border-violet-200 dark:border-violet-800">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-violet-700 dark:text-violet-300 text-base">
-          <BarChart2 className="h-4 w-4" />
-          Razonamiento del Análisis
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-xs leading-relaxed text-violet-900/70 dark:text-violet-100/70">
-          {reasoning}
-        </p>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold tracking-tight flex items-center gap-2">
+          <TrendingUp className="h-5 w-5" />
+          Recomendaciones de Reinversión
+        </h2>
+        <div className="text-right">
+          <p className="text-sm font-medium">
+            {formatEur(totalRecomendado)} / {formatEur(capacidad)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {usoPct.toFixed(0)}% de capacidad utilizada
+          </p>
+        </div>
+      </div>
+
+      <Progress value={Math.min(usoPct, 100)} className="h-2" />
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {recomendaciones.map((r, i) => (
+          <Card key={i} className="border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Badge variant={PRIORIDAD_VARIANT[r.prioridad]} className="text-[10px]">
+                    {r.prioridad}
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px]">
+                    {CATEGORIA_LABEL[r.categoria]}
+                  </Badge>
+                </div>
+                <span className="text-lg font-bold">{formatEur(r.importe_eur)}</span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-sm leading-relaxed">{r.justificacion}</p>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Horizonte: {r.horizonte_meses} meses
+              </p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ConfidenceFooter({ confidence, reasoning }: { confidence: number; reasoning: string }) {
+  return (
+    <Card className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950/20 dark:to-slate-900/20">
+      <CardContent className="py-4 space-y-2">
         <div className="flex items-center gap-3">
-          <div className="w-full bg-violet-200/50 dark:bg-violet-800/30 rounded-full h-2">
+          <p className="text-xs font-medium text-muted-foreground">Confianza del análisis:</p>
+          <div className="flex-1 bg-slate-200/50 dark:bg-slate-800/30 rounded-full h-2">
             <div
               className={cn(
                 "h-2 rounded-full",
-                confidence >= 0.7
-                  ? "bg-emerald-500"
-                  : confidence >= 0.4
-                    ? "bg-amber-500"
-                    : "bg-red-500",
+                confidence >= 0.7 ? "bg-emerald-500" : confidence >= 0.4 ? "bg-amber-500" : "bg-red-500",
               )}
               style={{ width: `${(confidence * 100).toFixed(0)}%` }}
             />
           </div>
-          <span className="text-xs font-mono font-bold min-w-[3rem] text-right text-violet-700 dark:text-violet-300">
+          <span className="text-xs font-mono font-bold min-w-[3rem] text-right">
             {(confidence * 100).toFixed(0)}%
           </span>
         </div>
-        <p className="text-[10px] text-violet-500/60 dark:text-violet-400/60">
-          Índice de confianza del análisis IA
-        </p>
+        <p className="text-xs text-muted-foreground">{reasoning}</p>
       </CardContent>
     </Card>
   );
@@ -475,7 +390,7 @@ function AnalisisCard({ confidence, reasoning }: {
 // Main page
 // ---------------------------------------------------------------------------
 
-export default function FinancieroDashboard() {
+export default function ReinvestmentDashboard() {
   const searchParams = useSearchParams();
   const useMock = searchParams.get("mock") === "1";
 
@@ -519,38 +434,25 @@ export default function FinancieroDashboard() {
     return (
       <Card>
         <CardContent className="py-12 text-center space-y-4">
-          <Coins className="h-12 w-12 text-muted-foreground mx-auto" />
+          <Banknote className="h-12 w-12 text-muted-foreground mx-auto" />
           <div>
             <p className="font-medium">Sin análisis financiero</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Genera el primer análisis de control financiero para ver costes, ROI y recomendaciones de reinversión.
+              Genera el primer análisis de control financiero y recomendaciones de reinversión.
             </p>
           </div>
           <Button onClick={handleRegenerate} disabled={regenerating} className="gap-2">
-            {regenerating ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Rocket className="h-4 w-4" />
-            )}
-            Generar análisis financiero
+            {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <BarChart3 className="h-4 w-4" />}
+            Analizar finanzas
           </Button>
         </CardContent>
       </Card>
     );
   }
 
-  const totalRecomendado = financial.recomendaciones.reduce(
-    (acc, r) => acc + r.importe_eur,
-    0,
-  );
-
   return (
     <div className="space-y-6">
-      {useMock && (
-        <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">
-          Modo demo (mock=1)
-        </Badge>
-      )}
+      {useMock && <MockBadge />}
 
       <div className="flex items-center justify-between">
         <div />
@@ -561,87 +463,27 @@ export default function FinancieroDashboard() {
           disabled={regenerating}
           className="gap-2"
         >
-          {regenerating ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
+          {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           Reevaluar finanzas
         </Button>
       </div>
 
-      {/* Semáforo + KPIs principales */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <div className="md:col-span-2 lg:col-span-1">
-          <SemaforoCard
-            semaforo={financial.semaforo_financiero}
-            resumen={financial.resumen_ejecutivo}
-            generatedAt={timestamp}
-          />
-        </div>
-        <KpiCard
-          label="Capacidad de Reinversión"
-          value={formatEur(financial.capacidad_reinversion_eur)}
-          sub="Cash seguro disponible (cash - 3× costes op.)"
-          icon={Banknote}
-          highlight={
-            financial.capacidad_reinversion_eur > 20000
-              ? "green"
-              : financial.capacidad_reinversion_eur > 0
-                ? "amber"
-                : "red"
-          }
-        />
-        <KpiCard
-          label="Coste por Operación"
-          value={formatEur(financial.coste_por_operacion_eur)}
-          sub="Coste operativo / operaciones cerradas"
-          icon={BarChart2}
-        />
-      </div>
-
-      {/* Costes fijos/variables + ROI automatizaciones */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <CostesCard
-          fijos={financial.costes_fijos_eur}
-          variables={financial.costes_variables_eur}
-          ratio={financial.ratio_fijo_variable}
-        />
-        <AutomacionesCard
-          automatizaciones={financial.automatizaciones}
-          roiTotal={financial.roi_automatizaciones_total}
-        />
-      </div>
-
-      {/* Recomendaciones de reinversión */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold tracking-tight flex items-center gap-2">
-            <Coins className="h-5 w-5" />
-            Plan de Reinversión
-          </h2>
-          <Badge variant="outline" className="font-mono">
-            {formatEur(financial.capacidad_reinversion_eur)} disponibles ·{" "}
-            {formatEur(totalRecomendado)} distribuidos
-          </Badge>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {financial.recomendaciones.map((r, i) => (
-            <ReinversionCard
-              key={i}
-              item={r}
-              totalCapacidad={financial.capacidad_reinversion_eur}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Razonamiento IA */}
-      <AnalisisCard
-        confidence={financial.confidence}
-        reasoning={financial.reasoning}
+      <SummaryCard
+        semaforo={financial.semaforo_financiero}
+        resumen={financial.resumen_ejecutivo}
+        generatedAt={timestamp}
       />
+
+      <CostesKpiCards data={financial} />
+
+      <AutomationTable items={financial.automatizaciones} roiTotal={financial.roi_automatizaciones_total} />
+
+      <ReinversionCards
+        recomendaciones={financial.recomendaciones}
+        capacidad={financial.capacidad_reinversion_eur}
+      />
+
+      <ConfidenceFooter confidence={financial.confidence} reasoning={financial.reasoning} />
     </div>
   );
 }

@@ -123,7 +123,7 @@ Para evitar que clientes, colaboradores externos o comerciales peleen con la int
 | Canal | Implementación |
 |---|---|
 | **WhatsApp** | WhatsApp Business API (integración directa vía código) para precalificar compradores, seguimiento post-venta y notificaciones de matches |
-| **Micro-Frontends** | Rutas dinámicas en Next.js donde un gestor de banco sube un documento, o un comercial valida un enlace de Statefox en 30 segundos |
+| **Micro-Frontends** | Rutas dinámicas en Next.js donde el comercial gestiona hitos de colaboradores, sube documentos o valida un enlace de Statefox en 30 segundos |
 | **Notificaciones internas** | Webhooks propios hacia Slack/WhatsApp del equipo |
 
 Una vez que el usuario interactúa con la interfaz ligera, la información viaja a la **Capa 3** para ser procesada y, finalmente, escrita en Inmovilla por la **Capa 2**.
@@ -778,7 +778,7 @@ Si hay ambigüedad (confidence score bajo), el sistema pregunta al gestor: "¿qu
 
 ### Firma Digital
 
-Misma especificación que en **README** (Smart Closing): proveedor **Signaturit** / DocuSign / Dropbox Sign vía **API REST** y **webhook**; recordatorios y escalados por **WhatsApp Cloud API (Meta)** con **plantillas aprobadas**; **SLA 5 días naturales**; cadencia **+1/+3/+5** días; escalado a comercial y gestor; orquestación con **QStash**/cron; documentación de plantillas y mapeo webhook → Neon. Ver README, sección *Firma Digital*.
+Motor de firma electrónica simple **in-house** (sin proveedor externo). El sistema genera un token seguro + URL pública (`/firma/{token}`), captura evidencia (SHA-256, IP, User-Agent, consentimiento), sella el PDF con página de certificado, y genera audit trail. Recordatorios y escalados por **WhatsApp Cloud API (Meta)** con **plantillas aprobadas**; **SLA 5 días naturales**; cadencia **+1/+3/+5** días; escalado a comercial y gestor; orquestación con **QStash**/cron. Detalle en `docs/firma-digital.md`.
 
 ### Control de Versiones y Auditoría
 
@@ -1278,9 +1278,9 @@ Se registra automáticamente:
 - Tiempos de respuesta.
 - Resultado final (aprobado / rechazado / retrasado).
 
-Los datos se capturan tanto por el `Ingestion Worker` (si el colaborador interactúa con Inmovilla) como por los **micro-frontends de Next.js** donde los colaboradores suben documentos e interactúan.
+Los datos se capturan desde el **dashboard interno de Next.js** donde el Comercial o el CEO registra asignaciones, sube documentos en nombre de los colaboradores, avanza hitos y cambia estados. Los colaboradores externos **no acceden al sistema directamente**; toda la interacción se gestiona internamente.
 
-> **Regla clave:** ningún colaborador trabaja fuera del sistema.
+> **Regla clave:** la gestión de colaboradores la realiza el equipo interno (Comercial/CEO), no el colaborador externo.
 
 ---
 
@@ -1339,7 +1339,7 @@ LangGraph genera recomendaciones para el CEO:
    - Abogado: revisión contrato → observaciones → validación final.
 3. **Tracking de tiempos:** cada cambio de estado registra timestamp en Neon, el sistema calcula retrasos.
 4. **Reglas de alerta (cron-jobs):** banco supera SLA → alerta jefe de zona; abogado genera incidencias repetidas → alerta CEO.
-5. **Dashboard dinámico (micro-frontend Next.js):** rendimiento semanal, tendencias mensuales, impacto económico acumulado.
+5. **Dashboard interno (Next.js):** rendimiento semanal, tendencias mensuales, impacto económico acumulado. Gestionado por el Comercial y el CEO, no por los colaboradores externos.
 
 ---
 
@@ -1607,7 +1607,7 @@ El sistema ofrece lectura **estratégica**, no psicológica:
 |---|---|---|
 | **Autenticación Inmovilla (2FA)** | **Composio + Gmail** | Obtención automática del código de verificación por correo: acción Composio sobre Gmail (listar/buscar correos de Inmovilla), extracción del código de 6 dígitos, envío a `login2Fa/verifyCode`. Ver `docs/workers/inmovilla-endpoints.md`. |
 | WhatsApp Business | **360dialog / Twilio / MessageBird** | API directa desde código (webhooks + envíos) |
-| Firma digital | **Signaturit / DocuSign** | API REST desde Next.js; webhooks; recordatorios y escalados **SLA** vía **WhatsApp** (plantillas Meta). Detalle: README *Smart Closing* → *Firma Digital*. |
+| Firma digital | **In-house** | Motor propio (hash, token, lienzo, OTP por SMS, PDF sellado y audit trail). Página `/firma/{token}`. Recordatorios y escalados SLA vía WhatsApp Cloud API. Detalle: `docs/firma-digital.md`. |
 | Calendario | **Google Calendar API** | Micro-frontend de booking |
 | Almacenamiento | **S3-compatible** | Documentos, contratos, adjuntos |
 
@@ -1617,7 +1617,7 @@ El sistema ofrece lectura **estratégica**, no psicológica:
 |---|---|---|
 | Dashboard CEO | **Micro-frontend Next.js** | CEO, dirección |
 | Dashboard comercial | **Micro-frontend Next.js** | Comerciales, jefes de zona |
-| Portal colaboradores | **Micro-frontend Next.js** | Bancos, abogados, tasadores |
+| Gestión de colaboradores | **Dashboard interno Next.js** | Comerciales, CEO |
 | Formularios post-visita | **Micro-frontend Next.js** | Comerciales en campo |
 | Bot de soporte | **LangGraph + WhatsApp** | Comerciales (canal privado) |
 

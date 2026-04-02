@@ -1,117 +1,98 @@
-# Firma digital (Signaturit)
+# Firma digital (In-house)
 
-## URL canónica del webhook (`events_url`)
+## Arquitectura
 
-Al crear una petición de firma (`POST /v3/signatures.json`), el campo **`events_url`** debe apuntar a la ruta que termina en **`.json`**:
-
-```
-{NEXT_PUBLIC_APP_URL}/api/signaturit/webhook.json
-```
-
-Motivo (documentación oficial de Signaturit, sección *Events URL* en `docs/signaturing-docs/index.md`):
-
-- Por defecto los eventos se envían como `application/x-www-form-urlencoded`.
-- Para recibir el cuerpo en **JSON**, hay que añadir la extensión del tipo al final de la URL (ej. `https://ejemplo.com/ruta.json`).
-
-La implementación expone:
-
-| Ruta | Uso |
-| --- | --- |
-| `POST /api/signaturit/webhook.json` | **Producción / sandbox:** usar esta URL en `events_url` (JSON). |
-| `POST /api/signaturit/webhook` | Mismo handler; útil para pruebas manuales. Requiere igualmente cuerpo JSON en el código actual. |
-
-La lógica compartida vive en `lib/signaturit/handle-webhook-post.ts`.
-
-## Seguridad opcional
-
-- Signaturit indica IP de origen **34.241.96.22** (sandbox y producción). Variable: `SIGNATURIT_WEBHOOK_ALLOWED_IP` (si está vacía, no se filtra por IP).
+El sistema implementa **firma electrónica simple in-house**: el firmante accede a una página pública, visualiza el PDF, dibuja la firma y, si hay teléfono del firmante, completa un **OTP por SMS** antes de sellar el documento. Se captura evidencia (hash, IP, timestamp, consentimiento, imagen de firma) y se generan PDF sellado + pista de auditoría. No se utiliza ningún SaaS de firma electrónica de terceros para el acto de firmar ni para el archivo final.
 
 ## API de envío a firma (`POST /api/contracts/sign`)
 
-Flujo mínimo en servidor:
-
-1. Verifica autorización (`SIGNATURIT_SIGN_API_TOKEN` o fallback `CRON_SECRET`). Si ninguno está configurado, se permite el acceso (modo desarrollo / UI directa).
+1. Verifica autorización (`SIGNATURIT_SIGN_API_TOKEN` o fallback `CRON_SECRET`). El nombre de la variable es histórico; es un token server-to-server para el endpoint de envío.
 2. Obtiene el documento:
    - **`cloudinaryUrl`** → descarga del recurso existente.
-   - **`docxBase64`** → decodifica el base64 y lo sube a Cloudinary (`uploadContractDocument`) para tener URL persistente.
-3. Normaliza el archivo a **PDF obligatorio**:
-   - Si ya es PDF, pasa directo.
-   - Si no es PDF, intenta conversión remota (`SIGNATURIT_PDF_CONVERTER_URL`).
-4. Crea la firma en Signaturit (`delivery_type=url`) y guarda `signaturitSignatureId` / `signaturitDocumentId`.
-5. Persiste `SignatureRequest` en Neon con estado `SENT` y SLA.
-6. Emite evento `FIRMA_ENVIADA`.
+   - **`docxBase64`** → decodifica el base64 y lo sube a Cloudinary.
+3. Normaliza a **PDF** obligatorio (conversor remoto si es DOCX; URL en `SIGNATURIT_PDF_CONVERTER_URL` si aplica).
+4. Calcula **SHA-256** del PDF normalizado → `documentHash`.
+5. Genera **token seguro** (`crypto.randomBytes` + HMAC) → `signingToken`.
+6. Construye `signingUrl` = `{NEXT_PUBLIC_APP_URL}/firma/{signingToken}`.
+7. Persiste `SignatureRequest` con `documentHash`, `signingToken`, `signingUrl`, `status: SENT`.
+8. Emite evento `FIRMA_ENVIADA`.
 
-Si no hay conversor configurado para un documento no PDF, responde `422` con `code=PDF_CONVERSION_UNAVAILABLE`.
+## Página pública de firma (`/firma/{token}`)
 
-## Desencadenante UI (Smart Closing → Firma)
+Página Next.js sin autenticación. El firmante:
 
-El flujo de aprobación y envío a firma se activa desde la página de detalle del contrato (`app/legal/contratos/[id]/page.tsx`):
-
-1. El usuario revisa el borrador (con ediciones por voz opcionales).
-2. Hace clic en **"Aprobar y enviar a firma"**.
-3. Un diálogo solicita los datos del firmante principal (nombre pre-rellenado desde el payload, email obligatorio).
-4. Al confirmar, el hook `useSmartClosingSession.sendToSignature()`:
-   - Marca el borrador como aprobado (bloquea ediciones por voz).
-   - Envía `POST /api/contracts/sign` con `docxBase64` (el DOCX actual en cliente), `operationId`, `propertyCode`, `documentKind`, `templateVersion` y `signers`.
-5. El endpoint sube el DOCX a Cloudinary, normaliza a PDF, y envía a Signaturit.
-6. La UI muestra:
-   - **Spinner** durante el envío.
-   - **Badge "Enviado a firma"** + enlace de firma (`signingUrl`) en caso de éxito.
-   - **Banner de error** si falla cualquier paso.
-7. "Reabrir revisión" resetea el estado de firma y permite editar de nuevo.
+1. Accede al enlace (p. ej. recibido por WhatsApp).
+2. Ve el PDF embebido y los datos del firmante.
+3. Lee el texto de consentimiento y dibuja la firma manuscrita en el lienzo.
+4. Pulsa **Firmar documento**.
+5. `POST /api/firma/{token}/otp/send` → SMS con código (requiere teléfono del firmante en la solicitud); persistencia en `SignatureOtp` (código solo como hash).
+6. El usuario introduce el código → `POST /api/firma/{token}/otp/verify`.
+7. Tras OTP verificado, `POST /api/firma/{token}/sign` con `signatureImageBase64` y `otpId`.
+8. El servidor:
+   - Descarga el PDF de Cloudinary y verifica que el SHA-256 coincide con `documentHash` (integridad).
+   - Captura IP (`x-forwarded-for`), User-Agent, timestamp UTC.
+   - Genera PDF firmado con página de sello visual (nombre, fecha, hash, IP, consentimiento, imagen de firma).
+   - Genera audit trail PDF con la cronología y evidencia.
+   - Sube ambos a Cloudinary.
+   - Actualiza `SignatureRequest` → `COMPLETED` y `LegalDocument` → `SIGNED`.
+   - Emite `FIRMA_COMPLETADA`.
+9. La UI muestra confirmación + enlace al documento firmado.
 
 ### Archivos implicados
 
 | Archivo | Rol |
 | --- | --- |
-| `components/legal/smart-closing/use-smart-closing-session.ts` | Hook: `sendToSignature()`, estados `signaturePhase/Result/Error` |
-| `app/legal/contratos/[id]/page.tsx` | UI: diálogo de firmante, banners de estado, badge |
-| `app/api/contracts/sign/route.ts` | API: upload Cloudinary + normalización PDF + Signaturit |
-| `components/legal/smart-closing/__tests__/send-to-signature.test.ts` | Test round-trip UI→API |
+| `lib/firma/engine.ts` | SHA-256, tokens, utilidades de extracción de IP/UA |
+| `lib/firma/token.ts` | Generación y verificación de tokens seguros (HMAC) |
+| `lib/firma/pdf-stamp.ts` | Sello visual en página final del PDF firmado |
+| `lib/firma/audit-trail.ts` | Generación del PDF de pista de auditoría |
+| `lib/firma/otp.ts` | OTP: generar, hashear, crear, verificar |
+| `lib/firma/vonage.ts` | Envío de SMS para OTP (credenciales en entorno) |
+| `app/api/firma/[token]/route.ts` | GET: metadata para la página pública |
+| `app/api/firma/[token]/otp/send/route.ts` | POST: enviar OTP |
+| `app/api/firma/[token]/otp/verify/route.ts` | POST: verificar OTP |
+| `app/api/firma/[token]/sign/route.ts` | POST: proceso de firma completo |
+| `app/firma/[token]/page.tsx` | UI pública de firma |
+| `app/api/contracts/sign/route.ts` | API: upload + normalización PDF + creación solicitud |
+| `components/legal/smart-closing/use-smart-closing-session.ts` | Hook: `sendToSignature()` |
 
 ## Persistencia Neon (modelo + eventos)
 
-La persistencia operativa combina:
-
-- **Estado actual** en `signature_requests` (`SignatureRequest`): status, timestamps, SLA, reminders, ids del proveedor.
+- **Estado actual** en `signature_requests` (`SignatureRequest`): status, timestamps, SLA, reminders, hashes, token, evidencia del firmante.
+- **OTP** en `signature_otps` (`SignatureOtp`): hash del código, intentos, expiración, verificación.
 - **Trazabilidad** en `events` (`appendEvent`): `FIRMA_ENVIADA`, `FIRMA_COMPLETADA`, `FIRMA_RECHAZADA`, `FIRMA_EXPIRADA`, `FIRMA_RECORDATORIO_ENVIADO`, `FIRMA_SLA_ESCALADO`.
 
-Esta separación permite:
+Campos relevantes en `SignatureRequest`:
 
-- que el cron lea estado actual sin recomputar;
-- que auditoría/dashboards lean la secuencia de hechos;
-- idempotencia en webhook sobre estados terminales.
+- `documentHash`: SHA-256 del PDF original.
+- `signingToken`: Token seguro para la URL pública (único).
+- `signerIp`, `signerUserAgent`: Evidencia capturada al firmar.
+- `consentText`: Texto exacto de consentimiento aceptado.
+- `signedDocumentHash`: SHA-256 del PDF con sello visual.
 
 ## Variables de entorno relacionadas
 
 Ver `.env.example`:
 
-- `SIGNATURIT_ACCESS_TOKEN`
-- `SIGNATURIT_API_URL`
-- `SIGNATURIT_EXPIRE_DAYS`
-- `SIGNATURIT_SLA_DAYS`
-- `SIGNATURIT_WEBHOOK_ALLOWED_IP`
-- `SIGNATURIT_SIGN_API_TOKEN`
-- `SIGNATURIT_PDF_CONVERTER_URL`
-- `SIGNATURIT_PDF_CONVERTER_TIMEOUT_MS`
+- `FIRMA_TOKEN_SECRET` — Clave HMAC para generación/verificación de tokens de enlace.
+- `VONAGE_API_KEY`, `VONAGE_API_SECRET`, `VONAGE_SMS_FROM` — Envío de SMS para OTP (si se usa el integrador actual).
+- `SIGNATURIT_SLA_DAYS` — Días hasta escalado SLA (default: 5); nombre histórico.
+- `SIGNATURIT_SIGN_API_TOKEN` — Token de auth server-to-server para `POST /api/contracts/sign` (nombre histórico).
+- `SIGNATURIT_PDF_CONVERTER_URL` — URL del conversor DOCX→PDF (opcional).
+- `SIGNATURIT_PDF_CONVERTER_TIMEOUT_MS` — Timeout del conversor (default: 45000).
 
-## Mapeo de eventos → Neon (resumen)
+## Mapeo de estados
 
-| Evento Signaturit | `SignatureRequest.status` | Evento dominio (si aplica) |
+| Acción | `SignatureRequest.status` | Evento dominio |
 | --- | --- | --- |
-| `document_opened` | `OPENED` | — |
-| `document_signed` | `SIGNED` | — |
-| `document_completed` | `COMPLETED` | `FIRMA_COMPLETADA` |
-| `document_declined` | `DECLINED` | `FIRMA_RECHAZADA` |
-| `document_expired` | `EXPIRED` | `FIRMA_EXPIRADA` |
-| `document_canceled` | `CANCELED` | — |
+| Envío a firma | `SENT` | `FIRMA_ENVIADA` |
+| Firmante abre página | `OPENED` (si se implementa tracking) | — |
+| Firmante firma | `COMPLETED` | `FIRMA_COMPLETADA` |
+| Firmante rechaza | `DECLINED` | `FIRMA_RECHAZADA` |
+| Expiración | `EXPIRED` | `FIRMA_EXPIRADA` |
 
-Eventos no mapeados se responden con `{ ok: true, ignored: true }`. Estados terminales evitan reprocesar (idempotencia).
+## Validez legal
 
-## Desarrollo local
+Firma electrónica simple conforme a la Ley 6/2020 (art. 3.1) y Reglamento (UE) 910/2014 (eIDAS, art. 25.1). No puede rechazarse como prueba en juicio únicamente por su formato electrónico. Válida para contratos privados entre partes (arras, señales, ofertas).
 
-Signaturit necesita una URL **pública** para llamar al webhook. En local, usar túnel (ngrok, Cloudflare Tunnel, etc.) y fijar `NEXT_PUBLIC_APP_URL` a esa URL base al probar callbacks.
-
-## Sin sufijo `.json`
-
-Si en algún entorno se configurara `events_url` **sin** `.json`, Signaturit enviaría `form-urlencoded`. El handler actual solo parsea JSON; habría que ampliar `handleSignaturitWebhookPost` leyendo `Content-Type` y parseando `formData` según el contrato del proveedor.
+Limitación: no es firma avanzada ni cualificada. Para operaciones ante notario o registros públicos se necesitaría un QTSP.

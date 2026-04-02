@@ -355,7 +355,7 @@ Inmovilla y Statefox se integran vía APIs y procesos automatizados. Los cambios
 
 | Tarea                                                                                                                                                                     | Entregable                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| Integrar firma digital (Signaturit o DocuSign): API + webhook; recordatorios y escalados **WhatsApp**; SLA 5 días naturales; cadencia +1/+3/+5; doc de construcción (ver `docs/plan.md` Día 15) | Integración de firma + spec    |
+| Firma digital **in-house**: envío, `/firma/{token}`, OTP por SMS, PDF sellado y eventos Neon; recordatorios y escalados **WhatsApp**; SLA 5 días naturales; cadencia +1/+3/+5; doc en `docs/firma-digital.md` y `docs/plan.md` Día 15 | Integración de firma + spec    |
 | Flujo post-firma: guardar documento firmado → adjuntar en Inmovilla vía Egestion → actualizar estado operación                                                            | Flujo post-firma end-to-end    |
 | Motor de Pricing v1: extraer variables del inmueble, consultar API Statefox por ciudad/tipo/precio/metros; usar precio €/m² ya calculado                                  | Extracción + consulta API      |
 | Análisis de cluster comparativo: comparables de Statefox (misma zona ±15–20% metros, tipología similar, particular vs profesional) → precio medio €/m², desviación, rango | Análisis estadístico funcional |
@@ -420,7 +420,7 @@ Inmovilla y Statefox se integran vía APIs y procesos automatizados. Los cambios
 | Tarea                                                                                                                                                                | Entregable              |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
 | Schema de colaboradores externos en Neon: tipo (banco/abogado/tasador/arquitecto), ciudad, SLA, hitos, métricas                                                      | Schema + migraciones    |
-| Portal de colaboradores: interfaz donde banco/abogado/tasador ve operaciones asignadas, sube documentos, actualiza estados (kanban). Estado en Neon + micro-frontend | Portal funcional        |
+| Panel interno de gestión de colaboradores: interfaz del dashboard donde el Comercial/CEO asigna colaboradores, sube documentos en su nombre y actualiza estados (kanban). Los colaboradores no acceden al sistema. Estado en Neon | Panel interno funcional |
 | Tracking de hitos: cada cambio de estado registra timestamp. Tiempos calculados automáticamente. Hitos estándar por tipo                                             | Tracking funcional      |
 | Alertas SLA de colaboradores: cron detecta retrasos → alerta jefe de zona o CEO según severidad                                                                      | Alertas funcionales     |
 | Clasificación automática de colaboradores: partner estratégico / funcional / lento / crítico                                                                         | Clasificación funcional |
@@ -469,7 +469,7 @@ Inmovilla y Statefox se integran vía APIs y procesos automatizados. Los cambios
 
 | Actividad                                                                                                                                        | Entregable |
 | ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
-| DEMO MES 1: Recorrido completo — dashboards CEO y comercial, Smart Closing con voz, Motor de Pricing, Portal colaboradores, cadencias post-venta | —          |
+| DEMO MES 1: Recorrido completo — dashboards CEO y comercial, Smart Closing con voz, Motor de Pricing, Gestión de colaboradores, cadencias post-venta | —          |
 | Retrospectiva Sprint 2 + retrospectiva Mes 1                                                                                                     | —          |
 | Deuda técnica, documentación del mes, planificación ajustada Mes 2                                                                               | —          |
 
@@ -802,7 +802,7 @@ Inmovilla y Statefox se integran vía APIs y procesos automatizados. Los cambios
 | --- | -------------------------------------------------- | ----------------------------------------------------------------- |
 | 1   | Motor de plantillas genera contrato desde datos    | Test: datos completos → docx generado con variables correctas     |
 | 2   | STT transcribe audio y extrae instrucciones        | Demo: grabar "cambia honorarios a 3%" → variable modificada       |
-| 3   | Firma digital envía y captura firma                | Test: enviar doc a firma, recibir webhook de confirmación         |
+| 3   | Firma digital in-house envía y captura firma     | Test: enviar doc a firma, OTP y cierre vía `/api/firma/.../sign`   |
 | 4   | Motor de Pricing genera informe con semáforo       | Demo: inmueble → análisis → informe con diagnóstico               |
 | 5   | Post-venta ejecuta cadencias según fecha de cierre | Test: simular cierre → verificar mensajes en D0, D3, D10, D21     |
 | 6   | Dashboard Comercial muestra métricas por persona   | Demo: datos → tabla con ranking y clasificación                   |

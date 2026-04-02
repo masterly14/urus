@@ -1,5 +1,7 @@
 # Gap Analysis — M8 Smart Closing & Firma Digital
 
+> **2026-04:** La firma electrónica es **in-house** (`docs/firma-digital.md`). Las filas que citan cliente/webhook de un SaaS de firma externo quedan como histórico de auditoría; el flujo actual cierra en `POST /api/firma/{token}/sign` y eventos Neon.
+
 > Fecha: 2026-03-25 (actualizado 2026-03-27)  
 > Alcance: Items identificados con brecha entre el plan (`docs/plan.md` días 13–15) y el código real del repositorio.  
 > Referencia: branch `feat/M8-revision-por-voz-stt-versionado`  
@@ -35,20 +37,18 @@
 
 | Pieza | Archivo | Estado |
 |-------|---------|--------|
-| Handler `FIRMA_COMPLETADA` en consumer | `lib/workers/consumer/handlers.ts:107` | **Placeholder** (`console.log` + `return { success: true }`) |
-| Webhook actualiza estado + emite evento | `lib/signaturit/handle-webhook-post.ts` | **Funcional**: actualiza `SignatureRequest.status` a `COMPLETED`, persiste `completedAt`, emite `appendEvent("FIRMA_COMPLETADA")` |
-| `downloadSignedDocument(signatureId, documentId)` | `lib/signaturit/client.ts:123–140` | **Implementado** en el cliente HTTP, **sin uso** fuera de tests |
-| `downloadAuditTrail(signatureId, documentId)` | `lib/signaturit/client.ts:142–159` | **Implementado** en el cliente HTTP, **sin uso** fuera de tests |
-| Campos `signedDocumentUrl` / `auditTrailUrl` en DB | `prisma/schema.prisma:472–473` | **Existen** en el modelo `SignatureRequest`; **nunca se escriben** — siempre `null`. Se migrarán a `LegalDocument` |
+| Handler `FIRMA_COMPLETADA` en consumer | `lib/workers/consumer/firma-completada-handler.ts` | Procesa evento: asume PDF firmado y audit trail ya en Cloudinary (generados en firma in-house) |
+| Cierre de firma (HTTP) | `app/api/firma/[token]/sign/route.ts` | Verifica OTP, integridad SHA-256, genera PDF sellado + audit trail, sube a Cloudinary, emite `FIRMA_COMPLETADA` |
+| Campos `signedDocumentUrl` / `auditTrailUrl` en DB | `prisma/schema.prisma` (`SignatureRequest` / `LegalDocument`) | Rellenados al completar la firma in-house cuando aplica el flujo actual |
 | Tabla `LegalDocument` / `LegalDocumentParty` | `prisma/schema.prisma` | **Pendiente de migración** — diseño aprobado, ver sección "Solución adoptada" |
 | Egestión a Inmovilla tras firma | — | **Parcial**: el job `WRITE_TO_INMOVILLA` existe como tipo; la egestión se limita a `PUT /propiedades/` con `estadoficha` actualizado (no adjuntos) |
 
 ### Solución adoptada: `LegalDocument` + Cloudinary
 
-El handler real para `FIRMA_COMPLETADA` debe:
+El handler para `FIRMA_COMPLETADA` debe asumir que los PDFs ya se generaron y subieron en el cierre in-house, o bien:
 
-1. Llamar a `downloadSignedDocument` + `downloadAuditTrail` con los IDs del evento/`SignatureRequest`.
-2. Subir los PDFs a **Cloudinary** (o S3) para almacenamiento persistente.
+1. Obtener URLs de **Cloudinary** desde el payload / `SignatureRequest`.
+2. Opcionalmente revalidar persistencia en **Cloudinary** (o S3) para almacenamiento auditable.
 3. Actualizar la tabla `LegalDocument` en Neon:
    - `status` → `SIGNED`
    - `signedDocumentUrl` → URL de Cloudinary del PDF firmado
@@ -63,7 +63,7 @@ El handler real para `FIRMA_COMPLETADA` debe:
 
 ### Dependencias externas
 
-- Token Signaturit con permisos de descarga.
+- Credenciales del canal **SMS** para OTP (p. ej. variables `VONAGE_*`).
 - Credenciales Cloudinary / S3 para upload.
 - Token Inmovilla para `PUT /propiedades/` (ya existente).
 
@@ -181,7 +181,7 @@ El flujo será:
 | Pieza | Archivo | Estado |
 |-------|---------|--------|
 | Schema `SignatureRequest` | `prisma/schema.prisma:448–480` | Campos `signerName`, `signerEmail`, `signerPhone` — **un solo firmante** |
-| API `POST /api/contracts/sign` | `sign/route.ts:32` | `signers: z.array(SignerSchema).min(1)` — acepta array; Signaturit recibe **todos** los destinatarios |
+| API `POST /api/contracts/sign` | `sign/route.ts` | `signers: z.array(SignerSchema).min(1)` — acepta array; la persistencia actual usa principalmente el primer firmante |
 | Persistencia | `sign/route.ts:188–190` | Solo persiste `signers[0]` |
 | Reminder scanner | `lib/signaturit/reminder-scanner.ts` | Opera sobre `SignatureRequest` (1 firmante) |
 
@@ -267,15 +267,15 @@ model LegalDocumentParty {
 ### Análisis
 
 El flujo actual usa HTTP directo (no cola de jobs) para:
-- **Envío a firma**: `POST /api/contracts/sign` llama a Signaturit síncronamente.
-- **Webhook**: `POST /api/signaturit/webhook.json` procesa inline.
+- **Envío a firma**: `POST /api/contracts/sign` crea `SignatureRequest` y URL `/firma/{token}` sin SaaS de firma externo.
+- **Cierre**: `POST /api/firma/{token}/sign` completa la firma y dispara la cadena de eventos.
 - **Recordatorios**: cron `POST /api/cron/signature-reminders` ejecuta `scanAndSendSignatureReminders()` inline.
 
 ### Decisión requerida
 
 **Opción A — Eliminar enums no usados**: simplifica el schema; si se necesitan en el futuro, se vuelven a crear con migración.
 
-**Opción B — Migrar a jobs asíncronos**: útil si el envío a Signaturit, la descarga de documentos firmados, o los recordatorios necesitan retries, backoff, y dead-letter queue. Requiere:
+**Opción B — Migrar a jobs asíncronos**: útil si el envío a firma, la generación de PDFs o los recordatorios necesitan retries, backoff, y dead-letter queue. Requiere:
 - `registerJobHandler("SEND_SIGNATURE_REQUEST", handleSendSignatureRequest)` en `job-handlers.ts`.
 - Mover la lógica de `sign/route.ts` (desde descarga hasta persistencia) al handler.
 - El endpoint solo encola y devuelve `{ jobId, status: "QUEUED" }`.
@@ -409,8 +409,8 @@ Requiere resolver el gap #3 primero (datos reales vs mock) para tener eventos de
 | Upload a Cloudinary | Funcional |
 | Versionado naming + eventos | Funcional |
 | Worker borrador (GENERATE_CONTRACT_DRAFT) | Funcional |
-| Firma digital: envío a Signaturit | Funcional |
-| Firma digital: webhook bidireccional | Funcional |
+| Firma digital: envío y cierre in-house | Funcional |
+| Firma digital: webhook SaaS externo | No aplica (sustituido por flujo propio) |
 | Firma digital: recordatorios (lógica) | Funcional |
 | Firma digital: desencadenante UI | Funcional (recién implementado) |
 

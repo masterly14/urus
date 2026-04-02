@@ -284,6 +284,82 @@ Cron autenticado con `CRON_SECRET`. Invoca el generador completo. Pensado para e
 
 Tipo: `CEO_EXPANSION_EVALUADA`, aggregateType: `CEO`, aggregateId: `ceo-expansion`.
 
+## Endpoint API — Capa 6: Control Financiero
+
+### `GET /api/ceo/financiero`
+
+Acceso restringido al rol `ceo` (403 para otros roles). Devuelve el último análisis financiero del Event Store sin invocar el LLM.
+
+**Respuesta:**
+
+```json
+{
+  "ok": true,
+  "recommendation": {
+    "costes_fijos_eur": 62000,
+    "costes_variables_eur": 28000,
+    "coste_por_operacion_eur": 12857,
+    "ratio_fijo_variable": 0.69,
+    "automatizaciones": [
+      {
+        "nombre": "Cadencia automática postventa",
+        "coste_mensual_eur": 50,
+        "ahorro_mensual_eur": 500,
+        "roi_percent": 900
+      }
+    ],
+    "roi_automatizaciones_total": 693,
+    "capacidad_reinversion_eur": 35000,
+    "recomendaciones": [
+      {
+        "categoria": "tecnologia",
+        "importe_eur": 12000,
+        "justificacion": "Invertir en CRM avanzado...",
+        "prioridad": "alta",
+        "horizonte_meses": 3
+      }
+    ],
+    "semaforo_financiero": "verde",
+    "resumen_ejecutivo": "La estructura de costes es saludable...",
+    "confidence": 0.82,
+    "reasoning": "Datos financieros completos de 6 meses..."
+  },
+  "generatedAt": "2026-04-02T07:00:00.000Z"
+}
+```
+
+### `POST /api/ceo/financiero`
+
+Regenera el análisis invocando el grafo LangGraph. CEO-only. Recopila datos de Capas 1+2 y constantes de automatizaciones.
+
+### `POST /api/cron/ceo-financiero`
+
+Cron autenticado con `CRON_SECRET`. Invoca el generador completo. Pensado para ejecución semanal vía QStash.
+
+### Automatizaciones evaluadas
+
+| Automatización | Coste/mes | Ahorro/mes | ROI |
+|---|---|---|---|
+| Cadencia automática postventa | 50 € | 500 € | 900% |
+| Sistema alertas comerciales | 30 € | 250 € | 733% |
+| Firma digital in-house (vs. SaaS externo) | 15 € | 385 € | 2567% |
+| Scoring automático de leads | 40 € | 375 € | 838% |
+
+### Categorías de reinversión
+
+| Categoría | Descripción |
+|---|---|
+| `tecnologia` | CRM, IA, herramientas de automatización |
+| `talento` | Contratación, headhunting |
+| `marketing` | Campañas de captación digital |
+| `formacion` | Programas de capacitación |
+| `infraestructura` | Oficinas, equipamiento |
+| `expansion` | Apertura de nuevas plazas |
+
+### Evento persistido
+
+Tipo: `CEO_FINANZAS_GENERADA`, aggregateType: `CEO`, aggregateId: `ceo-financiero`.
+
 ## Archivos principales
 
 | Ruta | Descripción |
@@ -315,12 +391,12 @@ Tipo: `CEO_EXPANSION_EVALUADA`, aggregateType: `CEO`, aggregateId: `ceo-expansio
 | `lib/hooks/use-ceo-expansion.ts` | Hooks cliente: `useCeoExpansion()` + `useRegenerateExpansion()` |
 | `app/bi/expansion/page.tsx` | UI de la Capa 5 (motor de expansión geográfica) |
 | `lib/dashboard/ceo/financial-types.ts` | Schema Zod `CeoFinancialSchema` + tipos TS Capa 6 |
-| `lib/agents/ceo-financial-graph.ts` | Grafo LangGraph 1 nodo: datos → análisis control financiero |
-| `lib/dashboard/ceo/financial-generator.ts` | Orquestador Capa 6: costes, automatizaciones, reinversión |
+| `lib/agents/ceo-financial-graph.ts` | Grafo LangGraph 1 nodo: datos → análisis financiero |
+| `lib/dashboard/ceo/financial-generator.ts` | Orquestador: recopila datos, invoca grafo, persiste evento |
 | `app/api/ceo/financiero/route.ts` | API Route GET+POST Capa 6 (CEO-only) |
-| `app/api/cron/ceo-financiero/route.ts` | Cron POST autenticado para reevaluar control financiero |
+| `app/api/cron/ceo-financiero/route.ts` | Cron POST autenticado para regenerar análisis financiero |
 | `lib/hooks/use-ceo-financiero.ts` | Hooks cliente: `useCeoFinanciero()` + `useRegenerateFinanciero()` |
-| `app/bi/reinversion/page.tsx` | UI de la Capa 6 (control financiero y plan de reinversión) |
+| `app/bi/reinversion/page.tsx` | UI de la Capa 6 (control financiero y reinversión) |
 | `scripts/seed-ceo-financials.ts` | Seed de datos demo |
 
 ## Cómo probarlo
@@ -358,92 +434,12 @@ Tipo: `CEO_EXPANSION_EVALUADA`, aggregateType: `CEO`, aggregateId: `ceo-expansio
 
 ### Capa 6 — Control Financiero
 1. Iniciar dev server: `npm run dev`
-2. Navegar a `/bi/reinversion` (pestaña "Finanzas" en el nav CEO)
-3. Si no hay análisis previo, se muestra un botón "Generar análisis financiero"
+2. Navegar a `/bi/reinversion` (sesión por defecto es CEO)
+3. Si no hay análisis previo, se muestra un botón "Analizar finanzas"
 4. Pulsar "Reevaluar finanzas" invoca el LLM con datos reales (requiere OPENAI_API_KEY)
-5. Muestra: semáforo financiero, KPIs de costes, desglose fijo/variable, tabla ROI automatizaciones, plan de reinversión
+5. Muestra: KPIs de costes, ratio fijo/variable, tabla ROI automatizaciones, recomendaciones de reinversión
 6. Para ver con datos mock sin BD: `/bi/reinversion?mock=1`
 7. Cron periódico: `POST /api/cron/ceo-financiero` con header `Authorization: Bearer $CRON_SECRET`
-
-## Endpoint API — Capa 6: Control Financiero
-
-### GET /api/ceo/financiero
-
-Devuelve el último análisis de control financiero del Event Store.
-
-**Autorización:** rol `ceo` obligatorio (403 si no).
-
-**Respuesta exitosa:**
-```json
-{
-  "ok": true,
-  "recommendation": {
-    "costes_fijos_eur": 18500,
-    "costes_variables_eur": 9800,
-    "coste_por_operacion_eur": 4700,
-    "ratio_fijo_variable": 0.65,
-    "automatizaciones": [...],
-    "roi_automatizaciones_total": 654,
-    "capacidad_reinversion_eur": 22500,
-    "recomendaciones": [...],
-    "semaforo_financiero": "amarillo",
-    "resumen_ejecutivo": "...",
-    "confidence": 0.78,
-    "reasoning": "..."
-  },
-  "generatedAt": "2026-04-01T08:00:00.000Z"
-}
-```
-
-Si no hay análisis previo: `{ "ok": true, "recommendation": null, "generatedAt": null }`
-
-### POST /api/ceo/financiero
-
-Dispara regeneración bajo demanda del análisis financiero.
-
-**Autorización:** rol `ceo` obligatorio (403 si no).
-
-Invoca `generateAndPersistCeoFinancial()` y persiste evento `CEO_FINANZAS_GENERADA`.
-
-## Capa 6 — Datos y criterios
-
-### Datos de entrada al LLM
-
-| Fuente | Datos |
-|--------|-------|
-| `getCeoOverview()` | KPIs financieros globales, histórico 6 meses, semáforos, equipo |
-| `getCeoCityPerformance()` | Rentabilidad por ciudad, carga, operaciones/mes |
-| `AUTOMATIZACIONES_ASUMIDAS` | 5 automatizaciones activas con costes y horas ahorradas (valores estimados) |
-
-### Automatizaciones asumidas
-
-| Automatización | Coste/mes | Ahorro estimado |
-|---|---|---|
-| Cadencia automática postventa | 50 € | 20h × 25€ = 500€/mes |
-| Sistema de alertas comerciales | 30 € | 10h × 25€ = 250€/mes |
-| Firma digital Signaturit | 80 € | 8h × 40€ = 320€/mes |
-| Scoring automático de leads | 40 € | 15h × 25€ = 375€/mes |
-| Recomendaciones de colaboradores IA | 35 € | 6h × 35€ = 210€/mes |
-
-### Semáforo financiero
-
-| Estado | Criterio |
-|---|---|
-| `verde` | EBITDA positivo + costes bajo control (ratio_fijo_variable < 0.7) + cash > 3× costes mensuales |
-| `amarillo` | Uno de los criterios anteriores en zona de precaución |
-| `rojo` | EBITDA negativo O cash < 2× costes mensuales O costes descontrolados |
-
-### Capacidad de reinversión
-
-`reinversion_segura = cash_disponible − (3 × coste_operativo_mensual)`
-
-### Categorías de reinversión
-
-`tecnologia` | `equipo` | `ciudad` | `marketing` | `formacion`
-
-### Evento persistido
-
-Tipo: `CEO_FINANZAS_GENERADA`, aggregateType: `CEO`, aggregateId: `ceo-financiero`.
 
 ## Datos derivados vs manuales
 

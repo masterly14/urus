@@ -868,12 +868,10 @@ Si hay ambigüedad (confidence score bajo), el sistema pregunta al gestor: "¿qu
 
 ### Firma Digital
 
-Integración programática con servicios de firma electrónica:
+Firma electrónica simple **in-house** (sin SaaS de firma de terceros):
 
-- **Proveedor:** **Signaturit** (habitual en España) / DocuSign / Dropbox Sign — **API REST** desde **API Routes** de Next.js.
-- **Confirmación legal:** **webhook** del proveedor hacia una ruta pública de Next.js (firma completa, rechazo, expiración según exponga el proveedor). Persistir estado e ids de petición en **Neon**; aplicar **idempotencia** al procesar eventos duplicados del webhook.
-- **URL del webhook (Signaturit):** usar `{NEXT_PUBLIC_APP_URL}/api/signaturit/webhook.json` en `events_url` al crear la firma. Signaturit envía el cuerpo en **JSON** solo si la URL termina en `.json` (véase `docs/signaturing-docs/index.md`, *Events URL*). Detalle técnico y tabla de mapeo: [docs/firma-digital.md](docs/firma-digital.md).
-- **Envío a proveedor:** `POST /api/contracts/sign` normaliza a **PDF obligatorio** antes de crear la petición en Signaturit. Si el origen no es PDF y no hay conversor (`SIGNATURIT_PDF_CONVERTER_URL`), responde `422`.
+- **Motor:** Next.js + Neon; hash SHA-256, token de enlace, firma manuscrita en lienzo, **OTP por SMS** antes de sellar, PDF con sello visual y pista de auditoría.
+- **Flujo:** `POST /api/contracts/sign` normaliza a **PDF obligatorio**, calcula SHA-256, genera token seguro, y devuelve `signingUrl` = `{NEXT_PUBLIC_APP_URL}/firma/{token}`. En la página pública, el firmante verifica un código SMS y luego `POST /api/firma/{token}/sign` completa el proceso (integridad, evidencia IP/UA/timestamp, `FIRMA_COMPLETADA`). Detalle en [docs/firma-digital.md](docs/firma-digital.md).
 - **Seguridad del endpoint de envío:** proteger con `SIGNATURIT_SIGN_API_TOKEN` (o fallback `CRON_SECRET`) para evitar uso público no autorizado.
 - **Recordatorios si no se firma:** canal **WhatsApp Cloud API (Meta)** — misma integración directa que el resto del producto. No se definen recordatorios genéricos sin canal: el seguimiento operativo al firmante es por **WhatsApp** usando **plantillas aprobadas por Meta** cuando la política de la plataforma lo requiera.
 
@@ -881,7 +879,7 @@ Integración programática con servicios de firma electrónica:
 
 | Concepto | Valor documentado | Notas |
 | --- | --- | --- |
-| **SLA de firma completa** | **5 días naturales** desde el envío al proveedor hasta todas las firmas requeridas | Parametrizable vía config/env. Fuente de verdad del “completado”: **webhook** del proveedor. |
+| **SLA de firma completa** | **5 días naturales** desde el envío de la solicitud hasta la firma completada | Parametrizable vía config/env. Fuente de verdad del “completado”: estado en **Neon** y evento `FIRMA_COMPLETADA`. |
 | **Recordatorios al firmante** | **Día +1**, **día +3** y **día +5** (naturales desde el envío) | Solo mientras el estado siga pendiente. El mensaje del día +5 indica **último recordatorio automático** antes del escalado. |
 | **Escalado por SLA** | Tras **5 días naturales** sin firma completa | **WhatsApp** al **comercial asignado** y al **gestor (BO)** con operación, documento y enlace de seguimiento; registro en **Neon** (evento o tarea) para auditoría. |
 
@@ -891,14 +889,14 @@ Integración programática con servicios de firma electrónica:
 
 | Nombre en Meta | Uso | Variables del cuerpo (orden) |
 | --- | --- | --- |
-| `contrato_firma_recordatorio_d1` | Recordatorio al firmante, **día +1** natural desde el envío al proveedor | **{{1}}** nombre corto del firmante · **{{2}}** tipo de documento (p. ej. «Contrato de arras», alineado con `ContractDocumentKind`) · **{{3}}** referencia de operación (`operationId` o stem `OP-…_Arras_vN`) · **{{4}}** URL de firma del proveedor (Signaturit / DocuSign) |
+| `contrato_firma_recordatorio_d1` | Recordatorio al firmante, **día +1** natural desde el envío | **{{1}}** nombre corto del firmante · **{{2}}** tipo de documento (p. ej. «Contrato de arras», alineado con `ContractDocumentKind`) · **{{3}}** referencia de operación (`operationId` o stem `OP-…_Arras_vN`) · **{{4}}** URL de firma (`/firma/{token}`) |
 | `contrato_firma_recordatorio_d3` | Igual, **día +3** | Mismo orden: **{{1}}**–**{{4}}** |
 | `contrato_firma_recordatorio_d5` | Igual, **día +5**; el texto fijo de la plantilla debe indicar **último recordatorio automático** antes del escalado por SLA | Mismo orden: **{{1}}**–**{{4}}** |
 | `contrato_firma_sla_escalado` | Tras **5 días naturales** sin firma completa: **comercial asignado** y **gestor (BO)** | **{{1}}** referencia de operación · **{{2}}** tipo de documento · **{{3}}** enlace absoluto de seguimiento (`{NEXT_PUBLIC_APP_URL}/legal/contratos/{id}`) |
 
 **Variables de entorno opcionales** (si el código resuelve el nombre de plantilla por config): `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D1`, `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D3`, `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D5`, `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_SLA_ESCALADO` — valores por defecto los nombres de la tabla anterior.
 
-**Resto de implementación:** IDs internos de plantilla en Meta (si se usan), variables de entorno del proveedor de firma (`SIGNATURIT_*` o equivalente), y tabla de **mapeo de eventos del webhook → eventos/tabla en Neon** (incl. idempotencia) en [docs/firma-digital.md](docs/firma-digital.md).
+**Resto de implementación:** IDs internos de plantilla en Meta (si se usan), variable `FIRMA_TOKEN_SECRET` y tabla de mapeo de estados en [docs/firma-digital.md](docs/firma-digital.md).
 
 ### Control de Versiones y Auditoría
 
@@ -940,7 +938,7 @@ El gestor dice "modifica X", el sistema cambia variable/bloque, regenera el docu
 **SYS:**
 - Genera borradores, versiona y registra cambios.
 - Interpreta voz y transforma en instrucciones estructuradas.
-- Envía a firma digital (API proveedor), procesa **webhook** de resultado y archiva en Cloudinary/Neon (tabla `legal_documents`).
+- Envía a firma digital **in-house** (`POST /api/contracts/sign`, cierre en `/api/firma/{token}/sign` con OTP) y archiva en Cloudinary/Neon (tabla `legal_documents`).
 - Lanza **recordatorios por WhatsApp** (+1/+3/+5 días) y **escalado** a comercial y gestor si se incumple el **SLA de 5 días naturales**.
 - Actualiza el estado de la propiedad en Inmovilla vía Egestion Worker (`PUT /propiedades/` con `estadoficha`). Los documentos se almacenan en Cloudinary/Neon porque la API de Inmovilla no tiene endpoints de gestión documental.
 
@@ -1750,7 +1748,7 @@ El sistema ofrece lectura **estratégica**, no psicológica:
 |---|---|---|
 | **Autenticación Inmovilla (2FA)** | **Composio + Gmail** | Obtención automática del código de verificación por correo: acción Composio sobre Gmail (listar/buscar correos de Inmovilla), extracción del código de 6 dígitos, envío al endpoint `login2Fa/verifyCode`. Ver `docs/workers/inmovilla-endpoints.md`. |
 | WhatsApp | **WhatsApp Cloud API (Meta)** | Integración directa con Meta (sin BSP): API REST, webhooks, plantillas. Cuenta Meta Business + WABA. |
-| Firma digital | **Signaturit / DocuSign** | API REST desde Next.js; webhooks de confirmación; recordatorios y escalados **SLA** vía **WhatsApp Cloud API** (plantillas Meta) |
+| Firma digital | **In-house** | Motor propio (SHA-256, OTP por SMS, PDF sellado + audit trail). Página `/firma/{token}`. Recordatorios SLA vía WhatsApp Cloud API. |
 | Calendario | **Google Calendar API** | Micro-frontend de booking |
 | Almacenamiento | **Cloudinary** | Documentos, contratos, adjuntos |
 
