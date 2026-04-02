@@ -19,7 +19,9 @@ El sistema implementa **firma electrónica simple in-house**: el firmante accede
 
 ## Página pública de firma (`/firma/{token}`)
 
-Página Next.js sin autenticación. El firmante:
+Página Next.js sin autenticación. **Vista previa de diseño (sin backend):** añade `?mock=1` o `?uiMock=1` a la URL (p. ej. `/firma/preview?mock=1`); se muestran datos ficticios, un PDF de demostración embebido y el flujo OTP/firma se simula en el cliente.
+
+El firmante:
 
 1. Accede al enlace (p. ej. recibido por WhatsApp).
 2. Ve el PDF embebido y los datos del firmante.
@@ -52,7 +54,8 @@ Página Next.js sin autenticación. El firmante:
 | `app/api/firma/[token]/otp/send/route.ts` | POST: enviar OTP |
 | `app/api/firma/[token]/otp/verify/route.ts` | POST: verificar OTP |
 | `app/api/firma/[token]/sign/route.ts` | POST: proceso de firma completo |
-| `app/firma/[token]/page.tsx` | UI pública de firma |
+| `app/api/firma/[token]/decline/route.ts` | POST: rechazo de firma (→ DECLINED + FIRMA_RECHAZADA) |
+| `app/firma/[token]/page.tsx` | UI pública de firma (incluye botón "No deseo firmar") |
 | `app/api/contracts/sign/route.ts` | API: upload + normalización PDF + creación solicitud |
 | `components/legal/smart-closing/use-smart-closing-session.ts` | Hook: `sendToSignature()` |
 
@@ -89,10 +92,14 @@ Ver `.env.example`:
 | Firmante abre página | `OPENED` (si se implementa tracking) | — |
 | Firmante firma | `COMPLETED` | `FIRMA_COMPLETADA` |
 | Firmante rechaza | `DECLINED` | `FIRMA_RECHAZADA` |
-| Expiración | `EXPIRED` | `FIRMA_EXPIRADA` |
+| SLA incumplido / expiración | `EXPIRED` | `FIRMA_SLA_ESCALADO` |
+
+> **Nota:** `FIRMA_EXPIRADA` existe como alias de `FIRMA_SLA_ESCALADO` — ambos eventos invocan el mismo handler (`handleFirmaSlaEscalado`) que marca `SignatureRequest` y `LegalDocument` como `EXPIRED` y crea una alerta en el dashboard. El evento canónico es `FIRMA_SLA_ESCALADO` (emitido por `reminder-scanner.ts`).
 
 ## Validez legal
 
-Firma electrónica simple conforme a la Ley 6/2020 (art. 3.1) y Reglamento (UE) 910/2014 (eIDAS, art. 25.1). No puede rechazarse como prueba en juicio únicamente por su formato electrónico. Válida para contratos privados entre partes (arras, señales, ofertas).
+**Firma simple** en el marco de la legislación española: **Ley 6/2020**, art. 3.1. El esquema **click-to-sign** acompañado de **evidencia** (IP, timestamp, hash del documento, **consentimiento explícito**, pista de auditoría / audit trail) encaja en la categoría de **firma electrónica simple**.
 
-Limitación: no es firma avanzada ni cualificada. Para operaciones ante notario o registros públicos se necesitaría un QTSP.
+Es **válida entre las partes** en contratos civiles habituales del negocio inmobiliario (p. ej. arras, señales, ofertas). **No puede rechazarse como prueba en juicio** únicamente por su forma electrónica: art. 3.2 de la Ley 6/2020 y art. 25.1 del Reglamento (UE) 910/2014 (eIDAS).
+
+**Limitación:** no es firma avanzada ni cualificada. Para actos que exijan ese nivel (p. ej. operaciones ante notario o registros públicos con requisitos formales específicos) haría falta un prestador cualificado (QTSP) o el instrumento legal que corresponda.

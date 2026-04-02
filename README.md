@@ -892,7 +892,7 @@ Firma electrónica simple **in-house** (sin SaaS de firma de terceros):
 | `contrato_firma_recordatorio_d1` | Recordatorio al firmante, **día +1** natural desde el envío | **{{1}}** nombre corto del firmante · **{{2}}** tipo de documento (p. ej. «Contrato de arras», alineado con `ContractDocumentKind`) · **{{3}}** referencia de operación (`operationId` o stem `OP-…_Arras_vN`) · **{{4}}** URL de firma (`/firma/{token}`) |
 | `contrato_firma_recordatorio_d3` | Igual, **día +3** | Mismo orden: **{{1}}**–**{{4}}** |
 | `contrato_firma_recordatorio_d5` | Igual, **día +5**; el texto fijo de la plantilla debe indicar **último recordatorio automático** antes del escalado por SLA | Mismo orden: **{{1}}**–**{{4}}** |
-| `contrato_firma_sla_escalado` | Tras **5 días naturales** sin firma completa: **comercial asignado** y **gestor (BO)** | **{{1}}** referencia de operación · **{{2}}** tipo de documento · **{{3}}** enlace absoluto de seguimiento (`{NEXT_PUBLIC_APP_URL}/legal/contratos/{id}`) |
+| `contrato_firma_sla_escalado` | Tras **5 días naturales** sin firma completa: **comercial asignado** y **gestor (BO)** | **{{1}}** referencia de operación · **{{2}}** tipo de documento · **{{3}}** enlace absoluto de seguimiento (`{NEXT_PUBLIC_APP_URL}/platform/legal/contratos/{id}`) |
 
 **Variables de entorno opcionales** (si el código resuelve el nombre de plantilla por config): `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D1`, `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D3`, `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D5`, `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_SLA_ESCALADO` — valores por defecto los nombres de la tabla anterior.
 

@@ -12,7 +12,7 @@ No sustituye al pipeline completo de ingesta Inmovilla (`lib/__tests__/pipeline-
 |--------|-----------|
 | `lib/dashboard/__tests__/integration-harness.ts` | IDs de corrida, drenaje de `PROCESS_EVENT`, limpieza de eventos/hechos/entidades de escenario. |
 | `lib/dashboard/__tests__/dashboards-api-integration.test.ts` | Crea comercial + snapshot de propiedad + operación + colaborador asignado; emite `OPERACION_CERRADA`, procesa consumer y valida respuestas HTTP de rutas API. |
-| `app/bi/__tests__/dashboards-ui-integration.test.tsx` | `getCeoOverview()` → render de `KpiCard` y `Semaforo` (misma fuente que `GET /api/ceo/overview`). Entorno **jsdom** (`@vitest-environment jsdom`). |
+| `app/platform/bi/__tests__/dashboards-ui-integration.test.tsx` | `getCeoOverview()` → render de `KpiCard` y `Semaforo` (misma fuente que `GET /api/ceo/overview`). Entorno **jsdom** (`@vitest-environment jsdom`). |
 
 ### Comando
 

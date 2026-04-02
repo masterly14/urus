@@ -59,7 +59,7 @@ El handler para `FIRMA_COMPLETADA` debe asumir que los PDFs ya se generaron y su
 6. Opcionalmente: enviar WhatsApp de confirmación al comercial/gestor.
 
 > [!NOTE]
-> La egestión a Inmovilla **no incluye adjuntar el PDF firmado** porque la API no lo soporta. Solo se actualiza el campo `estadoficha` de la propiedad. El documento legal queda en Cloudinary/Neon accesible desde el micro-frontend `/legal/contratos/{id}`.
+> La egestión a Inmovilla **no incluye adjuntar el PDF firmado** porque la API no lo soporta. Solo se actualiza el campo `estadoficha` de la propiedad. El documento legal queda en Cloudinary/Neon accesible desde el micro-frontend `/platform/legal/contratos/{id}`.
 
 ### Dependencias externas
 
@@ -89,7 +89,7 @@ El handler para `FIRMA_COMPLETADA` debe asumir que los PDFs ya se generaron y su
 
 1. **Handler real para `CONTRATO_BORRADOR_GENERADO`** que:
    - Lea `cloudinary.secureUrl` y `operationId` del payload del evento.
-   - Construya un enlace a la UI legal: `{NEXT_PUBLIC_APP_URL}/legal/contratos/{contractListId}`.
+   - Construya un enlace a la UI legal: `{NEXT_PUBLIC_APP_URL}/platform/legal/contratos/{contractListId}`.
    - Envíe WhatsApp al gestor/comercial asignado con enlace al documento + enlace a la UI.
    - Opcionalmente: crear notificación in-app.
 
@@ -108,9 +108,9 @@ El handler para `FIRMA_COMPLETADA` debe asumir que los PDFs ya se generaron y su
 
 | Pieza | Archivo | Estado |
 |-------|---------|--------|
-| Listado de contratos | `app/legal/contratos/page.tsx:25` | Importa `contratos` de `lib/mock-data/contratos.ts` — **datos hardcoded en memoria** |
-| Detalle de contrato | `app/legal/contratos/[id]/page.tsx:38–42` | Usa `getContractTemplateFixtureByListId()` de `lib/mock-data/contract-template-fixtures.ts` — **fixtures** |
-| Contexto de versionado | `app/legal/contratos/[id]/page.tsx:407–413` | Se deriva del mock `contratos[]` si existe la fila |
+| Listado de contratos | `app/platform/legal/contratos/page.tsx:25` | Importa `contratos` de `lib/mock-data/contratos.ts` — **datos hardcoded en memoria** |
+| Detalle de contrato | `app/platform/legal/contratos/[id]/page.tsx:38–42` | Usa `getContractTemplateFixtureByListId()` de `lib/mock-data/contract-template-fixtures.ts` — **fixtures** |
+| Contexto de versionado | `app/platform/legal/contratos/[id]/page.tsx:407–413` | Se deriva del mock `contratos[]` si existe la fila |
 | `cloudinary.secureUrl` en eventos | `contract-draft-handler.ts:132`, `voice-apply/route.ts:182` | Persisten URL en payload de `CONTRATO_BORRADOR_GENERADO` y `CONTRATO_VERSIONADO` — **no se leen desde la UI** |
 | Proyección de contratos en Neon | — | **Resuelto con `LegalDocument`** — nueva tabla que materializa el estado actual de cada contrato |
 
@@ -330,7 +330,7 @@ Sin scheduler configurado, los recordatorios nunca se envían automáticamente. 
 | Schema del evento `CONTRATO_VERSIONADO` | `lib/contracts/versioning/contrato-versionado-payload.ts` | **Funcional** con Zod |
 | API de diff | `app/api/contracts/diff/route.ts` | **Funcional**: acepta POST con dos inputs, devuelve `{ changes }` |
 | Naming de versiones | `lib/contracts/naming.ts` | **Funcional** con tests |
-| Uso en UI | — | **No conectado**: ningún componente en `app/legal/` o `components/legal/` llama a `/api/contracts/diff` ni muestra historial de versiones |
+| Uso en UI | — | **No conectado**: ningún componente en `app/platform/legal/` o `components/legal/` llama a `/api/contracts/diff` ni muestra historial de versiones |
 
 ### Qué falta para producción
 

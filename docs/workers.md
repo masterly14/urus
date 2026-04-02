@@ -4,6 +4,7 @@
   - Propiedades: API REST (`GET /propiedades/?listado` + `GET /propiedades/?cod_ofer`) si `INMOVILLA_API_TOKEN`; si no, legacy (login + paginación).
   - Demandas: polling legacy (no hay endpoint REST para demandas).
 - **Egestion Worker (M2)** — Escritura en Inmovilla (API REST para clientes/propiedades/propietarios; RPA legacy para demandas). Ver `lib/inmovilla/write/`.
+- **Consumer (Event Handlers)** — Procesa eventos del Event Store y ejecuta side effects (WhatsApp, jobs, proyecciones, alertas). Referencia completa: [workers/consumer-handlers.md](workers/consumer-handlers.md). Flujo de lead scoring: [workers/lead-scoring-flow.md](workers/lead-scoring-flow.md).
 
 ## Cron-jobs (QStash)
 

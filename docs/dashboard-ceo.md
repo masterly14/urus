@@ -4,7 +4,7 @@
 
 Panel exclusivo del CEO que integra datos de todos los módulos del sistema para ofrecer una visión ejecutiva en tiempo real. El CEO ve el estado de la empresa en 2 minutos sin necesidad de interpretar datos crudos: semáforos, KPIs y tendencias.
 
-Organizado en 6 capas (pestañas en `/bi/`):
+Organizado en 6 capas (pestañas en `/platform/bi/`):
 
 1. **Visión Ejecutiva** — KPIs financieros + semáforos globales (implementada)
 2. **Rendimiento** — Rendimiento comercial por ciudad y persona (implementada)
@@ -373,30 +373,30 @@ Tipo: `CEO_FINANZAS_GENERADA`, aggregateType: `CEO`, aggregateId: `ceo-financier
 | `app/api/ceo/cities/route.ts` | API Route GET Capa 2 (CEO-only) |
 | `lib/hooks/use-ceo-overview.ts` | Hook cliente Capa 1 |
 | `lib/hooks/use-ceo-cities.ts` | Hook cliente Capa 2: `useCeoCityPerformance()` |
-| `app/bi/layout.tsx` | Layout con tabs de las 6 capas + guard CEO |
-| `app/bi/vision-ejecutiva/page.tsx` | UI de la Capa 1 |
-| `app/bi/operativo/page.tsx` | UI de la Capa 2 (rendimiento por ciudad + ranking agentes) |
+| `app/platform/bi/layout.tsx` | Layout con tabs de las 6 capas + guard CEO |
+| `app/platform/bi/vision-ejecutiva/page.tsx` | UI de la Capa 1 |
+| `app/platform/bi/operativo/page.tsx` | UI de la Capa 2 (rendimiento por ciudad + ranking agentes) |
 | `lib/dashboard/ceo/diagnostic-types.ts` | Schema Zod `CeoDiagnosticSchema` + tipos TS Capa 4 |
 | `lib/agents/ceo-diagnostic-graph.ts` | Grafo LangGraph 1 nodo: datos → diagnóstico estructurado |
 | `lib/dashboard/ceo/diagnostic-generator.ts` | Orquestador: recopila datos, invoca grafo, persiste evento |
 | `app/api/ceo/diagnostic/route.ts` | API Route GET+POST Capa 4 (CEO-only) |
 | `app/api/cron/ceo-diagnostic/route.ts` | Cron POST autenticado para regenerar diagnóstico |
 | `lib/hooks/use-ceo-diagnostic.ts` | Hooks cliente: `useCeoDiagnostic()` + `useRegenerateDiagnostic()` |
-| `app/bi/prescriptivo/page.tsx` | UI de la Capa 4 (diagnóstico IA con recomendaciones) |
+| `app/platform/bi/prescriptivo/page.tsx` | UI de la Capa 4 (diagnóstico IA con recomendaciones) |
 | `lib/dashboard/ceo/expansion-types.ts` | Schema Zod `CeoExpansionSchema` + tipos TS Capa 5 |
 | `lib/agents/ceo-expansion-graph.ts` | Grafo LangGraph 1 nodo: datos → evaluación de expansión |
 | `lib/dashboard/ceo/expansion-generator.ts` | Orquestador: recopila datos, invoca grafo, persiste evento |
 | `app/api/ceo/expansion/route.ts` | API Route GET+POST Capa 5 (CEO-only) |
 | `app/api/cron/ceo-expansion/route.ts` | Cron POST autenticado para reevaluar expansión |
 | `lib/hooks/use-ceo-expansion.ts` | Hooks cliente: `useCeoExpansion()` + `useRegenerateExpansion()` |
-| `app/bi/expansion/page.tsx` | UI de la Capa 5 (motor de expansión geográfica) |
+| `app/platform/bi/expansion/page.tsx` | UI de la Capa 5 (motor de expansión geográfica) |
 | `lib/dashboard/ceo/financial-types.ts` | Schema Zod `CeoFinancialSchema` + tipos TS Capa 6 |
 | `lib/agents/ceo-financial-graph.ts` | Grafo LangGraph 1 nodo: datos → análisis financiero |
 | `lib/dashboard/ceo/financial-generator.ts` | Orquestador: recopila datos, invoca grafo, persiste evento |
 | `app/api/ceo/financiero/route.ts` | API Route GET+POST Capa 6 (CEO-only) |
 | `app/api/cron/ceo-financiero/route.ts` | Cron POST autenticado para regenerar análisis financiero |
 | `lib/hooks/use-ceo-financiero.ts` | Hooks cliente: `useCeoFinanciero()` + `useRegenerateFinanciero()` |
-| `app/bi/reinversion/page.tsx` | UI de la Capa 6 (control financiero y reinversión) |
+| `app/platform/bi/reinversion/page.tsx` | UI de la Capa 6 (control financiero y reinversión) |
 | `scripts/seed-ceo-financials.ts` | Seed de datos demo |
 
 ## Cómo probarlo
@@ -405,40 +405,40 @@ Tipo: `CEO_FINANZAS_GENERADA`, aggregateType: `CEO`, aggregateId: `ceo-financier
 1. Sincronizar schema: `npx prisma db push`
 2. Insertar datos de demo: `npx tsx scripts/seed-ceo-financials.ts`
 3. Iniciar dev server: `npm run dev`
-4. Navegar a `/bi/vision-ejecutiva` (sesión por defecto es CEO)
-5. Para ver con datos mock sin BD: `/bi/vision-ejecutiva?mock=1`
+4. Navegar a `/platform/bi/vision-ejecutiva` (sesión por defecto es CEO)
+5. Para ver con datos mock sin BD: `/platform/bi/vision-ejecutiva?mock=1`
 
 ### Capa 2 — Rendimiento por Ciudad
 1. Iniciar dev server: `npm run dev`
-2. Navegar a `/bi/operativo` (sesión por defecto es CEO)
+2. Navegar a `/platform/bi/operativo` (sesión por defecto es CEO)
 3. La vista "Desglose por Ciudad" muestra las 8 métricas por Córdoba/Málaga/Sevilla
 4. La vista "Rendimiento Agentes" muestra ranking de comerciales con datos reales
-5. Para ver con datos mock sin BD: `/bi/operativo?mock=1`
+5. Para ver con datos mock sin BD: `/platform/bi/operativo?mock=1`
 
 ### Capa 4 — Diagnóstico IA
 1. Iniciar dev server: `npm run dev`
-2. Navegar a `/bi/prescriptivo` (sesión por defecto es CEO)
+2. Navegar a `/platform/bi/prescriptivo` (sesión por defecto es CEO)
 3. Si no hay diagnóstico previo, se muestra un botón "Generar diagnóstico"
 4. Pulsar "Regenerar diagnóstico" invoca el LLM con datos reales (requiere OPENAI_API_KEY)
-5. Para ver con datos mock sin BD: `/bi/prescriptivo?mock=1`
+5. Para ver con datos mock sin BD: `/platform/bi/prescriptivo?mock=1`
 6. Cron periódico: `POST /api/cron/ceo-diagnostic` con header `Authorization: Bearer $CRON_SECRET`
 
 ### Capa 5 — Motor de Expansión
 1. Iniciar dev server: `npm run dev`
-2. Navegar a `/bi/expansion` (sesión por defecto es CEO)
+2. Navegar a `/platform/bi/expansion` (sesión por defecto es CEO)
 3. Si no hay evaluación previa, se muestra un botón "Evaluar expansión"
 4. Pulsar "Reevaluar expansión" invoca el LLM con datos reales (requiere OPENAI_API_KEY)
 5. Muestra: readiness global, checklist de criterios, ciudades candidatas con inversión/break-even/riesgos
-6. Para ver con datos mock sin BD: `/bi/expansion?mock=1`
+6. Para ver con datos mock sin BD: `/platform/bi/expansion?mock=1`
 7. Cron periódico: `POST /api/cron/ceo-expansion` con header `Authorization: Bearer $CRON_SECRET`
 
 ### Capa 6 — Control Financiero
 1. Iniciar dev server: `npm run dev`
-2. Navegar a `/bi/reinversion` (sesión por defecto es CEO)
+2. Navegar a `/platform/bi/reinversion` (sesión por defecto es CEO)
 3. Si no hay análisis previo, se muestra un botón "Analizar finanzas"
 4. Pulsar "Reevaluar finanzas" invoca el LLM con datos reales (requiere OPENAI_API_KEY)
 5. Muestra: KPIs de costes, ratio fijo/variable, tabla ROI automatizaciones, recomendaciones de reinversión
-6. Para ver con datos mock sin BD: `/bi/reinversion?mock=1`
+6. Para ver con datos mock sin BD: `/platform/bi/reinversion?mock=1`
 7. Cron periódico: `POST /api/cron/ceo-financiero` con header `Authorization: Bearer $CRON_SECRET`
 
 ## Datos derivados vs manuales
