@@ -17,6 +17,8 @@ type DemandUpdateVariables = {
   precioMin?: number;
   precioMax?: number;
   habitacionesMin?: number;
+  metrosMin?: number;
+  metrosMax?: number;
   zonas?: string[];
   tipos?: string[];
 };
@@ -95,6 +97,8 @@ export async function handleDemandaActualizada(event: Event): Promise<HandlerRes
     presupuestoMin: typeof variables.precioMin === "number" ? variables.precioMin : undefined,
     presupuestoMax: typeof variables.precioMax === "number" ? variables.precioMax : undefined,
     habitacionesMin: typeof variables.habitacionesMin === "number" ? variables.habitacionesMin : undefined,
+    metrosMin: typeof variables.metrosMin === "number" ? variables.metrosMin : undefined,
+    metrosMax: typeof variables.metrosMax === "number" ? variables.metrosMax : undefined,
     zonas: joinList(variables.zonas) ?? undefined,
     tipos: joinList(variables.tipos) ?? undefined,
   };
@@ -120,7 +124,15 @@ export async function handleDemandaActualizada(event: Event): Promise<HandlerRes
   if (source.selectionId || source.channel === "whatsapp_feedback") {
     followUpJobs.push({
       type: "GENERATE_MICROSITE",
-      payload: { demandId, comercialId: "system", sourceEventId: event.id },
+      payload: {
+        demandId,
+        comercialId: "system",
+        sourceEventId: event.id,
+        demand: {
+          metrosMin: variables.metrosMin,
+          metrosMax: variables.metrosMax,
+        },
+      },
       idempotencyKey: `generate_microsite:${event.id}`,
       sourceEventId: event.id,
     });

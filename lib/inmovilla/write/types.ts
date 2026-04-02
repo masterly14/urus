@@ -55,6 +55,8 @@ export type UpdateDemandCriteriaPayload = {
     presupuestoMin?: number;
     presupuestoMax?: number;
     habitacionesMin?: number;
+    metrosMin?: number;
+    metrosMax?: number;
     zonas?: string;
     tipos?: string;
   };

@@ -200,6 +200,12 @@ const updateDemandCriteriaSpec: WriteOperationSpec<"updateDemandCriteria"> = {
     if (typeof patch.habitacionesMin === "number") {
       body["demandas-habitacionmin"] = String(Math.round(patch.habitacionesMin));
     }
+    if (typeof patch.metrosMin === "number") {
+      body["demandas-metrosmin"] = String(Math.round(patch.metrosMin));
+    }
+    if (typeof patch.metrosMax === "number") {
+      body["demandas-metrosmax"] = String(Math.round(patch.metrosMax));
+    }
     if (typeof patch.zonas === "string" && patch.zonas.trim()) {
       body["zonas"] = patch.zonas.trim();
     }
