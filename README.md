@@ -29,6 +29,8 @@ Escenario de migración a API REST (contactos, propiedades, propietarios) docume
 ### Comandos útiles
 
 - **Tests**: `npm test` (requiere `DATABASE_URL` configurada en el entorno).
+- **Tests integración dashboards**: `npm run test:dashboards` — evento `OPERACION_CERRADA` → hechos → APIs (`/api/dashboard/*`, `/api/ceo/overview`, `/api/colaboradores/dashboard`) y smoke UI (`KpiCard` / `Semaforo` con datos de `getCeoOverview()`). Ver `docs/dashboard-integration-tests.md`.
+- **Smoke live dashboards (Neon + proveedores opcionales)**: `npm run dashboards:live-check` — ejecuta las mismas queries analíticas que alimentan los dashboards y, si existen credenciales, llama a Inmovilla REST (`INMOVILLA_API_TOKEN`) y Statefox (`STATEFOX_BEARER_TOKEN`). Detalle en `docs/dashboard-integration-tests.md`.
 - **Testeo cercano a producción (lógica):** además de la suite anterior, el proyecto usa **scripts** (`scripts/` y comandos `npm run …`) para ejecutar flujos de negocio e integración con la misma configuración que el runtime real en la medida de lo posible. Detalle y reglas en `AGENTS.md` y en `docs/plan.md` (*Estrategia de testeo*).
 - **UI con datos mock:** las rutas con interfaz relevante deben soportar un **query parameter** documentado que active fixtures/mock y permita **previsualizar la UI** sin datos reales. Convención y obligaciones descritas en `AGENTS.md` y `docs/plan.md`.
 - **Build**: `npm run build`
@@ -41,6 +43,9 @@ Escenario de migración a API REST (contactos, propiedades, propietarios) docume
 - **Proyecciones (worker)**: `npm run projections` — materializa estado actual en `properties_current` y `demands_current` desde la job queue (`UPDATE_PROPERTY_PROJECTION`, `UPDATE_DEMAND_PROJECTION`). Cron: `POST /api/cron/projections` (requiere `CRON_SECRET`).
 - **Reevaluación de pricing (M7)**: cron `POST /api/cron/pricing-reevaluation` — escanea `properties_current` y encola `RUN_PRICING_ANALYSIS` para inmuebles sin leads prolongados o con visitas sin oferta (ver sección *Motor de Pricing*). Requiere `CRON_SECRET`; orquestación recomendada con Upstash QStash (p. ej. 1×/día).
 - **Sincronizar catálogos Inmovilla (enums)**: `npm run inmovilla:sync-enums` (opción `--skip-zonas` para omitir zonas). Requiere `INMOVILLA_API_TOKEN` y `DATABASE_URL`.
+- **Feedback loop NLU (test aislado)**: `npx tsx scripts/test-feedback-loop.ts` — valida `classifyBuyerFeedback` con propiedades mock y NLU real. Requiere `OPENAI_API_KEY`.
+- **Feedback loop E2E (Vitest)**: `npm test -- feedback-loop-e2e` — test de integración determinista del pipeline completo (WA → eventos → jobs → proyección). Usa BD real + NLU stub.
+- **Feedback loop live-RPA**: `npx tsx scripts/test-feedback-loop-live-rpa.ts` — pipeline completo con NLU real y escritura en Inmovilla (RPA). Requiere `FEEDBACK_LOOP_DEMAND_ID` y `FEEDBACK_LOOP_LIVE=true` para escritura real. Sin ese flag ejecuta dry-run. Ver `docs/microsite-feedback-loop.md`.
 
 **Contribuir:** ramas, commits, PRs y releases siguen la [Guía de contribución (CONTRIBUTING.md)](CONTRIBUTING.md).
 
@@ -335,20 +340,22 @@ Variables: `NEXT_PUBLIC_APP_URL` (enlaces absolutos en WhatsApp), `MICROSITE_VAL
 
 El sistema envía el enlace del microsite propio al comprador vía WhatsApp Business API para que:
 
-- Seleccione propiedades que le interesen.
-- Descarte las que no encajan.
-- Pida ajustes.
+- Explore el **portal de selección** (listado + ficha detalle en el propio dominio).
+- Comunique interés, descartes o nuevos criterios **respondiendo por WhatsApp** (único canal de feedback; no hay botones de valoración en la web pública).
 
 ### Feedback Loop (Sistema Vivo)
 
-El feedback del comprador (capturado por eventos del microsite + webhook de WhatsApp):
+El feedback del comprador llega por el **webhook de WhatsApp** (`WHATSAPP_RECIBIDO`). La Capa 3 resuelve demanda y microsite activo (`WhatsAppBuyerSession`, contexto de respuesta) y ejecuta **NLU contextual LangGraph** (`classifyBuyerFeedback`): propiedades mostradas + historial conversacional → salida estructurada (intención, `propertyFeedback[]`, variables, `wantsMoreOptions`).
 
-1. Se procesa en la Capa 3 (LangGraph interpreta preferencias y descartes).
-2. Actualiza la demanda en Neon (evento `FEEDBACK_PROCESADO`).
-3. El `Egestion Worker` escribe los cambios en Inmovilla vía RPA legacy (actualización de demanda con polígono).
-4. Se realiza nueva consulta a Statefox API con criterios ajustados → se regenera el microsite.
+1. Eventos `SELECCION_COMPRADOR` por propiedad (persistencia de feedback) y, si aplica, `DEMANDA_ACTUALIZADA` con variables extraídas.
+2. Proyección y **Egestion Worker** escriben la demanda en Inmovilla vía RPA legacy (polígono/criterios).
+3. Nueva consulta a Statefox con criterios ajustados → job `GENERATE_MICROSITE` para regenerar el microsite; si el comprador pide más opciones, también se puede disparar la regeneración según reglas del handler.
 
-**Ciclo cerrado, limpio y continuo.**
+Documentación ampliada: `docs/microsite-feedback-loop.md`.
+
+### Suite de evaluación NLU (AI-to-AI)
+
+Para regresión y KPIs del NLU de comprador sin depender de pruebas manuales sesgadas: agente comprador sintético, juez híbrido (reglas + LLM), escenarios por categoría, persistencia en Neon (`EvalRun` / `EvalResult`) y dashboard en `/eval`. Ejecución: `npm run eval:nlu`. Detalle: `docs/nlu-eval-suite.md`.
 
 ---
 
@@ -564,6 +571,8 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 | Clasificación de intención | **LangGraph** con modelos o3 |
 | Extracción de variables | Zona, precio, metros, extras → campos estructurados |
 | Fallback por baja confianza | Tarea al agente: "respuesta ambigua" |
+| **Feedback comprador (microsite)** | **NLU contextual** (`classifyBuyerFeedback`): mensaje WhatsApp + fichas del microsite activo + historial → `SELECCION_COMPRADOR`, `DEMANDA_ACTUALIZADA`, regeneración de microsite |
+| **Calidad / regresión NLU** | Suite **AI-to-AI** (escenarios, juez, DB, `/eval`); ver `docs/nlu-eval-suite.md` |
 
 ### Calendario / Agenda
 
