@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import {
     BarChart4,
@@ -11,33 +12,44 @@ import {
     LineChart,
     Users2,
 } from "lucide-react";
+import { useSession } from "@/lib/hooks/use-session";
 
 interface BILayoutProps {
     children: React.ReactNode;
 }
 
-const biNavigation = [
-    { name: "Financiero", href: "/bi/financiero", icon: Coins },
-    { name: "Operativo", href: "/bi/operativo", icon: BarChart4 },
+const ceoNavigation = [
+    { name: "Visión Ejecutiva", href: "/bi/vision-ejecutiva", icon: Coins },
+    { name: "Rendimiento", href: "/bi/operativo", icon: BarChart4 },
     { name: "Capital Humano", href: "/bi/capital-humano", icon: Users2 },
-    { name: "Prescriptivo", href: "/bi/prescriptivo", icon: LineChart },
+    { name: "Diagnóstico IA", href: "/bi/prescriptivo", icon: LineChart },
     { name: "Expansión", href: "/bi/expansion", icon: Globe },
-    { name: "Reinversión", href: "/bi/reinversion", icon: Briefcase },
+    { name: "Finanzas", href: "/bi/reinversion", icon: Briefcase },
 ];
 
 export default function BILayout({ children }: BILayoutProps) {
     const pathname = usePathname();
+    const router = useRouter();
+    const { isCeo } = useSession();
+
+    useEffect(() => {
+        if (!isCeo) {
+            router.replace("/rendimiento");
+        }
+    }, [isCeo, router]);
+
+    if (!isCeo) return null;
 
     return (
         <div className="flex flex-col h-full space-y-6">
             <div className="flex flex-col space-y-2">
-                <h1 className="text-3xl font-bold tracking-tight">Business Intelligence</h1>
+                <h1 className="text-3xl font-bold tracking-tight">Gobierno Estratégico</h1>
                 <p className="text-muted-foreground">
-                    Análisis avanzado y toma de decisiones basada en datos.
+                    Control total de la empresa. Decisión basada en datos, no en intuición.
                 </p>
             </div>
             <div className="flex items-center space-x-1 overflow-x-auto pb-2">
-                {biNavigation.map((item) => {
+                {ceoNavigation.map((item) => {
                     const isActive = pathname.startsWith(item.href);
                     const Icon = item.icon;
                     return (
