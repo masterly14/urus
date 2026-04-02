@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { coerceMicrositeCuratedProperties } from "@/lib/microsite/selection";
@@ -7,7 +8,6 @@ import {
   isMicrositeMockEnabled,
   isMicrositeMockToken,
 } from "@/lib/microsite/mock-selection";
-import { SelectionFeedbackButtons } from "./selection-feedback-buttons";
 
 function formatPrice(n: number | null): string {
   if (n === null) return "Precio N/D";
@@ -102,21 +102,19 @@ export default async function SeleccionPage({
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">
             Selección de propiedades
           </h1>
-          <div className="mt-2 text-sm text-neutral-300">
-            Demanda <span className="font-mono text-neutral-200">{selection.demandId}</span>
-            {selection.demandNombre ? (
-              <>
-                {" "}
-                · <span className="text-neutral-200">{selection.demandNombre}</span>
-              </>
-            ) : null}
-          </div>
+          {selection.demandNombre ? (
+            <div className="mt-2 text-sm text-neutral-300">
+              Preparada para{" "}
+              <span className="text-neutral-200">{selection.demandNombre}</span>
+            </div>
+          ) : null}
           <div className="mt-1 text-xs text-neutral-500">
-            Generado el{" "}
             {new Intl.DateTimeFormat("es-ES", {
               dateStyle: "medium",
               timeStyle: "short",
             }).format(selection.createdAt)}
+            {" · "}
+            {properties.length} {properties.length === 1 ? "propiedad" : "propiedades"}
           </div>
         </div>
       </header>
@@ -133,18 +131,20 @@ export default async function SeleccionPage({
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {properties.map((p) => {
               const hero = p.images[0] ?? null;
+              const detailHref = `/seleccion/${token}/propiedad/${p.propertyId}`;
               return (
-                <article
+                <Link
                   key={p.propertyId}
-                  className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/30"
+                  href={detailHref}
+                  className="group overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/30 transition hover:border-neutral-600 hover:bg-neutral-900/50"
                 >
-                  <div className="aspect-[4/3] w-full bg-neutral-900">
+                  <div className="aspect-[4/3] w-full overflow-hidden bg-neutral-900">
                     {hero ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={hero}
                         alt={p.title}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-cover transition group-hover:scale-105"
                         loading="lazy"
                       />
                     ) : (
@@ -159,74 +159,55 @@ export default async function SeleccionPage({
                       {p.city ?? "Ciudad N/D"}
                       {p.zone ? ` · ${p.zone}` : ""}
                     </div>
-                    <h2 className="mt-1 line-clamp-2 text-base font-semibold">
+                    <h2 className="mt-1 line-clamp-2 text-base font-semibold group-hover:text-white">
                       {p.title}
                     </h2>
 
                     <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-neutral-200">
-                      <div className="font-semibold">{formatPrice(p.price)}</div>
+                      <span className="font-semibold">{formatPrice(p.price)}</span>
                       {typeof p.metersBuilt === "number" ? (
-                        <div className="text-neutral-400">{p.metersBuilt} m²</div>
+                        <span className="text-neutral-400">{p.metersBuilt} m²</span>
                       ) : null}
                       {typeof p.rooms === "number" ? (
-                        <div className="text-neutral-400">{p.rooms} hab</div>
+                        <span className="text-neutral-400">{p.rooms} hab</span>
                       ) : null}
                       {typeof p.baths === "number" ? (
-                        <div className="text-neutral-400">{p.baths} baños</div>
+                        <span className="text-neutral-400">{p.baths} baños</span>
                       ) : null}
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between gap-3">
-                      <div className="text-xs text-neutral-500">
-                        {p.advertiserType === "private"
-                          ? "Particular"
-                          : p.advertiserType === "professional"
-                            ? "Profesional"
-                            : "Anunciante N/D"}
-                      </div>
-                      {p.link ? (
-                        <a
-                          href={p.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="rounded-lg bg-neutral-50 px-3 py-2 text-xs font-semibold text-neutral-950 hover:bg-white"
-                        >
-                          Ver anuncio
-                        </a>
-                      ) : (
-                        <span className="rounded-lg border border-neutral-800 px-3 py-2 text-xs text-neutral-500">
-                          Sin enlace
-                        </span>
-                      )}
                     </div>
 
                     {p.extras.length > 0 ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {p.extras.map((extra) => (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {p.extras.slice(0, 4).map((extra) => (
                           <span
                             key={`${p.propertyId}:${extra}`}
-                            className="rounded-full border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300"
+                            className="rounded-full border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-400"
                           >
                             {extra}
                           </span>
                         ))}
+                        {p.extras.length > 4 ? (
+                          <span className="rounded-full border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-500">
+                            +{p.extras.length - 4}
+                          </span>
+                        ) : null}
                       </div>
                     ) : null}
 
-                    <div className="mt-4">
-                      <SelectionFeedbackButtons
-                        publicToken={selection.token}
-                        propertyId={p.propertyId}
-                        demoMode={demoMode}
-                      />
+                    <div className="mt-4 text-xs font-medium text-neutral-500 group-hover:text-neutral-300">
+                      Ver ficha completa &rarr;
                     </div>
                   </div>
-                </article>
+                </Link>
               );
             })}
           </div>
         )}
       </section>
+
+      <footer className="border-t border-neutral-800 py-6 text-center text-xs text-neutral-600">
+        Urus Capital Group
+      </footer>
     </main>
   );
 }
