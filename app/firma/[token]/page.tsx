@@ -31,6 +31,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface FirmaMetadata {
   operationId: string;
@@ -54,7 +62,15 @@ interface SignResult {
   auditTrailUrl: string;
 }
 
-type FirmaStep = "draw" | "otp_sending" | "otp_input" | "otp_verifying" | "signing" | "done" | "declined";
+type FirmaStep =
+  | "review"
+  | "otp_sending"
+  | "otp_input"
+  | "otp_verifying"
+  | "awaiting_signature"
+  | "signing"
+  | "done"
+  | "declined";
 
 const KIND_LABEL: Record<string, string> = {
   arras: "Contrato de arras",
@@ -117,14 +133,15 @@ export default function FirmaPage() {
   }, []);
 
   const sigCanvasRef = useRef<SignatureCanvas | null>(null);
-  const executeSignRef = useRef<(() => Promise<void>) | null>(null);
   const [meta, setMeta] = useState<FirmaMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SignResult | null>(null);
   const [hasSig, setHasSig] = useState(false);
 
-  const [step, setStep] = useState<FirmaStep>("draw");
+  const [step, setStep] = useState<FirmaStep>("review");
+  /** Tras OTP correcto; permite reabrir el modal de firma sin repetir SMS */
+  const [otpVerified, setOtpVerified] = useState(false);
   const [otpId, setOtpId] = useState<string | null>(null);
   const [otpPhone, setOtpPhone] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState("");
@@ -163,10 +180,6 @@ export default function FirmaPage() {
   }, []);
 
   const handleRequestOtp = useCallback(async () => {
-    if (!sigCanvasRef.current || sigCanvasRef.current.isEmpty()) {
-      setError("Dibuja tu firma antes de continuar.");
-      return;
-    }
     setStep("otp_sending");
     setError(null);
     setOtpError(null);
@@ -185,7 +198,7 @@ export default function FirmaPage() {
       const data = await res.json();
       if (!res.ok) {
         setError(data?.error ?? `Error ${res.status}`);
-        setStep("draw");
+        setStep("review");
         return;
       }
       setOtpId(data.otpId);
@@ -194,7 +207,7 @@ export default function FirmaPage() {
       setStep("otp_input");
     } catch {
       setError("Error de conexión al enviar el código");
-      setStep("draw");
+      setStep("review");
     }
   }, [token, isUiMock]);
 
@@ -206,8 +219,9 @@ export default function FirmaPage() {
 
     if (isUiMock === true) {
       await new Promise((r) => setTimeout(r, 400));
-      setStep("signing");
-      await executeSignRef.current?.();
+      setOtpVerified(true);
+      setOtpCode("");
+      setStep("awaiting_signature");
       return;
     }
 
@@ -225,8 +239,9 @@ export default function FirmaPage() {
         return;
       }
 
-      setStep("signing");
-      await executeSignRef.current?.();
+      setOtpVerified(true);
+      setOtpCode("");
+      setStep("awaiting_signature");
     } catch {
       setOtpError("Error de conexión al verificar");
       setStep("otp_input");
@@ -264,9 +279,14 @@ export default function FirmaPage() {
   }, [token, isUiMock]);
 
   const executeSign = useCallback(async () => {
+    if (!sigCanvasRef.current || sigCanvasRef.current.isEmpty()) {
+      setError("Dibuja tu firma en el recuadro antes de finalizar.");
+      return;
+    }
     setError(null);
+    setStep("signing");
     try {
-      const signatureImageBase64 = sigCanvasRef.current!
+      const signatureImageBase64 = sigCanvasRef.current
         .getTrimmedCanvas()
         .toDataURL("image/png")
         .replace(/^data:image\/png;base64,/, "");
@@ -291,20 +311,16 @@ export default function FirmaPage() {
       const data = await res.json();
       if (!res.ok) {
         setError(data?.error ?? `Error ${res.status}`);
-        setStep("draw");
+        setStep("awaiting_signature");
         return;
       }
       setResult(data);
       setStep("done");
     } catch {
       setError("Error de conexión al firmar");
-      setStep("draw");
+      setStep("awaiting_signature");
     }
   }, [token, otpId, isUiMock]);
-
-  useEffect(() => {
-    executeSignRef.current = executeSign;
-  }, [executeSign]);
 
   const [declineReason, setDeclineReason] = useState("");
   const [declining, setDeclining] = useState(false);
@@ -370,97 +386,83 @@ export default function FirmaPage() {
   const isTerminalOrDone = meta.isTerminal || step === "done" || step === "declined";
   const isDeclined = meta.status === "DECLINED" || step === "declined";
 
+  const signatureModalOpen = step === "awaiting_signature" || step === "signing";
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-      <header className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-primary" />
-            <span className="text-sm font-semibold tracking-tight">Firma electrónica</span>
+    <div className="min-h-screen bg-[hsl(222_47%_7%)] text-foreground">
+      <header className="border-b border-border/60 bg-background/90 backdrop-blur-md sticky top-0 z-20">
+        <div className="flex flex-col gap-1 px-4 py-3 md:flex-row md:items-center md:justify-between md:px-8">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-md border border-primary/40 bg-primary/10">
+              <ShieldCheck className="h-5 w-5 text-primary" aria-hidden />
+            </div>
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
+                Urus Capital · Firma electrónica avanzada
+              </p>
+              <p className="text-sm font-semibold tracking-tight">Acto de firma documental</p>
+            </div>
           </div>
-          <span className="text-xs text-muted-foreground">
-            Operación {meta.operationId}
+          <span className="font-mono text-xs text-muted-foreground md:text-right">
+            Ref. {meta.operationId}
           </span>
         </div>
         {isUiMock === true && (
-          <div className="border-b border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100">
-            <p className="mx-auto max-w-5xl px-4 py-2 text-center text-xs font-medium">
+          <div className="border-t border-amber-500/30 bg-amber-950/50 text-amber-100">
+            <p className="px-4 py-2 text-center text-xs font-medium md:px-8">
               Vista previa (mock): datos y PDF de demostración. Añade{" "}
-              <code className="rounded bg-amber-100/80 px-1 dark:bg-amber-900/60">?mock=1</code> o{" "}
-              <code className="rounded bg-amber-100/80 px-1 dark:bg-amber-900/60">?uiMock=1</code> a la URL.
+              <code className="rounded bg-amber-900/80 px-1">?mock=1</code> o{" "}
+              <code className="rounded bg-amber-900/80 px-1">?uiMock=1</code> a la URL.
             </p>
           </div>
         )}
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-6 grid gap-6 lg:grid-cols-[1fr_380px]">
-        <section className="order-2 lg:order-1">
-          <Card className="overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                {kindLabel}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <iframe
-                src={meta.pdfUrl}
-                className="w-full border-0"
-                style={{ height: "75vh" }}
-                title="Documento a firmar"
-              />
-            </CardContent>
-          </Card>
-        </section>
+      <div className="border-b border-border/50 bg-card/20">
+        <div className="flex flex-col gap-3 px-4 py-5 md:flex-row md:items-end md:justify-between md:px-8">
+          <div className="space-y-1">
+            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              Documento sujeto a firma
+            </p>
+            <h1 className="font-serif text-2xl font-semibold tracking-tight text-balance md:text-3xl">
+              {kindLabel}
+            </h1>
+          </div>
+          <div className="text-left md:text-right">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Expediente</p>
+            <p className="font-mono text-sm">{meta.operationId}</p>
+          </div>
+        </div>
+      </div>
 
-        <aside className="order-1 lg:order-2 flex flex-col gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Datos de la firma</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div>
-                <span className="text-muted-foreground">Firmante:</span>{" "}
-                <span className="font-medium">{meta.signerName}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Email:</span>{" "}
-                <span className="font-medium">{meta.signerEmail}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Documento:</span>{" "}
-                <span className="font-medium">{kindLabel}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Enviado:</span>{" "}
-                <span className="font-medium">
-                  {new Date(meta.sentAt).toLocaleDateString("es-ES")}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
+      <main className="w-full">
+        <div className="w-full bg-muted/15">
+          <iframe
+            src={meta.pdfUrl}
+            className="block w-full border-0 bg-background"
+            style={{ minHeight: "70vh", height: "calc(100vh - 14rem)" }}
+            title="Documento a firmar"
+          />
+        </div>
 
-          {isTerminalOrDone ? (
-            isDeclined ? (
-              <Card className="border-red-500/30 bg-red-50/50 dark:bg-red-950/20">
-                <CardContent className="pt-6 text-center space-y-3">
-                  <XCircle className="mx-auto h-10 w-10 text-red-600" />
-                  <p className="text-lg font-semibold text-red-700 dark:text-red-400">
-                    Firma rechazada
-                  </p>
+        {isTerminalOrDone ? (
+          <div className="mx-auto max-w-2xl px-4 py-10 md:px-8">
+            {isDeclined ? (
+              <Card className="border-red-500/35 bg-red-950/25">
+                <CardContent className="space-y-3 pt-8 text-center">
+                  <XCircle className="mx-auto h-10 w-10 text-red-500" />
+                  <p className="text-lg font-semibold text-red-400">Firma rechazada</p>
                   <p className="text-sm text-muted-foreground">
-                    Has indicado que no deseas firmar este documento.
-                    El equipo de Urus Capital ha sido notificado.
+                    Has indicado que no deseas firmar este documento. El equipo de Urus Capital ha sido
+                    notificado.
                   </p>
                 </CardContent>
               </Card>
             ) : (
-              <Card className="border-green-500/30 bg-green-50/50 dark:bg-green-950/20">
-                <CardContent className="pt-6 text-center space-y-3">
-                  <CheckCircle2 className="mx-auto h-10 w-10 text-green-600" />
-                  <p className="text-lg font-semibold text-green-700 dark:text-green-400">
-                    Documento firmado
-                  </p>
+              <Card className="border-emerald-500/35 bg-emerald-950/20">
+                <CardContent className="space-y-3 pt-8 text-center">
+                  <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" />
+                  <p className="text-lg font-semibold text-emerald-400">Documento firmado</p>
                   <p className="text-sm text-muted-foreground">
                     {meta.completedAt || result
                       ? `Firmado el ${new Date(meta.completedAt ?? new Date().toISOString()).toLocaleDateString("es-ES")}`
@@ -471,68 +473,58 @@ export default function FirmaPage() {
                       href={result?.signedDocumentUrl ?? meta.signedDocumentUrl!}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-block text-sm text-primary underline"
+                      className="inline-block text-sm font-medium text-primary underline underline-offset-4"
                     >
                       Descargar documento firmado
                     </a>
                   )}
                 </CardContent>
               </Card>
-            )
-          ) : (
-            <>
-              {/* --- Firma manuscrita --- */}
-              <Card>
+            )}
+          </div>
+        ) : (
+          <section className="border-t border-border/40 bg-background/80 backdrop-blur-sm">
+            <div className="mx-auto max-w-2xl space-y-8 px-4 py-10 md:px-8">
+              <Card className="border-border/80 bg-card/60 shadow-sm">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <PenLine className="h-4 w-4" />
-                    Firma manuscrita
+                  <CardTitle className="flex items-center gap-2 font-serif text-base">
+                    <FileText className="h-4 w-4 text-primary" />
+                    Datos del firmante
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="rounded-lg border-2 border-dashed border-muted-foreground/30 bg-white overflow-hidden">
-                    <SignatureCanvas
-                      ref={sigCanvasRef}
-                      penColor="#1a1a2e"
-                      canvasProps={{
-                        className: "w-full",
-                        style: { width: "100%", height: 160 },
-                      }}
-                      onEnd={() => setHasSig(true)}
-                    />
+                <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Nombre</p>
+                    <p className="font-medium">{meta.signerName}</p>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] text-muted-foreground">
-                      Dibuja tu firma dentro del recuadro
-                    </p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs gap-1"
-                      onClick={clearSignature}
-                      disabled={step !== "draw"}
-                    >
-                      <Eraser className="h-3 w-3" />
-                      Borrar
-                    </Button>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Email</p>
+                    <p className="font-medium break-all">{meta.signerEmail}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Documento</p>
+                    <p className="font-medium">{kindLabel}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Enviado</p>
+                    <p className="font-medium">{new Date(meta.sentAt).toLocaleDateString("es-ES")}</p>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* --- OTP / Verificación --- */}
-              {(step === "otp_input" || step === "otp_verifying" || step === "otp_sending") && (
-                <Card className="border-primary/30">
+              {(step === "otp_sending" || step === "otp_input" || step === "otp_verifying") && (
+                <Card className="border-primary/25 bg-primary/5">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-base">
                       <KeyRound className="h-4 w-4" />
                       Verificación por SMS
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {step === "otp_sending" ? (
-                      <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                      <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Enviando código...
+                        Enviando código al teléfono registrado…
                       </div>
                     ) : (
                       <>
@@ -540,14 +532,13 @@ export default function FirmaPage() {
                           <Smartphone className="h-4 w-4 shrink-0" />
                           <span>Código enviado al {otpPhone ?? "teléfono registrado"}</span>
                         </div>
-
                         <Input
                           type="text"
                           inputMode="numeric"
                           pattern="[0-9]*"
                           maxLength={6}
-                          placeholder="000000"
-                          className="text-center text-2xl tracking-[0.5em] font-mono"
+                          placeholder="• • • • • •"
+                          className="text-center text-2xl tracking-[0.45em] font-mono"
                           value={otpCode}
                           onChange={(e) => {
                             const v = e.target.value.replace(/\D/g, "").slice(0, 6);
@@ -557,139 +548,237 @@ export default function FirmaPage() {
                           disabled={step === "otp_verifying"}
                           autoFocus
                         />
-
-                        {otpError && (
-                          <p className="text-sm text-destructive">{otpError}</p>
-                        )}
-
+                        {otpError && <p className="text-sm text-destructive">{otpError}</p>}
                         <Button
                           className="w-full"
+                          size="lg"
                           onClick={handleVerifyOtp}
                           disabled={otpCode.length !== 6 || step === "otp_verifying"}
                         >
                           {step === "otp_verifying" ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Verificando...
+                              Verificando…
                             </>
                           ) : (
-                            "Verificar código"
+                            "Confirmar código"
                           )}
                         </Button>
-
                         <button
                           type="button"
-                          className="flex items-center justify-center gap-1 text-xs text-muted-foreground hover:text-primary mx-auto"
+                          className="flex w-full items-center justify-center gap-1 text-xs text-muted-foreground hover:text-primary"
                           onClick={handleResendOtp}
                           disabled={step === "otp_verifying"}
                         >
                           <RefreshCw className="h-3 w-3" />
                           Reenviar código
                         </button>
+                        <div className="border-t pt-4">
+                          <DeclineBlock
+                            declineReason={declineReason}
+                            setDeclineReason={setDeclineReason}
+                            declining={declining}
+                            onDecline={handleDecline}
+                          />
+                        </div>
                       </>
                     )}
                   </CardContent>
                 </Card>
               )}
 
-              {/* --- Consentimiento + Botón --- */}
-              {(step === "draw" || step === "signing") && (
+              {step === "review" && !otpVerified && (
                 <Card>
-                  <CardContent className="pt-6 space-y-4">
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      {CONSENT_TEXT}
-                    </p>
-
+                  <CardContent className="space-y-5 pt-6">
+                    <p className="text-sm leading-relaxed text-muted-foreground">{CONSENT_TEXT}</p>
                     {error && (
-                      <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                        {error}
-                      </div>
+                      <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
                     )}
-
-                    <Button
-                      className="w-full"
-                      size="lg"
-                      onClick={handleRequestOtp}
-                      disabled={step === "signing" || !hasSig}
-                    >
-                      {step === "signing" ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Firmando...
-                        </>
-                      ) : (
-                        "Firmar documento"
-                      )}
-                    </Button>
-
-                    {!hasSig && (
-                      <p className="text-[10px] text-amber-600 dark:text-amber-400 text-center">
-                        Dibuja tu firma arriba para habilitar el botón.
+                    <div className="space-y-2">
+                      <Button className="w-full" size="lg" onClick={handleRequestOtp}>
+                        Firmar documento
+                      </Button>
+                      <p className="text-center text-xs text-muted-foreground">
+                        Se enviará un código de un solo uso (SMS) al número verificado. Después podrás trazar tu firma
+                        manuscrita.
                       </p>
-                    )}
-
-                    <p className="text-[10px] text-muted-foreground text-center leading-tight">
-                      Se enviará un código de verificación a tu teléfono.
-                    </p>
-
-                    <div className="pt-2 border-t">
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="w-full text-xs text-muted-foreground hover:text-destructive"
-                            disabled={step === "signing"}
-                          >
-                            No deseo firmar este documento
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>
-                              ¿Rechazar la firma?
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Si rechazas, el documento volverá a estado borrador
-                              y el equipo será notificado. Esta acción no se puede deshacer.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <div className="px-0">
-                            <Textarea
-                              placeholder="Motivo del rechazo (opcional)"
-                              value={declineReason}
-                              onChange={(e) => setDeclineReason(e.target.value)}
-                              rows={3}
-                              className="text-sm"
-                            />
-                          </div>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={handleDecline}
-                              disabled={declining}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              {declining ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Rechazando...
-                                </>
-                              ) : (
-                                "Confirmar rechazo"
-                              )}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                    </div>
+                    <div className="border-t pt-4">
+                      <DeclineBlock
+                        declineReason={declineReason}
+                        setDeclineReason={setDeclineReason}
+                        declining={declining}
+                        onDecline={handleDecline}
+                      />
                     </div>
                   </CardContent>
                 </Card>
               )}
-            </>
-          )}
-        </aside>
+
+              {step === "review" && otpVerified && (
+                <Card className="border-amber-500/20 bg-amber-950/15">
+                  <CardContent className="space-y-4 pt-6">
+                    <p className="text-sm text-muted-foreground">
+                      Identidad verificada. Abre la ventana de firma para dibujar tu rúbrica y finalizar el acto.
+                    </p>
+                    <Button className="w-full" size="lg" onClick={() => setStep("awaiting_signature")}>
+                      Continuar con la firma manuscrita
+                    </Button>
+                    <DeclineBlock
+                      declineReason={declineReason}
+                      setDeclineReason={setDeclineReason}
+                      declining={declining}
+                      onDecline={handleDecline}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
+              {step === "awaiting_signature" && (
+                <p className="text-center text-sm text-muted-foreground">
+                  Completa tu firma en la ventana emergente. Si la cerraste, usa el botón inferior cuando vuelvas a
+                  esta pantalla.
+                </p>
+              )}
+            </div>
+          </section>
+        )}
       </main>
+
+      <Dialog
+        open={signatureModalOpen}
+        onOpenChange={(open) => {
+          if (!open && step === "signing") return;
+          if (!open && step === "awaiting_signature") setStep("review");
+        }}
+      >
+        <DialogContent
+          className="max-w-lg gap-0 p-0 sm:max-w-lg"
+          showCloseButton={step !== "signing"}
+          onPointerDownOutside={(e) => step === "signing" && e.preventDefault()}
+          onEscapeKeyDown={(e) => step === "signing" && e.preventDefault()}
+        >
+          <div className="border-b border-border/60 bg-muted/30 px-5 py-4">
+            <DialogHeader className="gap-1 text-left">
+              <DialogTitle className="font-serif text-lg">Firma manuscrita</DialogTitle>
+              <DialogDescription>
+                Dibuja tu firma en el recuadro. Esta imagen se incorporará al documento electrónico junto con la
+                evidencia de la verificación por SMS.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="space-y-4 px-5 py-5">
+            <div className="overflow-hidden rounded-lg border-2 border-dashed border-border bg-white">
+              <SignatureCanvas
+                key={otpId ?? "signature"}
+                ref={sigCanvasRef}
+                penColor="#0f172a"
+                canvasProps={{
+                  className: "w-full touch-none",
+                  style: { width: "100%", height: 200 },
+                }}
+                onEnd={() => setHasSig(true)}
+              />
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">Dibuja dentro del recuadro; puedes borrar y repetir.</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={clearSignature}
+                disabled={step === "signing"}
+              >
+                <Eraser className="h-3.5 w-3.5" />
+                Borrar
+              </Button>
+            </div>
+            {error && (
+              <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
+            )}
+          </div>
+          <DialogFooter className="border-t border-border/60 bg-muted/20 px-5 py-4 sm:justify-between">
+            <p className="hidden text-xs text-muted-foreground sm:block">Paso final: confirma solo cuando la firma sea legible.</p>
+            <Button
+              type="button"
+              size="lg"
+              className="w-full sm:w-auto min-w-[12rem]"
+              onClick={() => void executeSign()}
+              disabled={!hasSig || step === "signing"}
+            >
+              {step === "signing" ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Enviando firma…
+                </>
+              ) : (
+                <>
+                  <PenLine className="mr-2 h-4 w-4" />
+                  Finalizar firma
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+function DeclineBlock({
+  declineReason,
+  setDeclineReason,
+  declining,
+  onDecline,
+}: {
+  declineReason: string;
+  setDeclineReason: (v: string) => void;
+  declining: boolean;
+  onDecline: () => void | Promise<void>;
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground hover:text-destructive">
+          No deseo firmar este documento
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>¿Rechazar la firma?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Si rechazas, el documento volverá a estado borrador y el equipo será notificado. Esta acción no se puede
+            deshacer.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div>
+          <Textarea
+            placeholder="Motivo del rechazo (opcional)"
+            value={declineReason}
+            onChange={(e) => setDeclineReason(e.target.value)}
+            rows={3}
+            className="text-sm"
+          />
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onDecline}
+            disabled={declining}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {declining ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Rechazando…
+              </>
+            ) : (
+              "Confirmar rechazo"
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

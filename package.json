@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:dashboards": "vitest run lib/dashboard/__tests__/dashboards-api-integration.test.ts app/bi/__tests__/dashboards-ui-integration.test.tsx",
+    "test:dashboards": "vitest run lib/dashboard/__tests__/dashboards-api-integration.test.ts app/platform/bi/__tests__/dashboards-ui-integration.test.tsx",
     "dashboards:live-check": "tsx scripts/test-dashboards-live-integration.ts",
     "prepare": "husky",
     "commitlint": "commitlint",
@@ -30,7 +30,8 @@
     "whatsapp:test-m4": "tsx scripts/test-whatsapp-m4.ts",
     "agents:test-langgraph": "tsx scripts/test-langgraph.ts",
     "eval:nlu": "tsx scripts/run-nlu-eval.ts",
-    "m8:test-contract-upload": "tsx scripts/test-contract-docx-cloudinary.ts"
+    "m8:test-contract-upload": "tsx scripts/test-contract-docx-cloudinary.ts",
+    "sprint2:e2e": "tsx scripts/test-sprint2-e2e.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
