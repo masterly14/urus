@@ -50,6 +50,34 @@ export interface CeoOverviewPayload {
 }
 
 // ---------------------------------------------------------------------------
+// Snapshot financiero manual — status y campos editables
+// ---------------------------------------------------------------------------
+
+export interface SnapshotPeriodStatus {
+  /** Formato "YYYY-MM" */
+  period: string;
+  hasData: boolean;
+  /** Etiqueta legible: "abril de 2026" */
+  label: string;
+}
+
+export interface SnapshotStatusResult {
+  current: SnapshotPeriodStatus;
+  previous: SnapshotPeriodStatus;
+  /** true si alguno de los dos periodos no tiene datos */
+  needsData: boolean;
+}
+
+export interface CeoSnapshotFields {
+  ebitdaEur: number;
+  operatingCostEur: number;
+  cashAvailableEur: number;
+  fixedCostsEur: number;
+  variableCostsEur: number;
+  reinvestmentCapacity: number;
+}
+
+// ---------------------------------------------------------------------------
 // Capa 2 — Rendimiento por Ciudad
 // ---------------------------------------------------------------------------
 

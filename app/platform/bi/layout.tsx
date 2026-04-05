@@ -13,6 +13,7 @@ import {
     Users2,
 } from "lucide-react";
 import { useSession } from "@/lib/hooks/use-session";
+import { CeoSnapshotAlert } from "@/components/bi/ceo-snapshot-alert";
 
 interface BILayoutProps {
     children: React.ReactNode;
@@ -48,6 +49,7 @@ export default function BILayout({ children }: BILayoutProps) {
                     Control total de la empresa. Decisión basada en datos, no en intuición.
                 </p>
             </div>
+            <CeoSnapshotAlert />
             <div className="flex items-center space-x-1 overflow-x-auto pb-2">
                 {ceoNavigation.map((item) => {
                     const isActive = pathname.startsWith(item.href);

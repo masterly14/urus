@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
     Activity,
@@ -8,17 +8,21 @@ import {
     Banknote,
     Building2,
     DollarSign,
+    Pencil,
     PiggyBank,
     TrendingUp,
     Users,
     Wallet,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { Semaforo } from "@/components/dashboard/semaforo";
 import { SimpleAreaChart } from "@/components/bi/charts";
+import { CeoSnapshotModal } from "@/components/bi/ceo-snapshot-modal";
 import { useCeoOverview } from "@/lib/hooks/use-ceo-overview";
+import { useCeoSnapshotStatus } from "@/lib/hooks/use-ceo-snapshot-status";
 import { formatEur } from "@/lib/utils/format";
 import type { CeoOverviewPayload, KpiValue, SemaforoStatus } from "@/lib/dashboard/ceo/types";
 import { datosFinancieros } from "@/lib/mock-data/financiero";
@@ -84,9 +88,16 @@ function VisionEjecutivaPageInner() {
     const searchParams = useSearchParams();
     const useMock = searchParams.get("mock") === "1";
 
-    const { data: apiData, loading, error } = useCeoOverview();
+    const { data: apiData, loading, error, refetch } = useCeoOverview();
+    const { data: snapshotStatus, refetch: refetchStatus } = useCeoSnapshotStatus();
+    const [editModalOpen, setEditModalOpen] = useState(false);
 
     const data: CeoOverviewPayload | null = useMock ? buildMockPayload() : apiData;
+
+    function handleSnapshotSuccess() {
+        void refetch();
+        void refetchStatus();
+    }
 
     if (!useMock && loading) {
         return (
@@ -190,11 +201,23 @@ function VisionEjecutivaPageInner() {
 
                 {/* Semáforos globales */}
                 <Card className="md:col-span-3">
-                    <CardHeader>
-                        <CardTitle>Estado de la Empresa</CardTitle>
-                        <CardDescription>
-                            Visión instantánea por área crítica.
-                        </CardDescription>
+                    <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                        <div>
+                            <CardTitle>Estado de la Empresa</CardTitle>
+                            <CardDescription>
+                                Visión instantánea por área crítica.
+                            </CardDescription>
+                        </div>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => setEditModalOpen(true)}
+                            title="Editar datos financieros del periodo"
+                        >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Datos financieros
+                        </Button>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-5 py-2">
@@ -319,6 +342,17 @@ function VisionEjecutivaPageInner() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Modal de edición de datos financieros */}
+            {snapshotStatus && (
+                <CeoSnapshotModal
+                    open={editModalOpen}
+                    onOpenChange={setEditModalOpen}
+                    periods={[snapshotStatus.previous, snapshotStatus.current]}
+                    defaultPeriod={snapshotStatus.current.period}
+                    onSuccess={handleSnapshotSuccess}
+                />
+            )}
         </div>
     );
 }
