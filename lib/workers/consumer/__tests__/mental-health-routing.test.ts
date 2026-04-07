@@ -8,7 +8,13 @@ vi.mock("@/lib/prisma", () => ({
       upsert: vi.fn(),
     },
     event: { findMany: vi.fn().mockResolvedValue([]) },
-    comercial: { findUnique: vi.fn().mockResolvedValue(null) },
+    comercial: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
+    commercialVisitFact: { count: vi.fn().mockResolvedValue(0) },
+    operacion: { count: vi.fn().mockResolvedValue(0) },
+    commercialOperationFact: { count: vi.fn().mockResolvedValue(0) },
   },
 }));
 
@@ -45,6 +51,7 @@ import {
   isCoachActivation,
   isCoachExit,
   getActiveSession,
+  handleMentalHealthMessage,
 } from "../mental-health-handler";
 import { prisma } from "@/lib/prisma";
 
@@ -102,6 +109,7 @@ describe("getActiveSession", () => {
       waId: "34600111222",
       comercialId: null,
       flujoActivo: "bloqueo",
+      flujoStep: null,
       subtipoBloqueo: null,
       nivelEnergia: 3,
       turnCount: 5,
@@ -121,6 +129,7 @@ describe("getActiveSession", () => {
       waId: "34600111222",
       comercialId: null,
       flujoActivo: "bloqueo",
+      flujoStep: 2,
       subtipoBloqueo: null,
       nivelEnergia: 3,
       turnCount: 5,
@@ -147,6 +156,7 @@ describe("getActiveSession", () => {
       waId: "34600111222",
       comercialId: null,
       flujoActivo: "preparacion",
+      flujoStep: 1,
       subtipoBloqueo: null,
       nivelEnergia: 4,
       turnCount: 2,
@@ -159,5 +169,112 @@ describe("getActiveSession", () => {
 
     const result = await getActiveSession("34600111222");
     expect(result).toEqual(session);
+  });
+});
+
+describe("handleMentalHealthMessage — bienvenida", () => {
+  const fakeEvent = {
+    id: "evt-1",
+    type: "WHATSAPP_RECIBIDO" as const,
+    aggregateType: "WHATSAPP_CONVERSATION" as const,
+    aggregateId: "34600111222",
+    version: 1,
+    position: BigInt(1),
+    payload: { text: { body: "/coach" } },
+    metadata: null,
+    correlationId: null,
+    causationId: null,
+    occurredAt: new Date(),
+    createdAt: new Date(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockProcessMentalHealth.mockResolvedValue({
+      responseText: "Buenas, ¿cómo andas?",
+      classification: {
+        flujo: "saludo",
+        subtipoBloqueo: null,
+        nivelEnergia: 3,
+        focoDispersion: "centrado",
+        urgencia: "baja",
+        reasoning: "Es un saludo",
+      },
+    });
+  });
+
+  it("envía mensaje de bienvenida al crear sesión nueva", async () => {
+    vi.mocked(prisma.mentalHealthSession.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.mentalHealthSession.upsert).mockResolvedValue({
+      id: "s-new",
+      waId: "34600111222",
+      comercialId: null,
+      flujoActivo: null,
+      flujoStep: null,
+      subtipoBloqueo: null,
+      nivelEnergia: null,
+      turnCount: 0,
+      lastMessageAt: new Date(),
+      closedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    vi.mocked(prisma.mentalHealthSession.update).mockResolvedValue({} as never);
+
+    await handleMentalHealthMessage(fakeEvent, "/coach", "34600111222");
+
+    expect(mockSendTextMessage).toHaveBeenCalledTimes(2);
+    const welcomeCall = mockSendTextMessage.mock.calls[0];
+    expect(welcomeCall[0]).toBe("34600111222");
+    expect(welcomeCall[1]).toContain("entre nosotros");
+  });
+
+  it("NO envía bienvenida si la sesión ya existe", async () => {
+    const recentDate = new Date(Date.now() - 5 * 60 * 1000);
+    vi.mocked(prisma.mentalHealthSession.findUnique).mockResolvedValue({
+      id: "s-existing",
+      waId: "34600111222",
+      comercialId: null,
+      flujoActivo: "saludo",
+      flujoStep: 1,
+      subtipoBloqueo: null,
+      nivelEnergia: 3,
+      turnCount: 1,
+      lastMessageAt: recentDate,
+      closedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    vi.mocked(prisma.mentalHealthSession.update).mockResolvedValue({} as never);
+
+    await handleMentalHealthMessage(fakeEvent, "¿cómo estoy?", "34600111222");
+
+    expect(mockSendTextMessage).toHaveBeenCalledTimes(1);
+    expect(mockSendTextMessage.mock.calls[0][1]).toBe("Buenas, ¿cómo andas?");
+  });
+
+  it("persiste la bienvenida como MENTAL_MSG_ENVIADO", async () => {
+    vi.mocked(prisma.mentalHealthSession.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.mentalHealthSession.upsert).mockResolvedValue({
+      id: "s-new",
+      waId: "34600111222",
+      comercialId: null,
+      flujoActivo: null,
+      flujoStep: null,
+      subtipoBloqueo: null,
+      nivelEnergia: null,
+      turnCount: 0,
+      lastMessageAt: new Date(),
+      closedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    vi.mocked(prisma.mentalHealthSession.update).mockResolvedValue({} as never);
+
+    await handleMentalHealthMessage(fakeEvent, "/coach", "34600111222");
+
+    const welcomeEventCall = mockAppendEvent.mock.calls[0];
+    expect(welcomeEventCall[0].type).toBe("MENTAL_MSG_ENVIADO");
+    expect(welcomeEventCall[0].payload.isWelcome).toBe(true);
   });
 });

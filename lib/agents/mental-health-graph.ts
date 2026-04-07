@@ -86,6 +86,7 @@ function createResponseNode(flujoName: MentalHealthFlujo) {
         crmContext,
         conversationHistory,
         sessionContext.turnCount,
+        sessionContext.flujoStep,
       );
 
       const result = await llmMentalHealth.invoke([

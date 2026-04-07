@@ -87,6 +87,7 @@ export interface MentalHealthGraphInput {
   conversationHistory: MentalHealthConversationTurn[];
   sessionContext: {
     flujoActivo: string | null;
+    flujoStep: number | null;
     turnCount: number;
     nivelEnergia: number | null;
   };

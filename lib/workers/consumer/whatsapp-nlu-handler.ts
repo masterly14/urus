@@ -286,36 +286,57 @@ async function loadSelectionProperties(
   }));
 }
 
+const COACH_PREFIX_RE = /^\/?coach\b/i;
+
 async function loadConversationHistory(
   waId: string,
   limit: number = 10,
 ): Promise<ConversationTurn[]> {
-  const events = await prisma.event.findMany({
-    where: {
-      aggregateType: "WHATSAPP_CONVERSATION",
-      aggregateId: waId,
-      type: { in: ["WHATSAPP_RECIBIDO", "WHATSAPP_ENVIADO"] },
-    },
-    orderBy: { position: "desc" },
-    take: limit,
-    select: { type: true, payload: true, occurredAt: true },
-  });
+  const [events, mentalSession] = await Promise.all([
+    prisma.event.findMany({
+      where: {
+        aggregateType: "WHATSAPP_CONVERSATION",
+        aggregateId: waId,
+        type: { in: ["WHATSAPP_RECIBIDO", "WHATSAPP_ENVIADO"] },
+      },
+      orderBy: { position: "desc" },
+      take: limit,
+      select: { type: true, payload: true, occurredAt: true },
+    }),
+    prisma.mentalHealthSession.findUnique({
+      where: { waId },
+      select: { createdAt: true, closedAt: true },
+    }),
+  ]);
 
-  return events.reverse().map((evt) => {
-    const p = (evt.payload ?? {}) as Record<string, unknown>;
-    let text = "";
-    if (evt.type === "WHATSAPP_RECIBIDO") {
+  return events
+    .reverse()
+    .filter((evt) => {
+      if (evt.type !== "WHATSAPP_RECIBIDO") return true;
+      const p = (evt.payload ?? {}) as Record<string, unknown>;
       const textObj = p.text as Record<string, unknown> | undefined;
-      text = typeof textObj?.body === "string" ? textObj.body : "";
-    } else {
-      text = typeof p.kind === "string" ? `[Enviado: ${p.kind}]` : "[Mensaje enviado]";
-    }
-    return {
-      role: evt.type === "WHATSAPP_RECIBIDO" ? "buyer" as const : "system" as const,
-      text,
-      timestamp: evt.occurredAt.toISOString(),
-    };
-  });
+      const body = typeof textObj?.body === "string" ? textObj.body : "";
+      if (COACH_PREFIX_RE.test(body.trim())) return false;
+      if (mentalSession && !mentalSession.closedAt && evt.occurredAt >= mentalSession.createdAt) {
+        return false;
+      }
+      return true;
+    })
+    .map((evt) => {
+      const p = (evt.payload ?? {}) as Record<string, unknown>;
+      let text = "";
+      if (evt.type === "WHATSAPP_RECIBIDO") {
+        const textObj = p.text as Record<string, unknown> | undefined;
+        text = typeof textObj?.body === "string" ? textObj.body : "";
+      } else {
+        text = typeof p.kind === "string" ? `[Enviado: ${p.kind}]` : "[Mensaje enviado]";
+      }
+      return {
+        role: evt.type === "WHATSAPP_RECIBIDO" ? "buyer" as const : "system" as const,
+        text,
+        timestamp: evt.occurredAt.toISOString(),
+      };
+    });
 }
 
 // ---------------------------------------------------------------------------

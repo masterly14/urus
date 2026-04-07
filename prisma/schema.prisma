@@ -1051,6 +1051,7 @@ model MentalHealthSession {
   waId           String    @unique
   comercialId    String?
   flujoActivo    String?
+  flujoStep      Int?
   subtipoBloqueo String?
   nivelEnergia   Int?
   turnCount      Int       @default(0)

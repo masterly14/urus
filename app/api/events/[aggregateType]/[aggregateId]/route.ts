@@ -8,6 +8,8 @@ const VALID_AGGREGATE_TYPES = new Set<string>(
   Object.values(AggregateTypeEnum) as string[],
 );
 
+const PRIVATE_AGGREGATE_TYPES = new Set<string>(["MENTAL_CONVERSATION"]);
+
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 500;
 
@@ -49,6 +51,13 @@ export async function GET(request: Request, { params }: RouteParams) {
         allowed: Array.from(VALID_AGGREGATE_TYPES),
       },
       { status: 400 },
+    );
+  }
+
+  if (PRIVATE_AGGREGATE_TYPES.has(aggregateType)) {
+    return NextResponse.json(
+      { error: "This aggregate type is private and cannot be queried" },
+      { status: 403 },
     );
   }
 

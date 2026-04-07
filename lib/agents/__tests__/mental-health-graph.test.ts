@@ -25,6 +25,7 @@ function makeInput(overrides?: Partial<MentalHealthGraphInput>): MentalHealthGra
     conversationHistory: [],
     sessionContext: {
       flujoActivo: null,
+      flujoStep: null,
       turnCount: 0,
       nivelEnergia: null,
     },
@@ -160,5 +161,78 @@ describe("processMentalHealthMessage", () => {
 
     const result = await processMentalHealthMessage(makeInput());
     expect(result.responseText).toBeTruthy();
+  });
+
+  it("pasa flujoStep al prompt de respuesta para subflujo bloqueo", async () => {
+    const classification = makeClassification({ flujo: "bloqueo", subtipoBloqueo: "miedo" });
+    mockClassifierInvoke.mockResolvedValue(classification);
+    mockResponderInvoke.mockResolvedValue({ content: "¿Qué parte exacta del cierre te frena?" });
+
+    await processMentalHealthMessage(
+      makeInput({
+        sessionContext: { flujoActivo: "bloqueo", flujoStep: 1, turnCount: 1, nivelEnergia: 2 },
+      }),
+    );
+
+    const responderCall = mockResponderInvoke.mock.calls[0][0];
+    const systemPrompt = responderCall[0].content as string;
+    expect(systemPrompt).toContain("FASE ACTUAL: CONCRETAR");
+  });
+
+  it("pasa flujoStep al prompt de respuesta para subflujo preparacion", async () => {
+    const classification = makeClassification({
+      flujo: "preparacion",
+      subtipoBloqueo: null,
+      nivelEnergia: 4,
+    });
+    mockClassifierInvoke.mockResolvedValue(classification);
+    mockResponderInvoke.mockResolvedValue({ content: "¿Qué sabes del comprador?" });
+
+    await processMentalHealthMessage(
+      makeInput({
+        messageText: "Es una visita, un matrimonio joven",
+        sessionContext: { flujoActivo: "preparacion", flujoStep: 1, turnCount: 1, nivelEnergia: 4 },
+      }),
+    );
+
+    const responderCall = mockResponderInvoke.mock.calls[0][0];
+    const systemPrompt = responderCall[0].content as string;
+    expect(systemPrompt).toContain("FASE ACTUAL: INTEL");
+  });
+
+  it("usa paso 0 (IDENTIFICAR) cuando flujoStep es null en bloqueo", async () => {
+    const classification = makeClassification({ flujo: "bloqueo" });
+    mockClassifierInvoke.mockResolvedValue(classification);
+    mockResponderInvoke.mockResolvedValue({ content: "¿Qué te tiene parado?" });
+
+    await processMentalHealthMessage(
+      makeInput({
+        sessionContext: { flujoActivo: null, flujoStep: null, turnCount: 0, nivelEnergia: null },
+      }),
+    );
+
+    const responderCall = mockResponderInvoke.mock.calls[0][0];
+    const systemPrompt = responderCall[0].content as string;
+    expect(systemPrompt).toContain("FASE ACTUAL: IDENTIFICAR");
+  });
+
+  it("usa paso 4 (MICRO-RUTINA) para preparacion en paso final", async () => {
+    const classification = makeClassification({
+      flujo: "preparacion",
+      subtipoBloqueo: null,
+      nivelEnergia: 4,
+    });
+    mockClassifierInvoke.mockResolvedValue(classification);
+    mockResponderInvoke.mockResolvedValue({ content: "Respira hondo tres veces..." });
+
+    await processMentalHealthMessage(
+      makeInput({
+        sessionContext: { flujoActivo: "preparacion", flujoStep: 4, turnCount: 4, nivelEnergia: 4 },
+      }),
+    );
+
+    const responderCall = mockResponderInvoke.mock.calls[0][0];
+    const systemPrompt = responderCall[0].content as string;
+    expect(systemPrompt).toContain("MICRO-RUTINA PRE-CIERRE");
   });
 });

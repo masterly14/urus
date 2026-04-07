@@ -39,6 +39,25 @@ function stripCoachPrefix(messageText: string): string {
   return messageText.trim().replace(COACH_PREFIX, "").trim();
 }
 
+// ── Lookup de comercialId por waId ───────────────────────────────────────────
+// TODO(auth): cuando exista el sistema de autenticación, el comercialId
+// se obtendrá directamente del token/sesión. Este lookup por teléfono es temporal.
+
+async function resolveComercialIdByWaId(waId: string): Promise<string | null> {
+  const last9 = waId.replace(/\D/g, "").slice(-9);
+  if (last9.length < 9) return null;
+
+  const comercial = await prisma.comercial.findFirst({
+    where: {
+      activo: true,
+      telefono: { endsWith: last9 },
+    },
+    select: { id: true },
+  });
+
+  return comercial?.id ?? null;
+}
+
 // ── Session management ──────────────────────────────────────────────────────
 
 export async function getActiveSession(waId: string) {
@@ -92,6 +111,8 @@ async function loadMentalHealthHistory(
 
 // ── Contexto CRM (ligero, sin invadir) ─────────────────────────────────────
 
+const MS_PER_DAY = 86_400_000;
+
 async function loadCrmContext(
   _waId: string,
   comercialId: string | null,
@@ -106,12 +127,46 @@ async function loadCrmContext(
 
     if (!comercial) return null;
 
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const [visitasHoy, opsPendientes, opsCanceladas, cierresRecientes] =
+      await Promise.all([
+        prisma.commercialVisitFact.count({
+          where: {
+            comercialId,
+            scheduledAt: { gte: todayStart, lte: todayEnd },
+          },
+        }),
+        prisma.operacion.count({
+          where: {
+            comercialId,
+            estado: { in: ["ARRAS", "PENDIENTE_FIRMA"] },
+          },
+        }),
+        prisma.operacion.count({
+          where: {
+            comercialId,
+            estado: "CANCELADA",
+            updatedAt: { gte: new Date(Date.now() - 14 * MS_PER_DAY) },
+          },
+        }),
+        prisma.commercialOperationFact.count({
+          where: {
+            comercialId,
+            closedAt: { gte: new Date(Date.now() - 30 * MS_PER_DAY) },
+          },
+        }),
+      ]);
+
     return {
       nombreComercial: comercial.nombre,
       ciudad: comercial.ciudad ?? "desconocida",
-      cierresPendientesHoy: 0,
-      operacionPerdidaReciente: false,
-      rachaPositiva: false,
+      cierresPendientesHoy: visitasHoy + opsPendientes,
+      operacionPerdidaReciente: opsCanceladas > 0,
+      rachaPositiva: cierresRecientes >= 2,
     };
   } catch {
     return null;
@@ -143,25 +198,49 @@ export async function handleMentalHealthMessage(
 
   const existingSession = await getActiveSession(waId);
 
+  const comercialId = existingSession?.comercialId ?? await resolveComercialIdByWaId(waId);
+
   const session = existingSession
     ? existingSession
     : await prisma.mentalHealthSession.upsert({
         where: { waId },
         create: {
           waId,
-          comercialId: null,
+          comercialId,
           turnCount: 0,
           lastMessageAt: new Date(),
         },
         update: {
           closedAt: null,
+          comercialId,
           turnCount: 0,
           flujoActivo: null,
+          flujoStep: null,
           subtipoBloqueo: null,
           nivelEnergia: null,
           lastMessageAt: new Date(),
         },
       });
+
+  const WELCOME_TEXT =
+    "Buenas. Esto queda entre nosotros, nadie más ve esta conversación. Cuéntame, ¿qué te ronda?";
+
+  if (!existingSession) {
+    await sendTextMessage(waId, WELCOME_TEXT);
+    await appendEvent({
+      type: "MENTAL_MSG_ENVIADO" as never,
+      aggregateType: "MENTAL_CONVERSATION" as never,
+      aggregateId: waId,
+      payload: {
+        text: WELCOME_TEXT,
+        classification: null,
+        sessionId: session.id,
+        isWelcome: true,
+      } as unknown as JsonValue,
+      correlationId: event.correlationId ?? undefined,
+      causationId: event.id,
+    });
+  }
 
   await appendEvent({
     type: "MENTAL_MSG_RECIBIDO" as never,
@@ -186,6 +265,7 @@ export async function handleMentalHealthMessage(
     conversationHistory,
     sessionContext: {
       flujoActivo: session.flujoActivo,
+      flujoStep: session.flujoStep,
       turnCount: session.turnCount,
       nivelEnergia: session.nivelEnergia,
     },
@@ -207,10 +287,14 @@ export async function handleMentalHealthMessage(
     causationId: event.id,
   });
 
+  const flujoChanged = session.flujoActivo !== result.classification.flujo;
+  const nextFlujoStep = flujoChanged ? 1 : (session.flujoStep ?? 0) + 1;
+
   await prisma.mentalHealthSession.update({
     where: { waId },
     data: {
       flujoActivo: result.classification.flujo,
+      flujoStep: nextFlujoStep,
       subtipoBloqueo: result.classification.subtipoBloqueo,
       nivelEnergia: result.classification.nivelEnergia,
       turnCount: { increment: 1 },

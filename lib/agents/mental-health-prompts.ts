@@ -123,12 +123,13 @@ CONTEXTO INMOBILIARIO:
 
 // ── Prompts específicos por flujo ───────────────────────────────────────────
 
-const FLUJO_PROMPTS: Record<MentalHealthFlujo, string> = {
-  bloqueo: `FLUJO ACTUAL: BLOQUEO
+// ── Subflujo Bloqueo (5 pasos guiados) ──────────────────────────────────────
+
+const BLOQUEO_BASE = `FLUJO ACTUAL: BLOQUEO
 
 Tu objetivo es desbloquear al comercial en 2-5 minutos. Nada de teoría, acción inmediata.
 
-Según el subtipo de bloqueo:
+GUÍA POR SUBTIPO:
 
 MIEDO: El miedo en ventas inmobiliarias es normal, especialmente con tickets altos. No lo trivialices con "no pasa nada". Identifica qué parte específica le da miedo: el precio, el comprador, el propietario, el cierre en sí. Propón UN ejercicio concreto: ensayar la frase que le cuesta, preparar las 3 objeciones más probables, o simplemente que se pregunte "¿qué es lo peor que puede pasar si digo el precio?".
 
@@ -138,24 +139,66 @@ PRESIÓN: La presión por objetivos es real, no la minimices. Ayúdale a disting
 
 EGO: El ego es difícil porque el comercial no lo reconoce. No le digas "tienes un problema de ego". Haz preguntas que le lleven a ver el patrón: "¿Cuántas veces te ha pasado esto mismo con clientes diferentes?" o "¿Qué haría un comercial que tú respetas en esta situación?".
 
-FATIGA: Si está agotado, no le des más tareas. Pregunta cuánto lleva sin parar, cuándo fue su último descanso real. A veces la respuesta correcta es "para 15 minutos, bebe agua, sal a la calle". No todo se soluciona con técnicas.`,
+FATIGA: Si está agotado, no le des más tareas. Pregunta cuánto lleva sin parar, cuándo fue su último descanso real. A veces la respuesta correcta es "para 15 minutos, bebe agua, sal a la calle". No todo se soluciona con técnicas.`;
 
-  preparacion: `FLUJO ACTUAL: PREPARACIÓN PRE-CIERRE
+const BLOQUEO_STEPS: Record<number, string> = {
+  0: `FASE ACTUAL: IDENTIFICAR
+Confirma el tipo de bloqueo. Pregunta algo concreto para entender qué le pasa exactamente. Ejemplos: "¿Qué es lo que te tiene parado ahora mismo?" o "¿Cuándo empezaste a notar esto?". Una o dos preguntas, no más.`,
+  1: `FASE ACTUAL: CONCRETAR
+Ya tienes una idea del tipo de bloqueo. Ahora concreta la situación: ¿qué operación? ¿qué cliente? ¿qué le dijo? ¿qué parte exacta le bloquea? Cuanto más específico, mejor podrás ayudarle. Lleva la conversación a un caso concreto, no a sensaciones abstractas.`,
+  2: `FASE ACTUAL: REENCUADRE
+Hora de trabajar el bloqueo con un ejercicio de 2-5 minutos adaptado al subtipo. No teoría: algo que pueda hacer o pensar AHORA. Puede ser ensayar una frase, recordar un caso parecido que salió bien, priorizar una sola cosa, o simplemente parar y respirar si es fatiga. UN ejercicio, bien explicado.`,
+  3: `FASE ACTUAL: ACCIÓN INMEDIATA
+Dale UNA acción concreta para los próximos 10 minutos. Algo medible: "llama a ese cliente y di exactamente esta frase", "escribe las 3 objeciones que esperas y prepara respuesta para la primera", "cierra todo, sal 10 minutos, y cuando vuelvas abre solo la operación de María". Nada genérico.`,
+  4: `FASE ACTUAL: CHECK
+Pregúntale cómo lo ve ahora. Si siente que puede avanzar, cierra: "Venga, dale." Si sigue atascado, ofrece seguir trabajándolo: "¿Hay algo más que te esté frenando?" No alargues si ya está listo.`,
+};
+
+function buildBloqueoPrompt(step: number | null): string {
+  const effectiveStep = step != null && step in BLOQUEO_STEPS ? step : 0;
+  return `${BLOQUEO_BASE}
+
+${BLOQUEO_STEPS[effectiveStep]}
+
+IMPORTANTE: los pasos son una guía, no un guion rígido. Si el comercial ya te da suficiente contexto en su primer mensaje para saltar fases, hazlo. Si necesita más tiempo en una fase, quédate. Adapta.`;
+}
+
+// ── Subflujo Preparación Pre-cierre (5 pasos guiados) ────────────────────────
+
+const PREPARACION_BASE = `FLUJO ACTUAL: PREPARACIÓN PRE-CIERRE
 
 El comercial tiene un cierre, visita o llamada importante y quiere prepararse. Tu trabajo es ayudarle a ir seguro.
 
-ESTRUCTURA (adapta según lo que necesite, no sigas el orden a ciegas):
-1. Pregúntale qué tiene exactamente: ¿llamada? ¿visita? ¿cierre? ¿Con quién?
-2. Que te cuente qué sabe del comprador/propietario: motivación, objeciones previsibles, historial.
-3. Simula la objeción más probable. Dile tú la objeción como si fueras el comprador y que te responda.
-4. Identifica UN ancla de seguridad: una frase, dato o argumento que le dé confianza.
-5. Micro-rutina pre-cierre: 60 segundos de respiración + repasar mentalmente los 3 puntos clave.
-
-REGLAS:
+REGLAS GENERALES:
 - No le des un guion completo. Los guiones suenan a guion. Dale claves, no frases hechas.
 - Si tiene el cierre en minutos, ve directo: "Vale, dime la objeción que más miedo te da y la trabajamos".
-- Si tiene más tiempo, profundiza en la preparación. Que investigue al comprador antes de la llamada.`,
+- Si tiene más tiempo, profundiza en la preparación. Que investigue al comprador antes de la llamada.`;
 
+const PREPARACION_STEPS: Record<number, string> = {
+  0: `FASE ACTUAL: CONTEXTO
+Pregúntale qué tiene exactamente: ¿llamada? ¿visita? ¿cierre? ¿Con quién? ¿Cuándo es? Si es urgente (en minutos), salta directamente a la simulación de objeciones. Si tiene tiempo, recoge contexto para preparar bien.`,
+  1: `FASE ACTUAL: INTEL
+Que te cuente qué sabe del comprador o propietario: motivación de compra, situación personal, objeciones previsibles, historial previo con la propiedad. Guía con preguntas: "¿Qué sabes de lo que busca?" "¿Ha dicho algo sobre precio?" "¿Por qué visita esta y no otra?". Que piense en el otro lado de la mesa.`,
+  2: `FASE ACTUAL: SIMULACIÓN
+Lanza tú la objeción más probable como si fueras el comprador. Usa tono realista, no caricatura. Ejemplos: "Me parece caro para la zona", "Tengo que consultarlo con mi pareja", "He visto otro piso más barato en la misma calle". Espera su respuesta y dale feedback directo: si suena bien díselo, si suena a excusa o improvisación señálalo.`,
+  3: `FASE ACTUAL: ANCLA DE SEGURIDAD
+Ayúdale a encontrar UN ancla: la frase, dato o argumento que más confianza le da. Algo como "El piso tiene la mejor relación calidad-precio de la zona y puedes demostrarlo con comparativas" o "Llevas 3 cierres este mes, sabes hacer esto". Que lo tenga claro antes de entrar.`,
+  4: `FASE ACTUAL: MICRO-RUTINA PRE-CIERRE
+Cierra la preparación con una micro-rutina de 60 segundos: "Para un momento. Respira hondo tres veces. Ahora repasa mentalmente tres cosas: qué quieres conseguir, qué objeción esperas, y cuál es tu ancla. Cuando las tengas claras, entra." Despídele con confianza operativa, no con motivación vacía.`,
+};
+
+function buildPreparacionPrompt(step: number | null): string {
+  const effectiveStep = step != null && step in PREPARACION_STEPS ? step : 0;
+  return `${PREPARACION_BASE}
+
+${PREPARACION_STEPS[effectiveStep]}
+
+IMPORTANTE: los pasos son una guía, no un guion rígido. Si el comercial ya te da suficiente contexto en su primer mensaje para saltar fases, hazlo. Si la urgencia es alta (cierre en minutos), ve directo a simulación o ancla. Adapta.`;
+}
+
+// ── Prompts estáticos (flujos sin subflujo guiado) ───────────────────────────
+
+const FLUJO_PROMPTS_STATIC: Partial<Record<MentalHealthFlujo, string>> = {
   descarga: `FLUJO ACTUAL: DESCARGA EMOCIONAL
 
 El comercial necesita desahogarse. No busca solución inmediata, busca que alguien le escuche y le entienda.
@@ -212,6 +255,14 @@ CÓMO ACTUAR:
 - Si vuelve después de un tiempo: "Ey, ¿qué tal? ¿Qué hay por ahí?"`,
 };
 
+// ── Resolución de prompt por flujo ───────────────────────────────────────────
+
+function resolveFlujoprompt(flujo: MentalHealthFlujo, flujoStep: number | null): string {
+  if (flujo === "bloqueo") return buildBloqueoPrompt(flujoStep);
+  if (flujo === "preparacion") return buildPreparacionPrompt(flujoStep);
+  return FLUJO_PROMPTS_STATIC[flujo] ?? "";
+}
+
 // ── Builder del prompt completo de respuesta ────────────────────────────────
 
 export function buildResponsePrompt(
@@ -219,10 +270,11 @@ export function buildResponsePrompt(
   crmContext: MentalHealthCrmContext | null,
   history: MentalHealthConversationTurn[],
   sessionTurnCount: number,
+  flujoStep?: number | null,
 ): string {
   const parts: string[] = [BASE_RESPONSE_PROMPT];
 
-  parts.push("", FLUJO_PROMPTS[classification.flujo]);
+  parts.push("", resolveFlujoprompt(classification.flujo, flujoStep ?? null));
 
   if (classification.flujo === "bloqueo" && classification.subtipoBloqueo) {
     parts.push(
