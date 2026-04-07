@@ -95,6 +95,7 @@ enum JobType {
   SEND_REVIEW_REQUEST
   SEND_REFERRAL_REQUEST
   SEND_REVIEW_REMINDER
+  SEND_DEV_EXERCISE_NUDGE
 }
 
 enum JobStatus {
@@ -1109,4 +1110,37 @@ model EvalResult {
   @@index([category])
   @@index([overallScore])
   @@map("eval_results")
+}
+
+enum DevExerciseType {
+  DAILY
+  WEEKLY_CHALLENGE
+}
+
+enum DevExerciseStatus {
+  NUDGE_SENT
+  DELIVERED
+  COMPLETED
+  SKIPPED
+}
+
+model DevProgramExercise {
+  id              String            @id @default(cuid())
+  comercialId     String
+  waId            String
+  type            DevExerciseType
+  theme           String
+  weekNumber      Int
+  dayOfWeek       Int?
+  exerciseContent String?           @db.Text
+  nudgeSentAt     DateTime?
+  deliveredAt     DateTime?
+  completedAt     DateTime?
+  status          DevExerciseStatus @default(NUDGE_SENT)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([comercialId, weekNumber, dayOfWeek, type])
+  @@index([waId, status])
+  @@map("dev_program_exercises")
 }

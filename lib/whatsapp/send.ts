@@ -1079,3 +1079,36 @@ export async function sendPostventaRecaptacion(
   ];
   return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
 }
+
+// ── M12 — Desarrollo Continuo: nudge de ejercicio diario/semanal ────────────
+
+const DEV_EXERCISE_NUDGE_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_DEV_EXERCISE ?? "dev_ejercicio_diario";
+
+export interface DevExerciseNudgeParams {
+  comercialName: string;
+  exerciseTypeLabel: string;
+  themeLabel: string;
+}
+
+export async function sendDevExerciseNudge(
+  to: string,
+  params: DevExerciseNudgeParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const template: TemplateObject = {
+    name: DEV_EXERCISE_NUDGE_TEMPLATE,
+    language: { code: "es_ES" },
+    components: [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: params.comercialName },
+          { type: "text", text: params.exerciseTypeLabel },
+          { type: "text", text: params.themeLabel },
+        ],
+      },
+    ],
+  };
+  return sendTemplateMessage(to, template, options);
+}

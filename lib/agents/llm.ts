@@ -47,3 +47,14 @@ export const llmMentalHealth = new ChatOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   timeout: 45_000,
 });
+
+/**
+ * M12 — Desarrollo Continuo: generador de micro-ejercicios y retos semanales.
+ * Temperatura 0.8 para variedad en ejercicios (evitar repetición entre días).
+ */
+export const llmDevExercise = new ChatOpenAI({
+  model: "gpt-5.4-mini",
+  temperature: 0.8,
+  apiKey: process.env.OPENAI_API_KEY,
+  timeout: 30_000,
+});

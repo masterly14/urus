@@ -27,6 +27,10 @@ import {
   getActiveSession,
   handleMentalHealthMessage,
 } from "./mental-health-handler";
+import {
+  isExerciseRequest,
+  routeToDevProgramIfApplicable,
+} from "@/lib/dev-program/exercise-router";
 
 type WhatsAppReceivedPayload = {
   messageId?: string;
@@ -381,6 +385,12 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
     return { success: true };
   }
 
+  // --- M12: routing a Desarrollo Continuo (ejercicios / completado) ---
+  if (isExerciseRequest(messageText)) {
+    const devResult = await routeToDevProgramIfApplicable(event, messageText, waId);
+    if (devResult) return devResult;
+  }
+
   // --- M12: routing al Bot de Soporte Mental ---
   const mentalHealthRouted = await routeToMentalHealthIfApplicable(
     event,
@@ -388,6 +398,10 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
     waId,
   );
   if (mentalHealthRouted) return mentalHealthRouted;
+
+  // --- M12: "hecho" puede ser del programa de desarrollo (si no hay sesión mental activa) ---
+  const devCompletionResult = await routeToDevProgramIfApplicable(event, messageText, waId);
+  if (devCompletionResult) return devCompletionResult;
 
   // --- Resolución de demandId (3 caminos) ---
 

@@ -46,6 +46,7 @@ export async function POST(request: Request) {
       "SEND_REFERRAL_REQUEST",
       "START_POSTVENTA_CADENCE",
       "SEND_POSTVENTA_MESSAGE",
+      "SEND_DEV_EXERCISE_NUDGE",
     ],
   });
 

@@ -709,3 +709,8 @@ import { handleSendPostventaMessage } from "@/lib/postventa/send-message-handler
 
 registerJobHandler("START_POSTVENTA_CADENCE", handleStartPostventaCadence);
 registerJobHandler("SEND_POSTVENTA_MESSAGE", handleSendPostventaMessage);
+
+// --- Desarrollo Continuo (M12): cadencia de ejercicios al comercial ---
+import { handleSendDevExerciseNudge } from "@/lib/dev-program/send-nudge-handler";
+
+registerJobHandler("SEND_DEV_EXERCISE_NUDGE" as never, handleSendDevExerciseNudge);
