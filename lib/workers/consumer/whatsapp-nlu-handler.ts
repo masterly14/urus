@@ -22,6 +22,11 @@ import { classifyBuyerFeedback } from "@/lib/agents";
 import type { PropertySummaryForNLU, ConversationTurn } from "@/lib/agents";
 import { coerceMicrositeCuratedProperties } from "@/lib/microsite/selection";
 import { enqueueJob } from "@/lib/job-queue";
+import {
+  isCoachActivation,
+  getActiveSession,
+  handleMentalHealthMessage,
+} from "./mental-health-handler";
 
 type WhatsAppReceivedPayload = {
   messageId?: string;
@@ -314,6 +319,27 @@ async function loadConversationHistory(
 }
 
 // ---------------------------------------------------------------------------
+// M12: routing al Bot de Soporte Mental
+// ---------------------------------------------------------------------------
+
+async function routeToMentalHealthIfApplicable(
+  event: Event,
+  messageText: string,
+  waId: string,
+): Promise<HandlerResult | null> {
+  if (isCoachActivation(messageText)) {
+    return handleMentalHealthMessage(event, messageText, waId);
+  }
+
+  const activeSession = await getActiveSession(waId);
+  if (activeSession) {
+    return handleMentalHealthMessage(event, messageText, waId);
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Handler principal
 // ---------------------------------------------------------------------------
 
@@ -333,6 +359,14 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
     );
     return { success: true };
   }
+
+  // --- M12: routing al Bot de Soporte Mental ---
+  const mentalHealthRouted = await routeToMentalHealthIfApplicable(
+    event,
+    messageText,
+    waId,
+  );
+  if (mentalHealthRouted) return mentalHealthRouted;
 
   // --- Resolución de demandId (3 caminos) ---
 

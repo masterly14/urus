@@ -11,6 +11,7 @@
  * - ceoExpansionGraph (M13): datos financieros/operativos → evaluación de expansión geográfica
  * - ceoFinancialGraph (M13): datos financieros → análisis de costes, ROI y reinversión
  * - leadScoringGraph: scoring cualitativo IA para complementar reglas estáticas
+ * - mentalHealthGraph (M12): bot de soporte mental para comerciales
  */
 
 export { llm, llmWithStructuredOutput } from "./llm";
@@ -43,6 +44,10 @@ export {
   leadScoringGraph,
   scoreLeadWithAI,
 } from "./lead-scoring-graph";
+export {
+  mentalHealthGraph,
+  processMentalHealthMessage,
+} from "./mental-health-graph";
 export type {
   ContractInstructionGraphInput,
   ContractVoiceStructuredPatch,
@@ -57,3 +62,12 @@ export type {
   PropertySummaryForNLU,
   ConversationTurn,
 } from "./types";
+export type {
+  MentalHealthFlujo,
+  BloqueoSubtipo,
+  MentalHealthClassification,
+  MentalHealthGraphInput,
+  MentalHealthGraphOutput,
+  MentalHealthConversationTurn,
+  MentalHealthCrmContext,
+} from "./mental-health-types";

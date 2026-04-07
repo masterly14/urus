@@ -25,3 +25,25 @@ export const llm = new ChatOpenAI({
  * Se usa en nodos que requieren JSON garantizado (extracción de demanda).
  */
 export const llmWithStructuredOutput = llm;
+
+/**
+ * M12 — Bot de Soporte Mental: clasificador de estado emocional.
+ * Temperatura 0 para clasificación determinista con structured output.
+ */
+export const llmMentalHealthClassifier = new ChatOpenAI({
+  model: "gpt-5.4-mini",
+  temperature: 0,
+  apiKey: process.env.OPENAI_API_KEY,
+  timeout: 30_000,
+});
+
+/**
+ * M12 — Bot de Soporte Mental: generador de respuestas conversacionales.
+ * Temperatura 0.7 para respuestas naturales y variadas.
+ */
+export const llmMentalHealth = new ChatOpenAI({
+  model: "gpt-5.4-mini",
+  temperature: 0.7,
+  apiKey: process.env.OPENAI_API_KEY,
+  timeout: 45_000,
+});
