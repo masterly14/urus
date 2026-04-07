@@ -25,6 +25,7 @@ export interface ScoringResult {
   value: number; // normalized 0-100
   urgency: number; // normalized 0-100
   reasons: string[];
+  weightsVersion: number | null;
 }
 
 export const WEIGHT_PCLOSE = 0.55;
