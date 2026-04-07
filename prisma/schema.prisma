@@ -640,6 +640,10 @@ model CommercialLeadFact {
   contactedByComercialId String?
   contactChannel         String?
 
+  scoringModelVersion Int?
+  aiScoringUsed       Boolean @default(false)
+  aiConfidence        Float?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -750,6 +754,23 @@ model CommercialClassification {
   @@index([comercialId, createdAt])
   @@index([rangeFrom, rangeTo])
   @@map("commercial_classifications")
+}
+
+model ScoringModelVersion {
+  id             String    @id @default(cuid())
+  version        Int       @unique
+  weightPclose   Float
+  weightValue    Float
+  weightUrgency  Float
+  sampleSize     Int
+  accuracy       Float
+  backtestScore  Float
+  metadata       Json?
+  activatedAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([activatedAt])
+  @@map("scoring_model_versions")
 }
 
 model DashboardAlert {
