@@ -40,6 +40,9 @@ export async function upsertCommercialLeadFactFromLeadIngestedEvent(input: {
     slaLevel?: string;
     assignedAgentId?: string | null;
     assignedAgentNombre?: string | null;
+    scoringModelVersion?: number;
+    aiScoringUsed?: boolean;
+    aiConfidence?: number;
   };
 }): Promise<void> {
   const { event, scoredPayload } = input;
@@ -50,6 +53,14 @@ export async function upsertCommercialLeadFactFromLeadIngestedEvent(input: {
   const source = typeof payload.source === "string" ? payload.source : "";
 
   const createdAt = event.occurredAt ?? new Date();
+
+  const aiFields = {
+    scoringModelVersion:
+      typeof scoredPayload?.scoringModelVersion === "number" ? scoredPayload.scoringModelVersion : null,
+    aiScoringUsed: scoredPayload?.aiScoringUsed ?? false,
+    aiConfidence:
+      typeof scoredPayload?.aiConfidence === "number" ? scoredPayload.aiConfidence : null,
+  };
 
   await prisma.commercialLeadFact.upsert({
     where: { leadId: event.aggregateId },
@@ -65,6 +76,7 @@ export async function upsertCommercialLeadFactFromLeadIngestedEvent(input: {
         typeof scoredPayload?.assignedAgentId === "string" ? scoredPayload.assignedAgentId : null,
       assignedComercialNombre:
         typeof scoredPayload?.assignedAgentNombre === "string" ? scoredPayload.assignedAgentNombre : null,
+      ...aiFields,
       createdAt,
       raw: event.payload as any,
     },
@@ -79,6 +91,7 @@ export async function upsertCommercialLeadFactFromLeadIngestedEvent(input: {
         typeof scoredPayload?.assignedAgentId === "string" ? scoredPayload.assignedAgentId : null,
       assignedComercialNombre:
         typeof scoredPayload?.assignedAgentNombre === "string" ? scoredPayload.assignedAgentNombre : null,
+      ...aiFields,
       raw: event.payload as any,
     },
   });
