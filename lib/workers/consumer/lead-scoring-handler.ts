@@ -3,7 +3,9 @@ import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import type { ScoringInput } from "@/lib/scoring/types";
 import type { AgentProfile, RoutingInput } from "@/lib/routing/types";
 import type { HandlerResult } from "./types";
-import { calculateScore } from "@/lib/scoring";
+import type { AIScoringGraphInput, AIScoringResult, HistoricalStats } from "@/lib/scoring/ai-types";
+import { calculateScore, getActiveWeights } from "@/lib/scoring";
+import { blendScores } from "@/lib/scoring/blend-scores";
 import { assignSla } from "@/lib/sla";
 import { selectBestAgent } from "@/lib/routing";
 import {
@@ -11,13 +13,13 @@ import {
   incrementAgentLoad,
 } from "@/lib/routing/agent-repo";
 import { upsertCommercialLeadFactFromLeadIngestedEvent } from "@/lib/dashboard/comercial/facts";
+import { fetchHistoricalStats } from "@/lib/scoring/historical-stats";
+
+const AI_ENABLED = process.env.SCORING_AI_ENABLED === "true";
 
 export type AgentFetcher = (ciudad: string) => Promise<AgentProfile[]>;
 export type LoadIncrementer = (agentId: string) => Promise<void>;
 
-/**
- * Builds a ScoringInput from the raw event payload.
- */
 export function buildScoringInput(
   payload: Record<string, unknown>,
 ): ScoringInput {
@@ -55,11 +57,12 @@ export function buildRoutingInput(
 export interface LeadHandlerDeps {
   fetchAgents?: AgentFetcher;
   incrementLoad?: LoadIncrementer;
+  aiEnabled?: boolean;
+  scoreWithAI?: (input: AIScoringGraphInput) => Promise<AIScoringResult>;
 }
 
 /**
- * Core handler: scoring → SLA → routing → incrementar carga → jobs.
- * Acepta dependencias opcionales para testabilidad (defaults a DB real).
+ * Core handler: scoring → (optional AI blend) → SLA → routing → jobs.
  */
 export async function handleLeadIngestadoCore(
   event: Event,
@@ -67,11 +70,55 @@ export async function handleLeadIngestadoCore(
 ): Promise<HandlerResult> {
   const fetchAgents = deps.fetchAgents ?? getActiveAgentsByCity;
   const incrementLoad = deps.incrementLoad ?? incrementAgentLoad;
+  const aiEnabled = deps.aiEnabled ?? AI_ENABLED;
 
   const payload = (event.payload ?? {}) as Record<string, unknown>;
 
   const scoringInput = buildScoringInput(payload);
-  const scoringResult = calculateScore(scoringInput);
+  let scoringResult = await calculateScore(scoringInput);
+
+  let aiScoringUsed = false;
+  let aiConfidence: number | null = null;
+
+  if (aiEnabled) {
+    try {
+      const scoreWithAI = deps.scoreWithAI ?? (await loadScoreWithAI());
+      const weights = await getActiveWeights();
+      const ciudad = typeof payload.ciudad === "string" ? payload.ciudad : "";
+      const source = typeof payload.source === "string" ? payload.source : "";
+      const mensajeRaw = typeof payload.mensajeRaw === "string" ? payload.mensajeRaw : null;
+
+      const historicalStats = await fetchHistoricalStats();
+
+      const aiInput: AIScoringGraphInput = {
+        leadData: scoringInput,
+        mensajeRaw,
+        ciudad,
+        source,
+        historicalStats,
+        currentWeights: weights,
+        ruleSubScores: {
+          pclose: scoringResult.pclose,
+          value: scoringResult.value,
+          urgency: scoringResult.urgency,
+        },
+      };
+
+      const aiResult = await scoreWithAI(aiInput);
+      scoringResult = blendScores(scoringResult, aiResult, weights);
+      aiScoringUsed = true;
+      aiConfidence = aiResult.confidence;
+
+      console.log(
+        `[consumer] AI scoring applied: confidence=${aiResult.confidence.toFixed(2)} adjustments=pclose:${aiResult.pcloseAdjustment} value:${aiResult.valueAdjustment} urgency:${aiResult.urgencyAdjustment}`,
+      );
+    } catch (err) {
+      console.warn(
+        `[consumer] AI scoring failed, using rules only: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
   const slaResult = assignSla(scoringResult.score);
 
   const routingInput = buildRoutingInput(payload);
@@ -95,7 +142,7 @@ export async function handleLeadIngestadoCore(
   }
 
   console.log(
-    `[consumer] LEAD_INGESTADO aggregateId=${event.aggregateId} score=${scoringResult.score} sla=${slaResult.sla.level} agent=${routingResult.agent?.nombre ?? "none"}`,
+    `[consumer] LEAD_INGESTADO aggregateId=${event.aggregateId} score=${scoringResult.score} sla=${slaResult.sla.level} agent=${routingResult.agent?.nombre ?? "none"} ai=${aiScoringUsed}`,
   );
 
   const followUpJobs: EnqueueJobInput[] = [];
@@ -154,13 +201,15 @@ export async function handleLeadIngestadoCore(
       assignedAgentNombre: routingResult.agent?.nombre ?? null,
       routingAssigned: routingResult.assigned,
       routingReason: routingResult.reason,
+      weightsVersion: scoringResult.weightsVersion,
+      aiScoringUsed,
+      aiConfidence,
     },
   };
 }
 
 /**
  * Public handler registered in the consumer.
- * Uses the real DB-backed agent fetcher.
  */
 export async function handleLeadIngestado(
   event: Event,
@@ -181,6 +230,12 @@ export async function handleLeadIngestado(
             typeof scored["assignedAgentNombre"] === "string"
               ? scored["assignedAgentNombre"]
               : null,
+          scoringModelVersion:
+            typeof scored["weightsVersion"] === "number" ? scored["weightsVersion"] : undefined,
+          aiScoringUsed:
+            typeof scored["aiScoringUsed"] === "boolean" ? scored["aiScoringUsed"] : false,
+          aiConfidence:
+            typeof scored["aiConfidence"] === "number" ? scored["aiConfidence"] : undefined,
         },
       });
     } catch (err) {
@@ -192,6 +247,12 @@ export async function handleLeadIngestado(
   }
 
   return result;
+}
+
+/** Lazy-load AI graph to avoid importing LangGraph when AI is disabled. */
+async function loadScoreWithAI() {
+  const { scoreLeadWithAI } = await import("@/lib/agents/lead-scoring-graph");
+  return scoreLeadWithAI;
 }
 
 function priorityFromSla(level: string): number {

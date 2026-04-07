@@ -10,6 +10,7 @@
  * - ceoDiagnosticGraph (M13): datos consolidados → diagnóstico y recomendaciones CEO
  * - ceoExpansionGraph (M13): datos financieros/operativos → evaluación de expansión geográfica
  * - ceoFinancialGraph (M13): datos financieros → análisis de costes, ROI y reinversión
+ * - leadScoringGraph: scoring cualitativo IA para complementar reglas estáticas
  */
 
 export { llm, llmWithStructuredOutput } from "./llm";
@@ -38,6 +39,10 @@ export {
   ceoFinancialGraph,
   generateCeoFinancial,
 } from "./ceo-financial-graph";
+export {
+  leadScoringGraph,
+  scoreLeadWithAI,
+} from "./lead-scoring-graph";
 export type {
   ContractInstructionGraphInput,
   ContractVoiceStructuredPatch,
