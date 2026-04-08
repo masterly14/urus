@@ -11,7 +11,8 @@ export type EvalScenarioCategory =
   | "variable_extraction"
   | "wants_more_detection"
   | "multi_turn"
-  | "ambiguity_handling";
+  | "ambiguity_handling"
+  | "edge_case";
 
 export interface BuyerPersona {
   id: string;

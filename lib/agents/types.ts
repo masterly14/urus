@@ -22,6 +22,7 @@ export interface DemandVariables {
   zonas?: string[];
   tipos?: string[];
   extras?: string[];
+  extrasNoDeseados?: string[];
 }
 
 // ── Feedback por propiedad del microsite ─────────────────────────────────────

@@ -33,8 +33,19 @@ const VariablesSchema = z.object({
     "Barrios o zonas dentro de la ciudad (ej: ['Centro', 'La Flota', 'Norte']). " +
     "No incluir el nombre de la ciudad aquí, solo barrios/zonas. null si ninguno.",
   ),
-  tipos: z.array(z.string()).nullable().describe("Tipos de inmueble (piso, casa, ático). null si ninguno."),
-  extras: z.array(z.string()).nullable().describe("Extras (garaje, terraza). null si ninguno."),
+  tipos: z.array(z.string()).nullable().describe(
+    "Tipos de inmueble DESEADOS en español normalizado. null si ninguno. " +
+    "Sinónimos: 'apartamento'→'piso', 'chalet'→'casa', 'adosado'→'casa adosada', 'loft'→'estudio'. " +
+    "Solo incluir tipos que el comprador QUIERE, nunca los que rechaza.",
+  ),
+  extras: z.array(z.string()).nullable().describe(
+    "Extras DESEADOS (garaje, terraza, piscina). null si ninguno. " +
+    "Solo incluir extras que el comprador QUIERE, nunca los que rechaza.",
+  ),
+  extrasNoDeseados: z.array(z.string()).nullable().describe(
+    "Extras que el comprador rechaza explícitamente ('sin garaje'→['garaje'], " +
+    "'no quiero piscina'→['piscina']). null si no rechaza ninguno.",
+  ),
 });
 
 const PropertyFeedbackSchema = z.object({
@@ -134,13 +145,45 @@ Tu tarea:
 5. Detectar si pide ver más opciones (wantsMoreOptions).
 
 Extracción de variables — reglas estrictas:
+
+UBICACIÓN:
 - "ciudad": solo el nombre de la ciudad (ej: "Córdoba", "Madrid"). NUNCA incluir barrios aquí.
 - "zonas": barrios o zonas DENTRO de la ciudad (ej: ["Centro", "Norte", "La Flota"]). NO incluir la ciudad.
-- Precios: interpretar "hasta 200.000" como precioMax=200000, "desde 150.000" como precioMin=150000, "entre 150 y 200 mil" como precioMin=150000 y precioMax=200000. En España los precios de vivienda están en euros.
-- Metros: "80 metros", "80m²", "80 m2" → metrosMin o metrosMax según contexto ("al menos 80m²" = metrosMin=80, "no más de 100m²" = metrosMax=100).
-- Habitaciones: "3 habitaciones", "3 dormitorios" → habitacionesMin=3.
-- Tipos: usar nombres en español: "piso", "casa", "ático", "dúplex", "chalet", "estudio", etc.
+- "en el centro de Córdoba" → ciudad="Córdoba", zonas=["Centro"].
+
+PRECIOS (siempre en euros):
+- "hasta 200.000" → precioMax=200000. "desde 150.000" → precioMin=150000.
+- "entre 150 y 200 mil" → precioMin=150000, precioMax=200000.
+- Formatos coloquiales: "200 mil"=200000, "200k"=200000, "doscientos mil"=200000, "medio millón"=500000, "un cuarto de millón"=250000, "350 pavos"=350000 (argot para euros).
+- "k" o "K" tras un número siempre multiplica por 1000: "300k"=300000, "1.2M"=1200000.
+
+METROS:
+- "80 metros", "80m²", "80 m2" → metrosMin o metrosMax según contexto.
+- "al menos 80m²" = metrosMin=80. "no más de 100m²" = metrosMax=100.
+
+HABITACIONES:
+- "3 habitaciones", "3 dormitorios", "3 cuartos" → habitacionesMin=3.
+- "2 o 3 habitaciones" → habitacionesMin=2. "al menos 3" → habitacionesMin=3.
+
+TIPOLOGÍA (normalizar siempre a español estándar):
+- Sinónimos obligatorios: "apartamento"→"piso", "chalet"→"casa", "adosado"→"casa adosada", "loft"→"estudio".
+- Solo incluir tipos que el comprador QUIERE. Si dice "que no sea ático", NO poner "ático" en tipos.
+
+EXTRAS:
+- "extras": solo los que el comprador QUIERE ("con garaje"→extras=["garaje"]).
+- "extrasNoDeseados": los que RECHAZA ("sin garaje"→extrasNoDeseados=["garaje"], "no quiero piscina"→extrasNoDeseados=["piscina"]).
+
+RESPUESTAS CORTAS:
+- "ok", "sí", "vale", "perfecto", "me gusta" sin más contexto → intention=ME_ENCAJA, variables vacías.
+- "no", "paso", "nada" sin más contexto → intention=NO_ME_ENCAJA, variables vacías.
+- Emojis positivos (👍, 😍, ❤️) refuerzan sentimiento positivo. Emojis negativos (👎, 😒) refuerzan negativo.
+
+VARIABLES RELATIVAS (sin valor numérico concreto):
+- "más grande", "más barato", "más céntrico" sin número concreto → NO inventar valores numéricos. Marcar wantsMoreOptions=true si el comprador expresa insatisfacción general sin dar cifras.
+
+REGLAS GENERALES:
 - Solo extraer lo que el comprador mencione explícitamente. null para lo no mencionado.
+- NUNCA inventar valores numéricos que el comprador no haya dicho.
 - Si dice "todas" o "ninguna", incluye todas las propiedades con el sentimiento correspondiente.${historyBlock}`;
 }
 
@@ -149,13 +192,35 @@ Clasifica la respuesta del comprador en: ME_ENCAJA, NO_ME_ENCAJA, BUSCO_DIFERENT
 Extrae variables de demanda ajustada cuando el comprador las mencione.
 
 Reglas de extracción:
+
+UBICACIÓN:
 - "ciudad": solo el nombre de la ciudad (ej: "Córdoba"). NUNCA incluir barrios.
 - "zonas": barrios/zonas DENTRO de la ciudad (ej: ["Centro", "Norte"]). NO incluir la ciudad.
-- Precios en euros: "hasta 200.000" → precioMax=200000, "desde 150.000" → precioMin=150000.
-- Metros: "80m²" → metrosMin o metrosMax según contexto ("al menos" = min, "no más de" = max).
-- Habitaciones: "3 dormitorios" → habitacionesMin=3.
-- Tipos en español: "piso", "casa", "ático", "dúplex", "chalet", etc.
-- Solo lo explícitamente mencionado. null para lo no dicho.`;
+
+PRECIOS (siempre en euros):
+- "hasta 200.000" → precioMax=200000. "desde 150.000" → precioMin=150000.
+- "entre 150 y 200 mil" → precioMin=150000, precioMax=200000.
+- Formatos coloquiales: "200 mil"=200000, "200k"=200000, "doscientos mil"=200000, "medio millón"=500000, "350 pavos"=350000.
+
+METROS Y HABITACIONES:
+- "80m²" → metrosMin o metrosMax según contexto ("al menos" = min, "no más de" = max).
+- "3 dormitorios" / "3 cuartos" → habitacionesMin=3. "2 o 3" → habitacionesMin=2.
+
+TIPOLOGÍA (normalizar a español estándar):
+- "apartamento"→"piso", "chalet"→"casa", "adosado"→"casa adosada", "loft"→"estudio".
+- Solo tipos DESEADOS. Si dice "que no sea ático", NO poner "ático" en tipos.
+
+EXTRAS:
+- "extras": solo los DESEADOS ("con garaje"→extras=["garaje"]).
+- "extrasNoDeseados": los RECHAZADOS ("sin garaje"→extrasNoDeseados=["garaje"]).
+
+RESPUESTAS CORTAS:
+- "ok"/"sí"/"vale" sin contexto → ME_ENCAJA, variables vacías.
+- "no"/"paso"/"nada" sin contexto → NO_ME_ENCAJA, variables vacías.
+
+REGLAS GENERALES:
+- Solo lo explícitamente mencionado. null para lo no dicho.
+- NUNCA inventar valores numéricos que el comprador no haya dicho.`;
 
 // ── Nodo de clasificación contextual ────────────────────────────────────────
 
@@ -170,6 +235,7 @@ function stripNullVars(vars: z.infer<typeof VariablesSchema>) {
     ...(vars.zonas != null && { zonas: vars.zonas }),
     ...(vars.tipos != null && { tipos: vars.tipos }),
     ...(vars.extras != null && { extras: vars.extras }),
+    ...(vars.extrasNoDeseados != null && { extrasNoDeseados: vars.extrasNoDeseados }),
   };
 }
 
