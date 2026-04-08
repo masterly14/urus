@@ -23,7 +23,7 @@ import type { DemandFilterInput } from "./query-builder";
 import { mapTiposToHousing } from "./query-builder";
 
 const ITEMS_PER_PAGE = 250;
-const DEFAULT_MAX_PAGES = 10;
+const DEFAULT_MAX_PAGES = 6;
 const DEFAULT_TARGET_RESULTS = 20;
 
 // ---------------------------------------------------------------------------
