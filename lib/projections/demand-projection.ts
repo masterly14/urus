@@ -164,6 +164,7 @@ export async function applyDemandProjection(
           precioMin?: number;
           precioMax?: number;
           habitacionesMin?: number;
+          ciudad?: string;
           zonas?: string[] | string;
           tipos?: string[] | string;
         };
@@ -175,7 +176,11 @@ export async function applyDemandProjection(
         typeof payload.detectedAt === "string" ? payload.detectedAt : new Date().toISOString();
 
       const tipos = listToString(v.tipos);
-      const zonas = listToString(v.zonas);
+      const rawZonas = listToString(v.zonas);
+      const ciudad = typeof v.ciudad === "string" && v.ciudad.trim() ? v.ciudad.trim() : null;
+      const zonas = ciudad
+        ? [ciudad, rawZonas].filter(Boolean).join(", ")
+        : rawZonas;
 
       await prisma.demandCurrent.upsert({
         where: { codigo },

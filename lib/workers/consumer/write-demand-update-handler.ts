@@ -19,6 +19,7 @@ type DemandUpdateVariables = {
   habitacionesMin?: number;
   metrosMin?: number;
   metrosMax?: number;
+  ciudad?: string;
   zonas?: string[];
   tipos?: string[];
 };
@@ -93,13 +94,22 @@ export async function handleDemandaActualizada(event: Event): Promise<HandlerRes
     return { success: false, error: msg, followUpJobs };
   }
 
+  const zonaParts: string[] = [];
+  if (typeof variables.ciudad === "string" && variables.ciudad.trim()) {
+    zonaParts.push(variables.ciudad.trim());
+  }
+  if (variables.zonas?.length) {
+    zonaParts.push(...variables.zonas.map((z) => z.trim()).filter(Boolean));
+  }
+  const zonasString = zonaParts.length > 0 ? zonaParts.join(", ") : undefined;
+
   const inmovillaPatch = {
     presupuestoMin: typeof variables.precioMin === "number" ? variables.precioMin : undefined,
     presupuestoMax: typeof variables.precioMax === "number" ? variables.precioMax : undefined,
     habitacionesMin: typeof variables.habitacionesMin === "number" ? variables.habitacionesMin : undefined,
     metrosMin: typeof variables.metrosMin === "number" ? variables.metrosMin : undefined,
     metrosMax: typeof variables.metrosMax === "number" ? variables.metrosMax : undefined,
-    zonas: joinList(variables.zonas) ?? undefined,
+    zonas: zonasString,
     tipos: joinList(variables.tipos) ?? undefined,
   };
 

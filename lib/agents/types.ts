@@ -18,6 +18,7 @@ export interface DemandVariables {
   metrosMin?: number;
   metrosMax?: number;
   habitacionesMin?: number;
+  ciudad?: string;
   zonas?: string[];
   tipos?: string[];
   extras?: string[];

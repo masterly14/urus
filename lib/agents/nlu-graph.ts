@@ -25,7 +25,14 @@ const VariablesSchema = z.object({
   metrosMin: z.number().nullable().describe("m² mínimos. null si no los menciona."),
   metrosMax: z.number().nullable().describe("m² máximos. null si no los menciona."),
   habitacionesMin: z.number().nullable().describe("Habitaciones mínimas. null si no lo menciona."),
-  zonas: z.array(z.string()).nullable().describe("Zonas/barrios mencionados. null si ninguno."),
+  ciudad: z.string().nullable().describe(
+    "Nombre de la ciudad mencionada (ej: 'Córdoba', 'Madrid'). " +
+    "Solo el nombre de la ciudad, sin barrios ni zonas. null si no lo menciona.",
+  ),
+  zonas: z.array(z.string()).nullable().describe(
+    "Barrios o zonas dentro de la ciudad (ej: ['Centro', 'La Flota', 'Norte']). " +
+    "No incluir el nombre de la ciudad aquí, solo barrios/zonas. null si ninguno.",
+  ),
   tipos: z.array(z.string()).nullable().describe("Tipos de inmueble (piso, casa, ático). null si ninguno."),
   extras: z.array(z.string()).nullable().describe("Extras (garaje, terraza). null si ninguno."),
 });
@@ -123,20 +130,32 @@ Tu tarea:
 1. Identificar qué propiedad(es) menciona el comprador (por referencia directa, posición, zona, precio u otra característica). Usa el propertyId exacto del listado.
 2. Clasificar el sentimiento por cada propiedad mencionada: ME_INTERESA o NO_ME_ENCAJA.
 3. Determinar la intención global (ME_ENCAJA si le gustan en general, NO_ME_ENCAJA si no cumplen, BUSCO_DIFERENTE si quiere algo completamente distinto).
-4. Extraer variables de demanda si el comprador indica ajustes (precio, zona, metros, tipo).
+4. Extraer variables de demanda si el comprador indica ajustes.
 5. Detectar si pide ver más opciones (wantsMoreOptions).
 
-Reglas:
-- Solo incluye propiedades que el comprador mencione. Si dice "todas" o "ninguna", incluye todas con el sentimiento correspondiente.
-- Contexto: sector inmobiliario español, precios en euros, metros en m².
-- No inventes datos que el comprador no mencione.${historyBlock}`;
+Extracción de variables — reglas estrictas:
+- "ciudad": solo el nombre de la ciudad (ej: "Córdoba", "Madrid"). NUNCA incluir barrios aquí.
+- "zonas": barrios o zonas DENTRO de la ciudad (ej: ["Centro", "Norte", "La Flota"]). NO incluir la ciudad.
+- Precios: interpretar "hasta 200.000" como precioMax=200000, "desde 150.000" como precioMin=150000, "entre 150 y 200 mil" como precioMin=150000 y precioMax=200000. En España los precios de vivienda están en euros.
+- Metros: "80 metros", "80m²", "80 m2" → metrosMin o metrosMax según contexto ("al menos 80m²" = metrosMin=80, "no más de 100m²" = metrosMax=100).
+- Habitaciones: "3 habitaciones", "3 dormitorios" → habitacionesMin=3.
+- Tipos: usar nombres en español: "piso", "casa", "ático", "dúplex", "chalet", "estudio", etc.
+- Solo extraer lo que el comprador mencione explícitamente. null para lo no mencionado.
+- Si dice "todas" o "ninguna", incluye todas las propiedades con el sentimiento correspondiente.${historyBlock}`;
 }
 
-const SIMPLE_SYSTEM_PROMPT = `Eres un asistente de análisis inmobiliario.
+const SIMPLE_SYSTEM_PROMPT = `Eres un asistente de análisis inmobiliario de Urus Capital.
 Clasifica la respuesta del comprador en: ME_ENCAJA, NO_ME_ENCAJA, BUSCO_DIFERENTE.
-Si es NO_ME_ENCAJA, extrae variables de demanda ajustada.
-Contexto: sector inmobiliario español, euros, m².
-Extrae sólo lo que el comprador mencione explícitamente.`;
+Extrae variables de demanda ajustada cuando el comprador las mencione.
+
+Reglas de extracción:
+- "ciudad": solo el nombre de la ciudad (ej: "Córdoba"). NUNCA incluir barrios.
+- "zonas": barrios/zonas DENTRO de la ciudad (ej: ["Centro", "Norte"]). NO incluir la ciudad.
+- Precios en euros: "hasta 200.000" → precioMax=200000, "desde 150.000" → precioMin=150000.
+- Metros: "80m²" → metrosMin o metrosMax según contexto ("al menos" = min, "no más de" = max).
+- Habitaciones: "3 dormitorios" → habitacionesMin=3.
+- Tipos en español: "piso", "casa", "ático", "dúplex", "chalet", etc.
+- Solo lo explícitamente mencionado. null para lo no dicho.`;
 
 // ── Nodo de clasificación contextual ────────────────────────────────────────
 
@@ -147,6 +166,7 @@ function stripNullVars(vars: z.infer<typeof VariablesSchema>) {
     ...(vars.metrosMin != null && { metrosMin: vars.metrosMin }),
     ...(vars.metrosMax != null && { metrosMax: vars.metrosMax }),
     ...(vars.habitacionesMin != null && { habitacionesMin: vars.habitacionesMin }),
+    ...(vars.ciudad != null && { ciudad: vars.ciudad }),
     ...(vars.zonas != null && { zonas: vars.zonas }),
     ...(vars.tipos != null && { tipos: vars.tipos }),
     ...(vars.extras != null && { extras: vars.extras }),
