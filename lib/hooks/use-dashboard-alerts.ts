@@ -6,7 +6,13 @@ export interface DashboardAlert {
   id: string;
   comercialId: string;
   comercialNombre: string;
-  type: "drop" | "sla_breach" | "deviation";
+  type:
+    | "drop"
+    | "sla_breach"
+    | "deviation"
+    | "mh_energy_low"
+    | "mh_bloqueo_recurrente"
+    | "mh_sobrecarga_uso";
   severity: "low" | "medium" | "high";
   metric: string;
   message: string;
