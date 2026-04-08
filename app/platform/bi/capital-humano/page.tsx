@@ -1,149 +1,345 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
-    Activity,
-    AlertTriangle,
-    BrainCircuit,
-    HeartPulse,
-    ThermometerSun,
+  Activity,
+  AlertTriangle,
+  BrainCircuit,
+  HeartPulse,
+  ThermometerSun,
+  Users,
+  Zap,
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { humanCapitalRisks } from "@/lib/mock-data/bi";
 import { cn } from "@/lib/utils";
 
+// ---------------------------------------------------------------------------
+// Types (mirror de MentalHealthOverview en lib/dashboard/mental-health/queries)
+// ---------------------------------------------------------------------------
+
+interface FlujoDistribucion {
+  bloqueo: number;
+  preparacion: number;
+  descarga: number;
+  enfoque: number;
+  crecimiento: number;
+}
+
+interface AlertasActivas {
+  energy_drop: number;
+  recurrent_block: number;
+  overload: number;
+}
+
+interface MentalHealthOverview {
+  sesionesUltimos30d: number;
+  comercialesActivos: number;
+  energiaMediaEquipo: number | null;
+  flujoDistribucion: FlujoDistribucion;
+  alertasActivas: AlertasActivas;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function energiaLabel(avg: number | null): { label: string; color: string } {
+  if (avg === null) return { label: "Sin datos", color: "text-muted-foreground" };
+  if (avg >= 4) return { label: "Alta", color: "text-emerald-600" };
+  if (avg >= 3) return { label: "Media", color: "text-yellow-600" };
+  return { label: "Baja", color: "text-red-600" };
+}
+
+const FLUJO_META: Record<
+  keyof FlujoDistribucion,
+  { label: string; color: string }
+> = {
+  bloqueo: { label: "Bloqueo", color: "bg-red-500" },
+  preparacion: { label: "Preparación", color: "bg-blue-500" },
+  descarga: { label: "Descarga emocional", color: "bg-orange-500" },
+  enfoque: { label: "Enfoque", color: "bg-purple-500" },
+  crecimiento: { label: "Crecimiento", color: "bg-emerald-500" },
+};
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export default function HumanCapitalDashboard() {
-    const highRiskZones = humanCapitalRisks.filter(
-        (z) => z.burnoutRisk === "High" || z.burnoutRisk === "Critical"
-    );
+  const [data, setData] = useState<MentalHealthOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    fetch("/api/dashboard/mental-health")
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json() as Promise<{ ok: boolean; data: MentalHealthOverview }>;
+      })
+      .then((json) => {
+        setData(json.data);
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(msg);
+        console.error("[capital-humano] Error fetching overview:", msg);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
     return (
-        <div className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Nivel de Estrés Global</CardTitle>
-                        <Activity className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-yellow-600">Media</div>
-                        <p className="text-xs text-muted-foreground">62/100 (Estable)</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Riesgo de Burnout</CardTitle>
-                        <HeartPulse className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-red-600">{highRiskZones.length} Zonas</div>
-                        <p className="text-xs text-muted-foreground">Requieren atención inmediata</p>
-                    </CardContent>
-                </Card>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-7">
-                {/* Heatmap Simulation */}
-                <Card className="md:col-span-4">
-                    <CardHeader>
-                        <CardTitle>Mapa de Presión por Zona</CardTitle>
-                        <CardDescription>
-                            Intensidad de carga de trabajo y horas promedio.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-6">
-                            {humanCapitalRisks.map((zone) => (
-                                <div key={zone.zone} className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <span className="font-medium text-sm">{zone.zone}</span>
-                                        <span className="text-sm text-muted-foreground">
-                                            {zone.avgHours}h/semana
-                                        </span>
-                                    </div>
-                                    <div className="relative pt-1">
-                                        <div className="flex mb-2 items-center justify-between">
-                                            <div>
-                                                <Badge
-                                                    variant={
-                                                        zone.burnoutRisk === "Critical"
-                                                            ? "destructive"
-                                                            : zone.burnoutRisk === "High"
-                                                                ? "destructive"
-                                                                : zone.burnoutRisk === "Medium"
-                                                                    ? "secondary"
-                                                                    : "outline"
-                                                    }
-                                                    className="text-[10px]"
-                                                >
-                                                    Riesgo {zone.burnoutRisk}
-                                                </Badge>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className="text-xs font-semibold inline-block text-muted-foreground">
-                                                    {zone.pressureLevel}% Presión
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <Progress
-                                            value={zone.pressureLevel}
-                                            className={cn(
-                                                "h-2",
-                                                zone.pressureLevel > 80
-                                                    ? "bg-red-100 [&>div]:bg-red-600"
-                                                    : zone.pressureLevel > 60
-                                                        ? "bg-yellow-100 [&>div]:bg-yellow-500"
-                                                        : "bg-emerald-100 [&>div]:bg-emerald-500"
-                                            )}
-                                        />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Action Recommendations */}
-                <Card className="md:col-span-3 border-l-4 border-l-blue-500">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <BrainCircuit className="h-5 w-5 text-blue-500" />
-                            Recomendaciones Preventivas
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {highRiskZones.map((zone) => (
-                            <div
-                                key={zone.zone}
-                                className="p-3 bg-accent/50 rounded-lg text-sm border border-border/50"
-                            >
-                                <div className="flex items-start gap-3">
-                                    <ThermometerSun className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
-                                    <div className="space-y-1">
-                                        <p className="font-semibold text-foreground">
-                                            Intervención en {zone.zone}
-                                        </p>
-                                        <p className="text-muted-foreground text-xs leading-relaxed">
-                                            La carga horaria ({zone.avgHours}h) supera el límite saludable. Se sugiere:
-                                        </p>
-                                        <ul className="list-disc list-inside text-xs text-muted-foreground pt-1">
-                                            <li>Redistribuir leads a zonas colindantes.</li>
-                                            <li>Obligar a día de descanso el viernes.</li>
-                                            <li>Activar protocolo de soporte emocional.</li>
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                        {highRiskZones.length === 0 && (
-                            <div className="text-center py-8 text-muted-foreground">
-                                <p>No se detectan riesgos críticos actualmente.</p>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
-        </div>
+      <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
+        Cargando datos de capital humano…
+      </div>
     );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="flex items-center justify-center h-64 text-red-500 text-sm">
+        No se pudieron cargar los datos. Inténtalo de nuevo.
+      </div>
+    );
+  }
+
+  const totalAlertas =
+    data.alertasActivas.energy_drop +
+    data.alertasActivas.recurrent_block +
+    data.alertasActivas.overload;
+
+  const energia = energiaLabel(data.energiaMediaEquipo);
+
+  const totalFlujos = Object.values(data.flujoDistribucion).reduce(
+    (a, b) => a + b,
+    0,
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* ── KPIs ── */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Sesiones último mes
+            </CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.sesionesUltimos30d}</div>
+            <p className="text-xs text-muted-foreground">
+              Conversaciones con el Coach IA
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Comerciales activos
+            </CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.comercialesActivos}</div>
+            <p className="text-xs text-muted-foreground">
+              Usaron el bot en los últimos 30 días
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Energía media del equipo
+            </CardTitle>
+            <Zap className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className={cn("text-2xl font-bold", energia.color)}>
+              {energia.label}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {data.energiaMediaEquipo !== null
+                ? `${data.energiaMediaEquipo.toFixed(1)}/5 (promedio bot)`
+                : "Sin datos suficientes"}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Alertas de riesgo
+            </CardTitle>
+            <HeartPulse className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div
+              className={cn(
+                "text-2xl font-bold",
+                totalAlertas > 0 ? "text-red-600" : "text-emerald-600",
+              )}
+            >
+              {totalAlertas}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {totalAlertas > 0
+                ? "Requieren atención del CEO"
+                : "Sin riesgos activos"}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Distribución de flujos + Alertas ── */}
+      <div className="grid gap-4 md:grid-cols-7">
+        {/* Distribución de flujos */}
+        <Card className="md:col-span-4">
+          <CardHeader>
+            <CardTitle>Distribución de flujos</CardTitle>
+            <CardDescription>
+              Por qué acuden los comerciales al Coach IA (últimos 30 días).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {totalFlujos === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Sin sesiones registradas en los últimos 30 días.
+              </p>
+            ) : (
+              <div className="space-y-5">
+                {(
+                  Object.entries(data.flujoDistribucion) as [
+                    keyof FlujoDistribucion,
+                    number,
+                  ][]
+                ).map(([key, count]) => {
+                  const meta = FLUJO_META[key];
+                  const pct = totalFlujos > 0 ? (count / totalFlujos) * 100 : 0;
+
+                  return (
+                    <div key={key} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{meta.label}</span>
+                        <span className="text-muted-foreground">
+                          {count} ({Math.round(pct)}%)
+                        </span>
+                      </div>
+                      <Progress
+                        value={pct}
+                        className={cn(
+                          "h-2",
+                          key === "bloqueo" &&
+                            "bg-red-100 [&>div]:bg-red-500",
+                          key === "preparacion" &&
+                            "bg-blue-100 [&>div]:bg-blue-500",
+                          key === "descarga" &&
+                            "bg-orange-100 [&>div]:bg-orange-500",
+                          key === "enfoque" &&
+                            "bg-purple-100 [&>div]:bg-purple-500",
+                          key === "crecimiento" &&
+                            "bg-emerald-100 [&>div]:bg-emerald-500",
+                        )}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Alertas de riesgo operativo */}
+        <Card className="md:col-span-3 border-l-4 border-l-red-500">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BrainCircuit className="h-5 w-5 text-red-500" />
+              Alertas de riesgo operativo
+            </CardTitle>
+            <CardDescription>
+              Patrones detectados automáticamente por el bot.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <AlertRow
+              icon={<Zap className="h-5 w-5 text-yellow-500 shrink-0 mt-0.5" />}
+              label="Caída de energía prolongada"
+              count={data.alertasActivas.energy_drop}
+              description="≥3 sesiones con energía ≤ 2/5 en 14 días"
+            />
+            <AlertRow
+              icon={
+                <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+              }
+              label="Bloqueo emocional recurrente"
+              count={data.alertasActivas.recurrent_block}
+              description="≥3 sesiones de bloqueo en 14 días"
+            />
+            <AlertRow
+              icon={
+                <ThermometerSun className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
+              }
+              label="Sobrecarga operativa"
+              count={data.alertasActivas.overload}
+              description="≥5 sesiones con energía baja en 7 días"
+            />
+
+            {totalAlertas === 0 && (
+              <p className="text-center py-4 text-sm text-muted-foreground">
+                No se detectan riesgos activos actualmente.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sub-component
+// ---------------------------------------------------------------------------
+
+function AlertRow({
+  icon,
+  label,
+  count,
+  description,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  count: number;
+  description: string;
+}) {
+  return (
+    <div className="p-3 bg-accent/50 rounded-lg border border-border/50">
+      <div className="flex items-start gap-3">
+        {icon}
+        <div className="space-y-1 flex-1">
+          <div className="flex items-center justify-between">
+            <p className="font-semibold text-sm text-foreground">{label}</p>
+            <Badge
+              variant={count > 0 ? "destructive" : "outline"}
+              className="text-[10px]"
+            >
+              {count > 0 ? `${count} activa${count > 1 ? "s" : ""}` : "Sin riesgo"}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {description}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -107,4 +107,100 @@ npx vitest run lib/workers/consumer/__tests__/mental-health-routing.test.ts
 
 ## Variables de entorno
 
-No requiere variables adicionales. Usa `OPENAI_API_KEY` (ya existente) y la configuración de WhatsApp existente.
+No requiere variables adicionales para las Capas 1–4. Usa `OPENAI_API_KEY` (ya existente) y la configuración de WhatsApp existente.
+
+---
+
+## Capa 5 — Feedback Estratégico: Alertas de Riesgo Operativo al CEO
+
+La Capa 5 convierte los datos de sesión (sin exponer conversaciones) en señales de riesgo operativo que el CEO puede ver en el dashboard de Capital Humano.
+
+### Qué detecta
+
+| Tipo de alerta | Criterio por defecto | Severidad |
+|----------------|----------------------|-----------|
+| `energy_drop` | ≥3 sesiones con `nivelEnergia ≤ 2` en los últimos 14 días | medium / high |
+| `recurrent_block` | ≥3 sesiones con `flujoActivo = bloqueo` en los últimos 14 días | medium / high |
+| `overload` | ≥5 sesiones con `nivelEnergia ≤ 3` en los últimos 7 días | high |
+
+La severidad escala a `high` cuando el conteo supera el doble del umbral. Las alertas se dedupliccan por `(comercialId, type)` en ventana de 7 días para evitar ruido.
+
+### Persistencia
+
+Las alertas se almacenan en el modelo `DashboardAlert` existente (sin migración de schema) con los tipos `energy_drop`, `recurrent_block`, `overload`. El modelo ya tiene los campos `type` (String), `severity`, `metric`, `message`, `details`, `notifiedAt`, `resolvedAt`.
+
+### Archivos principales
+
+| Archivo | Función |
+|---------|---------|
+| `lib/dashboard/mental-health/alert-scanner.ts` | Lógica de detección pura (`detectEnergyDropFromRows`, `detectRecurrentBlockFromRows`, `detectOverloadFromRows`) + deduplicación + orchestrator `scanMentalHealthAlerts()` |
+| `lib/dashboard/mental-health/queries.ts` | Métricas agregadas sin exponer conversaciones → `getMentalHealthOverview()` |
+| `app/api/cron/mental-health-alerts/route.ts` | Cron POST: escanea → persiste en `DashboardAlert` → notifica CEO vía `alertGeneric` |
+| `app/api/dashboard/mental-health/route.ts` | GET autenticado: devuelve `MentalHealthOverview` al dashboard |
+| `app/platform/bi/capital-humano/page.tsx` | Dashboard CEO Capital Humano (datos reales) |
+
+### Endpoint de métricas
+
+```
+GET /api/dashboard/mental-health
+Authorization: sesión autenticada
+```
+
+Respuesta:
+```json
+{
+  "ok": true,
+  "data": {
+    "sesionesUltimos30d": 47,
+    "comercialesActivos": 8,
+    "energiaMediaEquipo": 3.2,
+    "flujoDistribucion": {
+      "bloqueo": 18,
+      "preparacion": 12,
+      "descarga": 6,
+      "enfoque": 8,
+      "crecimiento": 3
+    },
+    "alertasActivas": {
+      "energy_drop": 2,
+      "recurrent_block": 1,
+      "overload": 0
+    }
+  }
+}
+```
+
+### Cron de alertas
+
+```
+POST /api/cron/mental-health-alerts
+Authorization: CRON_SECRET (Upstash QStash)
+```
+
+Ejecutar semanalmente (lunes ~09:30). Respuesta:
+```json
+{
+  "ok": true,
+  "persisted": 3,
+  "energyDropCount": 2,
+  "recurrentBlockCount": 1,
+  "overloadCount": 0,
+  "deduplicatedCount": 1
+}
+```
+
+### Variables de entorno de la Capa 5 (opcionales — tienen defaults razonables)
+
+| Variable | Default | Descripción |
+|----------|---------|-------------|
+| `MH_ALERT_ENERGY_DROP_THRESHOLD` | `3` | Mínimo de sesiones con energía ≤ 2 para generar alerta `energy_drop` |
+| `MH_ALERT_BLOCK_THRESHOLD` | `3` | Mínimo de sesiones en flujo bloqueo para alerta `recurrent_block` |
+| `MH_ALERT_OVERLOAD_SESSIONS` | `5` | Mínimo de sesiones con energía ≤ 3 en 7 días para alerta `overload` |
+
+### Tests
+
+```bash
+npx vitest run lib/dashboard/mental-health/__tests__/alert-scanner.test.ts
+```
+
+27 tests: detección de energía baja, bloqueo recurrente, sobrecarga (incluyendo umbrales, escalado de severidad, múltiples comerciales, subtipos) y deduplicación.
