@@ -24,6 +24,8 @@ export type {
   StatefoxListingType,
   StatefoxHousing,
   StatefoxSnapshotStatus,
+  StatefoxPropertyZone,
+  StatefoxPropertyCity,
 } from "./types";
 
 export {
@@ -40,3 +42,20 @@ export type {
   StatefoxResultFilters,
   StatefoxDemandQuery,
 } from "./query-builder";
+
+export {
+  searchSnapshotForDemand,
+  normalizeForComparison,
+  normalizeLocationKeywords,
+  matchesCity,
+  matchesHousing,
+  matchesPriceRange,
+  matchesMetersRange,
+  matchesMinRooms,
+} from "./snapshot-search";
+
+export type {
+  SnapshotSearchOptions,
+  SnapshotSearchResult,
+  SnapshotMatchedProperty,
+} from "./snapshot-search";

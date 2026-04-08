@@ -3,13 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { MICROSITE_VALIDATION_SLA_MS } from "@/lib/microsite/constants";
 import { resolveBuyerPhoneForDemand } from "@/lib/microsite/buyer-phone";
 import {
-  buildStatefoxQuery,
-  createStatefoxClient,
-  filterStatefoxResults,
-  getProperties,
+  searchSnapshotForDemand,
   type DemandFilterInput,
-  type StatefoxProperty,
+  type SnapshotMatchedProperty,
 } from "@/lib/statefox";
+import type { StatefoxSnapshotProperty, StatefoxPropertyZone } from "@/lib/statefox";
 
 export type MicrositeCuratedProperty = {
   propertyId: string;
@@ -59,25 +57,21 @@ function generateToken(): string {
   return randomBytes(16).toString("hex");
 }
 
-function extractImages(p: StatefoxProperty): string[] {
-  const urls: string[] = [];
-
-  if (p.propertyMainImage && typeof p.propertyMainImage === "string") {
-    urls.push(p.propertyMainImage);
-  }
-
-  const imgs = p.pImages;
-  if (imgs && typeof imgs === "object") {
-    for (const item of Object.values(imgs)) {
-      const src = item?.src;
-      if (src && typeof src === "string") urls.push(src);
-    }
-  }
-
-  return Array.from(new Set(urls)).slice(0, 30);
+function resolveZoneName(pZone: string | StatefoxPropertyZone | undefined): string {
+  if (!pZone) return "";
+  if (typeof pZone === "string") return pZone;
+  return pZone.name ?? "";
 }
 
-function extractExtras(p: StatefoxProperty): string[] {
+function extractImages(p: StatefoxSnapshotProperty): string[] {
+  const imgs = p.pImages;
+  if (!Array.isArray(imgs)) return [];
+  return imgs
+    .filter((src): src is string => typeof src === "string" && src.trim() !== "")
+    .slice(0, 30);
+}
+
+function extractExtras(p: StatefoxSnapshotProperty): string[] {
   const extras = p.pExtras ?? {};
   const labels: string[] = [];
 
@@ -88,16 +82,10 @@ function extractExtras(p: StatefoxProperty): string[] {
   push(extras.terrace === true, "Terraza");
   push(extras.balcony === true, "Balcón");
   push(extras.lift === true, "Ascensor");
-  push(extras.pool === true, "Piscina");
-  push(extras.garden === true, "Jardín");
-  push(extras.garage === true, "Garaje");
   push(extras.boxroom === true, "Trastero");
   push(extras.exterior === true, "Exterior");
   push(extras.aircond === true || extras.airConditioning === true, "Aire acondicionado");
   push(extras.wardrobes === true, "Armarios empotrados");
-  push(extras.furniture === true || extras.furnished === true, "Amueblado");
-  push(extras.chimney === true, "Chimenea");
-  push(extras.purchaseopt === true, "Opción a compra");
 
   if (typeof extras.heating === "string" && extras.heating.trim()) {
     labels.push(`Calefacción: ${extras.heating.trim()}`);
@@ -106,7 +94,7 @@ function extractExtras(p: StatefoxProperty): string[] {
   return Array.from(new Set(labels));
 }
 
-function extractEnergyCert(p: StatefoxProperty): { rating: string | null; value: string | null } {
+function extractEnergyCert(p: StatefoxSnapshotProperty): { rating: string | null; value: string | null } {
   const extras = p.pExtras ?? {};
   const rating =
     typeof extras.certenerat === "string" && extras.certenerat.trim()
@@ -117,9 +105,9 @@ function extractEnergyCert(p: StatefoxProperty): { rating: string | null; value:
   return { rating, value };
 }
 
-function makeTitle(p: StatefoxProperty): string {
+function makeTitle(p: StatefoxSnapshotProperty): string {
   const housing = typeof p.pHousing === "string" ? p.pHousing : "";
-  const zone = typeof p.pZone?.name === "string" ? p.pZone.name : "";
+  const zone = resolveZoneName(p.pZone);
   const city = typeof p.pCity?.cityName === "string" ? p.pCity.cityName : "";
 
   const parts = [housing, zone, city].map((x) => x.trim()).filter(Boolean);
@@ -128,18 +116,26 @@ function makeTitle(p: StatefoxProperty): string {
   return typeof p.pAddress === "string" && p.pAddress.trim() ? p.pAddress.trim() : "Propiedad";
 }
 
-function curate(propertyId: string, p: StatefoxProperty): MicrositeCuratedProperty {
+function computePricePerMeter(p: StatefoxSnapshotProperty): number | null {
+  const price = p.pPrice ?? 0;
+  const meters = p.pMeters?.built ?? 0;
+  if (price <= 0 || meters <= 0) return null;
+  return Math.round(price / meters);
+}
+
+function curate(propertyId: string, p: StatefoxSnapshotProperty): MicrositeCuratedProperty {
   const energy = extractEnergyCert(p);
   const meters = p.pMeters ?? {};
   const point = p.pPoint ?? {};
+  const zone = resolveZoneName(p.pZone);
 
   return {
     propertyId,
     title: makeTitle(p),
-    description: typeof p.pDesc === "string" && p.pDesc.trim() ? p.pDesc.trim() : null,
+    description: typeof p.pDescription === "string" && p.pDescription.trim() ? p.pDescription.trim() : null,
     link: typeof p.pLink === "string" ? p.pLink : null,
     price: typeof p.pPrice === "number" ? p.pPrice : null,
-    pricePerMeter: typeof p.pPricePerMeter === "number" ? p.pPricePerMeter : null,
+    pricePerMeter: computePricePerMeter(p),
     metersBuilt: typeof meters.built === "number" ? meters.built : null,
     metersUsable: typeof meters.usable === "number" ? meters.usable : null,
     metersPlot: typeof meters.plot === "number" ? meters.plot : null,
@@ -150,7 +146,7 @@ function curate(propertyId: string, p: StatefoxProperty): MicrositeCuratedProper
     orientation: typeof p.pOrientation === "string" && p.pOrientation.trim() ? p.pOrientation.trim() : null,
     address: typeof p.pAddress === "string" ? p.pAddress : null,
     city: typeof p.pCity?.cityName === "string" ? p.pCity.cityName : null,
-    zone: typeof p.pZone?.name === "string" ? p.pZone.name : null,
+    zone: zone.trim() || null,
     housing: typeof p.pHousing === "string" ? p.pHousing : null,
     latitude: typeof point.latitude === "number" ? point.latitude : null,
     longitude: typeof point.longitude === "number" ? point.longitude : null,
@@ -232,7 +228,7 @@ export function coerceMicrositeCuratedProperties(value: unknown): MicrositeCurat
     .filter((x): x is MicrositeCuratedProperty => Boolean(x));
 }
 
-function scoreForDemand(p: StatefoxProperty, demand: DemandFilterInput): number {
+function scoreForDemand(p: StatefoxSnapshotProperty, demand: DemandFilterInput): number {
   let score = 0;
 
   const price = typeof p.pPrice === "number" ? p.pPrice : null;
@@ -257,13 +253,11 @@ function scoreForDemand(p: StatefoxProperty, demand: DemandFilterInput): number 
       const rel = Math.abs(price - max) / Math.max(1, max);
       score += Math.max(0, 50 - rel * 100);
     } else if (min > 0) {
-      // si solo hay min, preferimos no quedarnos por debajo por demasiado (pero no excluimos)
       const rel = Math.abs(price - min) / Math.max(1, min);
       score += Math.max(0, 40 - rel * 80);
     }
   }
 
-  // Preferir anuncios profesionales ligeramente (suelen tener mejor info)
   if (p.pAdvert?.type === "professional") score += 5;
 
   return score;
@@ -289,65 +283,31 @@ export async function generateMicrositeSelection(
     }
   }
 
-  let client;
+  let searchResult;
   try {
-    client = createStatefoxClient();
-  } catch {
-    return { ok: false, reason: "STATEFOX_TOKEN_MISSING" };
-  }
-
-  const { queryParams, resultFilters } = buildStatefoxQuery(input.demand, {
-    type: "sale",
-    source: "idealista",
-    items: 100,
-  });
-
-  let response;
-  try {
-    response = await getProperties(client, {
-      source: queryParams.source,
-      type: queryParams.type,
-      items: queryParams.items,
-      housing: queryParams.housing,
+    searchResult = await searchSnapshotForDemand(input.demand, {
+      listingType: "sale",
+      maxPages: 10,
+      targetResults: 30,
     });
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("requires token")) {
+      return { ok: false, reason: "STATEFOX_TOKEN_MISSING" };
+    }
+    console.error(`[microsite:selection] Error en snapshot search: ${msg}`);
     return { ok: false, reason: "STATEFOX_ERROR" };
   }
 
-  const all = Object.entries(response.properties).map(([propertyId, p]) => ({
-    propertyId,
-    property: p,
-  }));
-
-  const matching = filterStatefoxResults(
-    all.map((x) => x.property),
-    resultFilters,
-  );
-
-  const matchingIds = new Set(
-    Object.entries(response.properties)
-      .filter(([, p]) => matching.includes(p))
-      .map(([id]) => id),
-  );
-
-  const minRooms = Math.max(0, input.demand.habitacionesMin ?? 0);
-  const filtered = all
-    .filter((x) => matchingIds.has(x.propertyId))
-    .filter((x) => {
-      const rooms = typeof x.property.pRooms === "number" ? x.property.pRooms : null;
-      if (minRooms <= 0) return true;
-      return rooms !== null ? rooms >= minRooms : true;
-    });
-
-  if (filtered.length === 0) {
+  if (searchResult.properties.length === 0) {
     return { ok: false, reason: "NO_MATCHING_PROPERTIES" };
   }
 
-  const ranked = filtered
-    .map((x) => ({
-      propertyId: x.propertyId,
-      property: x.property,
-      score: scoreForDemand(x.property, input.demand),
+  const ranked = searchResult.properties
+    .map((m) => ({
+      propertyId: m.id,
+      property: m.property,
+      score: scoreForDemand(m.property, input.demand),
     }))
     .sort((a, b) => b.score - a.score);
 
@@ -358,6 +318,13 @@ export async function generateMicrositeSelection(
   const buyerPhone = await resolveBuyerPhoneForDemand(input.demandId);
   const validationDueAt = new Date(Date.now() + MICROSITE_VALIDATION_SLA_MS);
 
+  const searchMeta = {
+    endpoint: "snapshot" as const,
+    pagesScanned: searchResult.pagesScanned,
+    totalScanned: searchResult.totalScanned,
+    earlyExit: searchResult.earlyExit,
+  };
+
   const created = await prisma.micrositeSelection.create({
     data: {
       token,
@@ -366,10 +333,10 @@ export async function generateMicrositeSelection(
       demandNombre: input.demandNombre,
       comercialId: input.comercialId,
       buyerPhone,
-      statefoxQuery: queryParams as unknown as object,
-      resultFilters: resultFilters as unknown as object,
+      statefoxQuery: searchMeta as unknown as object,
+      resultFilters: {} as unknown as object,
       properties: curated as unknown as object,
-      stockCount: filtered.length,
+      stockCount: searchResult.properties.length,
       sourceEventId: input.sourceEventId,
       validationDueAt,
     },
@@ -381,7 +348,7 @@ export async function generateMicrositeSelection(
     token,
     selectionId: created.id,
     propertiesCount: curated.length,
-    stockCount: filtered.length,
+    stockCount: searchResult.properties.length,
   };
 }
 

@@ -14,8 +14,7 @@ import type { EnqueueJobInput, JsonValue } from "@/lib/job-queue/types";
 import type { HandlerResult } from "./types";
 import type { DemandFilterInput } from "@/lib/statefox";
 import { prisma } from "@/lib/prisma";
-import { createStatefoxClient, getProperties } from "@/lib/statefox";
-import { buildStatefoxQuery, filterStatefoxResults } from "@/lib/statefox";
+import { searchSnapshotForDemand } from "@/lib/statefox";
 import { upsertCommercialVisitEvaluationFactFromVisitaEvaluadaEvent } from "@/lib/dashboard/comercial/facts";
 
 // ---------------------------------------------------------------------------
@@ -55,40 +54,23 @@ function parsePayload(payload: unknown): VisitaEvaluadaPayload {
 
 /**
  * Consulta el stock de mercado en Statefox filtrado por los criterios de la demanda.
- * Devuelve el número de propiedades que encajan con la demanda.
+ * Usa /snapshot (inventario completo) con early exit para eficiencia en serverless.
  */
 async function fetchStockForDemand(demand: DemandFilterInput): Promise<number> {
-  let client;
   try {
-    client = createStatefoxClient();
-  } catch {
-    // Sin token configurado: no podemos consultar Statefox
-    console.warn("[consumer:visita-evaluada] STATEFOX_BEARER_TOKEN no configurado — omitiendo consulta de stock");
-    return 0;
-  }
-
-  const { queryParams, resultFilters } = buildStatefoxQuery(demand, {
-    type: "sale",
-    source: "idealista",
-    items: 50,
-  });
-
-  try {
-    const response = await getProperties(client, {
-      source: queryParams.source,
-      type: queryParams.type,
-      items: queryParams.items,
-      housing: queryParams.housing,
+    const result = await searchSnapshotForDemand(demand, {
+      listingType: "sale",
+      maxPages: 5,
+      targetResults: 10,
     });
-
-    const allProperties = Object.values(response.properties);
-    const matching = filterStatefoxResults(allProperties, resultFilters);
-
-    return matching.length;
+    return result.properties.length;
   } catch (err) {
-    console.error(
-      `[consumer:visita-evaluada] Error consultando Statefox: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("requires token")) {
+      console.warn("[consumer:visita-evaluada] STATEFOX_BEARER_TOKEN no configurado — omitiendo consulta de stock");
+    } else {
+      console.error(`[consumer:visita-evaluada] Error consultando Statefox: ${msg}`);
+    }
     return 0;
   }
 }

@@ -191,6 +191,17 @@ export function buildStatefoxQuery(
 // ---------------------------------------------------------------------------
 
 /**
+ * Normaliza texto para comparación: minúsculas, sin tildes/diacríticos.
+ */
+function normalizeText(s: string): string {
+  return s
+    .toLowerCase()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+/**
  * Evalúa si una propiedad Statefox cumple los filtros de resultado de la demanda.
  * Aplica precio, metros y coincidencia de ciudad/zona.
  */
@@ -214,13 +225,19 @@ export function matchesStatefoxFilters(
 
   // --- Ciudad / Zona ---
   if (filters.locationKeywords.length > 0) {
-    const cityName = (property.pCity?.cityName ?? "").toLowerCase();
-    const zoneName = (property.pZone?.name ?? "").toLowerCase();
-    const address = (property.pAddress ?? "").toLowerCase();
+    const cityName = normalizeText(property.pCity?.cityName ?? "");
+    const zoneName = normalizeText(property.pZone?.name ?? "");
+    const address = normalizeText(property.pAddress ?? "");
 
-    const matchesLocation = filters.locationKeywords.some(
-      (kw) => cityName.includes(kw) || zoneName.includes(kw) || address.includes(kw),
-    );
+    const matchesLocation = filters.locationKeywords.some((rawKw) => {
+      const kw = normalizeText(rawKw);
+      return (
+        cityName.includes(kw) ||
+        kw.includes(cityName) ||
+        zoneName.includes(kw) ||
+        address.includes(kw)
+      );
+    });
 
     if (!matchesLocation) return false;
   }
