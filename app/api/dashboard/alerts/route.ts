@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
  *   to             — ISO date (default: now)
  *   comercialId    — filter by comercial
  *   severity       — "low" | "medium" | "high"
- *   type           — "drop" | "sla_breach" | "deviation"
+ *   type           — "drop" | "sla_breach" | "deviation" | "mh_energy_low" | "mh_bloqueo_recurrente" | "mh_sobrecarga_uso"
  *   resolved       — "true" | "false" (default: false — only unresolved)
  *   limit          — number (default: 50)
  *   offset         — number (default: 0)

@@ -1701,6 +1701,8 @@ Esto permite: intervención del jefe de zona, ajuste de carga, apoyo puntual.
 
 > Se protege la confianza del comercial.
 
+**Implementación (Neon + cron):** escaneo de eventos `MENTAL_*` agregados por comercial, persistencia en `dashboard_alerts` (tipos `mh_energy_low`, `mh_bloqueo_recurrente`, `mh_sobrecarga_uso`) y notificación al canal configurado (`ALERT_WHATSAPP_TO`). Cron: `POST /api/cron/mental-health-strategic-alerts` con `Authorization: Bearer <CRON_SECRET>`. Detalle y variables: `docs/soporte-mental-cap5-feedback-estrategico.md`.
+
 ### Desarrollo Técnico
 
 1. **Definir momentos críticos:** antes de llamadas importantes, después de objeción dura, tras una pérdida, antes de cierre grande, días de bajo rendimiento. Estos momentos activan sugerencias proactivas.

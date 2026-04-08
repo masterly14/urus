@@ -5,12 +5,14 @@ import {
   AlertOctagon,
   CheckCircle2,
   Clock,
-  DollarSign,
   Filter,
   Loader2,
   TrendingDown,
   ShieldAlert,
   BarChart3,
+  Brain,
+  Repeat,
+  Gauge,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +28,9 @@ const TYPE_LABELS: Record<string, string> = {
   drop: "Caída rendimiento",
   sla_breach: "SLA incumplido",
   deviation: "Desviación vs media",
+  mh_energy_low: "Coach: energía baja",
+  mh_bloqueo_recurrente: "Coach: bloqueo recurrente",
+  mh_sobrecarga_uso: "Coach: uso intensivo",
 };
 
 const SEVERITY_LABELS: Record<string, string> = {
@@ -42,6 +47,12 @@ function AlertIcon({ type }: { type: string }) {
       return <ShieldAlert className="h-5 w-5" />;
     case "deviation":
       return <BarChart3 className="h-5 w-5" />;
+    case "mh_energy_low":
+      return <Gauge className="h-5 w-5" />;
+    case "mh_bloqueo_recurrente":
+      return <Repeat className="h-5 w-5" />;
+    case "mh_sobrecarga_uso":
+      return <Brain className="h-5 w-5" />;
     default:
       return <AlertOctagon className="h-5 w-5" />;
   }
@@ -162,7 +173,16 @@ export default function PerformanceAlertsPage() {
       <div className="flex flex-wrap items-center gap-2">
         <Filter className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm text-muted-foreground mr-1">Tipo:</span>
-        {(["drop", "sla_breach", "deviation"] as const).map((type) => (
+        {(
+          [
+            "drop",
+            "sla_breach",
+            "deviation",
+            "mh_energy_low",
+            "mh_bloqueo_recurrente",
+            "mh_sobrecarga_uso",
+          ] as const
+        ).map((type) => (
           <Button
             key={type}
             size="sm"
