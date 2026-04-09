@@ -134,7 +134,6 @@ enum MicrositeSelectionDecision {
   NO_ME_ENCAJA
 }
 
-
 model Event {
   id            String        @id @default(cuid())
   position      BigInt        @unique @default(autoincrement())
@@ -271,6 +270,31 @@ model PropertyCurrent {
   @@map("properties_current")
 }
 
+model PricingReport {
+  propertyCode              String   @id
+  analyzedAt                DateTime
+  sourceTrigger             String   @default("manual")
+  semaforo                  String   @default("sin_datos")
+  gapPorcentaje             Float    @default(0)
+  totalComparables          Int      @default(0)
+  input                     Json
+  stats                     Json
+  comparables               Json
+  recommendation            Json?
+  recommendationError       String?
+  trend                     Json?
+  queryMeta                 Json
+  lastAnalysisEventId       String?
+  lastRecommendationEventId String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@index([analyzedAt])
+  @@index([sourceTrigger, analyzedAt])
+  @@index([semaforo, analyzedAt])
+  @@map("pricing_reports")
+}
+
 model DemandCurrent {
   codigo             String   @id
   ref                String   @default("")
@@ -326,6 +350,84 @@ model IngestionCycleMetric {
   @@map("ingestion_cycle_metrics")
 }
 
+model ObservabilityLog {
+  id            String   @id @default(cuid())
+  scope         String
+  source        String
+  operation     String
+  level         String
+  message       String
+  requestId     String?
+  correlationId String?
+  workerId      String?
+  workerName    String?
+  jobId         String?
+  jobType       String?
+  eventId       String?
+  eventType     String?
+  route         String?
+  method        String?
+  statusCode    Int?
+  durationMs    Int?
+  errorMessage  String?
+  errorStack    String?
+  context       Json     @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([scope, createdAt])
+  @@index([source, createdAt])
+  @@index([level, createdAt])
+  @@index([operation, createdAt])
+  @@index([requestId])
+  @@index([correlationId])
+  @@index([workerId, createdAt])
+  @@index([jobId, createdAt])
+  @@index([eventId, createdAt])
+  @@map("observability_logs")
+}
+
+model ExecutionMetric {
+  id              String   @id @default(cuid())
+  scope           String
+  source          String
+  name            String
+  operation       String
+  success         Boolean
+  startedAt       DateTime
+  finishedAt      DateTime
+  durationMs      Int
+  throughputCount Int      @default(1)
+  statusCode      Int?
+  requestId       String?
+  correlationId   String?
+  workerId        String?
+  workerName      String?
+  jobId           String?
+  jobType         String?
+  eventId         String?
+  eventType       String?
+  route           String?
+  method          String?
+  errorMessage    String?
+  errorCode       String?
+  context         Json     @default("{}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([scope, startedAt])
+  @@index([source, startedAt])
+  @@index([name, startedAt])
+  @@index([operation, startedAt])
+  @@index([success, startedAt])
+  @@index([requestId])
+  @@index([correlationId])
+  @@index([workerId, startedAt])
+  @@index([jobId, startedAt])
+  @@index([eventId, startedAt])
+  @@map("execution_metrics")
+}
+
 model User {
   id String @id @default(cuid())
 }
@@ -346,7 +448,7 @@ model Comercial {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  referrals      Referral[]
+  referrals Referral[]
 
   @@index([ciudad, activo])
   @@index([activo, cargaActual])
@@ -477,25 +579,25 @@ enum LegalDocumentStatus {
 }
 
 model LegalDocument {
-  id                  String              @id @default(cuid())
-  operationId         String
-  propertyCode        String
-  documentKind        String
-  templateVersion     String?
-  status              LegalDocumentStatus @default(DRAFT)
-  contractInput       Json?
-  cloudinaryUrl       String?
-  signedDocumentUrl   String?
-  auditTrailUrl       String?
-  approvedAt          DateTime?
-  approvedByUserId    String?
-  completedAt         DateTime?
-  signatureRequestId  String?             @unique
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  id                 String              @id @default(cuid())
+  operationId        String
+  propertyCode       String
+  documentKind       String
+  templateVersion    String?
+  status             LegalDocumentStatus @default(DRAFT)
+  contractInput      Json?
+  cloudinaryUrl      String?
+  signedDocumentUrl  String?
+  auditTrailUrl      String?
+  approvedAt         DateTime?
+  approvedByUserId   String?
+  completedAt        DateTime?
+  signatureRequestId String?             @unique
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
-  signatureRequest    SignatureRequest?   @relation(fields: [signatureRequestId], references: [id], onDelete: SetNull)
-  parties             LegalDocumentParty[]
+  signatureRequest SignatureRequest?    @relation(fields: [signatureRequestId], references: [id], onDelete: SetNull)
+  parties          LegalDocumentParty[]
 
   @@unique([operationId, documentKind])
   @@index([propertyCode])
@@ -504,7 +606,7 @@ model LegalDocument {
 }
 
 model LegalDocumentParty {
-  id                String        @id @default(cuid())
+  id                String    @id @default(cuid())
   legalDocumentId   String
   role              String
   fullName          String
@@ -513,13 +615,13 @@ model LegalDocumentParty {
   phone             String?
   address           String?
   inmovilla_cod_cli String?
-  hasSigned         Boolean       @default(false)
+  hasSigned         Boolean   @default(false)
   signedAt          DateTime?
-  reminderDay       Int           @default(0)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  reminderDay       Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  legalDocument     LegalDocument @relation(fields: [legalDocumentId], references: [id], onDelete: Cascade)
+  legalDocument LegalDocument @relation(fields: [legalDocumentId], references: [id], onDelete: Cascade)
 
   @@unique([legalDocumentId, email])
   @@index([legalDocumentId, hasSigned])
@@ -527,43 +629,43 @@ model LegalDocumentParty {
 }
 
 model SignatureRequest {
-  id                     String                 @id @default(cuid())
-  signaturitSignatureId  String?                @unique
-  signaturitDocumentId   String?
-  operationId            String
-  propertyCode           String
-  documentKind           String
-  templateVersion        String?
-  cloudinaryUrl          String
-  signingUrl             String?
-  status                 SignatureRequestStatus  @default(SENT)
-  signerName             String
-  signerEmail            String
-  signerPhone            String?
-  sentAt                 DateTime               @default(now())
-  openedAt               DateTime?
-  signedAt               DateTime?
-  completedAt            DateTime?
-  declinedAt             DateTime?
-  expiredAt              DateTime?
-  slaDeadlineDays        Int                    @default(5)
-  slaDeadline            DateTime
-  lastReminderDay        Int                    @default(0)
-  escalatedAt            DateTime?
-  signedDocumentUrl      String?
-  auditTrailUrl          String?
-  documentHash           String?
-  signingToken           String?                @unique
-  signerIp               String?
-  signerUserAgent        String?
-  consentText            String?
-  signedDocumentHash     String?
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime               @updatedAt
+  id                    String                 @id @default(cuid())
+  signaturitSignatureId String?                @unique
+  signaturitDocumentId  String?
+  operationId           String
+  propertyCode          String
+  documentKind          String
+  templateVersion       String?
+  cloudinaryUrl         String
+  signingUrl            String?
+  status                SignatureRequestStatus @default(SENT)
+  signerName            String
+  signerEmail           String
+  signerPhone           String?
+  sentAt                DateTime               @default(now())
+  openedAt              DateTime?
+  signedAt              DateTime?
+  completedAt           DateTime?
+  declinedAt            DateTime?
+  expiredAt             DateTime?
+  slaDeadlineDays       Int                    @default(5)
+  slaDeadline           DateTime
+  lastReminderDay       Int                    @default(0)
+  escalatedAt           DateTime?
+  signedDocumentUrl     String?
+  auditTrailUrl         String?
+  documentHash          String?
+  signingToken          String?                @unique
+  signerIp              String?
+  signerUserAgent       String?
+  consentText           String?
+  signedDocumentHash    String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 
-  legalDocument          LegalDocument?
+  legalDocument LegalDocument?
 
-  otps                   SignatureOtp[]
+  otps SignatureOtp[]
 
   @@index([status, slaDeadline])
   @@index([operationId])
@@ -571,17 +673,17 @@ model SignatureRequest {
 }
 
 model SignatureOtp {
-  id                  String           @id @default(cuid())
-  signatureRequestId  String
-  phone               String
-  codeHash            String
-  verified            Boolean          @default(false)
-  attempts            Int              @default(0)
-  expiresAt           DateTime
-  verifiedAt          DateTime?
-  createdAt           DateTime         @default(now())
+  id                 String    @id @default(cuid())
+  signatureRequestId String
+  phone              String
+  codeHash           String
+  verified           Boolean   @default(false)
+  attempts           Int       @default(0)
+  expiresAt          DateTime
+  verifiedAt         DateTime?
+  createdAt          DateTime  @default(now())
 
-  signatureRequest    SignatureRequest  @relation(fields: [signatureRequestId], references: [id], onDelete: Cascade)
+  signatureRequest SignatureRequest @relation(fields: [signatureRequestId], references: [id], onDelete: Cascade)
 
   @@index([signatureRequestId, verified])
   @@map("signature_otps")
@@ -667,19 +769,19 @@ model CommercialVisitFact {
   demandId String
 
   comercialId     String?
-  comercialNombre String @default("")
+  comercialNombre String  @default("")
 
-  fecha      String @default("")
-  horaInicio String @default("")
-  horaFin    String @default("")
+  fecha       String    @default("")
+  horaInicio  String    @default("")
+  horaFin     String    @default("")
   scheduledAt DateTime?
 
   ubicacion String @default("")
   notas     String @default("")
 
-  calendarEventId  String?
-  calendarLink     String?
-  calendarSuccess  Boolean @default(false)
+  calendarEventId String?
+  calendarLink    String?
+  calendarSuccess Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -697,7 +799,7 @@ model CommercialVisitEvaluationFact {
   demandId String
 
   comercialId     String?
-  comercialNombre String @default("")
+  comercialNombre String  @default("")
 
   interes String @default("")
   notas   String @default("")
@@ -712,8 +814,8 @@ model CommercialVisitEvaluationFact {
 }
 
 model CommercialOperationFact {
-  id            String  @id @default(cuid())
-  sourceEventId String  @unique
+  id            String @id @default(cuid())
+  sourceEventId String @unique
 
   operacionId  String?
   propertyCode String
@@ -722,7 +824,7 @@ model CommercialOperationFact {
   ciudad String @default("")
   zona   String @default("")
 
-  newEstado String @default("")
+  newEstado String   @default("")
   closedAt  DateTime
 
   firstSeenAt DateTime?
@@ -731,7 +833,7 @@ model CommercialOperationFact {
   grossAmountEur Float?
 
   comercialId     String?
-  comercialNombre String @default("")
+  comercialNombre String  @default("")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -761,17 +863,17 @@ model CommercialClassification {
 }
 
 model ScoringModelVersion {
-  id             String    @id @default(cuid())
-  version        Int       @unique
-  weightPclose   Float
-  weightValue    Float
-  weightUrgency  Float
-  sampleSize     Int
-  accuracy       Float
-  backtestScore  Float
-  metadata       Json?
-  activatedAt    DateTime?
-  createdAt      DateTime  @default(now())
+  id            String    @id @default(cuid())
+  version       Int       @unique
+  weightPclose  Float
+  weightValue   Float
+  weightUrgency Float
+  sampleSize    Int
+  accuracy      Float
+  backtestScore Float
+  metadata      Json?
+  activatedAt   DateTime?
+  createdAt     DateTime  @default(now())
 
   @@index([activatedAt])
   @@map("scoring_model_versions")
@@ -938,8 +1040,8 @@ model ColaboradorAsignacion {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
-  colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
-  operacion   Operacion   @relation(fields: [operacionId], references: [id])
+  colaborador Colaborador            @relation(fields: [colaboradorId], references: [id])
+  operacion   Operacion              @relation(fields: [operacionId], references: [id])
   hitos       ColaboradorHito[]
   documentos  DocumentoColaborador[]
 
@@ -964,7 +1066,7 @@ model ColaboradorHito {
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
-  asignacion ColaboradorAsignacion @relation(fields: [asignacionId], references: [id], onDelete: Cascade)
+  asignacion ColaboradorAsignacion  @relation(fields: [asignacionId], references: [id], onDelete: Cascade)
   documentos DocumentoColaborador[]
 
   @@index([asignacionId, orden])
@@ -997,21 +1099,21 @@ model DocumentoColaborador {
 // ---------------------------------------------------------------------------
 
 model CeoMonthlySnapshot {
-  id                    String   @id @default(cuid())
-  period                String   @unique // "2026-04"
-  revenueEur            Float    @default(0)
-  grossVolumeEur        Float    @default(0)
-  operationsClosed      Int      @default(0)
-  operationsActive      Int      @default(0)
-  ebitdaEur             Float    @default(0)
-  operatingCostEur      Float    @default(0)
-  cashAvailableEur      Float    @default(0)
-  fixedCostsEur         Float    @default(0)
-  variableCostsEur      Float    @default(0)
-  avgMarginPerOp        Float    @default(0)
-  reinvestmentCapacity  Float    @default(0)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  period               String   @unique // "2026-04"
+  revenueEur           Float    @default(0)
+  grossVolumeEur       Float    @default(0)
+  operationsClosed     Int      @default(0)
+  operationsActive     Int      @default(0)
+  ebitdaEur            Float    @default(0)
+  operatingCostEur     Float    @default(0)
+  cashAvailableEur     Float    @default(0)
+  fixedCostsEur        Float    @default(0)
+  variableCostsEur     Float    @default(0)
+  avgMarginPerOp       Float    @default(0)
+  reinvestmentCapacity Float    @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@index([period])
   @@map("ceo_monthly_snapshots")
@@ -1084,27 +1186,27 @@ model EvalRun {
 }
 
 model EvalResult {
-  id                       String   @id @default(cuid())
-  runId                    String
-  run                      EvalRun  @relation(fields: [runId], references: [id])
-  scenarioId               String
-  scenarioName             String
-  category                 String
-  personaId                String
-  buyerMessage             String
-  nluOutput                Json
-  propertyResolutionScore  Float
-  sentimentAccuracyScore   Float
-  variableExtractionScore  Float
-  intentionScore           Float
-  wantsMoreScore           Float
-  hallucinationPenalty     Float
-  overallScore             Float
-  judgeReasoning           String?
-  failures                 String[]
-  latencyMs                Int
-  tokenCount               Int?
-  createdAt                DateTime @default(now())
+  id                      String   @id @default(cuid())
+  runId                   String
+  run                     EvalRun  @relation(fields: [runId], references: [id])
+  scenarioId              String
+  scenarioName            String
+  category                String
+  personaId               String
+  buyerMessage            String
+  nluOutput               Json
+  propertyResolutionScore Float
+  sentimentAccuracyScore  Float
+  variableExtractionScore Float
+  intentionScore          Float
+  wantsMoreScore          Float
+  hallucinationPenalty    Float
+  overallScore            Float
+  judgeReasoning          String?
+  failures                String[]
+  latencyMs               Int
+  tokenCount              Int?
+  createdAt               DateTime @default(now())
 
   @@index([runId])
   @@index([category])
