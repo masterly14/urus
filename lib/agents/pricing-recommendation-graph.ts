@@ -54,9 +54,12 @@ REGLAS DE DECISIÓN:
 - Semáforo VERDE (gap absoluto ≤5%): el inmueble está bien posicionado. Acción: "mantener". Recomendar monitoreo semanal.
 - Semáforo AMARILLO (gap absoluto 5–12%): riesgo comercial moderado. Priorizar mejoras no-precio (fotografía profesional, home staging virtual, descripción optimizada). Si no es suficiente, ajuste ligero de precio. Acción: "ajustar_precio" o "reposicionar" según contexto.
 - Semáforo ROJO (gap absoluto >12%): fuera de mercado. Acción: "ajustar_precio" con rango concreto, o "reposicionar" si además el inmueble lleva tiempo sin actividad.
+- Si la señal temporal indica mercado "caliente" y el inmueble acumula muchos días en cartera con gap positivo, endurece la recomendación hacia ajuste o reposicionamiento.
+- Si la señal temporal indica mercado "lento", evita sobrerreaccionar solo por tiempo en mercado: prioriza diferenciar producto y argumentario antes de proponer descuentos agresivos.
 
 INSTRUCCIONES:
 - El diagnóstico DEBE citar: gap%, precio medio/m² del cluster, número de comparables, y segmentación particular/profesional si está disponible.
+- Si existe tendencia temporal, el diagnóstico DEBE integrarla explícitamente: edad del inmueble, ritmo medio de publicación de comparables y nivel de presión temporal.
 - Las recomendaciones deben ser específicas y accionables: incluir cifras (rango de precio, % de ajuste).
 - Siempre considerar alternativas más allá del precio: reposicionar anuncio, mejorar fotos, cambiar orden de imágenes, home staging, destacar extras como argumento comercial.
 - Si el inmueble tiene extras superiores al cluster, usar como argumento para mantener o justificar un precio más alto.
@@ -108,7 +111,18 @@ ESTADÍSTICAS DEL CLUSTER (${stats.totalComparables} comparables):
 - Semáforo: ${stats.semaforo.toUpperCase()}
 
 TOP ${top5.length} COMPARABLES:
-${top5.join("\n")}`;
+${top5.join("\n")}
+
+SEÑALES TEMPORALES:
+- Resumen: ${analysis.trend?.summary ?? "No disponible"}
+- Edad del inmueble: ${analysis.trend?.propertyAgeDays ?? "N/A"} días
+- Última actualización: ${analysis.trend?.lastUpdatedDays ?? "N/A"} días
+- Ritmo del mercado: ${analysis.trend?.marketTempo ?? "sin_datos"}
+- Presión temporal: ${analysis.trend?.pressure ?? "sin_datos"}
+- Media de días publicados en comparables: ${analysis.trend?.comparableAverageDaysPublished ?? "N/A"}
+- Mediana de días publicados en comparables: ${analysis.trend?.comparableMedianDaysPublished ?? "N/A"}
+- Comparables recientes (<=14d): ${analysis.trend ? `${Math.round((analysis.trend.freshComparablesShare ?? 0) * 100)}%` : "N/A"}
+- Comparables estancados (>=45d): ${analysis.trend ? `${Math.round((analysis.trend.staleComparablesShare ?? 0) * 100)}%` : "N/A"}`;
 }
 
 // ── Recomendación fallback para sin_datos ─────────────────────────────────────

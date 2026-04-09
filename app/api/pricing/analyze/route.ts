@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { runPricingAnalysis, PricingDataIncompleteError } from "@/lib/pricing";
+import { withObservedRoute } from "@/lib/observability";
+
 
 export const runtime = "nodejs";
 
@@ -13,7 +15,7 @@ const RequestSchema = z.object({
   generateRecommendation: z.boolean().optional(),
 });
 
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -38,6 +40,7 @@ export async function POST(request: Request) {
       maxPages,
       minComparables,
       generateRecommendation,
+      sourceTrigger: "api_manual",
     });
 
     console.log(
@@ -64,3 +67,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/pricing/analyze" }, postHandler);

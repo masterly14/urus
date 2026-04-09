@@ -26,6 +26,8 @@ function makeInput(overrides?: Partial<PricingPropertyInput>): PricingPropertyIn
     keyTipo: 3,
     tipoOperacion: "sale",
     estado: "Disponible",
+    fechaAlta: "2026-01-01",
+    fechaActualizacion: "2026-03-01",
     extras: {
       terraza: false,
       garaje: false,

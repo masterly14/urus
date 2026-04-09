@@ -33,6 +33,7 @@ export async function handlePricingAnalysis(
   if (typeof payload.maxPages === "number") options.maxPages = payload.maxPages;
   if (typeof payload.generateRecommendation === "boolean")
     options.generateRecommendation = payload.generateRecommendation;
+  options.sourceTrigger = trigger ?? "worker_job";
 
   console.log(
     `[consumer:pricing] Ejecutando análisis de pricing para ${propertyCode}` +

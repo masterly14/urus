@@ -4,7 +4,6 @@ import { use, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
-  Tag,
   MapPin,
   BrainCircuit,
   BarChart3,
@@ -32,13 +31,20 @@ import {
   SemaforoIndicator,
   semaforoConfig,
 } from "@/components/pricing/semaforo-indicator";
-import type { PricingAnalysisResult, PricingComparable } from "@/lib/pricing/types";
+import type { PricingAnalysisResult } from "@/lib/pricing/types";
 import type { PricingRecommendation } from "@/lib/pricing/recommendation-types";
 import { pricingFixture } from "@/lib/mock-data/pricing-fixture";
 
 type ViewState =
   | { kind: "loading" }
-  | { kind: "error"; status: number; message: string; missingFields?: string[] }
+  | {
+      kind: "error";
+      status: number;
+      message: string;
+      missingFields?: string[];
+      action: "load" | "analyze";
+      actionLabel: string;
+    }
   | { kind: "success"; data: PricingAnalysisResult };
 
 const accionLabels: Record<string, { label: string; color: string; icon: typeof ArrowDown }> = {
@@ -49,6 +55,11 @@ const accionLabels: Record<string, { label: string; color: string; icon: typeof 
 
 function formatEur(n: number): string {
   return n.toLocaleString("es-ES");
+}
+
+function formatRatio(value: number | null | undefined): string {
+  if (value == null) return "—";
+  return `${Math.round(value * 100)}%`;
 }
 
 function pctDiff(a: number, b: number): string {
@@ -80,11 +91,13 @@ function InformeError({
   message,
   missingFields,
   onRetry,
+  actionLabel,
 }: {
   status: number;
   message: string;
   missingFields?: string[];
   onRetry: () => void;
+  actionLabel: string;
 }) {
   return (
     <div className="space-y-6">
@@ -114,7 +127,7 @@ function InformeError({
             onClick={onRetry}
             className="mt-4 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium hover:bg-secondary/90 transition-colors"
           >
-            Reintentar análisis
+            {actionLabel}
           </button>
         </CardContent>
       </Card>
@@ -193,6 +206,44 @@ function KpiBox({
       </p>
       <p className="text-[10px] text-muted-foreground">{sub}</p>
     </div>
+  );
+}
+
+function SectionTemporalTrend({
+  trend,
+}: {
+  trend?: PricingAnalysisResult["trend"];
+}) {
+  if (!trend) return null;
+
+  return (
+    <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <TrendingDown className="h-4 w-4 text-secondary" />
+          <CardTitle className="text-sm font-semibold">Tendencia Temporal</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0 space-y-4">
+        <div className="rounded-xl p-4 bg-accent/10 border border-border/20">
+          <p className="text-xs text-muted-foreground leading-relaxed">{trend.summary}</p>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <MiniStat label="Edad inmueble" value={trend.propertyAgeDays != null ? `${trend.propertyAgeDays}d` : "N/D"} />
+          <MiniStat label="Última actualización" value={trend.lastUpdatedDays != null ? `${trend.lastUpdatedDays}d` : "N/D"} />
+          <MiniStat label="Mercado" value={trend.marketTempo} />
+          <MiniStat label="Presión" value={trend.pressure} />
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <MiniStat label="Media días comp." value={trend.comparableAverageDaysPublished != null ? `${trend.comparableAverageDaysPublished}d` : "N/D"} />
+          <MiniStat label="Mediana días comp." value={trend.comparableMedianDaysPublished != null ? `${trend.comparableMedianDaysPublished}d` : "N/D"} />
+          <MiniStat label="Comparables frescos" value={formatRatio(trend.freshComparablesShare)} />
+          <MiniStat label="Comparables estancados" value={formatRatio(trend.staleComparablesShare)} />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -703,6 +754,42 @@ export default function InformePricingPage({
 
   const isMock = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mock");
 
+  const loadReport = useCallback(async () => {
+    if (isMock) {
+      setState({ kind: "success", data: { ...pricingFixture, propertyCode: code } });
+      return;
+    }
+
+    setState({ kind: "loading" });
+    try {
+      const res = await fetch(`/api/pricing/report/${code}`);
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setState({
+          kind: "error",
+          status: res.status,
+          message: body.message ?? body.error ?? `Error ${res.status}`,
+          missingFields: body.missingFields,
+          action: res.status === 404 ? "analyze" : "load",
+          actionLabel: res.status === 404 ? "Generar análisis ahora" : "Reintentar carga",
+        });
+        return;
+      }
+
+      const data: PricingAnalysisResult = await res.json();
+      setState({ kind: "success", data });
+    } catch (err) {
+      setState({
+        kind: "error",
+        status: 0,
+        message: err instanceof Error ? err.message : "Error de red",
+        action: "load",
+        actionLabel: "Reintentar carga",
+      });
+    }
+  }, [code, isMock]);
+
   const runAnalysis = useCallback(async () => {
     if (isMock) {
       setState({ kind: "success", data: { ...pricingFixture, propertyCode: code } });
@@ -724,6 +811,8 @@ export default function InformePricingPage({
           status: res.status,
           message: body.message ?? body.error ?? `Error ${res.status}`,
           missingFields: body.missingFields,
+          action: "analyze",
+          actionLabel: "Reintentar análisis",
         });
         return;
       }
@@ -735,13 +824,25 @@ export default function InformePricingPage({
         kind: "error",
         status: 0,
         message: err instanceof Error ? err.message : "Error de red",
+        action: "analyze",
+        actionLabel: "Reintentar análisis",
       });
     }
   }, [code, isMock]);
 
   useEffect(() => {
-    runAnalysis();
-  }, [runAnalysis]);
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (!cancelled) {
+        void loadReport();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadReport]);
 
   if (state.kind === "loading") {
     return (
@@ -759,17 +860,32 @@ export default function InformePricingPage({
   }
 
   if (state.kind === "error") {
-    return <InformeError status={state.status} message={state.message} missingFields={state.missingFields} onRetry={runAnalysis} />;
+    return (
+      <InformeError
+        status={state.status}
+        message={state.message}
+        missingFields={state.missingFields}
+        actionLabel={state.actionLabel}
+        onRetry={state.action === "analyze" ? runAnalysis : loadReport}
+      />
+    );
   }
 
   const { data } = state;
 
   return (
     <div className="space-y-6">
-      {/* Back */}
-      <Link href="/platform/pricing" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-        <ArrowLeft className="h-3 w-3" /> Volver a Smart Pricing
-      </Link>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <Link href="/platform/pricing" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft className="h-3 w-3" /> Volver a Smart Pricing
+        </Link>
+        <button
+          onClick={runAnalysis}
+          className="px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-xs font-medium hover:bg-secondary/90 transition-colors"
+        >
+          Actualizar análisis
+        </button>
+      </div>
 
       {/* A: Header */}
       <SectionHeader data={data} />
@@ -780,6 +896,9 @@ export default function InformePricingPage({
         recommendationError={data.recommendationError}
         stats={data.stats}
       />
+
+      {/* Tendencia temporal */}
+      <SectionTemporalTrend trend={data.trend} />
 
       {/* C + D: Recomendaciones + Argumentos/Riesgos */}
       {data.recommendation && (

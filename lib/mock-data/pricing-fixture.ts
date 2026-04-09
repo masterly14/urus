@@ -19,6 +19,8 @@ export const pricingFixture: PricingAnalysisResult = {
     keyTipo: 1,
     tipoOperacion: "sale",
     estado: "En venta",
+    fechaAlta: "2025-11-15",
+    fechaActualizacion: "2026-04-05",
     extras: {
       terraza: true,
       garaje: false,
@@ -136,6 +138,19 @@ export const pricingFixture: PricingAnalysisResult = {
     semaforo: "verde",
   },
   analyzedAt: new Date().toISOString(),
+  trend: {
+    propertyAgeDays: 144,
+    lastUpdatedDays: 2,
+    comparableAverageDaysPublished: 21.67,
+    comparableMedianDaysPublished: 18.5,
+    freshComparablesShare: 0.33,
+    staleComparablesShare: 0.17,
+    marketTempo: "estable",
+    listingMomentum: "estancado",
+    pressure: "media",
+    summary:
+      "El inmueble lleva 144 días en cartera; la ficha se actualizó hace 2 días. El mercado va estable (media 21.67 días publicados en comparables). 33% de comparables son recientes y 17% llevan mucho tiempo publicados. La presión temporal actual es media.",
+  },
   queryMeta: {
     endpoint: "snapshot",
     housing: "flat",

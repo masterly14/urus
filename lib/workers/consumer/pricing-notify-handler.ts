@@ -45,7 +45,7 @@ export async function handleNotifyPricingWhatsApp(
     return { success: true };
   }
 
-  const informeUrl = `${getPublicAppUrl()}/pricing/informe/${propertyCode}`;
+  const informeUrl = `${getPublicAppUrl()}/platform/pricing/informe/${propertyCode}`;
   const gapStr = `${gapPorcentaje > 0 ? "+" : ""}${gapPorcentaje}%`;
   const semaforoLabel = SEMAFORO_LABELS[semaforo] ?? semaforo.toUpperCase();
 

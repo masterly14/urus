@@ -26,7 +26,7 @@ export function PropertyCard({ property, className }: PropertyCardProps) {
       : 0;
 
   return (
-    <Link href={`/pricing/informe/${property.codigo}`}>
+    <Link href={`/platform/pricing/informe/${property.codigo}`}>
       <Card
         className={cn(
           "border-border/50 bg-card/80 backdrop-blur-sm hover:bg-card hover:shadow-lg hover:shadow-background/20 transition-all duration-300 hover:-translate-y-1 cursor-pointer group overflow-hidden",

@@ -26,6 +26,8 @@ export interface PricingPropertyInput {
   keyTipo: number | null;
   tipoOperacion: StatefoxListingType;
   estado: string;
+  fechaAlta: string | null;
+  fechaActualizacion: string | null;
   extras: PricingPropertyExtras;
 }
 
@@ -80,6 +82,23 @@ export interface PricingClusterStats {
   semaforo: SemaforoStatus;
 }
 
+export type PricingMarketTempo = "caliente" | "estable" | "lento" | "sin_datos";
+export type PricingListingMomentum = "nuevo" | "maduro" | "estancado" | "sin_datos";
+export type PricingTrendPressure = "baja" | "media" | "alta" | "sin_datos";
+
+export interface PricingTrendSummary {
+  propertyAgeDays: number | null;
+  lastUpdatedDays: number | null;
+  comparableAverageDaysPublished: number | null;
+  comparableMedianDaysPublished: number | null;
+  freshComparablesShare: number | null;
+  staleComparablesShare: number | null;
+  marketTempo: PricingMarketTempo;
+  listingMomentum: PricingListingMomentum;
+  pressure: PricingTrendPressure;
+  summary: string;
+}
+
 // ---------------------------------------------------------------------------
 // Resultado completo del análisis
 // ---------------------------------------------------------------------------
@@ -90,6 +109,7 @@ export interface PricingAnalysisResult {
   comparables: PricingComparable[];
   stats: PricingClusterStats;
   analyzedAt: string;
+  trend?: PricingTrendSummary;
   queryMeta: {
     endpoint: "snapshot" | "properties";
     housing: StatefoxHousing;
@@ -115,6 +135,8 @@ export interface PricingOptions {
   minComparables?: number;
   /** Invocar motor de recomendación LangGraph tras el análisis estadístico. Default true. */
   generateRecommendation?: boolean;
+  /** Contexto de ejecución para persistencia/observabilidad del informe materializado. */
+  sourceTrigger?: string;
 }
 
 // ---------------------------------------------------------------------------

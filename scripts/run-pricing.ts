@@ -49,6 +49,7 @@ async function main() {
   const result = await runPricingAnalysis(propertyCode, {
     maxPages,
     generateRecommendation: !noRecommendation,
+    sourceTrigger: "cli_manual",
   });
 
   console.log("=== Resultado del Análisis de Pricing ===\n");

@@ -116,6 +116,8 @@ export async function extractPropertyForPricing(
     keyTipo,
     tipoOperacion,
     estado: property.estado,
+    fechaAlta: property.fechaAlta || null,
+    fechaActualizacion: property.fechaActualizacion || null,
     extras,
   };
 }

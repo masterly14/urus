@@ -25,6 +25,8 @@ function makeAnalysisResult(
       keyTipo: 3,
       tipoOperacion: "sale",
       estado: "Disponible",
+      fechaAlta: "2026-02-01",
+      fechaActualizacion: "2026-04-01",
       extras: {
         terraza: true,
         garaje: false,
@@ -82,6 +84,19 @@ function makeAnalysisResult(
       semaforo: "amarillo",
     },
     analyzedAt: new Date().toISOString(),
+    trend: {
+      propertyAgeDays: 68,
+      lastUpdatedDays: 7,
+      comparableAverageDaysPublished: 27.5,
+      comparableMedianDaysPublished: 27.5,
+      freshComparablesShare: 0,
+      staleComparablesShare: 0,
+      marketTempo: "estable",
+      listingMomentum: "estancado",
+      pressure: "media",
+      summary:
+        "El inmueble lleva 68 días en cartera; la ficha se actualizó hace 7 días. El mercado va estable (media 27.5 días publicados en comparables). 0% de comparables son recientes y 0% llevan mucho tiempo publicados. La presión temporal actual es media.",
+    },
     queryMeta: {
       endpoint: "snapshot",
       housing: "flat",

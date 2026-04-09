@@ -106,7 +106,9 @@ describe("handlePricingAnalysis (RUN_PRICING_ANALYSIS)", () => {
     const result = await handlePricingAnalysis(job);
 
     expect(result.success).toBe(true);
-    expect(mockRunPricing).toHaveBeenCalledWith("PROP-001", {});
+    expect(mockRunPricing).toHaveBeenCalledWith("PROP-001", {
+      sourceTrigger: "worker_job",
+    });
     expect(mockEnqueue).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "NOTIFY_PRICING_WHATSAPP",
@@ -181,7 +183,7 @@ describe("handleNotifyPricingWhatsApp (NOTIFY_PRICING_WHATSAPP)", () => {
         propertyCode: "PROP-001",
         semaforo: "VERDE",
         gapPorcentaje: "+3.4%",
-        informeUrl: "https://app.urus.es/pricing/informe/PROP-001",
+        informeUrl: "https://app.urus.es/platform/pricing/informe/PROP-001",
       }),
     );
   });

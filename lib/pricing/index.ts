@@ -17,6 +17,8 @@ import type { JsonValue } from "@/lib/event-store";
 import { appendEvent } from "@/lib/event-store";
 import { mapTiposToHousing } from "@/lib/statefox/query-builder";
 import type { PricingAnalysisResult, PricingOptions } from "./types";
+import { buildPricingTrendSummary } from "./trend-summary";
+import { persistPricingReport } from "./report-repo";
 
 export type { PricingAnalysisResult, PricingOptions } from "./types";
 export type { PricingPropertyInput, PricingComparable, PricingClusterStats, SemaforoStatus } from "./types";
@@ -26,6 +28,8 @@ export { PricingDataIncompleteError } from "./types";
 export { extractPropertyForPricing } from "./extract-property";
 export { fetchPricingComparables } from "./fetch-comparables";
 export { analyzeCluster } from "./analyze-cluster";
+export { buildPricingTrendSummary } from "./trend-summary";
+export { getLatestPricingReport, persistPricingReport } from "./report-repo";
 
 export async function runPricingAnalysis(
   propertyCode: string,
@@ -50,6 +54,7 @@ export async function runPricingAnalysis(
     comparables,
     stats,
     analyzedAt: new Date().toISOString(),
+    trend: buildPricingTrendSummary({ input, comparables, stats }),
     queryMeta: {
       endpoint: "snapshot",
       housing,
@@ -60,12 +65,13 @@ export async function runPricingAnalysis(
     },
   };
 
-  await appendEvent({
+  const analysisEvent = await appendEvent({
     type: "PRICING_ANALISIS_GENERADO",
     aggregateType: "PROPERTY",
     aggregateId: propertyCode,
     payload: {
       stats: result.stats,
+      trend: result.trend,
       queryMeta: result.queryMeta,
       analyzedAt: result.analyzedAt,
       comparablesCount: comparables.length,
@@ -73,12 +79,13 @@ export async function runPricingAnalysis(
   });
 
   // Motor de recomendación IA (LangGraph) — degradación graceful si falla
+  let recommendationEventId: string | null = null;
   if (options?.generateRecommendation !== false) {
     try {
       const recommendation = await generatePricingRecommendation(result);
       result.recommendation = recommendation;
 
-      await appendEvent({
+      const recommendationEvent = await appendEvent({
         type: "PRICING_RECOMENDACION_GENERADA",
         aggregateType: "PROPERTY",
         aggregateId: propertyCode,
@@ -92,6 +99,7 @@ export async function runPricingAnalysis(
           analyzedAt: result.analyzedAt,
         },
       });
+      recommendationEventId = recommendationEvent.id;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.error(
@@ -100,6 +108,13 @@ export async function runPricingAnalysis(
       result.recommendationError = errorMsg;
     }
   }
+
+  await persistPricingReport({
+    result,
+    sourceTrigger: options?.sourceTrigger ?? "manual",
+    lastAnalysisEventId: analysisEvent.id,
+    lastRecommendationEventId: recommendationEventId,
+  });
 
   return result;
 }
