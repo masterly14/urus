@@ -140,9 +140,15 @@ ${propsList}
 Tu tarea:
 1. Identificar qué propiedad(es) menciona el comprador (por referencia directa, posición, zona, precio u otra característica). Usa el propertyId exacto del listado.
 2. Clasificar el sentimiento por cada propiedad mencionada: ME_INTERESA o NO_ME_ENCAJA.
-3. Determinar la intención global (ME_ENCAJA si le gustan en general, NO_ME_ENCAJA si no cumplen, BUSCO_DIFERENTE si quiere algo completamente distinto).
+3. Determinar la intención global (ver reglas abajo).
 4. Extraer variables de demanda si el comprador indica ajustes.
 5. Detectar si pide ver más opciones (wantsMoreOptions).
+
+INTENCIÓN GLOBAL — prioridad sobre tono coloquial:
+- ME_ENCAJA: el comprador muestra claramente que le encajan las opciones mostradas (aprobación, entusiasmo, "me quedo con…", "me gusta esta", OK sin matizar tras ver casas).
+- NO_ME_ENCAJA: hay rechazo, desacuerdo o desajuste con lo mostrado. Usa esta etiqueta si aparece CUALQUIERA de: "no", "paso", "no me convence(n)", "ninguna", "caro/cara", "pequeño/pequeña", "no cumple(n)", "necesito…", "quiero…" con criterios nuevos que implican que lo actual no vale, críticas a tipología o precio, o sentimiento NO_ME_ENCAJA hacia alguna propiedad mencionada sin compensar con un ME_INTERESA claro a otra.
+- NO uses ME_ENCAJA si el mensaje mezcla entusiasmo genérico con exigencias o rechazo a lo enseñado; en caso de duda entre positivo y negativo, elige NO_ME_ENCAJA.
+- BUSCO_DIFERENTE: solo si pide un cambio de búsqueda radicalmente distinto (otro segmento, otro uso, "otra cosa totalmente distinta"). NO lo uses cuando solo ajusta presupuesto, zona, metros, habitaciones o extras: eso es NO_ME_ENCAJA (o ME_ENCAJA si además aprueba algo) más variables.
 
 Extracción de variables — reglas estrictas:
 
@@ -154,8 +160,14 @@ UBICACIÓN:
 PRECIOS (siempre en euros):
 - "hasta 200.000" → precioMax=200000. "desde 150.000" → precioMin=150000.
 - "entre 150 y 200 mil" → precioMin=150000, precioMax=200000.
-- Formatos coloquiales: "200 mil"=200000, "200k"=200000, "doscientos mil"=200000, "medio millón"=500000, "un cuarto de millón"=250000, "350 pavos"=350000 (argot para euros).
+- Formatos coloquiales: "200 mil"=200000, "200k"=200000, "doscientos mil"=200000, "medio millón"=500000, "un cuarto de millón"=250000.
+- Jerga de precio (España, contexto compra vivienda): "pavos" y "palos" suelen significar miles de euros → "350 pavos" o "350 palos"=350000, "200 pavos"=200000. Si dicen "mil pavos" o "1k pavos", interpreta según contexto (p. ej. "80 mil" explícito = 80000).
 - "k" o "K" tras un número siempre multiplica por 1000: "300k"=300000, "1.2M"=1200000.
+
+JERGA INMOBILIARIA (mapear siempre a variables del esquema):
+- "cuartos", "habitaciones", "dormitorios", "piezas" (habitaciones) → habitacionesMin cuando indiquen cantidad ("3 cuartos"→habitacionesMin=3).
+- "terraza", "balcón", "patio" → extras (ej. extras=["terraza"]). "sin terraza" → extrasNoDeseados.
+- "piso" en sentido tipología → tipos=["piso"]; "piso" como planta ("tercer piso") no inventes si no hay campo; puedes ignorar o reflejar solo si el comprador lo usa como filtro claro.
 
 METROS:
 - "80 metros", "80m²", "80 m2" → metrosMin o metrosMax según contexto.
@@ -174,7 +186,7 @@ EXTRAS:
 - "extrasNoDeseados": los que RECHAZA ("sin garaje"→extrasNoDeseados=["garaje"], "no quiero piscina"→extrasNoDeseados=["piscina"]).
 
 RESPUESTAS CORTAS:
-- "ok", "sí", "vale", "perfecto", "me gusta" sin más contexto → intention=ME_ENCAJA, variables vacías.
+- "ok", "sí", "vale", "perfecto", "me gusta" solo si NO van acompañados de rechazo ni de lista de exigencias; si en el mismo mensaje pide otra cosa o critica lo visto → NO_ME_ENCAJA y extrae variables.
 - "no", "paso", "nada" sin más contexto → intention=NO_ME_ENCAJA, variables vacías.
 - Emojis positivos (👍, 😍, ❤️) refuerzan sentimiento positivo. Emojis negativos (👎, 😒) refuerzan negativo.
 
@@ -191,6 +203,11 @@ const SIMPLE_SYSTEM_PROMPT = `Eres un asistente de análisis inmobiliario de Uru
 Clasifica la respuesta del comprador en: ME_ENCAJA, NO_ME_ENCAJA, BUSCO_DIFERENTE.
 Extrae variables de demanda ajustada cuando el comprador las mencione.
 
+INTENCIÓN:
+- ME_ENCAJA: aprobación clara sin rechazo ni exigencias que desmonten lo ofrecido.
+- NO_ME_ENCAJA: "no", "paso", críticas de precio/tamaño/tipo, criterios nuevos que implican desajuste, o mensaje ambivalente con parte negativa fuerte. Si dudas entre positivo y negativo, NO_ME_ENCAJA.
+- BUSCO_DIFERENTE: cambio de búsqueda totalmente distinto; no uses solo por ajustar presupuesto, zona, metros, habitaciones o extras.
+
 Reglas de extracción:
 
 UBICACIÓN:
@@ -200,22 +217,23 @@ UBICACIÓN:
 PRECIOS (siempre en euros):
 - "hasta 200.000" → precioMax=200000. "desde 150.000" → precioMin=150000.
 - "entre 150 y 200 mil" → precioMin=150000, precioMax=200000.
-- Formatos coloquiales: "200 mil"=200000, "200k"=200000, "doscientos mil"=200000, "medio millón"=500000, "350 pavos"=350000.
+- Coloquial: "200 mil"=200000, "200k"=200000, "medio millón"=500000.
+- Jerga: "pavos"/"palos" = miles de € → "350 pavos"=350000. "300k"=300000.
 
 METROS Y HABITACIONES:
 - "80m²" → metrosMin o metrosMax según contexto ("al menos" = min, "no más de" = max).
-- "3 dormitorios" / "3 cuartos" → habitacionesMin=3. "2 o 3" → habitacionesMin=2.
+- "3 dormitorios" / "3 cuartos" / "3 habitaciones" / "3 piezas" → habitacionesMin=3. "2 o 3" → habitacionesMin=2.
 
 TIPOLOGÍA (normalizar a español estándar):
 - "apartamento"→"piso", "chalet"→"casa", "adosado"→"casa adosada", "loft"→"estudio".
 - Solo tipos DESEADOS. Si dice "que no sea ático", NO poner "ático" en tipos.
 
 EXTRAS:
-- "extras": solo los DESEADOS ("con garaje"→extras=["garaje"]).
-- "extrasNoDeseados": los RECHAZADOS ("sin garaje"→extrasNoDeseados=["garaje"]).
+- DESEADOS: "con garaje"→extras=["garaje"]; también "terraza", "balcón", "patio" en extras cuando los pida.
+- RECHAZADOS: "sin garaje"→extrasNoDeseados=["garaje"]; "sin terraza"→extrasNoDeseados.
 
 RESPUESTAS CORTAS:
-- "ok"/"sí"/"vale" sin contexto → ME_ENCAJA, variables vacías.
+- "ok"/"sí"/"vale" solo si no hay rechazo ni lista de requisitos en el mismo mensaje; si los hay → NO_ME_ENCAJA + variables.
 - "no"/"paso"/"nada" sin contexto → NO_ME_ENCAJA, variables vacías.
 
 REGLAS GENERALES:
