@@ -62,6 +62,13 @@ function isVoiceApplyResponse(data: unknown): data is VoiceApplyClientResponse {
       d.updatedInput !== undefined
     );
   }
+  if (d.needsClarification === true) {
+    return (
+      Array.isArray(d.validationIssues) &&
+      Array.isArray(d.clarificationQuestions) &&
+      d.updatedInput !== undefined
+    );
+  }
   return Array.isArray(d.validationIssues) && d.updatedInput !== undefined;
 }
 
@@ -83,6 +90,7 @@ export function useSmartClosingSession(
   const [lastPatch, setLastPatch] = useState<ContractVoiceStructuredPatch | null>(null);
   const [appliedSummaries, setAppliedSummaries] = useState<string[]>([]);
   const [validationIssues, setValidationIssues] = useState<ContractFieldIssue[]>([]);
+  const [clarificationQuestions, setClarificationQuestions] = useState<string[]>([]);
   const [approved, setApproved] = useState(false);
   const [signaturePhase, setSignaturePhase] = useState<SignaturePhase>("idle");
   const [signatureResult, setSignatureResult] = useState<SignatureResult | null>(null);
@@ -113,6 +121,7 @@ export function useSmartClosingSession(
       setPhase("loading_initial");
       setErrorMessage(null);
       setValidationIssues([]);
+      setClarificationQuestions([]);
       try {
         const res = await fetch("/api/contracts/render", {
           method: "POST",
@@ -213,6 +222,7 @@ export function useSmartClosingSession(
       setPhase("applying_voice");
       setErrorMessage(null);
       setValidationIssues([]);
+      setClarificationQuestions([]);
 
       try {
         const current = docStateRef.current;
@@ -254,6 +264,7 @@ export function useSmartClosingSession(
         setLastPatch(merged.lastPatch);
         setAppliedSummaries(merged.appliedSummaries);
         setValidationIssues(merged.validationIssues);
+        setClarificationQuestions(merged.clarificationQuestions);
 
         if (data.ok && merged.doc.docxBase64) {
           await refreshPreviewFromBase64(merged.doc.docxBase64);
@@ -373,6 +384,7 @@ export function useSmartClosingSession(
     lastPatch,
     appliedSummaries,
     validationIssues,
+    clarificationQuestions,
     approved,
     applyVoiceTranscript,
     approveDraft,

@@ -11,6 +11,7 @@ import { bumpVoiceRevisionTemplateVersion } from "./bump-template-version";
 import { applyArrasVoicePatches } from "./apply-arras-instructions";
 import { applySenalCompraVoicePatches } from "./apply-senal-instructions";
 import { applyOfertaFirmeVoicePatches } from "./apply-oferta-instructions";
+import { getVoiceClarificationDecision } from "./clarification";
 
 export interface InterpretVoiceAndRegenerateParams {
   transcript: string;
@@ -40,6 +41,10 @@ export type InterpretVoiceAndRegenerateResult =
       hadAppliedChanges: boolean;
       updatedInput: ContractTemplateInput;
       docx: { bufferBase64: string; fileName: string };
+      metrics: {
+        interpretationMs: number;
+        regenerationMs: number;
+      };
     }
   | {
       ok: false;
@@ -50,6 +55,25 @@ export type InterpretVoiceAndRegenerateResult =
       hadAppliedChanges: boolean;
       updatedInput: ContractTemplateInput;
       issues: ContractFieldIssue[];
+      metrics: {
+        interpretationMs: number;
+        regenerationMs: number;
+      };
+    }
+  | {
+      ok: false;
+      needsClarification: true;
+      clarificationQuestions: string[];
+      patch: ContractVoiceStructuredPatch;
+      appliedSummaries: string[];
+      previousTemplateVersion: string | undefined;
+      nextTemplateVersion: string | undefined;
+      hadAppliedChanges: false;
+      updatedInput: ContractTemplateInput;
+      metrics: {
+        interpretationMs: number;
+        regenerationMs: number;
+      };
     };
 
 function toBase64(buffer: Buffer): string {
@@ -102,11 +126,32 @@ export async function interpretVoiceAndRegenerateDocx(
 
   const previousTemplateVersion = input.templateVersion;
 
+  const interpretationStartedAt = Date.now();
   const patch = await interpretContractVoiceInstructions({
     transcript,
     documentKind: input.kind,
     currentPayload: input.payload,
   } as Parameters<typeof interpretContractVoiceInstructions>[0]);
+  const interpretationMs = Date.now() - interpretationStartedAt;
+
+  const clarification = getVoiceClarificationDecision(patch);
+  if (clarification.needsClarification) {
+    return {
+      ok: false,
+      needsClarification: true,
+      clarificationQuestions: clarification.questions,
+      patch,
+      appliedSummaries: [],
+      previousTemplateVersion,
+      nextTemplateVersion: input.templateVersion,
+      hadAppliedChanges: false,
+      updatedInput: input,
+      metrics: {
+        interpretationMs,
+        regenerationMs: 0,
+      },
+    };
+  }
 
   const voiceInput = input as VoicePatchableInput;
   const { appliedSummaries, updatedInput: patched } = applyVoicePatchOnce(voiceInput, patch);
@@ -127,7 +172,9 @@ export async function interpretVoiceAndRegenerateDocx(
   };
   const nextTemplateVersion = updatedInput.templateVersion;
 
+  const regenerationStartedAt = Date.now();
   const docxResult = await generateContractDocx(updatedInput);
+  const regenerationMs = Date.now() - regenerationStartedAt;
 
   if (!docxResult.ok) {
     return {
@@ -139,6 +186,10 @@ export async function interpretVoiceAndRegenerateDocx(
       hadAppliedChanges,
       updatedInput,
       issues: docxResult.issues,
+      metrics: {
+        interpretationMs,
+        regenerationMs,
+      },
     };
   }
 
@@ -153,6 +204,10 @@ export async function interpretVoiceAndRegenerateDocx(
     docx: {
       bufferBase64: toBase64(docxResult.buffer),
       fileName: docxResult.fileName,
+    },
+    metrics: {
+      interpretationMs,
+      regenerationMs,
     },
   };
 }

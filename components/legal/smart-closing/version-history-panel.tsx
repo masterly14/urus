@@ -4,17 +4,17 @@ import { useCallback, useEffect, useState } from "react";
 import { History, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import type { ContractTemplateInput } from "@/types/contracts";
 
 interface VersionEvent {
   id: string;
   occurredAt: string;
-  payload: {
-    templateVersion?: string;
-    summary?: string;
-    operationId?: string;
-    cloudinary?: { secureUrl?: string };
-    contractInput?: unknown;
-  };
+  templateVersion: string | null;
+  summary: string;
+  appliedSummaries: string[];
+  confidence: number | null;
+  ambiguousPoints: string[];
+  contractInput?: ContractTemplateInput;
 }
 
 interface DiffChange {
@@ -25,9 +25,9 @@ interface DiffChange {
 }
 
 export function VersionHistoryPanel({
-  propertyCode,
+  contractId,
 }: {
-  propertyCode: string;
+  contractId: string;
 }) {
   const [events, setEvents] = useState<VersionEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,13 +39,13 @@ export function VersionHistoryPanel({
 
   useEffect(() => {
     (async () => {
+      setLoading(true);
+      setEvents([]);
       try {
-        const res = await fetch(
-          `/api/events?aggregateId=${encodeURIComponent(propertyCode)}&type=CONTRATO_VERSIONADO`,
-        );
+        const res = await fetch(`/api/contracts/${encodeURIComponent(contractId)}/versions`);
         if (res.ok) {
-          const data = (await res.json()) as { events?: VersionEvent[] };
-          setEvents(data.events ?? []);
+          const data = (await res.json()) as { versions?: VersionEvent[] };
+          setEvents(data.versions ?? []);
         }
       } catch {
         // silent
@@ -53,7 +53,7 @@ export function VersionHistoryPanel({
         setLoading(false);
       }
     })();
-  }, [propertyCode]);
+  }, [contractId]);
 
   const loadDiff = useCallback(
     async (idx: number) => {
@@ -64,7 +64,7 @@ export function VersionHistoryPanel({
 
       const prev = events[idx - 1];
       const curr = events[idx];
-      if (!prev?.payload?.contractInput || !curr?.payload?.contractInput) {
+      if (!prev?.contractInput || !curr?.contractInput) {
         setExpandedIdx(expandedIdx === idx ? null : idx);
         return;
       }
@@ -75,8 +75,8 @@ export function VersionHistoryPanel({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            previousInput: prev.payload.contractInput,
-            nextInput: curr.payload.contractInput,
+            previousInput: prev.contractInput,
+            nextInput: curr.contractInput,
           }),
         });
         if (res.ok) {
@@ -137,10 +137,10 @@ export function VersionHistoryPanel({
                   variant="outline"
                   className="text-[10px] font-mono shrink-0"
                 >
-                  {ev.payload.templateVersion ?? `v${idx + 1}`}
+                  {ev.templateVersion ?? `v${idx + 1}`}
                 </Badge>
                 <span className="text-xs text-muted-foreground truncate">
-                  {ev.payload.summary ?? "Versión del contrato"}
+                  {ev.summary}
                 </span>
                 <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
                   {new Date(ev.occurredAt).toLocaleString("es-ES", {
@@ -157,6 +157,20 @@ export function VersionHistoryPanel({
 
               {expanded && (
                 <div className="px-3 pb-2 pt-0">
+                  {ev.confidence !== null && (
+                    <p className="mb-1 text-[10px] text-muted-foreground">
+                      Confianza: {Math.round(ev.confidence * 100)}%
+                    </p>
+                  )}
+                  {ev.ambiguousPoints.length > 0 && (
+                    <ul className="mb-2 space-y-1">
+                      {ev.ambiguousPoints.map((point, pointIndex) => (
+                        <li key={pointIndex} className="text-[10px] text-amber-700 dark:text-amber-400">
+                          {point}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   {idx === 0 && (
                     <p className="text-[10px] text-muted-foreground">
                       Versión inicial — sin diff previo.

@@ -23,8 +23,19 @@ export type VoiceApplyClientResponse =
     }
   | {
       ok: false;
+      needsClarification?: false;
       updatedInput: ContractTemplateInput;
       validationIssues: ContractFieldIssue[];
+      appliedSummaries: string[];
+      patch: ContractVoiceStructuredPatch;
+      nextTemplateVersion?: string;
+    }
+  | {
+      ok: false;
+      needsClarification: true;
+      updatedInput: ContractTemplateInput;
+      validationIssues: ContractFieldIssue[];
+      clarificationQuestions: string[];
       appliedSummaries: string[];
       patch: ContractVoiceStructuredPatch;
       nextTemplateVersion?: string;
@@ -35,6 +46,7 @@ export interface VoiceApplyUiDelta {
   lastPatch: ContractVoiceStructuredPatch;
   appliedSummaries: string[];
   validationIssues: ContractFieldIssue[];
+  clarificationQuestions: string[];
   nextTemplateVersion?: string;
 }
 
@@ -53,6 +65,21 @@ export function mergeVoiceApplyIntoSession(
       lastPatch: res.patch,
       appliedSummaries: res.appliedSummaries,
       validationIssues: [],
+      clarificationQuestions: [],
+      nextTemplateVersion: res.nextTemplateVersion,
+    };
+  }
+  if (res.needsClarification) {
+    return {
+      doc: {
+        contractTemplateInput: prev.contractTemplateInput,
+        docxBase64: prev.docxBase64,
+        docxFileName: prev.docxFileName,
+      },
+      lastPatch: res.patch,
+      appliedSummaries: res.appliedSummaries,
+      validationIssues: [],
+      clarificationQuestions: res.clarificationQuestions,
       nextTemplateVersion: res.nextTemplateVersion,
     };
   }
@@ -65,6 +92,7 @@ export function mergeVoiceApplyIntoSession(
     lastPatch: res.patch,
     appliedSummaries: res.appliedSummaries,
     validationIssues: res.validationIssues,
+    clarificationQuestions: [],
     nextTemplateVersion: res.nextTemplateVersion,
   };
 }

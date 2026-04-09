@@ -29,6 +29,8 @@ export const contratoVersionadoPayloadSchema = z.object({
   appliedSummaries: z.array(z.string()),
   /** Parche estructurado devuelto por el intérprete (JSON-serializable). */
   patch: z.unknown(),
+  /** Snapshot del contrato tras aplicar la versión; permite reconstruir historial/diffs. */
+  contractInput: z.unknown().optional(),
   transcript: z.string().optional(),
   transcriptSha256: z.string().optional(),
   actorUserId: z.string().optional(),

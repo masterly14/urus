@@ -73,7 +73,7 @@ export function DocxPreviewPanel({
     a.remove();
   }, [docxBase64, docxFileName]);
 
-  const showSkeleton = loading || (converting && !previewHtml);
+  const showSkeleton = loading || converting;
   const canExpand = !showSkeleton && Boolean(previewHtml);
 
   const previewSkeleton = (

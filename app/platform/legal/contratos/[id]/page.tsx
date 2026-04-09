@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useMemo, useRef, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -36,11 +36,7 @@ import {
   type SmartClosingVersioningContext,
   type SignatureSigner,
 } from "@/components/legal/smart-closing/use-smart-closing-session";
-import { contratos } from "@/lib/mock-data/contratos";
-import {
-  getContractTemplateFixtureByListId,
-  smartClosingVersioningFromContrato,
-} from "@/lib/mock-data/contract-template-fixtures";
+import type { SmartClosingContractDetailDto } from "@/lib/legal/smart-closing/contracts-api";
 import type { ContractTemplateInput } from "@/types/contracts";
 
 function extractPrimarySignerName(input: ContractTemplateInput): string {
@@ -64,15 +60,30 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 function SmartClosingContractDetail({
-  contractListId,
-  initialTemplate,
-  versioningContext,
+  contract,
 }: {
-  contractListId: string;
-  initialTemplate: ContractTemplateInput;
-  versioningContext?: SmartClosingVersioningContext;
+  contract: SmartClosingContractDetailDto;
 }) {
-  const listRow = useMemo(() => contratos.find((c) => c.id === contractListId), [contractListId]);
+  const initialTemplate = contract.contractTemplateInput;
+  const versioningContext = useMemo<SmartClosingVersioningContext>(
+    () => ({
+      propertyCode: contract.propertyCode,
+      operationId: contract.operationId,
+      recordVersionEvent: true,
+    }),
+    [contract.operationId, contract.propertyCode],
+  );
+  const buyerParty = useMemo(
+    () =>
+      contract.parties.find((party) =>
+        ["BUYER", "SIGNER", "PURCHASER", "OFFERER"].includes(party.role),
+      ),
+    [contract.parties],
+  );
+  const sellerParty = useMemo(
+    () => contract.parties.find((party) => party.role === "SELLER"),
+    [contract.parties],
+  );
 
   const [approveOpen, setApproveOpen] = useState(false);
 
@@ -84,9 +95,19 @@ function SmartClosingContractDetail({
   const [signerEmail, setSignerEmail] = useState("");
   const signerEmailRef = useRef<HTMLInputElement>(null);
 
-  const [sellerName, setSellerName] = useState("Miguel Angel Collados");
+  const [sellerName, setSellerName] = useState(sellerParty?.fullName ?? "");
   const [sellerEmail, setSellerEmail] = useState("");
-  const [sellerPhone] = useState("+34601257555");
+  const [sellerPhone, setSellerPhone] = useState(sellerParty?.phone ?? "+34601257555");
+
+  useEffect(() => {
+    setSignerName(defaultSignerName);
+  }, [defaultSignerName]);
+
+  useEffect(() => {
+    setSellerName(sellerParty?.fullName ?? "");
+    setSellerEmail(sellerParty?.email ?? "");
+    setSellerPhone(sellerParty?.phone ?? "+34601257555");
+  }, [sellerParty]);
 
   const {
     phase,
@@ -97,6 +118,7 @@ function SmartClosingContractDetail({
     lastPatch,
     appliedSummaries,
     validationIssues,
+    clarificationQuestions,
     approved,
     applyVoiceTranscript,
     approveDraft,
@@ -161,7 +183,7 @@ function SmartClosingContractDetail({
               <h1 className="text-lg font-bold flex items-center gap-2 truncate">
                 {kindLabel}
                 <Badge variant="outline" className="font-mono font-normal text-xs shrink-0">
-                  {contractListId.toUpperCase()}
+                  {contract.id.toUpperCase()}
                 </Badge>
                 {approved && signaturePhase !== "sent" && (
                   <Badge className="bg-[var(--urus-success)] text-white border-none shrink-0">
@@ -175,12 +197,10 @@ function SmartClosingContractDetail({
                 )}
               </h1>
                         </div>
-            {listRow && (
-              <p className="text-xs text-muted-foreground flex items-center gap-2 truncate">
-                Operación {listRow.operacion} · {String(listRow.variables.comprador)} ↔{" "}
-                {String(listRow.variables.vendedor)}
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground flex items-center gap-2 truncate">
+              Operación {contract.operationId} · {(buyerParty?.fullName ?? defaultSignerName) || "—"} ↔{" "}
+              {sellerParty?.fullName ?? "—"}
+            </p>
                     </div>
                 </div>
 
@@ -364,6 +384,19 @@ function SmartClosingContractDetail({
           </p>
         )}
 
+      {clarificationQuestions.length > 0 && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm">
+          <p className="font-medium text-amber-800 dark:text-amber-300">
+            Hace falta aclarar la instrucción antes de modificar el contrato.
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-amber-700 dark:text-amber-400">
+            {clarificationQuestions.map((question, index) => (
+              <li key={index}>{question}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,400px)] lg:gap-6">
         <DocxPreviewPanel
           contractTemplateInput={docState.contractTemplateInput}
@@ -429,7 +462,7 @@ function SmartClosingContractDetail({
                     </Card>
 
           {versioningContext?.propertyCode && (
-            <VersionHistoryPanel propertyCode={versioningContext.propertyCode} />
+            <VersionHistoryPanel contractId={contract.id} />
           )}
         </aside>
                 </div>
@@ -443,13 +476,60 @@ export default function ContratoDetallePage({
   params: Promise<{ id: string }>;
 }) {
   const resolvedParams = use(params);
+  const [contract, setContract] = useState<SmartClosingContractDetailDto | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const initialTemplate = getContractTemplateFixtureByListId(resolvedParams.id);
+  useEffect(() => {
+    let cancelled = false;
 
-  if (!initialTemplate) {
+    void (async () => {
+      setLoading(true);
+      setLoadError(null);
+
+      try {
+        const response = await fetch(`/api/contracts/${resolvedParams.id}`);
+        const data = (await response.json()) as SmartClosingContractDetailDto & { error?: string };
+
+        if (!response.ok) {
+          throw new Error(data.error ?? `Error HTTP ${response.status}`);
+        }
+
+        if (!cancelled) {
+          setContract(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : "No se pudo cargar el contrato");
+          setContract(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedParams.id]);
+
+  if (loading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center gap-3 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Cargando contrato real...
+      </div>
+    );
+  }
+
+  if (loadError || !contract) {
     return (
       <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
-        <p className="text-muted-foreground">No hay plantilla Smart Closing para este id.</p>
+        <p className="text-muted-foreground">
+          {loadError ?? "No se encontró un contrato persistido para este id."}
+        </p>
         <Button asChild variant="outline">
           <Link href="/platform/legal/contratos">Volver al listado</Link>
         </Button>
@@ -457,16 +537,5 @@ export default function ContratoDetallePage({
     );
   }
 
-  const listRow = contratos.find((c) => c.id === resolvedParams.id);
-  const versioningContext = listRow
-    ? smartClosingVersioningFromContrato(listRow)
-    : undefined;
-
-  return (
-    <SmartClosingContractDetail
-      contractListId={resolvedParams.id}
-      initialTemplate={initialTemplate}
-      versioningContext={versioningContext}
-    />
-  );
+  return <SmartClosingContractDetail contract={contract} />;
 }

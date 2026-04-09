@@ -134,4 +134,26 @@ describe("mergeVoiceApplyIntoSession", () => {
     expect(delta.validationIssues).toHaveLength(1);
     expect(delta.validationIssues[0].fieldPath).toBe("arrasAmount.amount");
   });
+
+  it("conserva borrador y expone preguntas cuando el backend pide aclaración", () => {
+    const delta = mergeVoiceApplyIntoSession(prev, {
+      ok: false,
+      needsClarification: true,
+      updatedInput: arrasInput("v1"),
+      validationIssues: [],
+      clarificationQuestions: [
+        "Aclara si el plazo de escritura debe contarse en días hábiles o naturales.",
+      ],
+      appliedSummaries: [],
+      patch: emptyPatch({ confidence: 0.42, ambiguousPoints: ["plazo ambiguo"] }),
+      nextTemplateVersion: "v1",
+    });
+
+    expect(delta.doc.contractTemplateInput).toEqual(prev.contractTemplateInput);
+    expect(delta.doc.docxBase64).toBe("QUJD");
+    expect(delta.validationIssues).toHaveLength(0);
+    expect(delta.clarificationQuestions).toEqual([
+      "Aclara si el plazo de escritura debe contarse en días hábiles o naturales.",
+    ]);
+  });
 });
