@@ -114,11 +114,24 @@ describe("runConsumerCycle", () => {
   it("debe procesar un job PROCESS_EVENT exitosamente y encolar follow-up", async () => {
     const job = makeJob();
     const event = makeEvent();
+    const { registerHandler } = await import("../handlers");
 
     dequeueJobMock.mockResolvedValue({ job });
     findUniqueMock.mockResolvedValue(event);
     enqueueJobMock.mockResolvedValue({});
     markCompletedMock.mockResolvedValue({});
+
+    registerHandler("PROPIEDAD_CREADA", async (evt) => ({
+      success: true,
+      followUpJobs: [
+        {
+          type: "UPDATE_PROPERTY_PROJECTION",
+          payload: { eventId: evt.id },
+          idempotencyKey: `update_property_projection:${evt.id}`,
+          sourceEventId: evt.id,
+        },
+      ],
+    }));
 
     const result = await runConsumerCycle({ workerId: WORKER_ID });
 
