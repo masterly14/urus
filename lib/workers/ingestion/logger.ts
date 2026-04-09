@@ -5,6 +5,7 @@ import {
   type StructuredLogger,
 } from "@/lib/observability";
 
+export type { LogLevel, LogEntry };
 export type WorkerLogger = StructuredLogger;
 
 /** Logger base para el worker de propiedades */

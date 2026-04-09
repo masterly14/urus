@@ -10,8 +10,11 @@ export type WorkerStatus = "ok" | "degraded" | "never_run";
 
 export interface WorkerInfo {
   id: string;
+  label: string;
   lastSuccessAt: string | null;
   status: WorkerStatus;
+  lastSuccessSource: "ingestion_cycle_metrics" | "snapshot" | "job_queue" | "execution_metrics";
+  ageMinutes: number | null;
 }
 
 export interface JobQueueCounts {
@@ -29,12 +32,32 @@ export interface RecentError {
   failedAt: string | null;
 }
 
+export interface PendingJobInfo {
+  id: string;
+  type: JobType;
+  status: JobStatus;
+  attempts: number;
+  maxAttempts: number;
+  availableAt: string | null;
+  createdAt: string;
+  sourceEventId: string | null;
+  lastError: string | null;
+  ageMinutes: number;
+}
+
+export interface PendingJobsByType {
+  type: JobType;
+  count: number;
+}
+
 export interface WorkersStatusFull {
   status: "ok" | "degraded" | "error";
   db: "ok" | "error";
   timestamp: string;
   workers: WorkerInfo[];
   jobQueue: JobQueueCounts;
+  pendingJobs: PendingJobInfo[];
+  pendingByType: PendingJobsByType[];
   recentErrors: RecentError[];
 }
 
@@ -48,6 +71,11 @@ function computeWorkerStatus(lastSuccessAt: Date | null): WorkerStatus {
   if (!lastSuccessAt) return "never_run";
   const ageMin = (Date.now() - lastSuccessAt.getTime()) / 60_000;
   return ageMin > DEGRADED_THRESHOLD_MIN ? "degraded" : "ok";
+}
+
+function computeAgeMinutes(date: Date | null): number | null {
+  if (!date) return null;
+  return Math.round(((Date.now() - date.getTime()) / 60_000) * 10) / 10;
 }
 
 function toIsoOrNull(date: Date | null | undefined): string | null {
@@ -68,6 +96,15 @@ async function getLastPropertySnapshotUpdate(): Promise<Date | null> {
     _max: { updatedAt: true },
   });
   return result._max.updatedAt ?? null;
+}
+
+async function getLastIngestionMetricSuccess(worker: "properties" | "demands"): Promise<Date | null> {
+  const row = await prisma.ingestionCycleMetric.findFirst({
+    where: { worker, success: true },
+    orderBy: { finishedAt: "desc" },
+    select: { finishedAt: true },
+  });
+  return row?.finishedAt ?? null;
 }
 
 async function getLastDemandSnapshotUpdate(): Promise<Date | null> {
@@ -119,6 +156,57 @@ async function getJobQueueCounts(): Promise<JobQueueCounts> {
   };
 }
 
+async function getPendingJobs(limit = 10): Promise<PendingJobInfo[]> {
+  const jobs = await prisma.jobQueue.findMany({
+    where: { status: { in: [JobStatus.PENDING, JobStatus.IN_PROGRESS] } },
+    orderBy: [
+      { status: "asc" },
+      { availableAt: "asc" },
+      { createdAt: "asc" },
+    ],
+    take: limit,
+    select: {
+      id: true,
+      type: true,
+      status: true,
+      attempts: true,
+      maxAttempts: true,
+      availableAt: true,
+      createdAt: true,
+      sourceEventId: true,
+      lastError: true,
+    },
+  });
+
+  return jobs.map((job) => ({
+    id: job.id,
+    type: job.type,
+    status: job.status,
+    attempts: job.attempts,
+    maxAttempts: job.maxAttempts,
+    availableAt: toIsoOrNull(job.availableAt),
+    createdAt: job.createdAt.toISOString(),
+    sourceEventId: job.sourceEventId,
+    lastError: job.lastError,
+    ageMinutes:
+      Math.round(((Date.now() - job.createdAt.getTime()) / 60_000) * 10) / 10,
+  }));
+}
+
+async function getPendingJobsByType(): Promise<PendingJobsByType[]> {
+  const groups = await prisma.jobQueue.groupBy({
+    by: ["type"],
+    where: { status: JobStatus.PENDING },
+    _count: { id: true },
+    orderBy: { _count: { id: "desc" } },
+  });
+
+  return groups.map((group) => ({
+    type: group.type,
+    count: group._count.id,
+  }));
+}
+
 async function getRecentErrors(): Promise<RecentError[]> {
   const jobs = await prisma.jobQueue.findMany({
     where: { status: { in: [JobStatus.FAILED, JobStatus.DEAD_LETTER] } },
@@ -157,40 +245,72 @@ export async function getWorkersStatusFull(): Promise<WorkersStatusFull> {
       timestamp,
       workers: [],
       jobQueue: { pending: 0, inProgress: 0, completed: 0, failed: 0, deadLetter: 0 },
+      pendingJobs: [],
+      pendingByType: [],
       recentErrors: [],
     };
   }
 
-  const [lastPropUpdate, lastDemandUpdate, lastEgestion, lastConsumer, jobQueue, recentErrors] =
+  const [
+    lastPropMetricSuccess,
+    lastPropSnapshotUpdate,
+    lastDemandMetricSuccess,
+    lastDemandSnapshotUpdate,
+    lastEgestion,
+    lastConsumer,
+    jobQueue,
+    pendingJobs,
+    pendingByType,
+    recentErrors,
+  ] =
     await Promise.all([
+      getLastIngestionMetricSuccess("properties"),
       getLastPropertySnapshotUpdate(),
+      getLastIngestionMetricSuccess("demands"),
       getLastDemandSnapshotUpdate(),
       getLastEgestionSuccess(),
       getLastConsumerSuccess(),
       getJobQueueCounts(),
+      getPendingJobs(),
+      getPendingJobsByType(),
       getRecentErrors(),
     ]);
+
+  const lastPropSuccess = lastPropMetricSuccess ?? lastPropSnapshotUpdate;
+  const lastDemandSuccess = lastDemandMetricSuccess ?? lastDemandSnapshotUpdate;
 
   const workers: WorkerInfo[] = [
     {
       id: "ingestion:properties",
-      lastSuccessAt: toIsoOrNull(lastPropUpdate),
-      status: computeWorkerStatus(lastPropUpdate),
+      label: "Ingesta propiedades",
+      lastSuccessAt: toIsoOrNull(lastPropSuccess),
+      status: computeWorkerStatus(lastPropSuccess),
+      lastSuccessSource: lastPropMetricSuccess ? "ingestion_cycle_metrics" : "snapshot",
+      ageMinutes: computeAgeMinutes(lastPropSuccess),
     },
     {
       id: "ingestion:demands",
-      lastSuccessAt: toIsoOrNull(lastDemandUpdate),
-      status: computeWorkerStatus(lastDemandUpdate),
+      label: "Ingesta demandas",
+      lastSuccessAt: toIsoOrNull(lastDemandSuccess),
+      status: computeWorkerStatus(lastDemandSuccess),
+      lastSuccessSource: lastDemandMetricSuccess ? "ingestion_cycle_metrics" : "snapshot",
+      ageMinutes: computeAgeMinutes(lastDemandSuccess),
     },
     {
       id: "egestion",
+      label: "Egestión",
       lastSuccessAt: toIsoOrNull(lastEgestion),
       status: computeWorkerStatus(lastEgestion),
+      lastSuccessSource: "job_queue",
+      ageMinutes: computeAgeMinutes(lastEgestion),
     },
     {
       id: "consumer",
+      label: "Consumer",
       lastSuccessAt: toIsoOrNull(lastConsumer),
       status: computeWorkerStatus(lastConsumer),
+      lastSuccessSource: "execution_metrics",
+      ageMinutes: computeAgeMinutes(lastConsumer),
     },
   ];
 
@@ -203,6 +323,8 @@ export async function getWorkersStatusFull(): Promise<WorkersStatusFull> {
     timestamp,
     workers,
     jobQueue,
+    pendingJobs,
+    pendingByType,
     recentErrors,
   };
 }

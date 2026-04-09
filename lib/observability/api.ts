@@ -5,13 +5,12 @@ import { createLogger, ensureObservabilityConsoleInstalled } from "./logger";
 import { persistExecutionMetric } from "./persistence";
 import type { ExecutionMetricRecord, ObservabilityContext } from "./types";
 
-/**
- * Firma amplia para aceptar handlers de App Router (Request/NextRequest y contexto de params variable).
- */
-export type RouteHandler = (
+type ObservedResponse = Response | NextResponse;
+
+type InternalRouteHandler = (
   request: Request,
   context?: unknown,
-) => Promise<Response>;
+) => Promise<ObservedResponse> | ObservedResponse;
 
 interface ObservedRouteConfig {
   method: string;
@@ -69,10 +68,22 @@ function withResponseHeaders(
   });
 }
 
+export function withObservedRoute<TRequest extends Request, TResponse extends ObservedResponse>(
+  config: ObservedRouteConfig,
+  handler: (request: TRequest) => Promise<TResponse> | TResponse,
+): (request: TRequest) => Promise<Response>;
+export function withObservedRoute<
+  TRequest extends Request,
+  TContext,
+  TResponse extends ObservedResponse,
+>(
+  config: ObservedRouteConfig,
+  handler: (request: TRequest, context: TContext) => Promise<TResponse> | TResponse,
+): (request: TRequest, context: TContext) => Promise<Response>;
 export function withObservedRoute(
   config: ObservedRouteConfig,
-  handler: RouteHandler,
-): RouteHandler {
+  handler: InternalRouteHandler,
+): InternalRouteHandler {
   return async (request: Request, context?: unknown) => {
     ensureObservabilityConsoleInstalled();
 
