@@ -39,9 +39,10 @@ Endpoint de monitoreo. Devuelve el estado operativo de los workers y la base de 
   "db": "ok",
   "timestamp": "2026-03-14T12:00:00.000Z",
   "workers": [
-    { "id": "ingestion:properties", "lastSuccessAt": "2026-03-14T11:55:00.000Z", "status": "ok" },
-    { "id": "ingestion:demands",    "lastSuccessAt": "2026-03-14T11:50:00.000Z", "status": "ok" },
-    { "id": "egestion",             "lastSuccessAt": "2026-03-14T11:45:00.000Z", "status": "ok" }
+    { "id": "ingestion:properties", "label": "Ingesta propiedades", "lastSuccessAt": "2026-03-14T11:55:00.000Z", "status": "ok", "lastSuccessSource": "ingestion_cycle_metrics", "ageMinutes": 5 },
+    { "id": "ingestion:demands",    "label": "Ingesta demandas",    "lastSuccessAt": "2026-03-14T11:50:00.000Z", "status": "ok", "lastSuccessSource": "ingestion_cycle_metrics", "ageMinutes": 10 },
+    { "id": "egestion",             "label": "Egestión",            "lastSuccessAt": "2026-03-14T11:45:00.000Z", "status": "ok", "lastSuccessSource": "job_queue", "ageMinutes": 15 },
+    { "id": "consumer",             "label": "Consumer",            "lastSuccessAt": "2026-03-14T11:58:00.000Z", "status": "ok", "lastSuccessSource": "execution_metrics", "ageMinutes": 2 }
   ],
   "jobQueue": {
     "pending": 2,
@@ -50,6 +51,23 @@ Endpoint de monitoreo. Devuelve el estado operativo de los workers y la base de 
     "failed": 0,
     "deadLetter": 0
   },
+  "pendingJobs": [
+    {
+      "id": "cm...",
+      "type": "PROCESS_EVENT",
+      "status": "PENDING",
+      "attempts": 0,
+      "maxAttempts": 5,
+      "availableAt": "2026-03-14T11:59:00.000Z",
+      "createdAt": "2026-03-14T11:58:30.000Z",
+      "sourceEventId": "evt_123",
+      "lastError": null,
+      "ageMinutes": 1.5
+    }
+  ],
+  "pendingByType": [
+    { "type": "PROCESS_EVENT", "count": 2 }
+  ],
   "recentErrors": []
 }
 ```
@@ -73,8 +91,18 @@ Endpoint de monitoreo. Devuelve el estado operativo de los workers y la base de 
 **Códigos HTTP:** 200 si `status` es `ok` o `degraded`; 503 si `status` es `error`.
 
 **Fuentes de datos (con auth):**
-- `ingestion:properties` → `MAX(updatedAt)` de la tabla `property_snapshots`
-- `ingestion:demands` → `MAX(updatedAt)` de la tabla `demand_snapshots`
+- `ingestion:properties` → último `finishedAt` exitoso en `ingestion_cycle_metrics` (fallback a `MAX(updatedAt)` de `property_snapshots`)
+- `ingestion:demands` → último `finishedAt` exitoso en `ingestion_cycle_metrics` (fallback a `MAX(updatedAt)` de `demand_snapshots`)
 - `egestion` → `completedAt` del último job `WRITE_TO_INMOVILLA` con `status = COMPLETED` en `job_queue`
+- `consumer` → último `finishedAt` exitoso en `execution_metrics` con `operation = consumer:loop`
 - `jobQueue` → `GROUP BY status` sobre `job_queue`
+- `pendingJobs` → primeros jobs con `status IN (PENDING, IN_PROGRESS)` ordenados por disponibilidad/antigüedad
+- `pendingByType` → `GROUP BY type` sobre jobs `PENDING`
 - `recentErrors` → últimos 5 jobs con `status IN (FAILED, DEAD_LETTER)`, ordenados por `failedAt DESC`
+
+## Panel interno de health
+
+- UI interna: `/platform/configuracion`
+- API del panel: `GET /api/configuracion/health`
+- Auth: sesión `CEO`
+- Documentación ampliada: `docs/panel-health.md`
