@@ -120,13 +120,14 @@ ${sourceConversion || "  Sin datos suficientes"}
 INSTRUCCIONES:
 1. Analiza el mensaje del lead (si existe) buscando: tono de urgencia, nivel de detalle, compromiso implícito, señales de "tire-kicker", indicadores de capacidad financiera.
 2. Considera el contexto histórico: si la ciudad o el origen del lead tienen tasas de conversión significativamente distintas a la media, ajusta en consecuencia.
-3. Los ajustes deben ser conservadores (-30 a +30 sobre 100). Un ajuste de ±10 es significativo.
-4. Si no hay mensaje raw o el contexto es insuficiente, devuelve ajustes de 0 con confianza baja.
-5. Las qualitativeSignals deben ser específicas y accionables para el comercial.`;
+3. Considera el engagement del lead: un comprador con muchos turnos de WhatsApp y visitas realizadas tiene mayor probabilidad de cierre que uno nuevo. Si tiene selecciones ME_INTERESA en el microsite, su valor es mayor.
+4. Los ajustes deben ser conservadores (-30 a +30 sobre 100). Un ajuste de ±10 es significativo.
+5. Si no hay mensaje raw o el contexto es insuficiente, devuelve ajustes de 0 con confianza baja.
+6. Las qualitativeSignals deben ser específicas y accionables para el comercial.`;
 }
 
 function buildUserMessage(input: AIScoringGraphInput): string {
-  const { leadData, mensajeRaw, ciudad, source } = input;
+  const { leadData, mensajeRaw, ciudad, source, historySignals, mensajeKeywords } = input;
 
   const parts = [
     `Tipo: ${leadData.tipo}`,
@@ -150,6 +151,28 @@ function buildUserMessage(input: AIScoringGraphInput): string {
 
   if (typeof leadData.plazoDias === "number") {
     parts.push(`Plazo declarado: ${leadData.plazoDias} días`);
+  }
+
+  if (mensajeKeywords?.length) {
+    parts.push(`Keywords detectadas en el mensaje: ${mensajeKeywords.join(", ")}`);
+  }
+
+  if (historySignals) {
+    const histParts: string[] = [];
+    if (historySignals.whatsappTurnCount > 0) {
+      histParts.push(`${historySignals.whatsappTurnCount} turnos de conversación WhatsApp`);
+    }
+    if (historySignals.visitaInteres) {
+      histParts.push(`Visita evaluada con interés: ${historySignals.visitaInteres}`);
+    }
+    if (historySignals.micrositeInteresCount > 0) {
+      histParts.push(`${historySignals.micrositeInteresCount} propiedades marcadas ME_INTERESA en microsite`);
+    }
+    if (histParts.length > 0) {
+      parts.push(`\nHistorial de engagement del lead:\n- ${histParts.join("\n- ")}`);
+    } else {
+      parts.push("\nSin historial de interacciones previas.");
+    }
   }
 
   if (mensajeRaw) {

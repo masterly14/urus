@@ -49,21 +49,32 @@ async function computeStats(): Promise<HistoricalStats> {
   let openScoreSum = 0;
   let openScoreCount = 0;
 
+  const leadSourceById = new Map<string, string>();
+
   for (const lead of leadFacts) {
     const city = lead.ciudad || "unknown";
     const source = lead.source || "unknown";
     cityLeadCounts[city] = (cityLeadCounts[city] ?? 0) + 1;
     sourceLeadCounts[source] = (sourceLeadCounts[source] ?? 0) + 1;
+    leadSourceById.set(lead.leadId, source);
   }
+
+  const closedLeadIds = new Set<string>();
 
   for (const op of opFacts) {
     const city = op.ciudad || "unknown";
     cityClosedCounts[city] = (cityClosedCounts[city] ?? 0) + 1;
+
+    if (op.sourceEventId) {
+      closedLeadIds.add(op.sourceEventId);
+      const source = leadSourceById.get(op.sourceEventId) ?? "unknown";
+      sourceClosedCounts[source] = (sourceClosedCounts[source] ?? 0) + 1;
+    }
   }
 
   for (const lead of leadFacts) {
     if (lead.score == null) continue;
-    const isClosed = closedCities.has(lead.ciudad);
+    const isClosed = closedLeadIds.has(lead.leadId) || closedCities.has(lead.ciudad);
     if (isClosed) {
       closedScoreSum += lead.score;
       closedScoreCount++;

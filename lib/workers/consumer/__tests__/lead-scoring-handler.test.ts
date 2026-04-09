@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import type { EventRecord } from "@/lib/event-store/types";
 import type { AgentProfile } from "@/lib/routing/types";
+import type { HistorySignals } from "@/lib/scoring/types";
 import {
   handleLeadIngestadoCore,
   buildScoringInput,
   buildRoutingInput,
+  detectMessageKeywords,
 } from "../lead-scoring-handler";
 import type { LeadHandlerDeps } from "../lead-scoring-handler";
 
@@ -47,6 +49,12 @@ function makeAgent(overrides: Partial<AgentProfile> = {}): AgentProfile {
   };
 }
 
+const EMPTY_HISTORY: HistorySignals = {
+  whatsappTurnCount: 0,
+  visitaInteres: null,
+  micrositeInteresCount: 0,
+};
+
 function makeDeps(
   agents: AgentProfile[],
   incrementLoad?: LeadHandlerDeps["incrementLoad"],
@@ -54,6 +62,7 @@ function makeDeps(
   return {
     fetchAgents: async () => agents,
     incrementLoad: incrementLoad ?? (async () => {}),
+    fetchHistory: async () => EMPTY_HISTORY,
   };
 }
 
@@ -267,5 +276,66 @@ describe("handleLeadIngestadoCore", () => {
 
     expect(result.success).toBe(true);
     expect(incrementLoad).toHaveBeenCalledWith("ag-fail");
+  });
+
+  it("no bloquea el flujo si fetchHistory falla", async () => {
+    const event = makeLeadEvent({ tipo: "comprador", ciudad: "Córdoba" });
+    const deps: LeadHandlerDeps = {
+      fetchAgents: async () => [makeAgent()],
+      incrementLoad: async () => {},
+      fetchHistory: async () => { throw new Error("DB down"); },
+    };
+
+    const result = await handleLeadIngestadoCore(event, deps);
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("buildScoringInput v2 fields", () => {
+  it("extracts source from payload", () => {
+    const input = buildScoringInput({ source: "idealista" });
+    expect(input.source).toBe("idealista");
+  });
+
+  it("calculates mensajeLongitud and keywords from mensajeRaw", () => {
+    const input = buildScoringInput({
+      mensajeRaw: "Busco urgente un piso en zona centro, presupuesto 200k",
+    });
+    expect(input.mensajeLongitud).toBe(54);
+    expect(input.mensajeKeywords).toContain("urgencia");
+    expect(input.mensajeKeywords).toContain("zona");
+    expect(input.mensajeKeywords).toContain("presupuesto");
+  });
+
+  it("passes historySignals when provided", () => {
+    const hist: HistorySignals = {
+      whatsappTurnCount: 4,
+      visitaInteres: "alto",
+      micrositeInteresCount: 2,
+    };
+    const input = buildScoringInput({}, hist);
+    expect(input.historySignals).toEqual(hist);
+  });
+});
+
+describe("detectMessageKeywords", () => {
+  it("detects presupuesto keyword", () => {
+    expect(detectMessageKeywords("Mi presupuesto es 200.000€")).toContain("presupuesto");
+  });
+
+  it("detects zona keyword", () => {
+    expect(detectMessageKeywords("Busco en zona norte")).toContain("zona");
+  });
+
+  it("detects urgencia keyword", () => {
+    expect(detectMessageKeywords("Necesito algo urgente")).toContain("urgencia");
+  });
+
+  it("detects euro amounts as presupuesto", () => {
+    expect(detectMessageKeywords("Tengo 300.000€ disponibles")).toContain("presupuesto");
+  });
+
+  it("returns empty for generic message", () => {
+    expect(detectMessageKeywords("Hola buenas")).toEqual([]);
   });
 });

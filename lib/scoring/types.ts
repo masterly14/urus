@@ -1,5 +1,11 @@
 export type LeadTipo = "comprador" | "propietario";
 
+export interface HistorySignals {
+  whatsappTurnCount: number;
+  visitaInteres: "alto" | "medio" | "bajo" | null;
+  micrositeInteresCount: number;
+}
+
 export interface ScoringInput {
   tipo: LeadTipo;
   // Comprador
@@ -15,6 +21,13 @@ export interface ScoringInput {
   exclusivaAceptable?: boolean;
   documentacionDisponible?: boolean;
   probarSinAgencia?: boolean;
+  // v2: origen del lead
+  source?: string;
+  // v2: calidad del mensaje
+  mensajeLongitud?: number;
+  mensajeKeywords?: string[];
+  // v2: historial de interacciones per-lead
+  historySignals?: HistorySignals;
   // Raw fallback
   raw?: Record<string, unknown>;
 }

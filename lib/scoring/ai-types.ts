@@ -1,4 +1,4 @@
-import type { ScoringInput } from "./types";
+import type { ScoringInput, HistorySignals } from "./types";
 import type { ScoringWeights } from "./weights-loader";
 
 export interface HistoricalStats {
@@ -22,6 +22,8 @@ export interface AIScoringGraphInput {
     value: number;
     urgency: number;
   };
+  historySignals?: HistorySignals;
+  mensajeKeywords?: string[];
 }
 
 export interface AIScoringResult {

@@ -1,11 +1,12 @@
 import type { Event } from "@/types/domain";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
-import type { ScoringInput } from "@/lib/scoring/types";
+import type { ScoringInput, HistorySignals } from "@/lib/scoring/types";
 import type { AgentProfile, RoutingInput } from "@/lib/routing/types";
 import type { HandlerResult } from "./types";
 import type { AIScoringGraphInput, AIScoringResult, HistoricalStats } from "@/lib/scoring/ai-types";
 import { calculateScore, getActiveWeights } from "@/lib/scoring";
 import { blendScores } from "@/lib/scoring/blend-scores";
+import { fetchLeadHistorySignals } from "@/lib/scoring/history-signals";
 import { assignSla } from "@/lib/sla";
 import { selectBestAgent } from "@/lib/routing";
 import {
@@ -20,10 +21,25 @@ const AI_ENABLED = process.env.SCORING_AI_ENABLED === "true";
 export type AgentFetcher = (ciudad: string) => Promise<AgentProfile[]>;
 export type LoadIncrementer = (agentId: string) => Promise<void>;
 
+const PRESUPUESTO_RE = /presupuesto|budget|\d{3,}[.€k]|euros?/i;
+const ZONA_RE = /zona|barrio|centro|norte|sur|este|oeste|urbanizaci[oó]n/i;
+const URGENCIA_RE = /urgent|urgente|pronto|ya|cuanto antes|r[aá]pido|inmediato/i;
+
+export function detectMessageKeywords(text: string): string[] {
+  const kws: string[] = [];
+  if (PRESUPUESTO_RE.test(text)) kws.push("presupuesto");
+  if (ZONA_RE.test(text)) kws.push("zona");
+  if (URGENCIA_RE.test(text)) kws.push("urgencia");
+  return kws;
+}
+
 export function buildScoringInput(
   payload: Record<string, unknown>,
+  historySignals?: HistorySignals,
 ): ScoringInput {
   const tipo = payload.tipo === "propietario" ? "propietario" : "comprador";
+  const source = typeof payload.source === "string" ? payload.source : undefined;
+  const mensajeRaw = typeof payload.mensajeRaw === "string" ? payload.mensajeRaw : undefined;
 
   return {
     tipo,
@@ -39,6 +55,10 @@ export function buildScoringInput(
     exclusivaAceptable: Boolean(payload.exclusivaAceptable),
     documentacionDisponible: Boolean(payload.documentacionDisponible),
     probarSinAgencia: Boolean(payload.probarSinAgencia),
+    source,
+    mensajeLongitud: mensajeRaw ? mensajeRaw.length : undefined,
+    mensajeKeywords: mensajeRaw ? detectMessageKeywords(mensajeRaw) : undefined,
+    historySignals,
   };
 }
 
@@ -54,11 +74,17 @@ export function buildRoutingInput(
   };
 }
 
+export type HistorySignalsFetcher = (
+  waId: string | null,
+  demandId: string | null,
+) => Promise<HistorySignals>;
+
 export interface LeadHandlerDeps {
   fetchAgents?: AgentFetcher;
   incrementLoad?: LoadIncrementer;
   aiEnabled?: boolean;
   scoreWithAI?: (input: AIScoringGraphInput) => Promise<AIScoringResult>;
+  fetchHistory?: HistorySignalsFetcher;
 }
 
 /**
@@ -71,10 +97,23 @@ export async function handleLeadIngestadoCore(
   const fetchAgents = deps.fetchAgents ?? getActiveAgentsByCity;
   const incrementLoad = deps.incrementLoad ?? incrementAgentLoad;
   const aiEnabled = deps.aiEnabled ?? AI_ENABLED;
+  const fetchHistory = deps.fetchHistory ?? fetchLeadHistorySignals;
 
   const payload = (event.payload ?? {}) as Record<string, unknown>;
 
-  const scoringInput = buildScoringInput(payload);
+  const waId = typeof payload.telefono === "string" ? payload.telefono
+    : typeof payload.waId === "string" ? payload.waId
+    : null;
+  const demandId = typeof payload.demandId === "string" ? payload.demandId : null;
+
+  let historySignals: HistorySignals | undefined;
+  try {
+    historySignals = await fetchHistory(waId, demandId);
+  } catch {
+    // Non-blocking: scoring proceeds without history
+  }
+
+  const scoringInput = buildScoringInput(payload, historySignals);
   let scoringResult = await calculateScore(scoringInput);
 
   let aiScoringUsed = false;
@@ -102,6 +141,8 @@ export async function handleLeadIngestadoCore(
           value: scoringResult.value,
           urgency: scoringResult.urgency,
         },
+        historySignals,
+        mensajeKeywords: scoringInput.mensajeKeywords,
       };
 
       const aiResult = await scoreWithAI(aiInput);
