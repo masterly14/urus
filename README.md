@@ -12,6 +12,7 @@ Infraestructura base y workers de Inmovilla implementados según el plan (Semana
 - **Job Queue (Neon/PostgreSQL)**: tabla `job_queue` (Prisma `JobQueue`) + API en `lib/job-queue/` (`enqueueJob`, `dequeueJob`, `markCompleted`, `markFailed`) con reintentos, idempotencia y tests de ciclo completo en `lib/job-queue/__tests__/`.
 - **Ingestion Worker (M1)**: lectura de propiedades y demandas desde Inmovilla vía `lib/inmovilla/api/` (paginación, normalización). Cron/scripts: `ingestion:properties`, `ingestion:demands`. Documentación: `docs/workers/inmovilla-endpoints.md`.
 - **Egestion Worker / escritura (M2)**: módulo `lib/inmovilla/write/` con `writeToInmovilla(operation, payload)` — operaciones tipadas (`createDemand`, `updateDemandEmail`, `updateDemandPriority`), parsing de respuestas legacy, verificación post-escritura y reintento por sesión expirada. Script: `egestion:write`.
+- **Observabilidad persistente**: capa compartida en `lib/observability/` para API Routes y workers con logs estructurados, `requestId`/correlación y métricas persistidas en Neon (`observability_logs`, `execution_metrics`). Documentación: `docs/observabilidad-workers-api.md`.
 
 Documentación de decisiones:
 
@@ -604,7 +605,8 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 |---|---|
 | Dashboard | Micro-frontend Next.js con datos de Neon |
 | Alertas | Cron-jobs que evalúan SLAs y emiten notificaciones vía WhatsApp/Slack |
-| Métricas | Tablas de Neon con queries analíticas |
+| Métricas | Tablas de Neon con queries analíticas y métricas operativas persistentes (`ingestion_cycle_metrics`, `execution_metrics`) |
+| Logging | Logs estructurados y persistentes en Neon (`observability_logs`) para API Routes y workers |
 
 ---
 
