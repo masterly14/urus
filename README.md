@@ -623,7 +623,7 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 Cuando se sube o modifica un inmueble en Inmovilla, el sistema:
 
 1. Detecta el cambio vía `Ingestion Worker` (API REST `GET /propiedades/?listado`).
-2. Consulta la **API REST de Statefox** (`GET /properties`) filtrando por zona (`pCity`/`pZone`), tipología (`pHousing`), rango de precio y metros para obtener comparables del mercado.
+2. Consulta la **API REST de Statefox** (`GET /snapshot`) filtrando en memoria por zona (`pCity`/`pZone`), tipología (`pHousing`), rango de precio y metros para obtener comparables del mercado.
 3. Analiza el mercado real (particulares vs profesionales, segmentando por `pAdvert.type`).
 4. Compara precio (`pPricePerMeter` ya calculado por Statefox), calidades, posicionamiento y visibilidad.
 5. Devuelve al comercial un **diagnóstico claro**.
@@ -651,6 +651,8 @@ Además, un **cron-job** evalúa el stock ya proyectado en Neon sin esperar un n
 Orquestación: `POST /api/cron/pricing-reevaluation` (`CRON_SECRET`) → `scanPropertiesForPricingReevaluation()` → jobs `RUN_PRICING_ANALYSIS` con payload que reduce carga (ver siguiente apartado).
 
 **Mitigación de cuellos de botella** en esas reevaluaciones en lote: menos páginas de Statefox por job (`maxPages` reducido), sin llamada a LangGraph por defecto (`generateRecommendation: false`, solo semáforo y cluster estadístico), `availableAt` escalonado entre jobs, `idempotencyKey` diaria por propiedad, exclusión si hubo `PRICING_ANALISIS_GENERADO` en los últimos **7 días** (cooldown), y tope de **100** propiedades encoladas por ejecución del scanner.
+
+**Lectura del informe materializado**: el análisis persistido se guarda también en la proyección Prisma `pricing_reports`. La UI consulta `GET /api/pricing/report/{code}` para leer el último informe sin recalcular por defecto; el recálculo explícito sigue entrando por `POST /api/pricing/analyze`.
 
 ### Diagrama de Flujo
 
