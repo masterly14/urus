@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { scanDashboardAlerts, type AlertCandidate } from "@/lib/dashboard/comercial/alert-scanner";
 import { alertGeneric } from "@/lib/alerts";
 import { sendTextMessage } from "@/lib/whatsapp/send";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * Cron de alertas del dashboard comercial (M10).
@@ -13,7 +15,7 @@ import { sendTextMessage } from "@/lib/whatsapp/send";
  * Detecta: caída de 2 semanas, SLAs incumplidos, desviación vs media.
  * Persiste alertas en `dashboard_alerts` y notifica vía WhatsApp.
  */
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -79,6 +81,8 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/cron/dashboard-alerts" }, postHandler);
 
 export const maxDuration = 60;
 

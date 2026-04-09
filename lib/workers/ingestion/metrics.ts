@@ -8,6 +8,13 @@
 
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/app/generated/prisma/client";
+import { createWorkerLogger } from "@/lib/observability";
+
+const metricsLogger = createWorkerLogger({
+  source: "worker",
+  operation: "ingestion:metrics",
+  workerName: "ingestion:metrics",
+});
 
 export type WorkerName = "properties" | "demands";
 export type WorkerMode = "rest" | "legacy";
@@ -98,10 +105,7 @@ export async function saveCycleMetrics(data: CycleMetricsData): Promise<void> {
     });
   } catch (err) {
     // Non-blocking — un fallo en métricas no debe abortar el ciclo.
-    console.error(
-      "[ingestion:metrics] Error al guardar métricas del ciclo:",
-      err instanceof Error ? err.message : String(err),
-    );
+    metricsLogger.error("Error al guardar métricas del ciclo", err);
   }
 }
 

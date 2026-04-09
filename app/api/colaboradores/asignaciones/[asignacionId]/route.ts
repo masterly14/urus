@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { AsignacionEstado } from "@/app/generated/prisma/client";
+import { withObservedRoute } from "@/lib/observability";
+
 
 type Params = { params: Promise<{ asignacionId: string }> };
 
@@ -11,7 +13,7 @@ const VALID_ESTADOS: AsignacionEstado[] = [
 /**
  * PATCH /api/colaboradores/asignaciones/:asignacionId — Actualizar estado/notas.
  */
-export async function PATCH(request: Request, { params }: Params) {
+const patchHandler = async (request: Request, { params }: Params) => {
   const { asignacionId } = await params;
 
   let body: Record<string, unknown>;
@@ -55,10 +57,12 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 }
 
+export const PATCH = withObservedRoute({ method: "PATCH", route: "/api/colaboradores/asignaciones/[asignacionId]" }, patchHandler);
+
 /**
  * DELETE /api/colaboradores/asignaciones/:asignacionId — Cancelar asignacion.
  */
-export async function DELETE(_request: Request, { params }: Params) {
+const deleteHandler = async (_request: Request, { params }: Params) => {
   const { asignacionId } = await params;
 
   try {
@@ -73,3 +77,5 @@ export async function DELETE(_request: Request, { params }: Params) {
     return NextResponse.json({ error: "Error al cancelar asignación" }, { status: 500 });
   }
 }
+
+export const DELETE = withObservedRoute({ method: "DELETE", route: "/api/colaboradores/asignaciones/[asignacionId]" }, deleteHandler);

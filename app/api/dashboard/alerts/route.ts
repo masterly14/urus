@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * GET /api/dashboard/alerts
@@ -14,7 +16,7 @@ import { prisma } from "@/lib/prisma";
  *   limit          — number (default: 50)
  *   offset         — number (default: 0)
  */
-export async function GET(request: Request) {
+const getHandler = async (request: Request) => {
   try {
     const url = new URL(request.url);
 
@@ -70,3 +72,5 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export const GET = withObservedRoute({ method: "GET", route: "/api/dashboard/alerts" }, getHandler);

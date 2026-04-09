@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store/event-store";
 import { isAuthorized } from "@/lib/api/cron-auth";
+import { withObservedRoute } from "@/lib/observability";
+
 
 export const runtime = "nodejs";
 
@@ -17,7 +19,7 @@ function isBrowserRequest(req: Request): boolean {
   return Boolean(req.headers.get("origin") || req.headers.get("referer"));
 }
 
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   if (!isBrowserRequest(request) && process.env.CRON_SECRET && !isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -95,3 +97,5 @@ export async function POST(request: Request) {
     approvedAt: now.toISOString(),
   });
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/contracts/approve" }, postHandler);

@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getColaboradorDetail } from "@/lib/operacion/colaboradores";
 import { classifyColaborador } from "@/lib/operacion/colaboradores/classify";
+import { withObservedRoute } from "@/lib/observability";
+
 
 type Params = { params: Promise<{ id: string }> };
 
 /**
  * GET /api/colaboradores/:id — Detalle con asignaciones, hitos, docs y clasificacion.
  */
-export async function GET(_request: Request, { params }: Params) {
+const getHandler = async (_request: Request, { params }: Params) => {
   const { id } = await params;
 
   try {
@@ -26,10 +28,12 @@ export async function GET(_request: Request, { params }: Params) {
   }
 }
 
+export const GET = withObservedRoute({ method: "GET", route: "/api/colaboradores/[id]" }, getHandler);
+
 /**
  * PATCH /api/colaboradores/:id — Actualizar campos del colaborador.
  */
-export async function PATCH(request: Request, { params }: Params) {
+const patchHandler = async (request: Request, { params }: Params) => {
   const { id } = await params;
 
   let body: Record<string, unknown>;
@@ -78,10 +82,12 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 }
 
+export const PATCH = withObservedRoute({ method: "PATCH", route: "/api/colaboradores/[id]" }, patchHandler);
+
 /**
  * DELETE /api/colaboradores/:id — Soft delete (activo = false).
  */
-export async function DELETE(_request: Request, { params }: Params) {
+const deleteHandler = async (_request: Request, { params }: Params) => {
   const { id } = await params;
 
   try {
@@ -96,3 +102,5 @@ export async function DELETE(_request: Request, { params }: Params) {
     return NextResponse.json({ error: "Error al desactivar colaborador" }, { status: 500 });
   }
 }
+
+export const DELETE = withObservedRoute({ method: "DELETE", route: "/api/colaboradores/[id]" }, deleteHandler);

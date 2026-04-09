@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * GET /api/operaciones — Lista de operaciones (para selector de asignacion).
  * Query params: estado, search, limit
  */
-export async function GET(request: Request) {
+const getHandler = async (request: Request) => {
   const url = new URL(request.url);
   const estado = url.searchParams.get("estado") || undefined;
   const search = url.searchParams.get("search") || undefined;
@@ -46,3 +48,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Error al listar operaciones" }, { status: 500 });
   }
 }
+
+export const GET = withObservedRoute({ method: "GET", route: "/api/operaciones" }, getHandler);

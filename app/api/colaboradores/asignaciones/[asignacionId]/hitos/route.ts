@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withObservedRoute } from "@/lib/observability";
+
 
 type Params = { params: Promise<{ asignacionId: string }> };
 
 /**
  * POST /api/colaboradores/asignaciones/:asignacionId/hitos — Crear hito ad-hoc.
  */
-export async function POST(request: Request, { params }: Params) {
+const postHandler = async (request: Request, { params }: Params) => {
   const { asignacionId } = await params;
 
   let body: Record<string, unknown>;
@@ -47,3 +49,5 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ error: "Error al crear hito" }, { status: 500 });
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/colaboradores/asignaciones/[asignacionId]/hitos" }, postHandler);

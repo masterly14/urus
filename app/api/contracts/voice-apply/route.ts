@@ -10,6 +10,8 @@ import {
 import { appendEvent } from "@/lib/event-store/event-store";
 import type { JsonValue } from "@/lib/event-store/types";
 import type { ContractTemplateInput } from "@/types/contracts";
+import { withObservedRoute } from "@/lib/observability";
+
 
 export const runtime = "nodejs";
 
@@ -86,7 +88,8 @@ async function tryUploadVoiceRevisionDocx(params: {
   }
 }
 
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
+  const requestStartedAt = Date.now();
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({ error: "OPENAI_API_KEY no está configurada" }, { status: 503 });
   }
@@ -129,7 +132,51 @@ export async function POST(request: Request) {
       bumpTemplateRevision: bumpRevision !== false,
     });
 
+    if ("needsClarification" in result && result.needsClarification) {
+      console.info("[voice-apply]", {
+        kind: contractTemplateInput.kind,
+        propertyCode: versioningContext?.propertyCode ?? null,
+        operationId: versioningContext?.operationId ?? null,
+        result: "needs_clarification",
+        confidence: result.patch.confidence,
+        ambiguousPoints: result.patch.ambiguousPoints.length,
+        interpretationMs: result.metrics.interpretationMs,
+        regenerationMs: result.metrics.regenerationMs,
+        totalMs: Date.now() - requestStartedAt,
+      });
+
+      return NextResponse.json(
+        {
+          ok: false,
+          needsClarification: true,
+          clarificationQuestions: result.clarificationQuestions,
+          patch: result.patch,
+          appliedSummaries: result.appliedSummaries,
+          previousTemplateVersion: result.previousTemplateVersion,
+          nextTemplateVersion: result.nextTemplateVersion,
+          hadAppliedChanges: result.hadAppliedChanges,
+          updatedInput: result.updatedInput,
+          validationIssues: [],
+          versionEventRecorded: false,
+        },
+        { status: 200 },
+      );
+    }
+
     if (!result.ok) {
+      console.info("[voice-apply]", {
+        kind: contractTemplateInput.kind,
+        propertyCode: versioningContext?.propertyCode ?? null,
+        operationId: versioningContext?.operationId ?? null,
+        result: "validation_failed",
+        confidence: result.patch.confidence,
+        ambiguousPoints: result.patch.ambiguousPoints.length,
+        issues: result.issues.length,
+        interpretationMs: result.metrics.interpretationMs,
+        regenerationMs: result.metrics.regenerationMs,
+        totalMs: Date.now() - requestStartedAt,
+      });
+
       return NextResponse.json(
         {
           ok: false,
@@ -177,6 +224,7 @@ export async function POST(request: Request) {
         docxFileName: result.docx.fileName,
         appliedSummaries: result.appliedSummaries,
         patch: result.patch,
+        contractInput: result.updatedInput,
         transcriptSha256,
         actorUserId: versioningContext.actorUserId,
         docxSha256,
@@ -196,6 +244,20 @@ export async function POST(request: Request) {
       versionEventRecorded = true;
     }
 
+    console.info("[voice-apply]", {
+      kind: contractTemplateInput.kind,
+      propertyCode: versioningContext?.propertyCode ?? null,
+      operationId: versioningContext?.operationId ?? null,
+      result: "ok",
+      confidence: result.patch.confidence,
+      ambiguousPoints: result.patch.ambiguousPoints.length,
+      appliedChanges: result.appliedSummaries.length,
+      versionEventRecorded,
+      interpretationMs: result.metrics.interpretationMs,
+      regenerationMs: result.metrics.regenerationMs,
+      totalMs: Date.now() - requestStartedAt,
+    });
+
     return NextResponse.json({
       ok: true,
       patch: result.patch,
@@ -214,3 +276,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/contracts/voice-apply" }, postHandler);

@@ -18,10 +18,12 @@ import {
 import type { ParsedWebhookMessage } from "@/lib/whatsapp";
 import { appendEvent } from "@/lib/event-store";
 import { enqueueJob } from "@/lib/job-queue";
+import { withObservedRoute } from "@/lib/observability";
+
 
 // ---- GET: verificación del challenge ----
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
+const getHandler = async (request: NextRequest): Promise<NextResponse> => {
   const params = Object.fromEntries(request.nextUrl.searchParams.entries()) as {
     "hub.mode"?: string;
     "hub.verify_token"?: string;
@@ -36,9 +38,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   return NextResponse.json({ error: "Verificación de webhook fallida" }, { status: 403 });
 }
 
+export const GET = withObservedRoute({ method: "GET", route: "/api/whatsapp/webhook" }, getHandler);
+
 // ---- POST: eventos entrantes ----
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+const postHandler = async (request: NextRequest): Promise<NextResponse> => {
   const rawBody = await request.text();
 
   // Verificar firma si WHATSAPP_APP_SECRET está configurado
@@ -108,3 +112,5 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   return NextResponse.json({ ok: true }, { status: 200 });
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/whatsapp/webhook" }, postHandler);

@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getCeoOverview } from "@/lib/dashboard/ceo/queries";
+import { withObservedRoute } from "@/lib/observability";
 
-export async function GET(request: Request) {
+
+const getHandler = async (request: Request) => {
   const session = getSession(request);
 
   if (session.role !== "ceo") {
@@ -24,3 +26,5 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export const GET = withObservedRoute({ method: "GET", route: "/api/ceo/overview" }, getHandler);

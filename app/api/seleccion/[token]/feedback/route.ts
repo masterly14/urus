@@ -11,6 +11,8 @@ import type { JsonValue } from "@/lib/event-store/types";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { withObservedRoute } from "@/lib/observability";
+
 
 const bodySchema = z.object({
   propertyId: z.string().min(1),
@@ -24,10 +26,7 @@ function getClientIp(req: Request): string | null {
   return first || null;
 }
 
-export async function POST(
-  request: Request,
-  context: { params: Promise<{ token: string }> },
-) {
+const postHandler = async (request: Request, context: { params: Promise<{ token: string }> }) => {
   const { token } = await context.params;
 
   let body: unknown;
@@ -158,3 +157,5 @@ export async function POST(
     decision,
   });
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/seleccion/[token]/feedback" }, postHandler);

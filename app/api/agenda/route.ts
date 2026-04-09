@@ -6,6 +6,8 @@ import {
   createCalendarEvent,
   type CalendarEventInput,
 } from "@/lib/composio";
+import { withObservedRoute } from "@/lib/observability";
+
 
 interface AgendaRequestBody {
   demandId: string;
@@ -19,7 +21,7 @@ interface AgendaRequestBody {
   notas?: string;
 }
 
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   try {
     const body: AgendaRequestBody = await request.json();
 
@@ -104,3 +106,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/agenda" }, postHandler);

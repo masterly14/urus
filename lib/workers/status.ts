@@ -86,6 +86,19 @@ async function getLastEgestionSuccess(): Promise<Date | null> {
   return job?.completedAt ?? null;
 }
 
+async function getLastConsumerSuccess(): Promise<Date | null> {
+  const rows = await prisma.$queryRaw<Array<{ finishedAt: Date | null }>>`
+    SELECT "finishedAt"
+    FROM "execution_metrics"
+    WHERE "workerName" = 'consumer'
+      AND "operation" = 'consumer:loop'
+      AND "success" = true
+    ORDER BY "finishedAt" DESC
+    LIMIT 1
+  `;
+  return rows[0]?.finishedAt ?? null;
+}
+
 async function getJobQueueCounts(): Promise<JobQueueCounts> {
   const groups = await prisma.jobQueue.groupBy({
     by: ["status"],
@@ -148,11 +161,12 @@ export async function getWorkersStatusFull(): Promise<WorkersStatusFull> {
     };
   }
 
-  const [lastPropUpdate, lastDemandUpdate, lastEgestion, jobQueue, recentErrors] =
+  const [lastPropUpdate, lastDemandUpdate, lastEgestion, lastConsumer, jobQueue, recentErrors] =
     await Promise.all([
       getLastPropertySnapshotUpdate(),
       getLastDemandSnapshotUpdate(),
       getLastEgestionSuccess(),
+      getLastConsumerSuccess(),
       getJobQueueCounts(),
       getRecentErrors(),
     ]);
@@ -172,6 +186,11 @@ export async function getWorkersStatusFull(): Promise<WorkersStatusFull> {
       id: "egestion",
       lastSuccessAt: toIsoOrNull(lastEgestion),
       status: computeWorkerStatus(lastEgestion),
+    },
+    {
+      id: "consumer",
+      lastSuccessAt: toIsoOrNull(lastConsumer),
+      status: computeWorkerStatus(lastConsumer),
     },
   ];
 

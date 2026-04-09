@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifySigningToken } from "@/lib/firma/token";
 import { isSignatureTerminalStatus } from "@/lib/signaturit/status";
+import { withObservedRoute } from "@/lib/observability";
+
 
 export const runtime = "nodejs";
 
@@ -9,10 +11,7 @@ export const runtime = "nodejs";
  * GET /api/firma/{token}
  * Devuelve metadata de la firma para la página pública.
  */
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ token: string }> },
-) {
+const getHandler = async (_request: Request, { params }: { params: Promise<{ token: string }> }) => {
   const { token } = await params;
 
   if (!verifySigningToken(token)) {
@@ -63,3 +62,5 @@ export async function GET(
     parties: sigReq.legalDocument?.parties ?? [],
   });
 }
+
+export const GET = withObservedRoute({ method: "GET", route: "/api/firma/[token]" }, getHandler);

@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { appendEvent } from "@/lib/event-store/event-store";
 import { AggregateType, EventType } from "@/app/generated/prisma/client";
 import { enqueueJob } from "@/lib/job-queue";
+import { withObservedRoute } from "@/lib/observability";
 
-export async function POST(request: Request) {
+
+const postHandler = async (request: Request) => {
   try {
     const body = await request.json();
     const { demandId, interes, notas, comercialId, propertyCode } = body;
@@ -43,3 +45,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/post-visit" }, postHandler);

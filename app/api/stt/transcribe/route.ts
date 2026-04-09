@@ -1,5 +1,7 @@
 import OpenAI, { APIError, toFile } from "openai";
 import { NextResponse } from "next/server";
+import { withObservedRoute } from "@/lib/observability";
+
 
 export const runtime = "nodejs";
 
@@ -18,7 +20,7 @@ function maxAudioBytesForRuntime(): number {
   return OPENAI_AUDIO_MAX_BYTES;
 }
 
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json(
       { error: "OPENAI_API_KEY no está configurada" },
@@ -112,3 +114,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/stt/transcribe" }, postHandler);

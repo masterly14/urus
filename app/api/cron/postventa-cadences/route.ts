@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { isAuthorized } from "@/lib/api/cron-auth";
 import { scanPostventaCadences } from "@/lib/postventa/cadence-scanner";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * Cron de cadencias post-venta (M9).
@@ -10,7 +12,7 @@ import { scanPostventaCadences } from "@/lib/postventa/cadence-scanner";
  * todos los steps de la cadencia post-venta encolados y los crea.
  * Respeta pausas por incidencias abiertas.
  */
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -34,5 +36,7 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/cron/postventa-cadences" }, postHandler);
 
 export const maxDuration = 60;

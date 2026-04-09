@@ -1,10 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { withObservedRoute } from "@/lib/observability";
 
-export async function GET(
-  _request: Request,
-  context: { params: Promise<{ runId: string }> },
-) {
+
+const getHandler = async (_request: Request, context: { params: Promise<{ runId: string }> }) => {
   const { runId } = await context.params;
 
   const run = await prisma.evalRun.findUnique({
@@ -103,3 +102,5 @@ export async function GET(
     resultCount: results.length,
   });
 }
+
+export const GET = withObservedRoute({ method: "GET", route: "/api/eval/runs/[runId]" }, getHandler);

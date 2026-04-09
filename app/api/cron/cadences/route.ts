@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { isAuthorized } from "@/lib/api/cron-auth";
 import { scanAndEnqueueMissingFollowUps } from "@/lib/leads/cadence-scanner";
 import { scanAndEnqueueMissingPostSaleJobs } from "@/lib/post-sale/cadence-scanner";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * Cron de cadencias automáticas.
@@ -10,7 +12,7 @@ import { scanAndEnqueueMissingPostSaleJobs } from "@/lib/post-sale/cadence-scann
  * 1. Leads: revisa leads sin respuesta y encola follow-ups faltantes.
  * 2. Post-venta: revisa operaciones cerradas y encola cadencias M9 faltantes.
  */
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -40,5 +42,7 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/cron/cadences" }, postHandler);
 
 export const maxDuration = 60;

@@ -15,11 +15,21 @@ const { findUniqueMock } = vi.hoisted(() => ({
   findUniqueMock: vi.fn(),
 }));
 
+const { persistWorkerExecutionMetricMock } = vi.hoisted(() => ({
+  persistWorkerExecutionMetricMock: vi.fn(),
+}));
+
 vi.mock("@/lib/job-queue", () => ({
   dequeueJob: dequeueJobMock,
   enqueueJob: enqueueJobMock,
   markCompleted: markCompletedMock,
   markFailed: markFailedMock,
+}));
+
+vi.mock("@/lib/observability", () => ({
+  runWithWorkerObservability: (_context: unknown, callback: () => unknown) =>
+    callback(),
+  persistWorkerExecutionMetric: persistWorkerExecutionMetricMock,
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -86,6 +96,7 @@ describe("runConsumerCycle", () => {
     markCompletedMock.mockReset();
     markFailedMock.mockReset();
     findUniqueMock.mockReset();
+    persistWorkerExecutionMetricMock.mockReset();
   });
 
   it("debe retornar noWork=true si no hay jobs en la cola", async () => {
@@ -123,6 +134,14 @@ describe("runConsumerCycle", () => {
 
     expect(enqueueJobMock).toHaveBeenCalledWith(
       expect.objectContaining({ type: "UPDATE_PROPERTY_PROJECTION" }),
+    );
+    expect(persistWorkerExecutionMetricMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workerId: WORKER_ID,
+        jobId: "job-001",
+        eventId: "evt-001",
+        success: true,
+      }),
     );
   });
 
@@ -194,6 +213,14 @@ describe("runConsumerCycle", () => {
         error: "handler explosion",
       }),
     );
+    expect(persistWorkerExecutionMetricMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workerId: WORKER_ID,
+        jobId: "job-001",
+        success: false,
+        errorMessage: "handler explosion",
+      }),
+    );
 
     registerHandler("PROPIEDAD_CREADA", async (evt) => ({
       success: true,
@@ -216,6 +243,7 @@ describe("runConsumerLoop", () => {
     markCompletedMock.mockReset();
     markFailedMock.mockReset();
     findUniqueMock.mockReset();
+    persistWorkerExecutionMetricMock.mockReset();
   });
 
   it("debe terminar tras 3 ciclos consecutivos sin trabajo", async () => {

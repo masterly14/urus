@@ -11,6 +11,8 @@ import {
 } from "@/lib/dashboard/comercial/classify";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth/session";
+import { withObservedRoute } from "@/lib/observability";
+
 
 function parseIsoDate(value: string | null): Date | null {
   if (!value) return null;
@@ -61,7 +63,7 @@ async function persistClassifications(
   }
 }
 
-export async function GET(request: Request) {
+const getHandler = async (request: Request) => {
   const url = new URL(request.url);
 
   const from = parseIsoDate(url.searchParams.get("from"));
@@ -130,3 +132,5 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export const GET = withObservedRoute({ method: "GET", route: "/api/dashboard/comerciales" }, getHandler);

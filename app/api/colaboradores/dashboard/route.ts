@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { getDashboardColaboradores } from "@/lib/operacion/colaboradores/dashboard-queries";
 import { prisma } from "@/lib/prisma";
 import type { ColaboradoresRecommendation } from "@/lib/operacion/colaboradores/recommendation-types";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * GET /api/colaboradores/dashboard — Payload completo del dashboard de colaboradores.
  * Incluye resumen global, ranking por facturación vinculada, métricas por tipo,
  * y la última recomendación IA generada (si existe).
  */
-export async function GET() {
+const getHandler = async () => {
   try {
     const [payload, lastRecoEvent] = await Promise.all([
       getDashboardColaboradores(),
@@ -47,3 +49,5 @@ export async function GET() {
     );
   }
 }
+
+export const GET = withObservedRoute({ method: "GET", route: "/api/colaboradores/dashboard" }, getHandler);

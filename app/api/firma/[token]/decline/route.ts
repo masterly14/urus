@@ -4,6 +4,8 @@ import { appendEvent } from "@/lib/event-store/event-store";
 import { verifySigningToken } from "@/lib/firma/token";
 import { isSignatureTerminalStatus } from "@/lib/signaturit/status";
 import { extractSignerIp, extractUserAgent } from "@/lib/firma/engine";
+import { withObservedRoute } from "@/lib/observability";
+
 
 export const runtime = "nodejs";
 
@@ -13,10 +15,7 @@ export const runtime = "nodejs";
  * Actualiza SignatureRequest → DECLINED, LegalDocument → DRAFT,
  * y emite FIRMA_RECHAZADA para que el consumer notifique al comercial.
  */
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ token: string }> },
-) {
+const postHandler = async (request: Request, { params }: { params: Promise<{ token: string }> }) => {
   const { token } = await params;
 
   if (!verifySigningToken(token)) {
@@ -97,3 +96,5 @@ export async function POST(
     message: "Firma rechazada correctamente",
   });
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/firma/[token]/decline" }, postHandler);

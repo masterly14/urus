@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { uploadContractDocument } from "@/lib/cloudinary/upload-document";
+import { withObservedRoute } from "@/lib/observability";
+
 
 type Params = { params: Promise<{ asignacionId: string }> };
 
 /**
  * GET /api/colaboradores/asignaciones/:asignacionId/documentos
  */
-export async function GET(_request: Request, { params }: Params) {
+const getHandler = async (_request: Request, { params }: Params) => {
   const { asignacionId } = await params;
 
   try {
@@ -23,12 +25,14 @@ export async function GET(_request: Request, { params }: Params) {
   }
 }
 
+export const GET = withObservedRoute({ method: "GET", route: "/api/colaboradores/asignaciones/[asignacionId]/documentos" }, getHandler);
+
 /**
  * POST /api/colaboradores/asignaciones/:asignacionId/documentos
  * Recibe FormData con: file (File), hitoId? (string), uploadedBy? (string)
  * Sube a Cloudinary y guarda metadata en documentos_colaborador.
  */
-export async function POST(request: Request, { params }: Params) {
+const postHandler = async (request: Request, { params }: Params) => {
   const { asignacionId } = await params;
 
   let formData: FormData;
@@ -93,3 +97,5 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ error: "Error al subir documento" }, { status: 500 });
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/colaboradores/asignaciones/[asignacionId]/documentos" }, postHandler);

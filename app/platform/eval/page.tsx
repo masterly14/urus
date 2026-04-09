@@ -53,7 +53,7 @@ export default function EvalDashboardPage() {
           <div className="text-sm text-neutral-400">Urus Capital — Eval Suite</div>
           <h1 className="mt-1 text-2xl font-bold">Evaluaciones NLU</h1>
           <p className="mt-1 text-sm text-neutral-500">
-            Suite AI-to-AI: agente comprador sintetico + agente juez (gpt-4o)
+            Suite AI-to-AI: comprador sintético, NLU y juez con gpt-5.4-mini
           </p>
         </div>
       </header>

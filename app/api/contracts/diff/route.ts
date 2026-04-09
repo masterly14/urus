@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { diffContractTemplatePayload } from "@/lib/contracts/versioning/diff-payload";
 import type { ContractTemplateInput } from "@/types/contracts";
+import { withObservedRoute } from "@/lib/observability";
+
 
 export const runtime = "nodejs";
 
@@ -32,7 +34,7 @@ const BodySchema = z.object({
   nextInput: ContractTemplateInputSchema,
 });
 
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   let json: unknown;
   try {
     json = await request.json();
@@ -52,3 +54,5 @@ export async function POST(request: Request) {
   const changes = diffContractTemplatePayload(previousInput, nextInput);
   return NextResponse.json({ changes });
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/contracts/diff" }, postHandler);

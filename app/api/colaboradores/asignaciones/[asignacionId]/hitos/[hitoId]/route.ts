@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { HitoEstado } from "@/app/generated/prisma/client";
+import { withObservedRoute } from "@/lib/observability";
+
 
 type Params = { params: Promise<{ asignacionId: string; hitoId: string }> };
 
@@ -14,7 +16,7 @@ const VALID_ESTADOS: HitoEstado[] = [
  * - EN_PROGRESO → iniciadoAt = now, slaVenceAt = now + slaDias
  * - COMPLETADO → completadoAt = now
  */
-export async function PATCH(request: Request, { params }: Params) {
+const patchHandler = async (request: Request, { params }: Params) => {
   const { hitoId } = await params;
 
   let body: Record<string, unknown>;
@@ -80,3 +82,5 @@ export async function PATCH(request: Request, { params }: Params) {
     return NextResponse.json({ error: "Error al actualizar hito" }, { status: 500 });
   }
 }
+
+export const PATCH = withObservedRoute({ method: "PATCH", route: "/api/colaboradores/asignaciones/[asignacionId]/hitos/[hitoId]" }, patchHandler);

@@ -6,6 +6,8 @@ import {
   getCeoSnapshotByPeriod,
   upsertCeoSnapshot,
 } from "@/lib/dashboard/ceo/snapshot-manager";
+import { withObservedRoute } from "@/lib/observability";
+
 
 // ---------------------------------------------------------------------------
 // GET /api/ceo/snapshot
@@ -13,7 +15,7 @@ import {
 //   ?period=2026-04   → devuelve los datos completos de ese periodo
 // ---------------------------------------------------------------------------
 
-export async function GET(request: Request) {
+const getHandler = async (request: Request) => {
   const session = getSession(request);
   if (session.role !== "ceo") {
     return NextResponse.json(
@@ -43,6 +45,8 @@ export async function GET(request: Request) {
   }
 }
 
+export const GET = withObservedRoute({ method: "GET", route: "/api/ceo/snapshot" }, getHandler);
+
 // ---------------------------------------------------------------------------
 // POST /api/ceo/snapshot
 //   Body: { period, ebitdaEur, operatingCostEur, cashAvailableEur,
@@ -61,7 +65,7 @@ const SnapshotUpsertSchema = z.object({
   reinvestmentCapacity: z.number(),
 });
 
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   const session = getSession(request);
   if (session.role !== "ceo") {
     return NextResponse.json(
@@ -92,3 +96,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/ceo/snapshot" }, postHandler);

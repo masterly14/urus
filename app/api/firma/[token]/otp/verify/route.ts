@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { verifySigningToken } from "@/lib/firma/token";
 import { verifyOtp } from "@/lib/firma/otp";
+import { withObservedRoute } from "@/lib/observability";
+
 
 export const runtime = "nodejs";
 
@@ -14,10 +16,7 @@ const BodySchema = z.object({
  * POST /api/firma/{token}/otp/verify
  * Verifica el código OTP ingresado por el firmante.
  */
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ token: string }> },
-) {
+const postHandler = async (request: Request, { params }: { params: Promise<{ token: string }> }) => {
   const { token } = await params;
 
   if (!verifySigningToken(token)) {
@@ -52,3 +51,5 @@ export async function POST(
     { status },
   );
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/firma/[token]/otp/verify" }, postHandler);

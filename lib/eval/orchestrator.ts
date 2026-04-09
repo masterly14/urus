@@ -178,7 +178,7 @@ export async function runEvaluation(
     data: {
       name: options.name,
       agentVersion: "nlu-contextual-v1",
-      model: "gpt-4o-mini",
+      model: "gpt-5.4-mini",
       temperature: 0,
       scenarioCount: scenarios.length,
       status: "running",

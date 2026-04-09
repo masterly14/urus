@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { isAuthorized } from "@/lib/api/cron-auth";
 import { generateAndPersistCeoDiagnostic } from "@/lib/dashboard/ceo/diagnostic-generator";
+import { withObservedRoute } from "@/lib/observability";
 
-export async function POST(request: Request) {
+
+const postHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -23,3 +25,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/cron/ceo-diagnostic" }, postHandler);

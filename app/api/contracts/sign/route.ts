@@ -11,6 +11,8 @@ import {
 import { uploadContractDocument } from "@/lib/cloudinary";
 import { isAuthorized } from "@/lib/api/cron-auth";
 import { computeSha256, generateSigningToken, buildSigningUrl } from "@/lib/firma";
+import { withObservedRoute } from "@/lib/observability";
+
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -44,7 +46,7 @@ function isBrowserRequest(req: Request): boolean {
   return Boolean(req.headers.get("origin") || req.headers.get("referer"));
 }
 
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   if (!isBrowserRequest(request)) {
     const signToken = process.env.SIGNATURIT_SIGN_API_TOKEN?.trim();
     if (signToken) {
@@ -284,3 +286,5 @@ export async function POST(request: Request) {
     documentHash,
   });
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/contracts/sign" }, postHandler);

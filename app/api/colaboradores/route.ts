@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { listColaboradores, classifyAll } from "@/lib/operacion/colaboradores";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * GET /api/colaboradores — Lista de colaboradores con stats y clasificacion.
  * Query params: tipo, ciudad, activo, search
  */
-export async function GET(request: Request) {
+const getHandler = async (request: Request) => {
   const url = new URL(request.url);
   const tipo = url.searchParams.get("tipo") || undefined;
   const ciudad = url.searchParams.get("ciudad") || undefined;
@@ -38,11 +40,13 @@ export async function GET(request: Request) {
   }
 }
 
+export const GET = withObservedRoute({ method: "GET", route: "/api/colaboradores" }, getHandler);
+
 /**
  * POST /api/colaboradores — Crear colaborador.
  * Si el tipo no existe en colaborador_tipos, lo crea automaticamente.
  */
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -92,3 +96,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Error al crear colaborador" }, { status: 500 });
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/colaboradores" }, postHandler);

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { isAuthorized } from "@/lib/api/cron-auth";
 import { runRecalibration } from "@/lib/scoring/recalibration";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * POST /api/scoring/recalibrate
@@ -8,7 +10,7 @@ import { runRecalibration } from "@/lib/scoring/recalibration";
  * Trigger manual de recalibración de pesos del scoring.
  * Query param ?activate=true para forzar activación aunque no mejore el backtest.
  */
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -25,5 +27,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/scoring/recalibrate" }, postHandler);
 
 export const maxDuration = 60;

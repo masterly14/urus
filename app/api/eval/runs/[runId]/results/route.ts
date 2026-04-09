@@ -1,10 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { withObservedRoute } from "@/lib/observability";
 
-export async function GET(
-  request: Request,
-  context: { params: Promise<{ runId: string }> },
-) {
+
+const getHandler = async (request: Request, context: { params: Promise<{ runId: string }> }) => {
   const { runId } = await context.params;
   const { searchParams } = new URL(request.url);
 
@@ -57,3 +56,5 @@ export async function GET(
 
   return NextResponse.json({ results, total, limit, offset });
 }
+
+export const GET = withObservedRoute({ method: "GET", route: "/api/eval/runs/[runId]/results" }, getHandler);

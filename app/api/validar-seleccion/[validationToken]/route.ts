@@ -6,15 +6,14 @@ import type { JsonValue } from "@/lib/event-store/types";
 import { prisma } from "@/lib/prisma";
 import { coerceMicrositeCuratedProperties } from "@/lib/microsite/selection";
 import { z } from "zod";
+import { withObservedRoute } from "@/lib/observability";
+
 
 const bodySchema = z.object({
   action: z.enum(["APPROVE", "REJECT"]),
 });
 
-export async function POST(
-  request: Request,
-  context: { params: Promise<{ validationToken: string }> },
-) {
+const postHandler = async (request: Request, context: { params: Promise<{ validationToken: string }> }) => {
   const { validationToken } = await context.params;
 
   let body: unknown;
@@ -130,3 +129,5 @@ export async function POST(
 
   return NextResponse.json({ ok: true, eventId: event.id, action: "APPROVE" });
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/validar-seleccion/[validationToken]" }, postHandler);

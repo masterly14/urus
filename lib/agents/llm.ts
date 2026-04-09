@@ -14,7 +14,7 @@ if (!process.env.OPENAI_API_KEY) {
  * Temperatura 0 para máxima determinismo en extracción de entidades.
  */
 export const llm = new ChatOpenAI({
-  model: "gpt-4o-mini",
+  model: "gpt-5.4-mini",
   temperature: 0,
   apiKey: process.env.OPENAI_API_KEY,
   timeout: 30_000,

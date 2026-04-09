@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withObservedRoute } from "@/lib/observability";
+
 
 type Params = { params: Promise<{ id: string }> };
 
 /**
  * GET /api/colaboradores/:id/asignaciones — Asignaciones del colaborador.
  */
-export async function GET(_request: Request, { params }: Params) {
+const getHandler = async (_request: Request, { params }: Params) => {
   const { id } = await params;
 
   try {
@@ -27,12 +29,14 @@ export async function GET(_request: Request, { params }: Params) {
   }
 }
 
+export const GET = withObservedRoute({ method: "GET", route: "/api/colaboradores/[id]/asignaciones" }, getHandler);
+
 /**
  * POST /api/colaboradores/:id/asignaciones — Asignar colaborador a operacion.
  * Body: { operacionId, notas?, hitos?: Array<{nombre, orden, slaDias?}> }
  * Si no se pasan hitos, se crean desde las plantillas del tipo del colaborador.
  */
-export async function POST(request: Request, { params }: Params) {
+const postHandler = async (request: Request, { params }: Params) => {
   const { id } = await params;
 
   let body: Record<string, unknown>;
@@ -135,3 +139,5 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ error: "Error al crear asignación" }, { status: 500 });
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/colaboradores/[id]/asignaciones" }, postHandler);

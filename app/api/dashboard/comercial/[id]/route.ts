@@ -13,6 +13,8 @@ import {
   type LeadScoreStats,
 } from "@/lib/dashboard/comercial/classify";
 import { getSession } from "@/lib/auth/session";
+import { withObservedRoute } from "@/lib/observability";
+
 
 function parseIsoDate(value: string | null): Date | null {
   if (!value) return null;
@@ -20,10 +22,7 @@ function parseIsoDate(value: string | null): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-export async function GET(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
+const getHandler = async (request: Request, context: { params: Promise<{ id: string }> }) => {
   const { id: comercialId } = await context.params;
   const session = getSession(request);
 
@@ -94,3 +93,5 @@ export async function GET(
     );
   }
 }
+
+export const GET = withObservedRoute({ method: "GET", route: "/api/dashboard/comercial/[id]" }, getHandler);

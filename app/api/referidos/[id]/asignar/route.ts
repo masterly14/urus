@@ -2,15 +2,14 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store";
 import { isAuthorized } from "@/lib/api/cron-auth";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * PATCH /api/referidos/[id]/asignar — Asignar un comercial a un referido.
  * Requiere auth.
  */
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> | { id: string } },
-) {
+const patchHandler = async (request: Request, { params }: { params: Promise<{ id: string }> | { id: string } }) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -75,3 +74,5 @@ export async function PATCH(
 
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = withObservedRoute({ method: "PATCH", route: "/api/referidos/[id]/asignar" }, patchHandler);

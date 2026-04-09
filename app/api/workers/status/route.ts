@@ -1,8 +1,10 @@
 import { isAuthorized } from "@/lib/api/cron-auth";
 import { getWorkersStatusFull, getWorkersStatusMinimal } from "@/lib/workers/status";
 import { NextResponse } from "next/server";
+import { withObservedRoute } from "@/lib/observability";
 
-export async function GET(request: Request) {
+
+const getHandler = async (request: Request) => {
   if (isAuthorized(request)) {
     try {
       const data = await getWorkersStatusFull();
@@ -29,3 +31,5 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export const GET = withObservedRoute({ method: "GET", route: "/api/workers/status" }, getHandler);

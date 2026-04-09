@@ -8,6 +8,8 @@ import type { JsonValue } from "@/lib/event-store/types";
 import { isAuthorized } from "@/lib/api/cron-auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { withObservedRoute } from "@/lib/observability";
+
 
 const aggregateTypes = Object.values(AggregateTypeEnum) as [AggregateType, ...AggregateType[]];
 const eventTypes = Object.values(EventTypeEnum) as [EventType, ...EventType[]];
@@ -45,7 +47,7 @@ function serializeEvent(record: {
   };
 }
 
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -90,3 +92,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/events" }, postHandler);

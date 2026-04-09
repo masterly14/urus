@@ -14,6 +14,8 @@ import { stampSignaturePage } from "@/lib/firma/pdf-stamp";
 import { generateAuditTrailPdf } from "@/lib/firma/audit-trail";
 import { isSignatureTerminalStatus } from "@/lib/signaturit/status";
 import { isOtpVerified } from "@/lib/firma/otp";
+import { withObservedRoute } from "@/lib/observability";
+
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -23,10 +25,7 @@ export const maxDuration = 60;
  * Procesa la firma del documento: verifica OTP, integridad, genera PDF sellado
  * con la firma manuscrita, audit trail, actualiza BD y emite FIRMA_COMPLETADA.
  */
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ token: string }> },
-) {
+const postHandler = async (request: Request, { params }: { params: Promise<{ token: string }> }) => {
   const { token } = await params;
 
   if (!verifySigningToken(token)) {
@@ -226,3 +225,5 @@ export async function POST(
     auditTrailUrl: auditUpload.secureUrl,
   });
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/firma/[token]/sign" }, postHandler);

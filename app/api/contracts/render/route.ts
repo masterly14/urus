@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { generateContractDocx } from "@/lib/contracts/docx";
 import type { ContractTemplateInput } from "@/types/contracts";
+import { withObservedRoute } from "@/lib/observability";
+
 
 export const runtime = "nodejs";
 
@@ -20,7 +22,7 @@ const BodySchema = z.object({
   contractTemplateInput: ContractTemplateInputSchema,
 });
 
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   let json: unknown;
   try {
     json = await request.json();
@@ -70,3 +72,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/contracts/render" }, postHandler);

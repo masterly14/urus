@@ -7,6 +7,8 @@ import {
   replayDeadLetterJob,
   replayAllDeadLetterByType,
 } from "@/lib/job-queue";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * GET /api/workers/dead-letter
@@ -14,7 +16,7 @@ import {
  *
  * Query params opcionales: type, limit, offset
  */
-export async function GET(request: Request) {
+const getHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -47,6 +49,8 @@ export async function GET(request: Request) {
   }
 }
 
+export const GET = withObservedRoute({ method: "GET", route: "/api/workers/dead-letter" }, getHandler);
+
 /**
  * POST /api/workers/dead-letter
  * Reencola jobs de la DLQ. Requiere auth.
@@ -55,7 +59,7 @@ export async function GET(request: Request) {
  *   { "action": "replay", "jobId": "..." }              → reencola un job
  *   { "action": "replay_all", "type": "WRITE_TO_INMOVILLA" } → reencola todos de un tipo
  */
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -101,3 +105,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/workers/dead-letter" }, postHandler);

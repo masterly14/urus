@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { JudgeInput, JudgeEvaluation, PropertySummaryForNLU } from "./types";
 
 const judgeLlm = new ChatOpenAI({
-  model: "gpt-4o",
+  model: "gpt-5.4-mini",
   temperature: 0,
   apiKey: process.env.OPENAI_API_KEY,
   timeout: 60_000,

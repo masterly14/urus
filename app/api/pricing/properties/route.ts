@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withObservedRoute } from "@/lib/observability";
+
 
 export const runtime = "nodejs";
 
-export async function GET(request: Request) {
+const getHandler = async (request: Request) => {
   const { searchParams } = new URL(request.url);
   const ciudad = searchParams.get("ciudad")?.trim() || undefined;
   const estado = searchParams.get("estado")?.trim() || undefined;
@@ -36,3 +38,5 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ properties });
 }
+
+export const GET = withObservedRoute({ method: "GET", route: "/api/pricing/properties" }, getHandler);

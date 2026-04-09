@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getMentalHealthOverview } from "@/lib/dashboard/mental-health/queries";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * GET /api/dashboard/mental-health
@@ -19,7 +21,7 @@ import { getMentalHealthOverview } from "@/lib/dashboard/mental-health/queries";
  *   alertasActivas: { energy_drop, recurrent_block, overload }
  * }
  */
-export async function GET(request: Request) {
+const getHandler = async (request: Request) => {
   const session = getSession(request);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -39,3 +41,5 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export const GET = withObservedRoute({ method: "GET", route: "/api/dashboard/mental-health" }, getHandler);

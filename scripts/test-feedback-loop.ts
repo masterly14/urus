@@ -10,7 +10,7 @@
  *
  * USO: npx tsx scripts/test-feedback-loop.ts
  *
- * Requiere: OPENAI_API_KEY en .env (usa gpt-4o-mini real)
+ * Requiere: OPENAI_API_KEY en .env (usa modelo OpenAI real vía lib/agents/llm)
  */
 
 import "dotenv/config";

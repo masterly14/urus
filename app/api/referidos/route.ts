@@ -3,12 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store";
 import { isAuthorized } from "@/lib/api/cron-auth";
 import type { ReferralStatus } from "@/app/generated/prisma/client";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * POST /api/referidos — Captura de referido desde formulario publico.
  * No requiere auth (es publico, el cliente accede via enlace WhatsApp).
  */
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -82,11 +84,13 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true, referralId: referral.id }, { status: 201 });
 }
 
+export const POST = withObservedRoute({ method: "POST", route: "/api/referidos" }, postHandler);
+
 /**
  * GET /api/referidos — Listado de referidos (bandeja admin).
  * Requiere auth (CRON_SECRET).
  */
-export async function GET(request: Request) {
+const getHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -114,3 +118,5 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ referrals, total, limit, offset });
 }
+
+export const GET = withObservedRoute({ method: "GET", route: "/api/referidos" }, getHandler);

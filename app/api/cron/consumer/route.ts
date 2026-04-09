@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { isAuthorized } from "@/lib/api/cron-auth";
 import { runConsumerLoop } from "@/lib/workers/consumer";
 import { randomUUID } from "crypto";
+import { withObservedRoute } from "@/lib/observability";
+
 
 const DEFAULT_BATCH_SIZE = 10;
 const MAX_BATCH_SIZE = 50;
 
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -52,5 +54,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json(result);
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/cron/consumer" }, postHandler);
 
 export const maxDuration = 60;

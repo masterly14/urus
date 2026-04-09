@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { BuyerAgentInput, BuyerAgentOutput, PropertySummaryForNLU } from "./types";
 
 const buyerLlm = new ChatOpenAI({
-  model: "gpt-4o-mini",
+  model: "gpt-5.4-mini",
   temperature: 0.7,
   apiKey: process.env.OPENAI_API_KEY,
   timeout: 30_000,

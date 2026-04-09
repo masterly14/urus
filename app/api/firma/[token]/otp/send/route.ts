@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { verifySigningToken } from "@/lib/firma/token";
 import { isSignatureTerminalStatus } from "@/lib/signaturit/status";
 import { createOtp } from "@/lib/firma/otp";
+import { withObservedRoute } from "@/lib/observability";
+
 
 export const runtime = "nodejs";
 
@@ -10,10 +12,7 @@ export const runtime = "nodejs";
  * POST /api/firma/{token}/otp/send
  * Genera un OTP de 6 dígitos, lo persiste hasheado y lo envía por SMS via Vonage.
  */
-export async function POST(
-  _request: Request,
-  { params }: { params: Promise<{ token: string }> },
-) {
+const postHandler = async (_request: Request, { params }: { params: Promise<{ token: string }> }) => {
   const { token } = await params;
 
   if (!verifySigningToken(token)) {
@@ -66,3 +65,5 @@ export async function POST(
     );
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/firma/[token]/otp/send" }, postHandler);

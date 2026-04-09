@@ -19,13 +19,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendTextMessage, sendTemplateMessage, sendInteractiveMessage } from "@/lib/whatsapp";
 import type { TemplateObject, InteractiveObject } from "@/lib/whatsapp";
+import { withObservedRoute } from "@/lib/observability";
+
 
 type SendBody =
   | { to: string; type: "text"; text: { body: string; preview_url?: boolean } }
   | { to: string; type: "template"; template: TemplateObject }
   | { to: string; type: "interactive"; interactive: InteractiveObject };
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+const postHandler = async (request: NextRequest): Promise<NextResponse> => {
   let body: SendBody;
   try {
     body = (await request.json()) as SendBody;
@@ -82,3 +84,5 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/whatsapp/send" }, postHandler);

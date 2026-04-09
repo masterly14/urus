@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { isAuthorized } from "@/lib/api/cron-auth";
 import { scanAndSendSignatureReminders } from "@/lib/signaturit/reminder-scanner";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * Cron de recordatorios de firma digital.
@@ -9,7 +11,7 @@ import { scanAndSendSignatureReminders } from "@/lib/signaturit/reminder-scanner
  * Revisa SignatureRequests pendientes, envía recordatorios WhatsApp
  * según cadencia D+1/D+3/D+5 y escala por SLA (5 días por defecto).
  */
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -33,5 +35,7 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/cron/signature-reminders" }, postHandler);
 
 export const maxDuration = 60;

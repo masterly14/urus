@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { isAuthorized } from "@/lib/api/cron-auth";
 import { runRecalibration } from "@/lib/scoring/recalibration";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * Cron semanal de recalibración del scoring.
  * Calcula nuevos pesos óptimos a partir de datos históricos de cierre
  * y los activa solo si mejoran el backtest al menos un 2%.
  */
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -29,5 +31,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/cron/recalibrate-scoring" }, postHandler);
 
 export const maxDuration = 60;

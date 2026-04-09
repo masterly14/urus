@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * PATCH /api/dashboard/alerts/:id/resolve
  *
  * Marca una alerta como resuelta.
  */
-export async function PATCH(
-  _request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+const patchHandler = async (_request: Request, { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { id } = await params;
 
@@ -43,3 +42,5 @@ export async function PATCH(
     );
   }
 }
+
+export const PATCH = withObservedRoute({ method: "PATCH", route: "/api/dashboard/alerts/[id]/resolve" }, patchHandler);

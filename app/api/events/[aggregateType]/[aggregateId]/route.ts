@@ -3,6 +3,8 @@ import { AggregateType as AggregateTypeEnum } from "@/app/generated/prisma/clien
 import { getEventsByAggregate } from "@/lib/event-store";
 import { isAuthorized } from "@/lib/api/cron-auth";
 import { NextResponse } from "next/server";
+import { withObservedRoute } from "@/lib/observability";
+
 
 const VALID_AGGREGATE_TYPES = new Set<string>(
   Object.values(AggregateTypeEnum) as string[],
@@ -37,7 +39,7 @@ function serializeEvent(record: {
 
 type RouteParams = { params: Promise<{ aggregateType: string; aggregateId: string }> };
 
-export async function GET(request: Request, { params }: RouteParams) {
+const getHandler = async (request: Request, { params }: RouteParams) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -106,3 +108,5 @@ export async function GET(request: Request, { params }: RouteParams) {
     );
   }
 }
+
+export const GET = withObservedRoute({ method: "GET", route: "/api/events/[aggregateType]/[aggregateId]" }, getHandler);

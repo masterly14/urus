@@ -4,8 +4,10 @@ import {
   getLatestCeoFinancial,
   generateAndPersistCeoFinancial,
 } from "@/lib/dashboard/ceo/financial-generator";
+import { withObservedRoute } from "@/lib/observability";
 
-export async function GET(request: Request) {
+
+const getHandler = async (request: Request) => {
   const session = getSession(request);
 
   if (session.role !== "ceo") {
@@ -35,7 +37,9 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export const GET = withObservedRoute({ method: "GET", route: "/api/ceo/financiero" }, getHandler);
+
+const postHandler = async (request: Request) => {
   const session = getSession(request);
 
   if (session.role !== "ceo") {
@@ -62,3 +66,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/ceo/financiero" }, postHandler);

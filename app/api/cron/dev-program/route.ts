@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { isAuthorized } from "@/lib/api/cron-auth";
 import { scheduleDevExercises } from "@/lib/dev-program/schedule";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * Cron de desarrollo continuo (M12).
  * Ejecutar L-V a las ~8:30 vía Upstash QStash.
  * Encola un SEND_DEV_EXERCISE_NUDGE por cada comercial activo.
  */
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -26,5 +28,7 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/cron/dev-program" }, postHandler);
 
 export const maxDuration = 60;

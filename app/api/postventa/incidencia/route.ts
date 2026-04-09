@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { appendEvent } from "@/lib/event-store/event-store";
 import { AggregateType, EventType } from "@/app/generated/prisma/client";
 import { enqueueJob } from "@/lib/job-queue";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * POST — Abrir incidencia post-venta.
  * Llamado desde el micro-frontend cuando el comprador pulsa "Necesito ayuda".
  * Emite evento INCIDENCIA_POSTVENTA_ABIERTA y notifica al comercial.
  */
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   try {
     const body = await request.json();
     const { propertyCode, buyerPhone, description } = body;
@@ -63,13 +65,15 @@ export async function POST(request: Request) {
   }
 }
 
+export const POST = withObservedRoute({ method: "POST", route: "/api/postventa/incidencia" }, postHandler);
+
 /**
  * PATCH — Resolver incidencia post-venta.
  * Llamado desde el panel del comercial al marcar "Resuelto".
  * Emite evento INCIDENCIA_POSTVENTA_RESUELTA — la cadencia se reanuda
  * automáticamente en el siguiente ciclo del cron scanner.
  */
-export async function PATCH(request: Request) {
+const patchHandler = async (request: Request) => {
   try {
     const body = await request.json();
     const { propertyCode, resolvedBy } = body;
@@ -107,3 +111,5 @@ export async function PATCH(request: Request) {
     );
   }
 }
+
+export const PATCH = withObservedRoute({ method: "PATCH", route: "/api/postventa/incidencia" }, patchHandler);

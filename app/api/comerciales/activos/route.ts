@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withObservedRoute } from "@/lib/observability";
 
-export async function GET() {
+
+const getHandler = async () => {
   try {
     const comerciales = await prisma.comercial.findMany({
       where: { activo: true },
@@ -19,3 +21,5 @@ export async function GET() {
     );
   }
 }
+
+export const GET = withObservedRoute({ method: "GET", route: "/api/comerciales/activos" }, getHandler);

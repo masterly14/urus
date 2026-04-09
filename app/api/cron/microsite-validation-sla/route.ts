@@ -3,12 +3,14 @@ import { isAuthorized } from "@/lib/api/cron-auth";
 import { prisma } from "@/lib/prisma";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
 import { sendMicrositeValidationEscalation } from "@/lib/whatsapp/send";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * Cron: selecciones pendientes de validación con SLA vencido → escalado (WhatsApp).
  * Idempotente vía `escalatedAt`.
  */
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -74,5 +76,7 @@ export async function POST(request: Request) {
     errors: errors.length ? errors : undefined,
   });
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/cron/microsite-validation-sla" }, postHandler);
 
 export const maxDuration = 60;

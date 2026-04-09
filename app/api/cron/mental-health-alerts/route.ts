@@ -7,6 +7,8 @@ import {
   type MentalHealthAlertCandidate,
 } from "@/lib/dashboard/mental-health/alert-scanner";
 import { alertGeneric } from "@/lib/alerts";
+import { withObservedRoute } from "@/lib/observability";
+
 
 /**
  * Cron de alertas de salud mental — Capa 5 M12.
@@ -20,7 +22,7 @@ import { alertGeneric } from "@/lib/alerts";
  * Las alertas se persisten en `dashboard_alerts` y se notifican al CEO
  * vía alertGeneric. No se exponen conversaciones individuales.
  */
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -88,6 +90,8 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withObservedRoute({ method: "POST", route: "/api/cron/mental-health-alerts" }, postHandler);
 
 export const maxDuration = 60;
 

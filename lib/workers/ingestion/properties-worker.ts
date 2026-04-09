@@ -21,6 +21,10 @@ import { propertiesLogger } from "./logger";
 import { classifyError, isRateLimitError } from "./errors";
 import { saveCycleMetrics, PhaseTimer } from "./metrics";
 import type { PhaseTimings } from "./metrics";
+import {
+  persistWorkerExecutionMetric,
+  runWithWorkerObservability,
+} from "@/lib/observability";
 
 /**
  * Rate limits Inmovilla REST para propiedades (doc):
@@ -257,188 +261,235 @@ export async function runPropertiesIngestionCycle(): Promise<IngestionCycleResul
   const log = propertiesLogger.child({ cycleId });
   const phases: PhaseTimings = {};
 
-  const useRest = Boolean(
-    typeof process !== "undefined" && process.env?.INMOVILLA_API_TOKEN,
-  );
-  const mode = useRest ? "rest" : "legacy";
+  return runWithWorkerObservability(
+    {
+      source: "worker",
+      operation: "ingestion:properties",
+      workerName: "ingestion:properties",
+      workerId: cycleId,
+      cycleId,
+    },
+    async () => {
+      const useRest = Boolean(
+        typeof process !== "undefined" && process.env?.INMOVILLA_API_TOKEN,
+      );
+      const mode = useRest ? "rest" : "legacy";
 
-  log.info("Ciclo iniciado", { mode });
+      log.info("Ciclo iniciado", { mode });
 
-  try {
-    // ── Fase 1: cargar snapshot previo ────────────────────────────────────
-    let t = new PhaseTimer();
-    log.info("Cargando snapshot previo...");
-    const previousSnapshot = await loadPreviousSnapshot();
-    phases.loadSnapshot = t.end();
-    log.phase("loadSnapshot", phases.loadSnapshot, {
-      snapshotSize: previousSnapshot.size,
-    });
-
-    // ── Fase 1b: cargar enum maps para resolución key_loca/key_zona/estadoficha ──
-    let enumMaps: EnumLookupMaps | undefined;
-    if (useRest) {
       try {
-        enumMaps = await loadEnumLookupMaps();
-        log.info("Enum lookup maps cargados", {
-          ciudades: enumMaps.ciudadByKeyLoca.size,
-          zonas: enumMaps.zonaByLocaZona.size,
-          estados: enumMaps.estadoByValue.size,
+        // ── Fase 1: cargar snapshot previo ────────────────────────────────────
+        let t = new PhaseTimer();
+        log.info("Cargando snapshot previo...");
+        const previousSnapshot = await loadPreviousSnapshot();
+        phases.loadSnapshot = t.end();
+        log.phase("loadSnapshot", phases.loadSnapshot, {
+          snapshotSize: previousSnapshot.size,
         });
-      } catch (err) {
-        log.warn("No se pudieron cargar enum maps — ciudad/zona/estado podrían quedar como código", {
-          error: err instanceof Error ? err.message : String(err),
+
+        // ── Fase 1b: cargar enum maps para resolución key_loca/key_zona/estadoficha ──
+        let enumMaps: EnumLookupMaps | undefined;
+        if (useRest) {
+          try {
+            enumMaps = await loadEnumLookupMaps();
+            log.info("Enum lookup maps cargados", {
+              ciudades: enumMaps.ciudadByKeyLoca.size,
+              zonas: enumMaps.zonaByLocaZona.size,
+              estados: enumMaps.estadoByValue.size,
+            });
+          } catch (err) {
+            log.warn("No se pudieron cargar enum maps — ciudad/zona/estado podrían quedar como código", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+
+        // ── Fase 2: leer propiedades ──────────────────────────────────────────
+        t = new PhaseTimer();
+        let properties: InmovillaProperty[];
+        let itemsFetched = 0;
+        let itemsFailed = 0;
+
+        if (useRest) {
+          log.info("Modo API REST: listado + fichas cambiadas");
+          const restResult = await fetchPropertiesViaRest(previousSnapshot, log, enumMaps);
+          properties = restResult.properties;
+          itemsFetched = restResult.fetched;
+          itemsFailed = restResult.failed;
+          log.info("Propiedades REST cargadas", {
+            total: properties.length,
+            fetched: itemsFetched,
+            failed: itemsFailed,
+            retries: restResult.totalRetries,
+          });
+        } else {
+          log.info("Modo legacy: login + paginación");
+          const session = await loginToInmovilla({ headless: true });
+          properties = await fetchAllProperties(session);
+          log.info("Propiedades legacy cargadas", { total: properties.length });
+        }
+        phases.fetchData = t.end();
+        log.phase("fetchData", phases.fetchData, { itemsRead: properties.length });
+
+        // ── Fase 3: calcular diff ─────────────────────────────────────────────
+        t = new PhaseTimer();
+        log.info("Calculando diff...");
+        const diff = computePropertyDiff(properties, previousSnapshot);
+        phases.computeDiff = t.end();
+        log.phase("computeDiff", phases.computeDiff, {
+          created: diff.created.length,
+          modified: diff.modified.length,
+          statusChanged: diff.statusChanged.length,
+          removed: diff.removed.length,
+          unchanged: diff.unchanged,
         });
+
+        // ── Fase 4: publicar eventos ──────────────────────────────────────────
+        t = new PhaseTimer();
+        log.info("Publicando eventos...");
+        const publication = await publishEventsForDiff(diff, cycleId);
+        const eventsEmitted = publication.emitted;
+        phases.publishEvents = t.end();
+        log.phase("publishEvents", phases.publishEvents, { eventsEmitted });
+
+        // ── Fase 5: guardar snapshot ──────────────────────────────────────────
+        t = new PhaseTimer();
+        log.info("Guardando snapshot actual...");
+        await saveCurrentSnapshot(properties, startedAt);
+        if (diff.removed.length > 0) {
+          const removedCodes = diff.removed.map((r) => r.codigo);
+          log.info("Eliminando del snapshot propiedades no-Libre", { count: removedCodes.length });
+          await removeFromSnapshot(removedCodes);
+        }
+        phases.saveSnapshot = t.end();
+        log.phase("saveSnapshot", phases.saveSnapshot);
+
+        const finishedAt = new Date();
+        const durationMs = finishedAt.getTime() - startedAt.getTime();
+
+        const result: IngestionCycleResult = {
+          cycleId,
+          startedAt,
+          finishedAt,
+          durationMs,
+          propertiesRead: properties.length,
+          eventsEmitted,
+          diff: {
+            created: diff.created.length,
+            modified: diff.modified.length,
+            statusChanged: diff.statusChanged.length,
+            removed: diff.removed.length,
+            unchanged: diff.unchanged,
+          },
+        };
+
+        log.info("Ciclo completado", {
+          durationMs,
+          propertiesRead: properties.length,
+          eventsEmitted,
+          diff: result.diff,
+        });
+
+        await saveCycleMetrics({
+          cycleId,
+          worker: "properties",
+          mode,
+          success: true,
+          startedAt,
+          finishedAt,
+          durationMs,
+          itemsRead: properties.length,
+          itemsFetched,
+          itemsFailed,
+          snapshotSize: previousSnapshot.size,
+          eventsEmitted,
+          diffCreated: diff.created.length,
+          diffModified: diff.modified.length,
+          diffStatusChanged: diff.statusChanged.length,
+          diffUnchanged: diff.unchanged,
+          phases,
+        });
+
+        await persistWorkerExecutionMetric({
+          source: "worker",
+          operation: "ingestion:properties",
+          name: "ingestion_cycle",
+          success: true,
+          startedAt,
+          finishedAt,
+          durationMs,
+          throughputCount: properties.length,
+          workerId: cycleId,
+          workerName: "ingestion:properties",
+          context: {
+            mode,
+            eventsEmitted,
+            diff: result.diff,
+          },
+        });
+
+        return result;
+      } catch (err: unknown) {
+        const finishedAt = new Date();
+        const durationMs = finishedAt.getTime() - startedAt.getTime();
+        const classified = classifyError(err);
+
+        log.error("Ciclo fallido", err, {
+          durationMs,
+          errorCode: classified.code,
+          retryable: classified.retryable,
+        });
+
+        await saveCycleMetrics({
+          cycleId,
+          worker: "properties",
+          mode,
+          success: false,
+          startedAt,
+          finishedAt,
+          durationMs,
+          itemsRead: 0,
+          snapshotSize: 0,
+          eventsEmitted: 0,
+          diffCreated: 0,
+          diffModified: 0,
+          diffStatusChanged: 0,
+          diffUnchanged: 0,
+          errorMessage: classified.message,
+          errorCode: classified.code,
+          phases,
+        });
+
+        await persistWorkerExecutionMetric({
+          source: "worker",
+          operation: "ingestion:properties",
+          name: "ingestion_cycle",
+          success: false,
+          startedAt,
+          finishedAt,
+          durationMs,
+          throughputCount: 0,
+          workerId: cycleId,
+          workerName: "ingestion:properties",
+          errorMessage: classified.message,
+          errorCode: classified.code,
+          context: {
+            mode,
+            retryable: classified.retryable,
+          },
+        });
+
+        return {
+          cycleId,
+          startedAt,
+          finishedAt,
+          durationMs,
+          propertiesRead: 0,
+          eventsEmitted: 0,
+          diff: { created: 0, modified: 0, statusChanged: 0, removed: 0, unchanged: 0 },
+          error: classified.message,
+        };
       }
-    }
-
-    // ── Fase 2: leer propiedades ──────────────────────────────────────────
-    t = new PhaseTimer();
-    let properties: InmovillaProperty[];
-    let itemsFetched = 0;
-    let itemsFailed = 0;
-
-    if (useRest) {
-      log.info("Modo API REST: listado + fichas cambiadas");
-      const restResult = await fetchPropertiesViaRest(previousSnapshot, log, enumMaps);
-      properties = restResult.properties;
-      itemsFetched = restResult.fetched;
-      itemsFailed = restResult.failed;
-      log.info("Propiedades REST cargadas", {
-        total: properties.length,
-        fetched: itemsFetched,
-        failed: itemsFailed,
-        retries: restResult.totalRetries,
-      });
-    } else {
-      log.info("Modo legacy: login + paginación");
-      const session = await loginToInmovilla({ headless: true });
-      properties = await fetchAllProperties(session);
-      log.info("Propiedades legacy cargadas", { total: properties.length });
-    }
-    phases.fetchData = t.end();
-    log.phase("fetchData", phases.fetchData, { itemsRead: properties.length });
-
-    // ── Fase 3: calcular diff ─────────────────────────────────────────────
-    t = new PhaseTimer();
-    log.info("Calculando diff...");
-    const diff = computePropertyDiff(properties, previousSnapshot);
-    phases.computeDiff = t.end();
-    log.phase("computeDiff", phases.computeDiff, {
-      created: diff.created.length,
-      modified: diff.modified.length,
-      statusChanged: diff.statusChanged.length,
-      removed: diff.removed.length,
-      unchanged: diff.unchanged,
-    });
-
-    // ── Fase 4: publicar eventos ──────────────────────────────────────────
-    t = new PhaseTimer();
-    log.info("Publicando eventos...");
-    const publication = await publishEventsForDiff(diff, cycleId);
-    const eventsEmitted = publication.emitted;
-    phases.publishEvents = t.end();
-    log.phase("publishEvents", phases.publishEvents, { eventsEmitted });
-
-    // ── Fase 5: guardar snapshot ──────────────────────────────────────────
-    t = new PhaseTimer();
-    log.info("Guardando snapshot actual...");
-    await saveCurrentSnapshot(properties, startedAt);
-    if (diff.removed.length > 0) {
-      const removedCodes = diff.removed.map((r) => r.codigo);
-      log.info("Eliminando del snapshot propiedades no-Libre", { count: removedCodes.length });
-      await removeFromSnapshot(removedCodes);
-    }
-    phases.saveSnapshot = t.end();
-    log.phase("saveSnapshot", phases.saveSnapshot);
-
-    const finishedAt = new Date();
-    const durationMs = finishedAt.getTime() - startedAt.getTime();
-
-    const result: IngestionCycleResult = {
-      cycleId,
-      startedAt,
-      finishedAt,
-      durationMs,
-      propertiesRead: properties.length,
-      eventsEmitted,
-      diff: {
-        created: diff.created.length,
-        modified: diff.modified.length,
-        statusChanged: diff.statusChanged.length,
-        removed: diff.removed.length,
-        unchanged: diff.unchanged,
-      },
-    };
-
-    log.info("Ciclo completado", {
-      durationMs,
-      propertiesRead: properties.length,
-      eventsEmitted,
-      diff: result.diff,
-    });
-
-    // Persistir métricas de forma no bloqueante
-    await saveCycleMetrics({
-      cycleId,
-      worker: "properties",
-      mode,
-      success: true,
-      startedAt,
-      finishedAt,
-      durationMs,
-      itemsRead: properties.length,
-      itemsFetched,
-      itemsFailed,
-      snapshotSize: previousSnapshot.size,
-      eventsEmitted,
-      diffCreated: diff.created.length,
-      diffModified: diff.modified.length,
-      diffStatusChanged: diff.statusChanged.length,
-      diffUnchanged: diff.unchanged,
-      phases,
-    });
-
-    return result;
-  } catch (err: unknown) {
-    const finishedAt = new Date();
-    const durationMs = finishedAt.getTime() - startedAt.getTime();
-    const classified = classifyError(err);
-
-    log.error("Ciclo fallido", err, {
-      durationMs,
-      errorCode: classified.code,
-      retryable: classified.retryable,
-    });
-
-    await saveCycleMetrics({
-      cycleId,
-      worker: "properties",
-      mode,
-      success: false,
-      startedAt,
-      finishedAt,
-      durationMs,
-      itemsRead: 0,
-      snapshotSize: 0,
-      eventsEmitted: 0,
-      diffCreated: 0,
-      diffModified: 0,
-      diffStatusChanged: 0,
-      diffUnchanged: 0,
-      errorMessage: classified.message,
-      errorCode: classified.code,
-      phases,
-    });
-
-    return {
-      cycleId,
-      startedAt,
-      finishedAt,
-      durationMs,
-      propertiesRead: 0,
-      eventsEmitted: 0,
-      diff: { created: 0, modified: 0, statusChanged: 0, removed: 0, unchanged: 0 },
-      error: classified.message,
-    };
-  }
+    },
+  );
 }
