@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { listColaboradores, classifyAll } from "@/lib/operacion/colaboradores";
 import { withObservedRoute } from "@/lib/observability";
@@ -9,6 +11,8 @@ import { withObservedRoute } from "@/lib/observability";
  * Query params: tipo, ciudad, activo, search
  */
 const getHandler = async (request: Request) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
   const url = new URL(request.url);
   const tipo = url.searchParams.get("tipo") || undefined;
   const ciudad = url.searchParams.get("ciudad") || undefined;
@@ -42,33 +46,49 @@ const getHandler = async (request: Request) => {
 
 export const GET = withObservedRoute({ method: "GET", route: "/api/colaboradores" }, getHandler);
 
+const PostBodySchema = z.object({
+  nombre: z.string().trim().min(1),
+  tipo: z.string().trim().min(1),
+  ciudad: z.string().trim().optional(),
+  especialidad: z.string().trim().optional(),
+  contactoNombre: z.string().trim().optional(),
+  contactoEmail: z.string().trim().optional(),
+  contactoTelefono: z.string().trim().optional(),
+  notas: z.string().trim().optional(),
+});
+
 /**
  * POST /api/colaboradores — Crear colaborador.
  * Si el tipo no existe en colaborador_tipos, lo crea automaticamente.
  */
 const postHandler = async (request: Request) => {
-  let body: Record<string, unknown>;
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Body JSON inválido" }, { status: 400 });
   }
 
-  const nombre = typeof body.nombre === "string" ? body.nombre.trim() : "";
-  const tipo = typeof body.tipo === "string" ? body.tipo.trim() : "";
-  const ciudad = typeof body.ciudad === "string" ? body.ciudad.trim() : "";
-  const especialidad = typeof body.especialidad === "string" ? body.especialidad.trim() : "";
-  const contactoNombre = typeof body.contactoNombre === "string" ? body.contactoNombre.trim() : "";
-  const contactoEmail = typeof body.contactoEmail === "string" ? body.contactoEmail.trim() : "";
-  const contactoTelefono = typeof body.contactoTelefono === "string" ? body.contactoTelefono.trim() : "";
-  const notas = typeof body.notas === "string" ? body.notas.trim() : "";
-
-  if (!nombre || !tipo) {
+  const parsed = PostBodySchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "Campos obligatorios: nombre, tipo" },
+      { ok: false, error: "Input inválido", details: parsed.error.flatten().fieldErrors },
       { status: 400 },
     );
   }
+
+  const {
+    nombre,
+    tipo,
+    ciudad = "",
+    especialidad = "",
+    contactoNombre = "",
+    contactoEmail = "",
+    contactoTelefono = "",
+    notas = "",
+  } = parsed.data;
 
   try {
     await prisma.colaboradorTipo.upsert({

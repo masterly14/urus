@@ -1,8 +1,20 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { appendEvent } from "@/lib/event-store/event-store";
 import { AggregateType, EventType } from "@/app/generated/prisma/client";
 import { enqueueJob } from "@/lib/job-queue";
 import { withObservedRoute } from "@/lib/observability";
+
+const PostBodySchema = z.object({
+  propertyCode: z.string(),
+  buyerPhone: z.string(),
+  description: z.string(),
+});
+
+const PatchBodySchema = z.object({
+  propertyCode: z.string(),
+  resolvedBy: z.string(),
+});
 
 
 /**
@@ -13,22 +25,27 @@ import { withObservedRoute } from "@/lib/observability";
 const postHandler = async (request: Request) => {
   try {
     const body = await request.json();
-    const { propertyCode, buyerPhone, description } = body;
-
-    if (!propertyCode) {
+    const parsed = PostBodySchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "propertyCode es obligatorio" },
+        {
+          ok: false,
+          error: "Input inválido",
+          details: parsed.error.flatten().fieldErrors,
+        },
         { status: 400 },
       );
     }
+
+    const { propertyCode, buyerPhone, description } = parsed.data;
 
     const event = await appendEvent({
       type: EventType.INCIDENCIA_POSTVENTA_ABIERTA,
       aggregateType: AggregateType.PROPERTY,
       aggregateId: propertyCode,
       payload: {
-        buyerPhone: buyerPhone || "",
-        description: description || "",
+        buyerPhone,
+        description,
         openedAt: new Date().toISOString(),
       },
     });
@@ -76,21 +93,26 @@ export const POST = withObservedRoute({ method: "POST", route: "/api/postventa/i
 const patchHandler = async (request: Request) => {
   try {
     const body = await request.json();
-    const { propertyCode, resolvedBy } = body;
-
-    if (!propertyCode) {
+    const parsed = PatchBodySchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "propertyCode es obligatorio" },
+        {
+          ok: false,
+          error: "Input inválido",
+          details: parsed.error.flatten().fieldErrors,
+        },
         { status: 400 },
       );
     }
+
+    const { propertyCode, resolvedBy } = parsed.data;
 
     const event = await appendEvent({
       type: EventType.INCIDENCIA_POSTVENTA_RESUELTA,
       aggregateType: AggregateType.PROPERTY,
       aggregateId: propertyCode,
       payload: {
-        resolvedBy: resolvedBy || "system",
+        resolvedBy,
         resolvedAt: new Date().toISOString(),
       },
     });

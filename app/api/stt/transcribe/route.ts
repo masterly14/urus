@@ -1,6 +1,8 @@
 import OpenAI, { APIError, toFile } from "openai";
 import { NextResponse } from "next/server";
 import { withObservedRoute } from "@/lib/observability";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
+import { checkRateLimit, rateLimitResponse, HEAVY_CONFIG } from "@/lib/api/rate-limit";
 
 
 export const runtime = "nodejs";
@@ -21,6 +23,12 @@ function maxAudioBytesForRuntime(): number {
 }
 
 const postHandler = async (request: Request) => {
+  const rl = checkRateLimit(request, "stt", HEAVY_CONFIG);
+  if (!rl.allowed) return rateLimitResponse(rl.resetAt);
+
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json(
       { error: "OPENAI_API_KEY no está configurada" },

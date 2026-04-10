@@ -1,28 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
+const PostBodySchema = z.object({
+  token: z.string(),
+  name: z.string().min(1),
+  password: z.string().min(8),
+});
+
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { token, name, password } = body as {
-    token?: string;
-    name?: string;
-    password?: string;
-  };
-
-  if (!token || !name || !password) {
+  const parsed = PostBodySchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "Token, nombre y contraseña son requeridos" },
-      { status: 400 }
+      {
+        ok: false,
+        error: "Input inválido",
+        details: parsed.error.flatten().fieldErrors,
+      },
+      { status: 400 },
     );
   }
 
-  if (password.length < 8) {
-    return NextResponse.json(
-      { ok: false, error: "La contraseña debe tener al menos 8 caracteres" },
-      { status: 400 }
-    );
-  }
+  const { token, name, password } = parsed.data;
 
   const invitation = await prisma.invitation.findUnique({ where: { token } });
 

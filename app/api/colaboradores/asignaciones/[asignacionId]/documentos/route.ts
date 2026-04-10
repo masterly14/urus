@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { uploadContractDocument } from "@/lib/cloudinary/upload-document";
 import { withObservedRoute } from "@/lib/observability";
@@ -9,7 +10,9 @@ type Params = { params: Promise<{ asignacionId: string }> };
 /**
  * GET /api/colaboradores/asignaciones/:asignacionId/documentos
  */
-const getHandler = async (_request: Request, { params }: Params) => {
+const getHandler = async (request: Request, { params }: Params) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
   const { asignacionId } = await params;
 
   try {
@@ -33,6 +36,8 @@ export const GET = withObservedRoute({ method: "GET", route: "/api/colaboradores
  * Sube a Cloudinary y guarda metadata en documentos_colaborador.
  */
 const postHandler = async (request: Request, { params }: Params) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
   const { asignacionId } = await params;
 
   let formData: FormData;

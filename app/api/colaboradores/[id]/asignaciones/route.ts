@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 
@@ -8,7 +10,9 @@ type Params = { params: Promise<{ id: string }> };
 /**
  * GET /api/colaboradores/:id/asignaciones — Asignaciones del colaborador.
  */
-const getHandler = async (_request: Request, { params }: Params) => {
+const getHandler = async (request: Request, { params }: Params) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
   const { id } = await params;
 
   try {
@@ -31,31 +35,44 @@ const getHandler = async (_request: Request, { params }: Params) => {
 
 export const GET = withObservedRoute({ method: "GET", route: "/api/colaboradores/[id]/asignaciones" }, getHandler);
 
+const HitoInputSchema = z.object({
+  nombre: z.string().trim().min(1),
+  orden: z.number().optional(),
+  slaDias: z.number().optional(),
+});
+
+const PostBodySchema = z.object({
+  operacionId: z.string().trim().min(1),
+  notas: z.string().trim().optional(),
+  hitos: z.array(HitoInputSchema).optional(),
+});
+
 /**
  * POST /api/colaboradores/:id/asignaciones — Asignar colaborador a operacion.
  * Body: { operacionId, notas?, hitos?: Array<{nombre, orden, slaDias?}> }
  * Si no se pasan hitos, se crean desde las plantillas del tipo del colaborador.
  */
 const postHandler = async (request: Request, { params }: Params) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
   const { id } = await params;
 
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Body JSON inválido" }, { status: 400 });
   }
 
-  const operacionId = typeof body.operacionId === "string" ? body.operacionId.trim() : "";
-  const notas = typeof body.notas === "string" ? body.notas.trim() : "";
-  const hitosInput = Array.isArray(body.hitos) ? body.hitos : null;
-
-  if (!operacionId) {
+  const parsed = PostBodySchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "Campo obligatorio: operacionId" },
+      { ok: false, error: "Input inválido", details: parsed.error.flatten().fieldErrors },
       { status: 400 },
     );
   }
+
+  const { operacionId, notas = "", hitos: hitosInput } = parsed.data;
 
   try {
     const existing = await prisma.colaboradorAsignacion.findUnique({
@@ -79,10 +96,10 @@ const postHandler = async (request: Request, { params }: Params) => {
     let hitosToCreate: { nombre: string; orden: number; slaDias: number | null; hitoPlantillaId: string | null }[] = [];
 
     if (hitosInput && hitosInput.length > 0) {
-      hitosToCreate = hitosInput.map((h: Record<string, unknown>, i: number) => ({
-        nombre: typeof h.nombre === "string" ? h.nombre : `Hito ${i + 1}`,
-        orden: typeof h.orden === "number" ? h.orden : i + 1,
-        slaDias: typeof h.slaDias === "number" ? h.slaDias : null,
+      hitosToCreate = hitosInput.map((h, i: number) => ({
+        nombre: h.nombre,
+        orden: h.orden ?? i + 1,
+        slaDias: h.slaDias ?? null,
         hitoPlantillaId: null,
       }));
     } else {

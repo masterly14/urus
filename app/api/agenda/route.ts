@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { appendEvent } from "@/lib/event-store/event-store";
 import { AggregateType, EventType } from "@/app/generated/prisma/client";
 import { enqueueJob } from "@/lib/job-queue";
@@ -8,42 +9,44 @@ import {
 } from "@/lib/composio";
 import { withObservedRoute } from "@/lib/observability";
 
-
-interface AgendaRequestBody {
-  demandId: string;
-  comercialId?: string;
-  clienteNombre: string;
-  propiedad: string;
-  fecha: string;
-  horaInicio: string;
-  horaFin: string;
-  ubicacion?: string;
-  notas?: string;
-}
+const BodySchema = z.object({
+  demandId: z.string(),
+  clienteNombre: z.string(),
+  propiedad: z.string(),
+  fecha: z.string(),
+  horaInicio: z.string(),
+  horaFin: z.string(),
+  comercialId: z.string().optional(),
+  ubicacion: z.string().optional(),
+  notas: z.string().optional(),
+});
 
 const postHandler = async (request: Request) => {
   try {
-    const body: AgendaRequestBody = await request.json();
-
-    const { demandId, clienteNombre, propiedad, fecha, horaInicio, horaFin } =
-      body;
-
-    if (
-      !demandId ||
-      !clienteNombre ||
-      !propiedad ||
-      !fecha ||
-      !horaInicio ||
-      !horaFin
-    ) {
+    const body = await request.json();
+    const parsed = BodySchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
         {
-          error:
-            "demandId, clienteNombre, propiedad, fecha, horaInicio y horaFin son obligatorios",
+          ok: false,
+          error: "Input inválido",
+          details: parsed.error.flatten().fieldErrors,
         },
         { status: 400 },
       );
     }
+
+    const {
+      demandId,
+      clienteNombre,
+      propiedad,
+      fecha,
+      horaInicio,
+      horaFin,
+      comercialId,
+      ubicacion,
+      notas,
+    } = parsed.data;
 
     const calendarInput: CalendarEventInput = {
       titulo: `Visita: ${propiedad} — ${clienteNombre}`,
@@ -51,14 +54,14 @@ const postHandler = async (request: Request) => {
         `Visita de inmueble para demanda ${demandId}.`,
         `Cliente: ${clienteNombre}`,
         `Propiedad: ${propiedad}`,
-        body.notas ? `Notas: ${body.notas}` : "",
+        notas ? `Notas: ${notas}` : "",
       ]
         .filter(Boolean)
         .join("\n"),
       fecha,
       horaInicio,
       horaFin,
-      ubicacion: body.ubicacion,
+      ubicacion,
     };
 
     const calendarResult = await createCalendarEvent(calendarInput);
@@ -68,14 +71,14 @@ const postHandler = async (request: Request) => {
       aggregateType: AggregateType.DEMAND,
       aggregateId: demandId,
       payload: {
-        comercialId: body.comercialId || "system",
+        comercialId: comercialId || "system",
         clienteNombre,
         propiedad,
         fecha,
         horaInicio,
         horaFin,
-        ubicacion: body.ubicacion || "",
-        notas: body.notas || "",
+        ubicacion: ubicacion || "",
+        notas: notas || "",
         calendarEventId: calendarResult.eventId || null,
         calendarLink: calendarResult.link || null,
         calendarSuccess: calendarResult.success,

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getSessionFromRequest, isCeoOrAdmin, unauthorized, forbidden } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 
@@ -8,7 +9,11 @@ import { withObservedRoute } from "@/lib/observability";
  *
  * Marca una alerta como resuelta.
  */
-const patchHandler = async (_request: Request, { params }: { params: Promise<{ id: string }> }) => {
+const patchHandler = async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+  if (!isCeoOrAdmin(session.role)) return forbidden();
+
   try {
     const { id } = await params;
 

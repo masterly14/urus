@@ -17,59 +17,81 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { getSessionFromRequest, isCeoOrAdmin, unauthorized, forbidden } from "@/lib/auth/session";
 import { sendTextMessage, sendTemplateMessage, sendInteractiveMessage } from "@/lib/whatsapp";
 import type { TemplateObject, InteractiveObject } from "@/lib/whatsapp";
 import { withObservedRoute } from "@/lib/observability";
 
+const SendBodySchema = z.discriminatedUnion("type", [
+  z.object({
+    to: z.string(),
+    type: z.literal("text"),
+    text: z.object({
+      body: z.string(),
+      preview_url: z.boolean().optional(),
+    }),
+  }),
+  z.object({
+    to: z.string(),
+    type: z.literal("template"),
+    template: z.any(),
+  }),
+  z.object({
+    to: z.string(),
+    type: z.literal("interactive"),
+    interactive: z.any(),
+  }),
+]);
 
-type SendBody =
-  | { to: string; type: "text"; text: { body: string; preview_url?: boolean } }
-  | { to: string; type: "template"; template: TemplateObject }
-  | { to: string; type: "interactive"; interactive: InteractiveObject };
+const postHandler = async (request: NextRequest) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+  if (!isCeoOrAdmin(session.role)) return forbidden();
 
-const postHandler = async (request: NextRequest): Promise<NextResponse> => {
-  let body: SendBody;
+  let raw: unknown;
   try {
-    body = (await request.json()) as SendBody;
+    raw = await request.json();
   } catch {
     return NextResponse.json({ error: "JSON inválido en el body" }, { status: 400 });
   }
 
-  if (!body?.to) {
-    return NextResponse.json({ error: "Campo obligatorio: to" }, { status: 400 });
+  const parsed = SendBodySchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Input inválido",
+        details: parsed.error.flatten().fieldErrors,
+      },
+      { status: 400 },
+    );
   }
-  if (!body?.type) {
-    return NextResponse.json({ error: "Campo obligatorio: type (text|template|interactive)" }, { status: 400 });
-  }
+
+  const body = parsed.data;
 
   try {
     let result;
 
     if (body.type === "text") {
-      if (!body.text?.body) {
-        return NextResponse.json({ error: "Campo obligatorio: text.body" }, { status: 400 });
-      }
       result = await sendTextMessage(body.to, body.text.body, {
         previewUrl: body.text.preview_url ?? false,
       });
     } else if (body.type === "template") {
-      if (!body.template?.name) {
+      const template = body.template as TemplateObject;
+      if (!template?.name) {
         return NextResponse.json({ error: "Campo obligatorio: template.name" }, { status: 400 });
       }
-      result = await sendTemplateMessage(body.to, body.template);
-    } else if (body.type === "interactive") {
-      if (!body.interactive?.type) {
+      result = await sendTemplateMessage(body.to, template);
+    } else {
+      const interactive = body.interactive as InteractiveObject;
+      if (!interactive?.type) {
         return NextResponse.json(
           { error: "Campo obligatorio: interactive.type" },
           { status: 400 },
         );
       }
-      result = await sendInteractiveMessage(body.to, body.interactive);
-    } else {
-      return NextResponse.json(
-        { error: "Tipo de mensaje no soportado. Usa: text | template | interactive" },
-        { status: 400 },
-      );
+      result = await sendInteractiveMessage(body.to, interactive);
     }
 
     return NextResponse.json(

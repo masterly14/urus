@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import type { AsignacionEstado } from "@/app/generated/prisma/client";
 import { withObservedRoute } from "@/lib/observability";
@@ -10,33 +12,48 @@ const VALID_ESTADOS: AsignacionEstado[] = [
   "PENDIENTE", "EN_PROGRESO", "COMPLETADA", "BLOQUEADA", "CANCELADA",
 ];
 
+const PatchBodySchema = z.object({
+  estado: z.string().optional(),
+  notas: z.string().optional(),
+});
+
 /**
  * PATCH /api/colaboradores/asignaciones/:asignacionId — Actualizar estado/notas.
  */
 const patchHandler = async (request: Request, { params }: Params) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
   const { asignacionId } = await params;
 
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Body JSON inválido" }, { status: 400 });
   }
 
+  const parsed = PatchBodySchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, error: "Input inválido", details: parsed.error.flatten().fieldErrors },
+      { status: 400 },
+    );
+  }
+
   const data: Record<string, unknown> = {};
 
-  if (typeof body.estado === "string") {
-    if (!VALID_ESTADOS.includes(body.estado as AsignacionEstado)) {
+  if (parsed.data.estado !== undefined) {
+    if (!VALID_ESTADOS.includes(parsed.data.estado as AsignacionEstado)) {
       return NextResponse.json({ error: `Estado inválido. Válidos: ${VALID_ESTADOS.join(", ")}` }, { status: 400 });
     }
-    data.estado = body.estado;
-    if (body.estado === "COMPLETADA") {
+    data.estado = parsed.data.estado;
+    if (parsed.data.estado === "COMPLETADA") {
       data.completedAt = new Date();
     }
   }
 
-  if (typeof body.notas === "string") {
-    data.notas = body.notas.trim();
+  if (parsed.data.notas !== undefined) {
+    data.notas = parsed.data.notas.trim();
   }
 
   if (Object.keys(data).length === 0) {
@@ -62,7 +79,9 @@ export const PATCH = withObservedRoute({ method: "PATCH", route: "/api/colaborad
 /**
  * DELETE /api/colaboradores/asignaciones/:asignacionId — Cancelar asignacion.
  */
-const deleteHandler = async (_request: Request, { params }: Params) => {
+const deleteHandler = async (request: Request, { params }: Params) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
   const { asignacionId } = await params;
 
   try {

@@ -1,9 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { getSessionFromRequest, isCeoOrAdmin, unauthorized, forbidden } from "@/lib/auth/session";
 import { withObservedRoute } from "@/lib/observability";
 
 
 const getHandler = async (request: Request, context: { params: Promise<{ runId: string }> }) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+  if (!isCeoOrAdmin(session.role)) return forbidden();
+
   const { runId } = await context.params;
   const { searchParams } = new URL(request.url);
 

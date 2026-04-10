@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { normalizeSmartClosingContractDetail } from "@/lib/legal/smart-closing/contracts-api";
 import { withObservedRoute } from "@/lib/observability";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-const getHandler = async (_request: Request, { params }: RouteParams) => {
+const getHandler = async (request: Request, { params }: RouteParams) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+
   const { id } = await params;
 
   const legalDocument = await prisma.legalDocument.findUnique({

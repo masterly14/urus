@@ -1,21 +1,34 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { appendEvent } from "@/lib/event-store/event-store";
 import { AggregateType, EventType } from "@/app/generated/prisma/client";
 import { enqueueJob } from "@/lib/job-queue";
 import { withObservedRoute } from "@/lib/observability";
 
+const BodySchema = z.object({
+  demandId: z.string(),
+  interes: z.enum(["alto", "medio", "bajo"]),
+  notas: z.string().optional().default(""),
+  comercialId: z.string().optional(),
+  propertyCode: z.string().optional(),
+});
 
 const postHandler = async (request: Request) => {
   try {
     const body = await request.json();
-    const { demandId, interes, notas, comercialId, propertyCode } = body;
-
-    if (!demandId || !interes) {
+    const parsed = BodySchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "demandId e interes son obligatorios" },
-        { status: 400 }
+        {
+          ok: false,
+          error: "Input inválido",
+          details: parsed.error.flatten().fieldErrors,
+        },
+        { status: 400 },
       );
     }
+
+    const { demandId, interes, notas, comercialId, propertyCode } = parsed.data;
 
     const event = await appendEvent({
       type: EventType.VISITA_EVALUADA,
@@ -23,7 +36,7 @@ const postHandler = async (request: Request) => {
       aggregateId: demandId,
       payload: {
         interes,
-        notas: notas || "",
+        notas,
         comercialId: comercialId || "system",
         ...(propertyCode ? { propertyCode } : {}),
       },

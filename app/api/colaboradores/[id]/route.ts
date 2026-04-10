@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { getColaboradorDetail } from "@/lib/operacion/colaboradores";
 import { classifyColaborador } from "@/lib/operacion/colaboradores/classify";
@@ -10,7 +12,9 @@ type Params = { params: Promise<{ id: string }> };
 /**
  * GET /api/colaboradores/:id — Detalle con asignaciones, hitos, docs y clasificacion.
  */
-const getHandler = async (_request: Request, { params }: Params) => {
+const getHandler = async (request: Request, { params }: Params) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
   const { id } = await params;
 
   try {
@@ -30,17 +34,39 @@ const getHandler = async (_request: Request, { params }: Params) => {
 
 export const GET = withObservedRoute({ method: "GET", route: "/api/colaboradores/[id]" }, getHandler);
 
+const PatchBodySchema = z.object({
+  nombre: z.string().trim().optional(),
+  tipo: z.string().trim().optional(),
+  ciudad: z.string().trim().optional(),
+  especialidad: z.string().trim().optional(),
+  contactoNombre: z.string().trim().optional(),
+  contactoEmail: z.string().trim().optional(),
+  contactoTelefono: z.string().trim().optional(),
+  notas: z.string().trim().optional(),
+  activo: z.boolean().optional(),
+});
+
 /**
  * PATCH /api/colaboradores/:id — Actualizar campos del colaborador.
  */
 const patchHandler = async (request: Request, { params }: Params) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
   const { id } = await params;
 
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Body JSON inválido" }, { status: 400 });
+  }
+
+  const parsed = PatchBodySchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, error: "Input inválido", details: parsed.error.flatten().fieldErrors },
+      { status: 400 },
+    );
   }
 
   const data: Record<string, unknown> = {};
@@ -49,12 +75,13 @@ const patchHandler = async (request: Request, { params }: Params) => {
     "contactoNombre", "contactoEmail", "contactoTelefono", "notas",
   ] as const;
   for (const field of stringFields) {
-    if (typeof body[field] === "string") {
-      data[field] = (body[field] as string).trim();
+    const v = parsed.data[field];
+    if (v !== undefined) {
+      data[field] = v;
     }
   }
-  if (typeof body.activo === "boolean") {
-    data.activo = body.activo;
+  if (parsed.data.activo !== undefined) {
+    data.activo = parsed.data.activo;
   }
 
   if (Object.keys(data).length === 0) {
@@ -87,7 +114,9 @@ export const PATCH = withObservedRoute({ method: "PATCH", route: "/api/colaborad
 /**
  * DELETE /api/colaboradores/:id — Soft delete (activo = false).
  */
-const deleteHandler = async (_request: Request, { params }: Params) => {
+const deleteHandler = async (request: Request, { params }: Params) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
   const { id } = await params;
 
   try {

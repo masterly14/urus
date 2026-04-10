@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { runPricingAnalysis, PricingDataIncompleteError } from "@/lib/pricing";
 import { withObservedRoute } from "@/lib/observability";
 
@@ -16,6 +17,9 @@ const RequestSchema = z.object({
 });
 
 const postHandler = async (request: Request) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+
   let body: unknown;
   try {
     body = await request.json();

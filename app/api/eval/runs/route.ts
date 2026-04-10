@@ -1,9 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { getSessionFromRequest, isCeoOrAdmin, unauthorized, forbidden } from "@/lib/auth/session";
 import { withObservedRoute } from "@/lib/observability";
 
 
 const getHandler = async (request: Request) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+  if (!isCeoOrAdmin(session.role)) return forbidden();
+
   const { searchParams } = new URL(request.url);
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "20", 10), 100);
   const offset = parseInt(searchParams.get("offset") ?? "0", 10);

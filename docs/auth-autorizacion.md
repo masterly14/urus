@@ -96,6 +96,36 @@ Los layouts usan `useSession()` de `@/lib/hooks/use-session`:
 - `Verification` — tokens de verificación
 - `Invitation` — invitaciones pendientes
 
+## Rate Limiting
+
+Rate limiter in-memory por IP (`lib/api/rate-limit.ts`). Se resetea al reiniciar el proceso.
+
+| Store | Ventana | Max requests | Rutas |
+|-------|---------|-------------|-------|
+| `auth` | 60s | 10 | `/api/auth/*` (POST — login/signup) |
+| `stt` | 60s | 15 | `/api/stt/transcribe` |
+| default | 60s | 60 | Disponible para cualquier ruta |
+
+Respuesta 429 con header `Retry-After`.
+
+## Validación de input (Zod)
+
+Todas las rutas POST/PATCH/PUT críticas validan body con Zod `safeParse`. Si el body es inválido, responden 400:
+
+```json
+{ "ok": false, "error": "Input inválido", "details": { "campo": ["mensaje"] } }
+```
+
+## Rutas protegidas (resumen)
+
+| Grupo | Auth | Role check | Rutas |
+|-------|------|------------|-------|
+| CEO API | Session | CEO + Admin | `/api/ceo/*`, `/api/dashboard/alerts/*`, `/api/eval/*`, `/api/whatsapp/send` |
+| Dashboard | Session | CEO + Admin | `/api/dashboard/comerciales`, `/api/dashboard/comercial/[id]`, `/api/configuracion/*` |
+| Operativa | Session | Cualquier rol | `/api/colaboradores/*`, `/api/pricing/*`, `/api/contracts/*`, `/api/stt/*`, `/api/dashboard/mental-health` |
+| Cron/Workers | CRON_SECRET | N/A | `/api/cron/*`, `/api/events`, `/api/workers/*`, `/api/leads/*` |
+| Pública | Ninguna | N/A | `/api/auth/*`, `/api/firma/*`, `/api/seleccion/*`, `/api/referidos` (POST), `/api/whatsapp/webhook` |
+
 ## Variables de entorno
 
 | Variable | Descripción |
@@ -104,6 +134,8 @@ Los layouts usan `useSession()` de `@/lib/hooks/use-session`:
 | `BETTER_AUTH_URL` | URL base de la app |
 | `RESEND_API_KEY` | API key de Resend |
 | `RESEND_FROM` | Email remitente para invitaciones |
+| `CEO_SEED_EMAIL` | Email del CEO inicial (seed) |
+| `CEO_SEED_PASSWORD` | Contraseña del CEO inicial (seed) |
 
 ## Cómo probarlo
 
@@ -111,13 +143,14 @@ Los layouts usan `useSession()` de `@/lib/hooks/use-session`:
    ```
    BETTER_AUTH_SECRET=<generar con openssl rand -base64 32>
    BETTER_AUTH_URL=http://localhost:3000
+   CEO_SEED_EMAIL=ceo@urus.capital
+   CEO_SEED_PASSWORD=<contraseña segura>
    ```
 
 2. Crear un usuario CEO seed (una sola vez):
    ```bash
-   npx tsx scripts/seed-ceo.ts
+   npm run seed:ceo
    ```
-   (o via Prisma Studio: crear User con role "ceo" + Account con credenciales)
 
 3. Iniciar dev server:
    ```bash
@@ -132,3 +165,12 @@ Los layouts usan `useSession()` de `@/lib/hooks/use-session`:
    - El comercial no puede acceder a `/platform/bi/*`
    - El comercial solo ve su perfil en rendimiento
    - Las API routes de CEO devuelven 403 para comerciales
+   - Las API routes de colaboradores devuelven 401 sin sesión
+
+## Tests de seguridad
+
+```bash
+npm test -- lib/auth/__tests__/ lib/api/__tests__/
+```
+
+Verifica: 401 sin sesión, 403 para roles no autorizados, rate limiter bloquea tras exceder límite, admin tiene acceso equivalente a CEO.

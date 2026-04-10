@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { getLatestPricingReport } from "@/lib/pricing";
 import { withObservedRoute } from "@/lib/observability";
 
 
 export const runtime = "nodejs";
 
-const getHandler = async (_request: Request, context: { params: Promise<{ code: string }> }) => {
+const getHandler = async (request: Request, context: { params: Promise<{ code: string }> }) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+
   const { code } = await context.params;
   const report = await getLatestPricingReport(code);
 

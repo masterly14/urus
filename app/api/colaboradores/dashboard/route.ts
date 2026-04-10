@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { getDashboardColaboradores } from "@/lib/operacion/colaboradores/dashboard-queries";
 import { prisma } from "@/lib/prisma";
 import type { ColaboradoresRecommendation } from "@/lib/operacion/colaboradores/recommendation-types";
@@ -10,7 +11,9 @@ import { withObservedRoute } from "@/lib/observability";
  * Incluye resumen global, ranking por facturación vinculada, métricas por tipo,
  * y la última recomendación IA generada (si existe).
  */
-const getHandler = async () => {
+const getHandler = async (request: Request) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
   try {
     const [payload, lastRecoEvent] = await Promise.all([
       getDashboardColaboradores(),

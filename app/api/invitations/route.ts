@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { sendInvitationEmail } from "@/lib/email/resend";
 
-const VALID_ROLES = new Set(["admin", "comercial"]);
+const PostBodySchema = z.object({
+  email: z.string().email(),
+  role: z.enum(["admin", "comercial"]),
+});
+
 const INVITATION_EXPIRY_DAYS = 7;
 
 export async function POST(request: NextRequest) {
@@ -21,14 +26,19 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { email, role } = body as { email?: string; role?: string };
-
-  if (!email || !role || !VALID_ROLES.has(role)) {
+  const parsed = PostBodySchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "Email y rol (admin|comercial) son requeridos" },
-      { status: 400 }
+      {
+        ok: false,
+        error: "Input inválido",
+        details: parsed.error.flatten().fieldErrors,
+      },
+      { status: 400 },
     );
   }
+
+  const { email, role } = parsed.data;
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {

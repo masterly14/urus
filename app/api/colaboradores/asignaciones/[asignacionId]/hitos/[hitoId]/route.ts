@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import type { HitoEstado } from "@/app/generated/prisma/client";
 import { withObservedRoute } from "@/lib/observability";
@@ -10,6 +12,11 @@ const VALID_ESTADOS: HitoEstado[] = [
   "PENDIENTE", "EN_PROGRESO", "COMPLETADO", "BLOQUEADO", "CANCELADO",
 ];
 
+const PatchBodySchema = z.object({
+  estado: z.string().optional(),
+  notas: z.string().optional(),
+});
+
 /**
  * PATCH /api/colaboradores/asignaciones/:asignacionId/hitos/:hitoId
  * Actualizar estado del hito. Calcula timestamps automaticamente:
@@ -17,26 +24,36 @@ const VALID_ESTADOS: HitoEstado[] = [
  * - COMPLETADO → completadoAt = now
  */
 const patchHandler = async (request: Request, { params }: Params) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
   const { hitoId } = await params;
 
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Body JSON inválido" }, { status: 400 });
   }
 
+  const parsed = PatchBodySchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, error: "Input inválido", details: parsed.error.flatten().fieldErrors },
+      { status: 400 },
+    );
+  }
+
   const data: Record<string, unknown> = {};
 
-  if (typeof body.estado === "string") {
-    if (!VALID_ESTADOS.includes(body.estado as HitoEstado)) {
+  if (parsed.data.estado !== undefined) {
+    if (!VALID_ESTADOS.includes(parsed.data.estado as HitoEstado)) {
       return NextResponse.json(
         { error: `Estado inválido. Válidos: ${VALID_ESTADOS.join(", ")}` },
         { status: 400 },
       );
     }
 
-    const newEstado = body.estado as HitoEstado;
+    const newEstado = parsed.data.estado as HitoEstado;
     data.estado = newEstado;
 
     const current = await prisma.colaboradorHito.findUnique({
@@ -62,8 +79,8 @@ const patchHandler = async (request: Request, { params }: Params) => {
     }
   }
 
-  if (typeof body.notas === "string") {
-    data.notas = body.notas.trim();
+  if (parsed.data.notas !== undefined) {
+    data.notas = parsed.data.notas.trim();
   }
 
   if (Object.keys(data).length === 0) {

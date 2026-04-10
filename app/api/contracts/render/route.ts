@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { generateContractDocx } from "@/lib/contracts/docx";
 import type { ContractTemplateInput } from "@/types/contracts";
 import { withObservedRoute } from "@/lib/observability";
@@ -23,6 +24,9 @@ const BodySchema = z.object({
 });
 
 const postHandler = async (request: Request) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+
   let json: unknown;
   try {
     json = await request.json();

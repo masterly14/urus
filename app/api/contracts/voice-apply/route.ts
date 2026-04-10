@@ -10,6 +10,7 @@ import {
 import { appendEvent } from "@/lib/event-store/event-store";
 import type { JsonValue } from "@/lib/event-store/types";
 import type { ContractTemplateInput } from "@/types/contracts";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { withObservedRoute } from "@/lib/observability";
 
 
@@ -89,6 +90,9 @@ async function tryUploadVoiceRevisionDocx(params: {
 }
 
 const postHandler = async (request: Request) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+
   const requestStartedAt = Date.now();
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({ error: "OPENAI_API_KEY no está configurada" }, { status: 503 });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getSessionFromRequest, isCeoOrAdmin, unauthorized, forbidden } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 
@@ -17,6 +18,10 @@ import { withObservedRoute } from "@/lib/observability";
  *   offset         — number (default: 0)
  */
 const getHandler = async (request: Request) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+  if (!isCeoOrAdmin(session.role)) return forbidden();
+
   try {
     const url = new URL(request.url);
 

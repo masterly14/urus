@@ -1,29 +1,43 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 
 
 type Params = { params: Promise<{ asignacionId: string }> };
 
+const PostBodySchema = z.object({
+  nombre: z.string().trim().min(1),
+  slaDias: z.number().optional(),
+  orden: z.number().optional(),
+});
+
 /**
  * POST /api/colaboradores/asignaciones/:asignacionId/hitos — Crear hito ad-hoc.
  */
 const postHandler = async (request: Request, { params }: Params) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
   const { asignacionId } = await params;
 
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Body JSON inválido" }, { status: 400 });
   }
 
-  const nombre = typeof body.nombre === "string" ? body.nombre.trim() : "";
-  if (!nombre) {
-    return NextResponse.json({ error: "Campo obligatorio: nombre" }, { status: 400 });
+  const parsed = PostBodySchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, error: "Input inválido", details: parsed.error.flatten().fieldErrors },
+      { status: 400 },
+    );
   }
 
-  const slaDias = typeof body.slaDias === "number" ? body.slaDias : null;
+  const { nombre, slaDias: slaDiasRaw, orden: ordenInput } = parsed.data;
+  const slaDias = slaDiasRaw ?? null;
 
   try {
     const lastHito = await prisma.colaboradorHito.findFirst({
@@ -32,7 +46,7 @@ const postHandler = async (request: Request, { params }: Params) => {
       select: { orden: true },
     });
 
-    const orden = typeof body.orden === "number" ? body.orden : (lastHito?.orden ?? 0) + 1;
+    const orden = ordenInput ?? (lastHito?.orden ?? 0) + 1;
 
     const hito = await prisma.colaboradorHito.create({
       data: {
