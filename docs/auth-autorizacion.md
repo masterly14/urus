@@ -44,8 +44,9 @@ Verifica la existencia de la cookie de sesión. Si no hay cookie, redirige a `/l
 
 **Rutas públicas (whitelist):**
 - `/`, `/login`, `/register`
-- `/seleccion/*`, `/validar-seleccion/*`, `/firma/*`, `/referidos/*`, `/postventa/*`
+- `/seleccion/*`, `/validar-seleccion/*`, `/firma/*`, `/referidos/*`, `/postventa/*`, `/platform/postventa/*`
 - `/api/auth/*`, `/api/whatsapp/webhook`, `/api/cron/*`, `/api/events`, `/api/leads/*`, `/api/workers/*`
+- `/api/firma/*`, `/api/seleccion/*`, `/api/validar-seleccion/*`, `/api/postventa/*`, `/api/referidos`, `/api/comerciales/activos`
 
 ### Guards de API (nivel handler)
 

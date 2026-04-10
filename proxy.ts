@@ -11,11 +11,17 @@ const PUBLIC_PATHS = [
   "/api/leads",
   "/api/referidos",
   "/api/workers",
+  "/api/firma",
+  "/api/seleccion",
+  "/api/validar-seleccion",
+  "/api/postventa",
+  "/api/comerciales/activos",
   "/seleccion",
   "/validar-seleccion",
   "/firma",
   "/referidos",
   "/postventa",
+  "/platform/postventa",
 ];
 
 function isPublicPath(pathname: string): boolean {
