@@ -146,7 +146,7 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     const pathname = usePathname();
-    const { isCeo } = useSession();
+    const { isCeo, isCeoOrAdmin } = useSession();
     const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
     const toggleSection = (label: string) => {
@@ -165,7 +165,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         return pathname === href || pathname.startsWith(`${href}/`);
     };
 
-    const filteredItems = navItems.filter((item) => !item.ceoOnly || isCeo);
+    const filteredItems = navItems.filter((item) => !item.ceoOnly || isCeoOrAdmin);
 
     return (
         <aside
@@ -181,7 +181,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     const active = isActive(item.href);
                     const hasChildren = item.children && item.children.length > 0;
                     const isExpanded = expandedSections.has(item.label);
-                    const filteredChildren = item.children?.filter((c) => !("ceoOnly" in c) || isCeo);
+                    const filteredChildren = item.children?.filter((c) => !("ceoOnly" in c) || isCeoOrAdmin);
 
                     if (collapsed) {
                         return (

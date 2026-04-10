@@ -428,8 +428,83 @@ model ExecutionMetric {
   @@map("execution_metrics")
 }
 
+// ---------------------------------------------------------------------------
+// Auth (Better Auth)
+// ---------------------------------------------------------------------------
+
 model User {
-  id String @id @default(cuid())
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  role          String    @default("comercial")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions    Session[]
+  accounts    Account[]
+  comercial   Comercial? @relation(fields: [comercialId], references: [id])
+  comercialId String?    @unique
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("verification")
+}
+
+model Invitation {
+  id        String   @id @default(cuid())
+  email     String
+  role      String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  invitedBy String
+  createdAt DateTime @default(now())
+
+  @@map("invitation")
 }
 
 model Comercial {
@@ -449,6 +524,7 @@ model Comercial {
   updatedAt      DateTime @updatedAt
 
   referrals Referral[]
+  user      User?
 
   @@index([ciudad, activo])
   @@index([activo, cargaActual])

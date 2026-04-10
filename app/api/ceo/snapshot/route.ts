@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth/session";
+import {
+  getSessionFromRequest,
+  isCeoOrAdmin,
+  unauthorized,
+  forbidden,
+} from "@/lib/auth/session";
 import {
   checkSnapshotStatus,
   getCeoSnapshotByPeriod,
@@ -16,13 +21,9 @@ import { withObservedRoute } from "@/lib/observability";
 // ---------------------------------------------------------------------------
 
 const getHandler = async (request: Request) => {
-  const session = getSession(request);
-  if (session.role !== "ceo") {
-    return NextResponse.json(
-      { error: "Acceso restringido al CEO" },
-      { status: 403 },
-    );
-  }
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+  if (!isCeoOrAdmin(session.role)) return forbidden();
 
   const { searchParams } = new URL(request.url);
   const period = searchParams.get("period");
@@ -66,13 +67,9 @@ const SnapshotUpsertSchema = z.object({
 });
 
 const postHandler = async (request: Request) => {
-  const session = getSession(request);
-  if (session.role !== "ceo") {
-    return NextResponse.json(
-      { error: "Acceso restringido al CEO" },
-      { status: 403 },
-    );
-  }
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+  if (!isCeoOrAdmin(session.role)) return forbidden();
 
   try {
     const body: unknown = await request.json();

@@ -31,15 +31,15 @@ const ceoNavigation = [
 export default function BILayout({ children }: BILayoutProps) {
     const pathname = usePathname();
     const router = useRouter();
-    const { isCeo } = useSession();
+    const { isCeoOrAdmin, isPending } = useSession();
 
     useEffect(() => {
-        if (!isCeo) {
+        if (!isPending && !isCeoOrAdmin) {
             router.replace("/platform/rendimiento");
         }
-    }, [isCeo, router]);
+    }, [isCeoOrAdmin, isPending, router]);
 
-    if (!isCeo) return null;
+    if (isPending || !isCeoOrAdmin) return null;
 
     return (
         <div className="flex flex-col h-full space-y-6">

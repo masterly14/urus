@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import {
+  getSessionFromRequest,
+  isCeoOrAdmin,
+  unauthorized,
+  forbidden,
+} from "@/lib/auth/session";
 import {
   getLatestCeoExpansion,
   generateAndPersistCeoExpansion,
@@ -8,14 +13,9 @@ import { withObservedRoute } from "@/lib/observability";
 
 
 const getHandler = async (request: Request) => {
-  const session = getSession(request);
-
-  if (session.role !== "ceo") {
-    return NextResponse.json(
-      { error: "Acceso restringido al CEO" },
-      { status: 403 },
-    );
-  }
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+  if (!isCeoOrAdmin(session.role)) return forbidden();
 
   try {
     const result = await getLatestCeoExpansion();
@@ -40,14 +40,9 @@ const getHandler = async (request: Request) => {
 export const GET = withObservedRoute({ method: "GET", route: "/api/ceo/expansion" }, getHandler);
 
 const postHandler = async (request: Request) => {
-  const session = getSession(request);
-
-  if (session.role !== "ceo") {
-    return NextResponse.json(
-      { error: "Acceso restringido al CEO" },
-      { status: 403 },
-    );
-  }
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+  if (!isCeoOrAdmin(session.role)) return forbidden();
 
   try {
     const result = await generateAndPersistCeoExpansion();

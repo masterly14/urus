@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -10,6 +10,8 @@ import {
   RefreshCcw,
   ShieldAlert,
   Workflow,
+  Users,
+  HeartPulse,
 } from "lucide-react";
 import {
   Card,
@@ -30,6 +32,8 @@ import {
 } from "@/components/ui/table";
 import { Semaforo } from "@/components/dashboard/semaforo";
 import { useHealthPanel } from "@/lib/hooks/use-health-panel";
+import { UserManagement } from "@/components/configuracion/user-management";
+import { cn } from "@/lib/utils";
 
 function toSemaforoStatus(status: "ok" | "degraded" | "error" | "never_run") {
   if (status === "ok") return "verde";
@@ -58,7 +62,15 @@ function formatSource(source: string): string {
   return "Snapshot";
 }
 
+type Tab = "users" | "health";
+
+const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
+  { id: "users", label: "Usuarios", icon: Users },
+  { id: "health", label: "Health", icon: HeartPulse },
+];
+
 export default function ConfiguracionPage() {
+  const [activeTab, setActiveTab] = useState<Tab>("users");
   const { data, loading, error, refetch } = useHealthPanel();
 
   const totals = useMemo(() => {
@@ -70,42 +82,48 @@ export default function ConfiguracionPage() {
     };
   }, [data?.workers]);
 
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <span className="ml-3 text-muted-foreground">
-          Cargando panel de health...
-        </span>
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <AlertTriangle className="mr-2 h-6 w-6 text-destructive" />
-        <span className="text-destructive">
-          {error ?? "No se pudo cargar el panel de health"}
-        </span>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Panel de health
+            Configuración
           </h1>
           <p className="text-sm text-muted-foreground">
-            Estado operativo de workers, cola y errores recientes del sistema.
+            Gestión de usuarios, invitaciones y estado del sistema.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Badge variant={data.status === "ok" ? "secondary" : "destructive"}>
-            Estado global: {data.status}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center space-x-1 border-b border-border/40 pb-2">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center space-x-2 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-2.5",
+                activeTab === tab.id
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === "users" && <UserManagement />}
+
+      {activeTab === "health" && (
+        <>
+      <div className="flex items-center gap-3 justify-end">
+          <Badge variant={data?.status === "ok" ? "secondary" : "destructive"}>
+            Estado global: {data?.status ?? "cargando"}
           </Badge>
           <Button
             variant="outline"
@@ -117,8 +135,18 @@ export default function ConfiguracionPage() {
             Actualizar
           </Button>
         </div>
-      </div>
 
+      {loading ? (
+        <div className="flex h-64 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : error || !data ? (
+        <div className="flex h-64 items-center justify-center">
+          <AlertTriangle className="mr-2 h-6 w-6 text-destructive" />
+          <span className="text-destructive">{error ?? "No se pudo cargar el panel"}</span>
+        </div>
+      ) : (
+        <>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -404,6 +432,10 @@ export default function ConfiguracionPage() {
           </div>
         </CardContent>
       </Card>
+        </>
+      )}
+        </>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { getMentalHealthOverview } from "@/lib/dashboard/mental-health/queries";
 import { withObservedRoute } from "@/lib/observability";
 
@@ -22,9 +22,9 @@ import { withObservedRoute } from "@/lib/observability";
  * }
  */
 const getHandler = async (request: Request) => {
-  const session = getSession(request);
+  const session = await getSessionFromRequest(request);
   if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return unauthorized();
   }
 
   try {

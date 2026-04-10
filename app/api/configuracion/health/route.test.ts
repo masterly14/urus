@@ -1,12 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getSessionMock, getWorkersStatusFullMock } = vi.hoisted(() => ({
-  getSessionMock: vi.fn(),
+const { getSessionFromRequestMock, getWorkersStatusFullMock } = vi.hoisted(() => ({
+  getSessionFromRequestMock: vi.fn(),
   getWorkersStatusFullMock: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/session", () => ({
-  getSession: getSessionMock,
+  getSessionFromRequest: getSessionFromRequestMock,
+  isCeoOrAdmin: (role: string) => role === "ceo" || role === "admin",
+  unauthorized: () =>
+    new Response(JSON.stringify({ ok: false, error: "No autenticado" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    }),
+  forbidden: () =>
+    new Response(JSON.stringify({ ok: false, error: "Sin permisos" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    }),
 }));
 
 vi.mock("@/lib/workers/status", () => ({
@@ -29,31 +40,43 @@ import { GET } from "./route";
 
 describe("GET /api/configuracion/health", () => {
   beforeEach(() => {
-    getSessionMock.mockReset();
+    getSessionFromRequestMock.mockReset();
     getWorkersStatusFullMock.mockReset();
   });
 
-  it("devuelve 403 si el usuario no es CEO", async () => {
-    getSessionMock.mockReturnValue({
+  it("devuelve 401 si no hay sesión", async () => {
+    getSessionFromRequestMock.mockResolvedValue(null);
+
+    const response = await GET(
+      new Request("https://example.com/api/configuracion/health"),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  it("devuelve 403 si el usuario no es CEO ni admin", async () => {
+    getSessionFromRequestMock.mockResolvedValue({
+      userId: "u1",
       role: "comercial",
       comercialId: "com-1",
       nombre: "Comercial",
+      email: "test@test.com",
     });
 
     const response = await GET(
       new Request("https://example.com/api/configuracion/health"),
     );
-    const body = await response.json();
 
     expect(response.status).toBe(403);
-    expect(body).toEqual({ error: "Acceso restringido al CEO" });
   });
 
   it("devuelve el payload del panel si el usuario es CEO", async () => {
-    getSessionMock.mockReturnValue({
+    getSessionFromRequestMock.mockResolvedValue({
+      userId: "u-ceo",
       role: "ceo",
       comercialId: null,
       nombre: "CEO",
+      email: "ceo@test.com",
     });
     getWorkersStatusFullMock.mockResolvedValue({
       status: "degraded",
@@ -91,5 +114,31 @@ describe("GET /api/configuracion/health", () => {
     expect(body.status).toBe("degraded");
     expect(body.pendingByType).toEqual([{ type: "PROCESS_EVENT", count: 2 }]);
     expect(getWorkersStatusFullMock).toHaveBeenCalledOnce();
+  });
+
+  it("permite acceso a admin", async () => {
+    getSessionFromRequestMock.mockResolvedValue({
+      userId: "u-admin",
+      role: "admin",
+      comercialId: null,
+      nombre: "Admin",
+      email: "admin@test.com",
+    });
+    getWorkersStatusFullMock.mockResolvedValue({
+      status: "ok",
+      db: "ok",
+      timestamp: "2026-04-09T10:00:00.000Z",
+      workers: [],
+      jobQueue: { pending: 0, inProgress: 0, completed: 0, failed: 0, deadLetter: 0 },
+      pendingJobs: [],
+      pendingByType: [],
+      recentErrors: [],
+    });
+
+    const response = await GET(
+      new Request("https://example.com/api/configuracion/health"),
+    );
+
+    expect(response.status).toBe(200);
   });
 });

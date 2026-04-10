@@ -10,7 +10,7 @@ import {
   type LeadScoreStats,
 } from "@/lib/dashboard/comercial/classify";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth/session";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { withObservedRoute } from "@/lib/observability";
 
 
@@ -86,7 +86,10 @@ const getHandler = async (request: Request) => {
     url.searchParams.get("includeInactive") === "1" ||
     url.searchParams.get("includeInactive") === "true";
 
-  const session = getSession(request);
+  const session = await getSessionFromRequest(request);
+  if (!session) {
+    return unauthorized();
+  }
 
   try {
     const [dashResult, leadScoreRows] = await Promise.all([

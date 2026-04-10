@@ -12,7 +12,7 @@ import {
   type ClassificationResult,
   type LeadScoreStats,
 } from "@/lib/dashboard/comercial/classify";
-import { getSession } from "@/lib/auth/session";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { withObservedRoute } from "@/lib/observability";
 
 
@@ -24,7 +24,10 @@ function parseIsoDate(value: string | null): Date | null {
 
 const getHandler = async (request: Request, context: { params: Promise<{ id: string }> }) => {
   const { id: comercialId } = await context.params;
-  const session = getSession(request);
+  const session = await getSessionFromRequest(request);
+  if (!session) {
+    return unauthorized();
+  }
 
   if (
     session.role === "comercial" &&

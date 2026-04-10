@@ -31,7 +31,8 @@
     "agents:test-langgraph": "tsx scripts/test-langgraph.ts",
     "eval:nlu": "tsx scripts/run-nlu-eval.ts",
     "m8:test-contract-upload": "tsx scripts/test-contract-docx-cloudinary.ts",
-    "sprint2:e2e": "tsx scripts/test-sprint2-e2e.ts"
+    "sprint2:e2e": "tsx scripts/test-sprint2-e2e.ts",
+    "firma:live-e2e": "tsx scripts/test-signature-live-e2e.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
@@ -43,9 +44,11 @@
     "@langchain/langgraph": "^1.2.2",
     "@langchain/openai": "^1.2.13",
     "@openai/agents": "^0.6.0",
+    "@opentelemetry/api": "^1.9.1",
     "@prisma/client": "^6.19.2",
     "@vonage/messages": "^1.24.0",
     "@vonage/server-sdk": "^3.27.0",
+    "better-auth": "^1.6.2",
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.9.0",
     "clsx": "^2.1.1",
@@ -61,6 +64,7 @@
     "react-dom": "19.2.3",
     "react-signature-canvas": "^1.1.0-alpha.2",
     "recharts": "^3.8.0",
+    "resend": "^6.10.0",
     "tailwind-merge": "^3.5.0"
   },
   "overrides": {

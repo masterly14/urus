@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import {
+  getSessionFromRequest,
+  isCeoOrAdmin,
+  unauthorized,
+  forbidden,
+} from "@/lib/auth/session";
 import { getCeoCityPerformance } from "@/lib/dashboard/ceo/city-queries";
 import { withObservedRoute } from "@/lib/observability";
 
 
 const getHandler = async (request: Request) => {
-  const session = getSession(request);
-
-  if (session.role !== "ceo") {
-    return NextResponse.json(
-      { error: "Acceso restringido al CEO" },
-      { status: 403 },
-    );
-  }
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+  if (!isCeoOrAdmin(session.role)) return forbidden();
 
   try {
     const { searchParams } = new URL(request.url);

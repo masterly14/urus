@@ -32,10 +32,10 @@ const navItems: NavItem[] = [
 
 export default function PerformanceLayout({ children }: PerformanceLayoutProps) {
     const pathname = usePathname();
-    const { isCeo, isComercial } = useSession();
+    const { isCeo, isComercial, isCeoOrAdmin } = useSession();
 
     const filteredItems = navItems.filter((item) => {
-        if (item.ceoOnly && !isCeo) return false;
+        if (item.ceoOnly && !isCeoOrAdmin) return false;
         if (item.comercialOnly && !isComercial) return false;
         return true;
     });
@@ -45,7 +45,7 @@ export default function PerformanceLayout({ children }: PerformanceLayoutProps) 
             <div className="flex flex-col space-y-2">
                 <h1 className="text-3xl font-bold tracking-tight">Performance Management</h1>
                 <p className="text-muted-foreground">
-                    {isCeo
+                    {isCeoOrAdmin
                         ? "Sistema de gestión de rendimiento basado en arquetipos."
                         : "Tu panel de rendimiento personal."
                     }

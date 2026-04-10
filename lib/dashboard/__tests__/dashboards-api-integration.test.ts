@@ -4,11 +4,31 @@
  *
  * Requiere DATABASE_URL (Neon) configurada como el resto de tests de integración del repo.
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { appendEvent } from "@/lib/event-store";
 import { enqueueJob } from "@/lib/job-queue";
 import { prisma } from "@/lib/prisma";
-import { HEADER_ROLE } from "@/lib/auth/session";
+
+vi.mock("@/lib/auth/session", () => ({
+  getSessionFromRequest: vi.fn().mockResolvedValue({
+    userId: "test-ceo-user",
+    role: "ceo",
+    comercialId: null,
+    nombre: "Test CEO",
+    email: "ceo@test.com",
+  }),
+  isCeoOrAdmin: (role: string) => role === "ceo" || role === "admin",
+  unauthorized: () =>
+    new Response(JSON.stringify({ ok: false, error: "No autenticado" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    }),
+  forbidden: () =>
+    new Response(JSON.stringify({ ok: false, error: "Sin permisos" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    }),
+}));
 import { GET as getComerciales } from "@/app/api/dashboard/comerciales/route";
 import { GET as getComercialById } from "@/app/api/dashboard/comercial/[id]/route";
 import { GET as getCeoOverviewApi } from "@/app/api/ceo/overview/route";
@@ -191,9 +211,7 @@ describe(
 
     it("GET /api/ceo/overview refleja ingresos derivados de hechos comerciales", async () => {
       const res = await getCeoOverviewApi(
-        new Request("http://localhost/api/ceo/overview", {
-          headers: { [HEADER_ROLE]: "ceo" },
-        }),
+        new Request("http://localhost/api/ceo/overview"),
       );
       expect(res.status).toBe(200);
       const body = (await res.json()) as {

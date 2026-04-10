@@ -4,9 +4,12 @@
 
 ---
 
-## Estado del repo (M0 + M1 + M2)
+## Estado del repo (M0 + M1 + M2 + Auth)
 
-Infraestructura base y workers de Inmovilla implementados según el plan (Semana 1–2):
+Infraestructura base, workers de Inmovilla y autenticación/autorización implementados:
+
+- **Auth y Autorización**: Better Auth con Prisma adapter, 3 roles (`ceo`, `admin`, `comercial`), invitaciones por email (Resend), protección de rutas con `proxy.ts` (Next.js 16). Ver `docs/auth-autorizacion.md`.
+
 
 - **Event Store (Neon/PostgreSQL)**: tabla `events` (Prisma `Event`) + API en `lib/event-store/` (`appendEvent`, `getEventsByAggregate`, `getEventsSince`) con tests en `lib/event-store/__tests__/`.
 - **Job Queue (Neon/PostgreSQL)**: tabla `job_queue` (Prisma `JobQueue`) + API en `lib/job-queue/` (`enqueueJob`, `dequeueJob`, `markCompleted`, `markFailed`) con reintentos, idempotencia y tests de ciclo completo en `lib/job-queue/__tests__/`.
@@ -47,6 +50,7 @@ Escenario de migración a API REST (contactos, propiedades, propietarios) docume
 - **Feedback loop NLU (test aislado)**: `npx tsx scripts/test-feedback-loop.ts` — valida `classifyBuyerFeedback` con propiedades mock y NLU real. Requiere `OPENAI_API_KEY`.
 - **Feedback loop E2E (Vitest)**: `npm test -- feedback-loop-e2e` — test de integración determinista del pipeline completo (WA → eventos → jobs → proyección). Usa BD real + NLU stub.
 - **Feedback loop live-RPA**: `npx tsx scripts/test-feedback-loop-live-rpa.ts` — pipeline completo con NLU real y escritura en Inmovilla (RPA). Requiere `FEEDBACK_LOOP_DEMAND_ID` y `FEEDBACK_LOOP_LIVE=true` para escritura real. Sin ese flag ejecuta dry-run. Ver `docs/microsite-feedback-loop.md`.
+- **Firma live E2E (Neon + Cloudinary + WhatsApp + OTP real)**: `npm run firma:live-e2e -- --check-env` para validar prerequisitos y `npm run firma:live-e2e -- --confirm-live` para ejecutar el flujo completo con firma humana. Detalle en `docs/firma-live-e2e.md`.
 
 **Contribuir:** ramas, commits, PRs y releases siguen la [Guía de contribución (CONTRIBUTING.md)](CONTRIBUTING.md).
 

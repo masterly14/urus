@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Bell, Search, LogOut, Settings, User } from "lucide-react";
-import { useSession, CEO_USER, type SimulatedUser } from "@/lib/hooks/use-session";
+import { useSession } from "@/lib/hooks/use-session";
+import { signOut } from "@/lib/auth/client";
 import { useNotifications } from "@/lib/hooks/use-notifications";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Badge } from "@/components/ui/badge";
@@ -22,8 +23,6 @@ import {
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-
-type ComercialOption = { id: string; nombre: string; ciudad: string };
 
 const severityColors: Record<string, string> = {
     critical: "bg-[var(--urus-danger)]",
@@ -61,34 +60,21 @@ function getInitials(name: string): string {
         .toUpperCase();
 }
 
+const ROLE_LABELS: Record<string, string> = {
+    ceo: "CEO",
+    admin: "Administrador",
+    comercial: "Comercial",
+};
+
 export function TopBar() {
-    const { session, setSession, isCeo } = useSession();
+    const router = useRouter();
+    const { session, isCeo, isCeoOrAdmin } = useSession();
     const { notifications, unreadCount, markAsRead, markAllRead } = useNotifications();
-    const [comerciales, setComerciales] = useState<ComercialOption[]>([]);
 
-    useEffect(() => {
-        fetch("/api/comerciales/activos")
-            .then((r) => r.json())
-            .then((data) => {
-                if (data.ok && Array.isArray(data.comerciales)) {
-                    setComerciales(data.comerciales);
-                }
-            })
-            .catch(() => {});
-    }, []);
-
-    const handleUserChange = (value: string) => {
-        if (value === "__ceo__") {
-            setSession(CEO_USER);
-            return;
-        }
-        const c = comerciales.find((x) => x.id === value);
-        if (c) {
-            setSession({ role: "comercial", comercialId: c.id, nombre: c.nombre });
-        }
+    const handleLogout = async () => {
+        await signOut();
+        router.push("/login");
     };
-
-    const currentSelectValue = isCeo ? "__ceo__" : (session.comercialId ?? "__ceo__");
 
     return (
         <header className="fixed top-0 left-0 right-0 z-50 flex h-16 items-center justify-between border-b border-border/50 bg-card/80 px-4 backdrop-blur-xl">
@@ -118,23 +104,10 @@ export function TopBar() {
 
             {/* Right section */}
             <div className="flex items-center gap-3">
-                {/* Simulated user selector */}
-                <select
-                    value={currentSelectValue}
-                    onChange={(e) => handleUserChange(e.target.value)}
-                    className="h-8 max-w-[200px] truncate rounded-md border border-border/50 bg-accent/30 px-2 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-secondary/50"
-                >
-                    <option value="__ceo__">CEO</option>
-                    {comerciales.length > 0 && (
-                        <optgroup label="Comerciales">
-                            {comerciales.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                    {c.nombre} ({c.ciudad})
-                                </option>
-                            ))}
-                        </optgroup>
-                    )}
-                </select>
+                {/* Role badge */}
+                <Badge variant="outline" className="text-xs font-medium px-2 py-0.5">
+                    {ROLE_LABELS[session.role] ?? session.role}
+                </Badge>
 
                 {/* Mode Toggle */}
                 <ModeToggle />
@@ -205,7 +178,7 @@ export function TopBar() {
                         <Button variant="ghost" className="h-9 w-9 rounded-full p-0">
                             <Avatar className="h-8 w-8">
                                 <AvatarFallback className="bg-gradient-to-br from-[var(--urus-gold)] to-[var(--urus-gold)]/70 text-background text-xs font-bold">
-                                    {getInitials(session.nombre)}
+                                    {getInitials(session.nombre || "U")}
                                 </AvatarFallback>
                             </Avatar>
                         </Button>
@@ -213,17 +186,19 @@ export function TopBar() {
                     <DropdownMenuContent align="end" className="w-48">
                         <div className="px-3 py-2">
                             <p className="text-sm font-medium">{session.nombre}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{session.role}</p>
+                            <p className="text-xs text-muted-foreground">{ROLE_LABELS[session.role] ?? session.role}</p>
                         </div>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem>
                             <User className="mr-2 h-4 w-4" /> Perfil
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
-                            <Settings className="mr-2 h-4 w-4" /> Configuración
-                        </DropdownMenuItem>
+                        {isCeoOrAdmin && (
+                            <DropdownMenuItem onClick={() => router.push("/platform/configuracion")}>
+                                <Settings className="mr-2 h-4 w-4" /> Configuración
+                            </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">
+                        <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
                             <LogOut className="mr-2 h-4 w-4" /> Cerrar sesión
                         </DropdownMenuItem>
                     </DropdownMenuContent>

@@ -1,55 +1,90 @@
 /**
- * Simulated session abstraction for role-based access control.
+ * Server-side session abstraction for role-based access control.
  *
- * While real authentication (NextAuth) does not exist, sessions are
- * conveyed via HTTP headers set by the client-side session provider.
- *
- * When real auth arrives, **only this file** needs to change — swap the
- * header-reading logic for the actual session/token lookup.
+ * Uses Better Auth to resolve sessions from cookies.
+ * Provides helper functions for API route guards.
  */
 
-export type AppRole = "ceo" | "comercial";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+
+export type AppRole = "ceo" | "admin" | "comercial";
 
 export interface AppSession {
+  userId: string;
   role: AppRole;
-  /** Set when role === "comercial"; null for CEO. */
   comercialId: string | null;
   nombre: string;
+  email: string;
 }
 
-export const HEADER_ROLE = "x-simulated-role";
-export const HEADER_COMERCIAL_ID = "x-simulated-comercial-id";
-export const HEADER_NOMBRE = "x-simulated-nombre";
-
-const VALID_ROLES = new Set<string>(["ceo", "comercial"]);
-
-const DEFAULT_SESSION: AppSession = {
-  role: "ceo",
-  comercialId: null,
-  nombre: "CEO",
-};
-
 /**
- * Extract the current user session from the request.
- *
- * Falls back to CEO when headers are missing or inconsistent
- * (e.g. role=comercial without a comercialId).
+ * Get the current session from the request headers (cookies).
+ * Returns null if no valid session exists.
  */
-export function getSession(request: Request): AppSession {
-  const rawRole = request.headers.get(HEADER_ROLE)?.trim().toLowerCase();
-  if (!rawRole || !VALID_ROLES.has(rawRole)) return DEFAULT_SESSION;
+export async function getSession(): Promise<AppSession | null> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
 
-  const role = rawRole as AppRole;
-  const rawComercialId = request.headers.get(HEADER_COMERCIAL_ID)?.trim() || null;
-  const nombre = request.headers.get(HEADER_NOMBRE)?.trim() || (role === "ceo" ? "CEO" : "Comercial");
-
-  if (role === "comercial" && !rawComercialId) {
-    return DEFAULT_SESSION;
+  if (!session?.user) {
+    return null;
   }
 
   return {
-    role,
-    comercialId: role === "comercial" ? rawComercialId : null,
-    nombre,
+    userId: session.user.id,
+    role: (session.user.role as AppRole) ?? "comercial",
+    comercialId: (session.user as Record<string, unknown>).comercialId as string | null ?? null,
+    nombre: session.user.name,
+    email: session.user.email,
   };
+}
+
+/**
+ * Get session from a raw Request object (for API routes that receive `request`).
+ * Falls back to the headers-based approach.
+ */
+export async function getSessionFromRequest(request: Request): Promise<AppSession | null> {
+  const session = await auth.api.getSession({
+    headers: request.headers,
+  });
+
+  if (!session?.user) {
+    return null;
+  }
+
+  return {
+    userId: session.user.id,
+    role: (session.user.role as AppRole) ?? "comercial",
+    comercialId: (session.user as Record<string, unknown>).comercialId as string | null ?? null,
+    nombre: session.user.name,
+    email: session.user.email,
+  };
+}
+
+/**
+ * Guard: returns 401 response if not authenticated.
+ */
+export function unauthorized() {
+  return new Response(JSON.stringify({ ok: false, error: "No autenticado" }), {
+    status: 401,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/**
+ * Guard: returns 403 response if not authorized.
+ */
+export function forbidden() {
+  return new Response(JSON.stringify({ ok: false, error: "Sin permisos" }), {
+    status: 403,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/**
+ * Check if a role is CEO or Admin (equivalent access).
+ */
+export function isCeoOrAdmin(role: AppRole): boolean {
+  return role === "ceo" || role === "admin";
 }

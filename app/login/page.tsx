@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Lock, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,21 +14,35 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
+import { signIn } from "@/lib/auth/client";
 
 export default function LoginPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const callbackUrl = searchParams.get("callbackUrl") ?? "/platform";
+
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setIsLoading(true);
+        setError(null);
 
-        // Simulate network delay
-        setTimeout(() => {
+        const result = await signIn.email({
+            email,
+            password,
+        });
+
+        if (result.error) {
+            setError("Credenciales inválidas. Verifica tu email y contraseña.");
             setIsLoading(false);
-            localStorage.setItem("isLoggedIn", "true");
-            router.push("/platform");
-        }, 1500);
+            return;
+        }
+
+        router.push(callbackUrl);
     }
 
     return (
@@ -44,6 +58,11 @@ export default function LoginPage() {
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={onSubmit} className="space-y-4">
+                        {error && (
+                            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                                {error}
+                            </div>
+                        )}
                         <div className="space-y-2">
                             <Label htmlFor="email">Correo Electrónico</Label>
                             <div className="relative">
@@ -58,6 +77,8 @@ export default function LoginPage() {
                                     disabled={isLoading}
                                     className="pl-9"
                                     required
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
                                 />
                             </div>
                         </div>
@@ -71,6 +92,8 @@ export default function LoginPage() {
                                     disabled={isLoading}
                                     className="pl-9"
                                     required
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
                                 />
                             </div>
                         </div>
@@ -93,7 +116,6 @@ export default function LoginPage() {
                 </CardFooter>
             </Card>
 
-            {/* Background decoration */}
             <div className="fixed inset-0 -z-10 h-full w-full bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
             <div className="fixed left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-primary/20 opacity-20 blur-[100px]"></div>
         </div>

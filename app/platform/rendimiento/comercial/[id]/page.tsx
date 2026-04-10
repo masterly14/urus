@@ -16,21 +16,21 @@ import { ShieldAlert } from "lucide-react";
 export default function ComercialRedirectPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const router = useRouter();
-    const { comercialId, isCeo } = useSession();
+    const { comercialId, isCeo, isCeoOrAdmin } = useSession();
 
     useEffect(() => {
         if (id === "me") {
             if (comercialId) {
                 router.replace(`/platform/rendimiento/comerciales/${comercialId}`);
-            } else if (isCeo) {
+            } else if (isCeoOrAdmin) {
                 router.replace("/platform/rendimiento/comerciales");
             }
         } else {
             router.replace(`/platform/rendimiento/comerciales/${id}`);
         }
-    }, [id, comercialId, isCeo, router]);
+    }, [id, comercialId, isCeoOrAdmin, router]);
 
-    if (id === "me" && !comercialId && !isCeo) {
+    if (id === "me" && !comercialId && !isCeoOrAdmin) {
         return (
             <div className="flex items-center justify-center h-64">
                 <Card className="max-w-md">
@@ -38,7 +38,7 @@ export default function ComercialRedirectPage({ params }: { params: Promise<{ id
                         <ShieldAlert className="h-10 w-10 text-muted-foreground mx-auto" />
                         <p className="text-base font-semibold">Sesión no configurada</p>
                         <p className="text-sm text-muted-foreground">
-                            Selecciona un comercial en el selector de usuario para ver tus resultados.
+                            Tu cuenta no está vinculada a un comercial. Contacta a tu administrador.
                         </p>
                     </CardContent>
                 </Card>
