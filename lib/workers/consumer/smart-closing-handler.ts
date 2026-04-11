@@ -3,6 +3,7 @@ import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import { appendEvent } from "@/lib/event-store";
 import { isClosedOperation } from "@/lib/post-sale/closed-operation";
 import { prisma } from "@/lib/prisma";
+import { resolveComercialFromAgente } from "@/lib/routing/resolve-comercial";
 import { generarCodigoOperacion } from "@/lib/operacion/codigo";
 import { mapEstadoFichaToOperacionEstado } from "@/lib/operacion/estado";
 import type { HandlerResult } from "./types";
@@ -80,10 +81,7 @@ async function resolveOrCreateOperacion(
 
   let comercialId: string | null = null;
   if (agente) {
-    const comercial = await prisma.comercial.findFirst({
-      where: { nombre: agente },
-      select: { id: true },
-    });
+    const comercial = await resolveComercialFromAgente(agente, { requireActive: false });
     comercialId = comercial?.id ?? null;
   }
 

@@ -95,7 +95,7 @@ export function normalizePropertyFromRest(
     fechaAlta: String(raw.fecha ?? ""),
     fechaActualizacion: String(raw.fechaact ?? ""),
     numFotos: Number(raw.numfotos ?? 0),
-    agente: String(raw.keyagente ?? raw.usernombre ?? ""),
+    agente: String(raw.usernombre ?? raw.keyagente ?? ""),
     raw: raw as Record<string, unknown>,
   };
 }

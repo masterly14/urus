@@ -1,6 +1,7 @@
 import type { JobRecord, EnqueueJobInput } from "@/lib/job-queue/types";
 import type { HandlerResult } from "./types";
 import { prisma } from "@/lib/prisma";
+import { resolveComercialFromAgente } from "@/lib/routing/resolve-comercial";
 import {
   sendPostSaleMessage,
   sendReviewRequest,
@@ -71,10 +72,7 @@ async function resolveRecipient(propertyCode: string): Promise<{
 
   let comercialName: string | null = null;
   if (property?.agente) {
-    const comercial = await prisma.comercial.findFirst({
-      where: { nombre: property.agente, activo: true },
-      select: { nombre: true },
-    });
+    const comercial = await resolveComercialFromAgente(property.agente);
     comercialName = comercial?.nombre ?? property.agente;
   }
 

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { EventRecord } from "@/lib/event-store/types";
 import type { ProjectionApplyResult } from "./types";
 import { str, num, int } from "@/lib/utils/normalize";
+import { resolveComercialFromAgente } from "@/lib/routing/resolve-comercial";
 
 type DemandPayloadSnapshot = {
   codigo: string;
@@ -46,10 +47,12 @@ function listToString(value: unknown): string | undefined {
   return undefined;
 }
 
-function snapshotToUpsertData(
+async function snapshotToUpsertData(
   snapshot: DemandPayloadSnapshot,
   event: EventRecord,
-): { create: Prisma.DemandCurrentCreateInput; update: Prisma.DemandCurrentUpdateInput } {
+): Promise<{ create: Prisma.DemandCurrentCreateInput; update: Prisma.DemandCurrentUpdateInput }> {
+  const comercial = await resolveComercialFromAgente(snapshot.agente);
+
   const base = {
     ref: str(snapshot.ref),
     nombre: str(snapshot.nombre),
@@ -62,7 +65,8 @@ function snapshotToUpsertData(
     tipos: str(snapshot.tipos),
     zonas: str(snapshot.zonas),
     fechaActualizacion: str(snapshot.fechaActualizacion),
-    agente: str(snapshot.agente),
+    agente: comercial?.nombre ?? str(snapshot.agente),
+    comercialId: comercial?.id ?? null,
     lastEventId: event.id,
     lastEventPosition: event.position,
     lastEventAt: event.occurredAt,
@@ -86,7 +90,7 @@ export async function applyDemandProjection(
         return { success: false, aggregateId: codigo, error: "Payload sin snapshot" };
       }
 
-      const { create, update } = snapshotToUpsertData(payload.snapshot, event);
+      const { create, update } = await snapshotToUpsertData(payload.snapshot, event);
       await prisma.demandCurrent.upsert({
         where: { codigo },
         create,
@@ -147,7 +151,7 @@ export async function applyDemandProjection(
         return { success: false, aggregateId: codigo, error: "Payload sin snapshot" };
       }
 
-      const { create, update } = snapshotToUpsertData(payload.snapshot, event);
+      const { create, update } = await snapshotToUpsertData(payload.snapshot, event);
       await prisma.demandCurrent.upsert({
         where: { codigo },
         create,

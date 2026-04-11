@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { EventRecord } from "@/lib/event-store/types";
 import type { ProjectionApplyResult } from "./types";
 import { str, num, int } from "@/lib/utils/normalize";
+import { resolveComercialFromAgente } from "@/lib/routing/resolve-comercial";
 
 type PropertyPayloadSnapshot = {
   codigo: string;
@@ -37,10 +38,12 @@ type PropertyModifiedAfter = {
   fechaActualizacion: string;
 };
 
-function snapshotToUpsertData(
+async function snapshotToUpsertData(
   snapshot: PropertyPayloadSnapshot,
   event: EventRecord,
-): { create: Prisma.PropertyCurrentCreateInput; update: Prisma.PropertyCurrentUpdateInput } {
+): Promise<{ create: Prisma.PropertyCurrentCreateInput; update: Prisma.PropertyCurrentUpdateInput }> {
+  const comercial = await resolveComercialFromAgente(snapshot.agente);
+
   const base = {
     ref: str(snapshot.ref),
     titulo: str(snapshot.titulo),
@@ -57,7 +60,8 @@ function snapshotToUpsertData(
     fechaAlta: str(snapshot.fechaAlta),
     fechaActualizacion: str(snapshot.fechaActualizacion),
     numFotos: int(snapshot.numFotos),
-    agente: str(snapshot.agente),
+    agente: comercial?.nombre ?? str(snapshot.agente),
+    comercialId: comercial?.id ?? null,
     lastEventId: event.id,
     lastEventPosition: event.position,
     lastEventAt: event.occurredAt,
@@ -104,7 +108,7 @@ export async function applyPropertyProjection(
       if (!validation.success) return validation;
 
       const payload = event.payload as { snapshot: PropertyPayloadSnapshot };
-      const { create, update } = snapshotToUpsertData(payload.snapshot, event);
+      const { create, update } = await snapshotToUpsertData(payload.snapshot, event);
 
       await prisma.propertyCurrent.upsert({
         where: { codigo },
@@ -167,7 +171,7 @@ export async function applyPropertyProjection(
       if (!validation.success) return validation;
 
       const payload = event.payload as { snapshot: PropertyPayloadSnapshot };
-      const { create, update } = snapshotToUpsertData(payload.snapshot, event);
+      const { create, update } = await snapshotToUpsertData(payload.snapshot, event);
 
       await prisma.propertyCurrent.upsert({
         where: { codigo },

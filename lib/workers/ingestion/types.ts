@@ -12,6 +12,7 @@ export const DIFF_FIELDS = [
   "nodisponible",
   "prospecto",
   "fechaActualizacion",
+  "agente",
 ] as const satisfies readonly (keyof Property)[];
 
 export type DiffField = (typeof DIFF_FIELDS)[number];

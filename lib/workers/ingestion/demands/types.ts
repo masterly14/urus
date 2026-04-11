@@ -10,6 +10,7 @@ export const DEMAND_DIFF_FIELDS = [
   "tipos",
   "zonas",
   "fechaActualizacion",
+  "agente",
 ] as const satisfies readonly (keyof Demand)[];
 
 export type DemandDiffField = (typeof DEMAND_DIFF_FIELDS)[number];

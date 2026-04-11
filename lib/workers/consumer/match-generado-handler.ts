@@ -14,6 +14,7 @@ import type { Event } from "@/types/domain";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import type { HandlerResult } from "./types";
 import { prisma } from "@/lib/prisma";
+import { resolveComercialFromAgente } from "@/lib/routing/resolve-comercial";
 import { sendMatchNotification } from "@/lib/whatsapp/send";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
 
@@ -78,10 +79,7 @@ export async function handleMatchGenerado(
 
   const agentName = demand?.agente ?? property?.agente;
   const comercial = agentName
-    ? await prisma.comercial.findFirst({
-        where: { nombre: agentName, activo: true },
-        select: { id: true, telefono: true, nombre: true },
-      })
+    ? await resolveComercialFromAgente(agentName)
     : null;
 
   if (comercial?.telefono) {

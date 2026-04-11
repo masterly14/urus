@@ -22,6 +22,7 @@
     "ingestion:demands": "tsx scripts/run-ingestion-demands.ts",
     "consumer": "tsx scripts/run-consumer.ts",
     "egestion": "tsx scripts/run-egestion.ts",
+    "statefox:validate-token": "tsx scripts/validate-statefox-token.ts",
     "pricing:run": "tsx scripts/run-pricing.ts",
     "projections": "tsx scripts/run-projections.ts",
     "daily-log:start": "tsx scripts/daily-log-start.ts",
@@ -35,6 +36,7 @@
     "firma:live-e2e": "tsx scripts/test-signature-live-e2e.ts",
     "auth:security-e2e": "tsx scripts/test-auth-security-e2e.ts",
     "seed:ceo": "tsx scripts/seed-ceo.ts",
+    "backfill:comercial": "tsx scripts/backfill-comercial-relations.ts",
     "visit:test": "echo Abre http://localhost:3000/platform/test-visit en el navegador"
   },  
   "dependencies": {

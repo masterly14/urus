@@ -1,5 +1,6 @@
 import type { Event } from "@/types/domain";
 import { prisma } from "@/lib/prisma";
+import { resolveComercialFromAgente } from "@/lib/routing/resolve-comercial";
 
 function toDateOrNull(value: unknown): Date | null {
   if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
@@ -15,22 +16,6 @@ function normalizeSystemId(id: string | null | undefined): string | null {
   const trimmed = id.trim();
   if (!trimmed || trimmed === "system") return null;
   return trimmed;
-}
-
-async function resolveComercialFromNombre(nombre: string | null | undefined): Promise<{
-  id: string;
-  nombre: string;
-} | null> {
-  const normalized = (nombre ?? "").trim();
-  if (!normalized) return null;
-
-  return prisma.comercial.findFirst({
-    where: {
-      nombre: { equals: normalized, mode: "insensitive" },
-      activo: true,
-    },
-    select: { id: true, nombre: true },
-  });
 }
 
 export async function upsertCommercialLeadFactFromLeadIngestedEvent(input: {
@@ -160,7 +145,7 @@ export async function upsertCommercialVisitFactFromVisitaAgendadaEvent(
       where: { codigo: demandId },
       select: { agente: true },
     });
-    const byName = await resolveComercialFromNombre(demand?.agente ?? "");
+    const byName = await resolveComercialFromAgente(demand?.agente ?? "");
     comercialId = byName?.id ?? null;
     comercialNombre = byName?.nombre ?? (demand?.agente ?? "");
   }
@@ -226,7 +211,7 @@ export async function upsertCommercialVisitEvaluationFactFromVisitaEvaluadaEvent
       where: { codigo: demandId },
       select: { agente: true },
     });
-    const byName = await resolveComercialFromNombre(demand?.agente ?? "");
+    const byName = await resolveComercialFromAgente(demand?.agente ?? "");
     comercialId = byName?.id ?? null;
     comercialNombre = byName?.nombre ?? (demand?.agente ?? "");
   }
@@ -286,7 +271,7 @@ export async function upsertCommercialOperationFactFromOperacionCerradaEvent(
   });
 
   const comercialNombre = (property?.agente ?? "").trim();
-  const comercial = await resolveComercialFromNombre(comercialNombre);
+  const comercial = await resolveComercialFromAgente(comercialNombre);
   const comercialId = comercial?.id ?? null;
 
   const firstSeenAt = property?.firstSeenAt ?? null;

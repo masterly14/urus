@@ -1,6 +1,7 @@
 import type { JobRecord } from "@/lib/job-queue/types";
 import type { HandlerResult } from "@/lib/workers/consumer/types";
 import { prisma } from "@/lib/prisma";
+import { resolveComercialByProperty } from "@/lib/routing/resolve-comercial";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
 import {
   sendPostventaAgradecimiento,
@@ -90,19 +91,9 @@ async function resolveBuyerInfo(propertyCode: string): Promise<BuyerInfo | null>
 }
 
 async function resolveComercialInfo(propertyCode: string): Promise<{ name: string } | null> {
-  const property = await prisma.propertyCurrent.findUnique({
-    where: { codigo: propertyCode },
-    select: { agente: true },
-  });
-
-  if (!property?.agente) return null;
-
-  const comercial = await prisma.comercial.findFirst({
-    where: { id: property.agente },
-    select: { nombre: true },
-  });
-
-  return comercial ? { name: comercial.nombre } : { name: property.agente };
+  const comercial = await resolveComercialByProperty(propertyCode);
+  if (!comercial) return null;
+  return { name: comercial.nombre };
 }
 
 /**

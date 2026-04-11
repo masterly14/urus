@@ -19,6 +19,7 @@ enum AggregateType {
   OPERACION
   CEO
   MENTAL_CONVERSATION
+  VISIT_SCHEDULING
 }
 
 enum EventType {
@@ -70,6 +71,17 @@ enum EventType {
   CEO_FINANZAS_GENERADA
   MENTAL_MSG_RECIBIDO
   MENTAL_MSG_ENVIADO
+  VISITA_SOLICITADA
+  VISITA_SLOTS_PROPUESTOS
+  VISITA_SLOT_SELECCIONADO
+  VISITA_PROPUESTA_ENVIADA
+  VISITA_COMPRADOR_ACEPTO
+  VISITA_COMPRADOR_RECHAZO
+  VISITA_DATOS_RECOPILADOS
+  VISITA_ESCALADA_MANUAL
+  VISITA_CANCELADA
+  VISITA_REPROGRAMADA
+  COMPOSIO_CALENDAR_CONNECTED
 }
 
 enum JobType {
@@ -96,6 +108,15 @@ enum JobType {
   SEND_REFERRAL_REQUEST
   SEND_REVIEW_REMINDER
   SEND_DEV_EXERCISE_NUDGE
+  VISIT_FETCH_SLOTS
+  VISIT_PROPOSE_TO_COMMERCIAL
+  VISIT_PROPOSE_TO_BUYER
+  VISIT_CHECK_COMMERCIAL_TIMEOUT
+  VISIT_CHECK_BUYER_TIMEOUT
+  VISIT_CREATE_CALENDAR_EVENT
+  VISIT_CANCEL_CALENDAR_EVENT
+  VISIT_CLEANUP_EXPIRED_LOCKS
+  VISIT_CHECK_COMPOSIO_HEALTH
 }
 
 enum JobStatus {
@@ -258,6 +279,8 @@ model PropertyCurrent {
   fechaActualizacion String   @default("")
   numFotos           Int      @default(0)
   agente             String   @default("")
+  /// ID interno del comercial gestor (resuelto desde keyagente de Inmovilla)
+  comercialId        String?
   lastEventId        String
   lastEventPosition  BigInt
   lastEventAt        DateTime
@@ -266,6 +289,7 @@ model PropertyCurrent {
 
   @@index([estado])
   @@index([ciudad, zona])
+  @@index([comercialId])
   @@index([lastEventPosition])
   @@map("properties_current")
 }
@@ -308,6 +332,8 @@ model DemandCurrent {
   zonas              String   @default("")
   fechaActualizacion String   @default("")
   agente             String   @default("")
+  /// ID interno del comercial gestor (resuelto desde agente de Inmovilla)
+  comercialId        String?
   lastEventId        String
   lastEventPosition  BigInt
   lastEventAt        DateTime
@@ -318,6 +344,7 @@ model DemandCurrent {
 
   @@index([estadoId])
   @@index([zonas])
+  @@index([comercialId])
   @@index([lastEventPosition])
   @@map("demands_current")
 }
@@ -429,6 +456,96 @@ model ExecutionMetric {
 }
 
 // ---------------------------------------------------------------------------
+// Visit Scheduling (M4 — rediseño)
+// ---------------------------------------------------------------------------
+
+enum VisitSessionState {
+  INITIATED
+  FETCHING_SLOTS
+  SLOTS_PROPOSED_TO_COMMERCIAL
+  COMMERCIAL_ACCEPTED_SLOT
+  SLOT_PROPOSED_TO_BUYER
+  BUYER_ACCEPTED
+  BUYER_REJECTED
+  ASKING_BUYER_PREFERENCE
+  FETCHING_SPECIFIC_SLOT
+  SPECIFIC_SLOT_TO_COMMERCIAL
+  COLLECTING_VISITOR_DATA
+  VISIT_CONFIRMED
+  VISIT_COMPLETED
+  VISIT_CANCELLED
+  VISIT_RESCHEDULED
+  ESCALATED_MANUAL
+}
+
+model VisitSchedulingSession {
+  id              String            @id @default(cuid())
+  demandId        String
+  propertyCode    String
+  comercialId     String
+  buyerWaId       String
+  comercialWaId   String
+  state           VisitSessionState @default(INITIATED)
+  currentRound    Int               @default(0)
+  maxRounds       Int               @default(3)
+  confirmedSlotStart  DateTime?
+  confirmedSlotEnd    DateTime?
+  visitorName     String?
+  visitorPhone    String?
+  visitorCount    Int?
+  calendarEventId String?
+  calendarLink    String?
+  escalationReason String?
+  lastProposedSlots   Json?
+  lastCommercialMsgId String?
+  lastBuyerMsgId      String?
+  buyerPreferredDate  String?
+  currentStepDeadline DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  completedAt     DateTime?
+
+  @@index([demandId])
+  @@index([buyerWaId, state])
+  @@index([comercialWaId, state])
+  @@index([propertyCode, state])
+  @@map("visit_scheduling_sessions")
+}
+
+model VisitSlotLock {
+  id           String   @id @default(cuid())
+  comercialId  String
+  propertyCode String?
+  slotStart    DateTime
+  slotEnd      DateTime
+  sessionId    String
+  expiresAt    DateTime
+  released     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@unique([comercialId, slotStart, slotEnd, released])
+  @@index([comercialId, expiresAt])
+  @@index([propertyCode, slotStart, slotEnd])
+  @@index([sessionId])
+  @@map("visit_slot_locks")
+}
+
+model PropertyVisitSlot {
+  id           String   @id @default(cuid())
+  propertyCode String
+  slotStart    DateTime
+  slotEnd      DateTime
+  sessionId    String
+  comercialId  String
+  cancelled    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([propertyCode, slotStart])
+  @@index([sessionId])
+  @@map("property_visit_slots")
+}
+
+// ---------------------------------------------------------------------------
 // Auth (Better Auth)
 // ---------------------------------------------------------------------------
 
@@ -439,6 +556,10 @@ model User {
   emailVerified Boolean   @default(false)
   image         String?
   role          String    @default("comercial")
+  /// Plugin admin (better-auth)
+  banned        Boolean   @default(false)
+  banReason     String?
+  banExpires    DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -458,6 +579,8 @@ model Session {
   updatedAt DateTime @updatedAt
   ipAddress String?
   userAgent String?
+  /// Plugin admin (better-auth) — sesión de impersonación
+  impersonatedBy String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -495,15 +618,19 @@ model Verification {
 }
 
 model Invitation {
-  id        String   @id @default(cuid())
-  email     String
-  role      String
-  token     String   @unique
-  expiresAt DateTime
-  used      Boolean  @default(false)
-  invitedBy String
-  createdAt DateTime @default(now())
+  id          String     @id @default(cuid())
+  email       String
+  role        String
+  token       String     @unique
+  expiresAt   DateTime
+  used        Boolean    @default(false)
+  invitedBy   String
+  createdAt   DateTime   @default(now())
+  /// Ficha Comercial a vincular al aceptar (rol comercial). Evita depender de Comercial.email, que suele ir vacío.
+  comercialId String?
+  comercial   Comercial? @relation(fields: [comercialId], references: [id], onDelete: SetNull)
 
+  @@index([comercialId])
   @@map("invitation")
 }
 
@@ -520,14 +647,26 @@ model Comercial {
   leadsAsignados Int      @default(0)
   leadsCerrados  Int      @default(0)
   tasaConversion Float    @default(0)
+  /// WhatsApp ID del comercial (E.164 sin +, ej: "34612345678")
+  waId                 String?
+  /// Composio userId para la conexión OAuth de Google Calendar
+  composioConnectionId String?
+  /// Fecha en que el comercial autorizó su calendario via Composio
+  composioConnectedAt  DateTime?
+  /// Proveedor de calendario conectado (google | outlook)
+  calendarProvider     String?   @default("google")
+  /// ID numérico del agente en Inmovilla (campo `keyagente` de la ficha de propiedad)
+  inmovillaAgentId     Int?      @unique
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  referrals Referral[]
-  user      User?
+  referrals    Referral[]
+  user         User?
+  invitations  Invitation[]
 
   @@index([ciudad, activo])
   @@index([activo, cargaActual])
+  @@index([waId])
   @@map("comerciales")
 }
 
@@ -1302,6 +1441,12 @@ enum DevExerciseStatus {
   SKIPPED
 }
 
+enum CircuitBreakerStatus {
+  CLOSED
+  OPEN
+  HALF_OPEN
+}
+
 model DevProgramExercise {
   id              String            @id @default(cuid())
   comercialId     String
@@ -1321,4 +1466,17 @@ model DevProgramExercise {
   @@unique([comercialId, weekNumber, dayOfWeek, type])
   @@index([waId, status])
   @@map("dev_program_exercises")
+}
+
+model CircuitBreaker {
+  id           String               @id
+  status       CircuitBreakerStatus @default(CLOSED)
+  failureCount Int                  @default(0)
+  lastFailedAt DateTime?
+  openedAt     DateTime?
+  halfOpenAt   DateTime?
+  closedAt     DateTime?
+  updatedAt    DateTime             @updatedAt
+
+  @@map("circuit_breaker")
 }
