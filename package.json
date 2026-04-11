@@ -33,8 +33,10 @@
     "m8:test-contract-upload": "tsx scripts/test-contract-docx-cloudinary.ts",
     "sprint2:e2e": "tsx scripts/test-sprint2-e2e.ts",
     "firma:live-e2e": "tsx scripts/test-signature-live-e2e.ts",
-    "seed:ceo": "tsx scripts/seed-ceo.ts"
-  },
+    "auth:security-e2e": "tsx scripts/test-auth-security-e2e.ts",
+    "seed:ceo": "tsx scripts/seed-ceo.ts",
+    "visit:test": "echo Abre http://localhost:3000/platform/test-visit en el navegador"
+  },  
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
     "@base-ui/react": "^1.3.0",
@@ -53,6 +55,8 @@
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.9.0",
     "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
     "docx": "^9.6.1",
     "lucide-react": "^0.577.0",
     "mammoth": "^1.12.0",
@@ -63,6 +67,7 @@
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-pdf": "^10.4.1",
     "react-signature-canvas": "^1.1.0-alpha.2",
     "recharts": "^3.8.0",
     "resend": "^6.10.0",

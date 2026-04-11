@@ -16,6 +16,31 @@ type SendOptions = Partial<WhatsAppClientConfig> & {
   contextMessageId?: string;
 };
 
+/** Código de idioma de plantillas Meta; debe coincidir con la traducción aprobada (p. ej. `es` o `es_ES`). */
+const WHATSAPP_TEMPLATE_LANGUAGE_CODE =
+  process.env.WHATSAPP_TEMPLATE_LANGUAGE?.trim() || "es";
+
+// ---------------------------------------------------------------------------
+// Test interceptor — permite capturar mensajes salientes sin enviar a Meta.
+// En producción _testSendInterceptor es siempre null (coste cero).
+// ---------------------------------------------------------------------------
+
+export type TestSendInterceptor = (msg: {
+  to: string;
+  type: "text" | "template" | "interactive";
+  payload: unknown;
+}) => void;
+
+let _testSendInterceptor: TestSendInterceptor | null = null;
+
+export function setTestSendInterceptor(fn: TestSendInterceptor | null) {
+  _testSendInterceptor = fn;
+}
+
+function testId(): string {
+  return `wamid.test_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 /**
  * Envía un mensaje de texto libre.
  * Solo válido dentro de una ventana de 24h de conversación iniciada por el usuario.
@@ -25,6 +50,10 @@ export async function sendTextMessage(
   body: string,
   options?: SendOptions & { previewUrl?: boolean },
 ): Promise<SendMessageSuccess> {
+  if (_testSendInterceptor) {
+    _testSendInterceptor({ to, type: "text", payload: { body } });
+    return { messages: [{ id: testId() }] } as SendMessageSuccess;
+  }
   const client = createWhatsAppClient(options);
   return client.sendMessage({
     to,
@@ -45,6 +74,10 @@ export async function sendTemplateMessage(
   template: TemplateObject,
   options?: SendOptions,
 ): Promise<SendMessageSuccess> {
+  if (_testSendInterceptor) {
+    _testSendInterceptor({ to, type: "template", payload: template });
+    return { messages: [{ id: testId() }] } as SendMessageSuccess;
+  }
   const client = createWhatsAppClient(options);
   return client.sendMessage({
     to,
@@ -65,6 +98,10 @@ export async function sendInteractiveMessage(
   interactive: InteractiveObject,
   options?: SendOptions,
 ): Promise<SendMessageSuccess> {
+  if (_testSendInterceptor) {
+    _testSendInterceptor({ to, type: "interactive", payload: interactive });
+    return { messages: [{ id: testId() }] } as SendMessageSuccess;
+  }
   const client = createWhatsAppClient(options);
   return client.sendMessage({
     to,
@@ -88,7 +125,7 @@ export async function sendMatchNotification(
 ): Promise<SendMessageSuccess> {
   const template: TemplateObject = {
     name: "propiedad_match",
-    language: { code: "es_ES" },
+    language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
     components: [
       {
         type: "body",
@@ -128,7 +165,7 @@ export async function sendLeadAssignedToCommercial(
   if (options?.useTemplate) {
     const template: TemplateObject = {
       name: LEAD_ASSIGNED_TEMPLATE,
-      language: { code: "es_ES" },
+      language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
       components: [
         {
           type: "body",
@@ -192,7 +229,7 @@ export async function sendFollowUpToCommercial(
   if (options?.useTemplate) {
     const template: TemplateObject = {
       name: "lead_follow_up",
-      language: { code: "es_ES" },
+      language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
       components: [
         {
           type: "body",
@@ -576,7 +613,7 @@ export async function sendSignatureReminderToSigner(
   if (options?.useTemplate && templateName) {
     const template: TemplateObject = {
       name: templateName,
-      language: { code: "es_ES" },
+      language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
       components: [
         {
           type: "body",
@@ -629,7 +666,7 @@ export async function sendSignatureSlaEscalation(
   if (options?.useTemplate) {
     const template: TemplateObject = {
       name: SLA_ESCALATION_TEMPLATE,
-      language: { code: "es_ES" },
+      language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
       components: [
         {
           type: "body",
@@ -697,15 +734,17 @@ const FIRMA_ENVIADA_TEMPLATE =
   process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_ENVIADA ??
   "contrato_firma_enviada";
 
+/** Notificación de enlace de firma. Por defecto usa plantilla Meta (fuera de ventana 24h). Texto libre solo con `{ useTemplate: false }`. */
 export async function sendSignatureInitialNotification(
   to: string,
   params: SignatureInitialNotificationParams,
   options?: SendOptions & { useTemplate?: boolean },
 ): Promise<SendMessageSuccess> {
-  if (options?.useTemplate) {
+  const useTemplate = options?.useTemplate !== false;
+  if (useTemplate) {
     const template: TemplateObject = {
       name: FIRMA_ENVIADA_TEMPLATE,
-      language: { code: "es_ES" },
+      language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
       components: [
         {
           type: "body",
@@ -810,7 +849,7 @@ export async function sendPricingReportToCommercial(
   if (options?.useTemplate) {
     const template: TemplateObject = {
       name: PRICING_INFORME_TEMPLATE,
-      language: { code: "es_ES" },
+      language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
       components: [
         {
           type: "body",
@@ -862,7 +901,7 @@ export async function sendPostventaAgradecimiento(
   if (options?.useTemplate) {
     const template: TemplateObject = {
       name: POSTVENTA_AGRADECIMIENTO_TEMPLATE,
-      language: { code: "es_ES" },
+      language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
       components: [
         {
           type: "body",
@@ -904,7 +943,7 @@ export async function sendPostventaSoporte(
   if (options?.useTemplate) {
     const template: TemplateObject = {
       name: POSTVENTA_SOPORTE_TEMPLATE,
-      language: { code: "es_ES" },
+      language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
       components: [
         {
           type: "body",
@@ -969,7 +1008,7 @@ export async function sendPostventaResena(
   if (options?.useTemplate) {
     const template: TemplateObject = {
       name: POSTVENTA_RESENA_TEMPLATE,
-      language: { code: "es_ES" },
+      language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
       components: [
         {
           type: "body",
@@ -1011,7 +1050,7 @@ export async function sendPostventaReferidos(
   if (options?.useTemplate) {
     const template: TemplateObject = {
       name: POSTVENTA_REFERIDOS_TEMPLATE,
-      language: { code: "es_ES" },
+      language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
       components: [
         {
           type: "body",
@@ -1055,7 +1094,7 @@ export async function sendPostventaRecaptacion(
   if (options?.useTemplate) {
     const template: TemplateObject = {
       name: POSTVENTA_RECAPTACION_TEMPLATE,
-      language: { code: "es_ES" },
+      language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
       components: [
         {
           type: "body",
@@ -1098,7 +1137,7 @@ export async function sendDevExerciseNudge(
 ): Promise<SendMessageSuccess> {
   const template: TemplateObject = {
     name: DEV_EXERCISE_NUDGE_TEMPLATE,
-    language: { code: "es_ES" },
+    language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
     components: [
       {
         type: "body",
