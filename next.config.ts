@@ -1,7 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["undici"],
+  serverExternalPackages: ["undici", "@prisma/client", ".prisma/client"],
+  outputFileTracingIncludes: {
+    "/**/*": [
+      "./app/generated/prisma/**/*",
+      "./app/generated/prisma/*.node",
+      "./app/generated/prisma/libquery_engine-*",
+    ],
+  },
   async redirects() {
     const legacyPrefixes = [
       "bi",
