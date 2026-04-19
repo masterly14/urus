@@ -71,6 +71,8 @@ export type DemandIngestionCycleResult = {
     unchanged: number;
   };
   error?: string;
+  errorCode?: string;
+  retryable?: boolean;
 };
 
 export type DemandCreatedEventPayload = {

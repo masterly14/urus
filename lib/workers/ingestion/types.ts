@@ -73,6 +73,8 @@ export type IngestionCycleResult = {
     unchanged: number;
   };
   error?: string;
+  errorCode?: string;
+  retryable?: boolean;
 };
 
 export type PropertyCreatedEventPayload = {

@@ -620,6 +620,8 @@ export async function runPropertiesIngestionCycle(): Promise<IngestionCycleResul
           eventsEmitted: 0,
           diff: { created: 0, modified: 0, statusChanged: 0, removed: 0, unchanged: 0 },
           error: classified.message,
+          errorCode: classified.code,
+          retryable: classified.retryable,
         };
       }
     },
