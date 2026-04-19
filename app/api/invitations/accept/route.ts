@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { syncComercialAssignments } from "@/lib/routing/sync-comercial-assignments";
 const PostBodySchema = z.object({
   token: z.string(),
   password: z.string().min(8),
@@ -180,6 +181,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Sync existing unassigned properties/demands to this comercial.
+  // Best-effort: failures here must not break the registration flow.
+  let syncResult: { propertiesAssigned: number; demandsAssigned: number } | null = null;
+  if (comercialId && invitation.role === "comercial") {
+    try {
+      const comercial = await prisma.comercial.findUnique({
+        where: { id: comercialId },
+        select: { id: true, nombre: true, inmovillaAgentId: true, inmovillaRefCode: true },
+      });
+      if (comercial) {
+        syncResult = await syncComercialAssignments(comercial);
+      }
+    } catch (syncErr) {
+      console.error(
+        `[invitations/accept] Sync de asignaciones falló para comercialId=${comercialId}: ${syncErr instanceof Error ? syncErr.message : syncErr}`,
+      );
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     user: {
@@ -189,5 +209,6 @@ export async function POST(request: NextRequest) {
       role: invitation.role,
       comercialId,
     },
+    ...(syncResult ? { sync: syncResult } : {}),
   });
 }
