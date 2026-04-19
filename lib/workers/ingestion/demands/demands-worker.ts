@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { loginToInmovilla } from "@/lib/inmovilla/auth/login";
+import { loadSessionFromDb, saveSessionToDb } from "@/lib/inmovilla/auth/session-store";
 import { fetchAllDemands } from "@/lib/inmovilla/api/demands";
 import {
   loadPreviousDemandSnapshot,
@@ -43,30 +43,39 @@ export async function runDemandsIngestionCycle(): Promise<DemandIngestionCycleRe
       log.info("Ciclo iniciado", { mode: "legacy" });
 
       try {
-        // ── Fase 1: login con retry ─────────────────────────────────────────
+        // ── Fase 1: resolver sesión (DB-first, Playwright fallback con retry) ──
         let t = new PhaseTimer();
-        log.info("Iniciando login en Inmovilla...");
-        let session;
-        try {
-          session = await loginToInmovilla({ headless: true });
-        } catch (loginErr) {
-          const classified = classifyError(loginErr);
-          log.warn("Login fallido, reintentando en 10s", {
-            errorCode: classified.code,
-            error: classified.message,
-          });
-          await delay(LOGIN_RETRY_DELAY_MS);
+        log.info("Resolviendo sesión Inmovilla...");
+        let session = await loadSessionFromDb();
+        if (session) {
+          log.info("Sesión cargada desde DB — omitiendo Playwright");
+        } else {
+          log.info("Sin sesión en DB — intentando login Playwright...");
           try {
+            const { loginToInmovilla } = await import("@/lib/inmovilla/auth/login");
             session = await loginToInmovilla({ headless: true });
-          } catch (retryErr) {
-            alertGeneric(
-              "Ingesta demandas: login fallido tras 2 intentos",
-              "critical",
-              {
-                error: retryErr instanceof Error ? retryErr.message : String(retryErr),
-              },
-            ).catch(() => {});
-            throw retryErr;
+            await saveSessionToDb(session, "demands-login").catch(() => {});
+          } catch (loginErr) {
+            const classified = classifyError(loginErr);
+            log.warn("Login fallido, reintentando en 10s", {
+              errorCode: classified.code,
+              error: classified.message,
+            });
+            await delay(LOGIN_RETRY_DELAY_MS);
+            try {
+              const { loginToInmovilla } = await import("@/lib/inmovilla/auth/login");
+              session = await loginToInmovilla({ headless: true });
+              await saveSessionToDb(session, "demands-login-retry").catch(() => {});
+            } catch (retryErr) {
+              alertGeneric(
+                "Ingesta demandas: login fallido tras 2 intentos y sin sesión en DB",
+                "critical",
+                {
+                  error: retryErr instanceof Error ? retryErr.message : String(retryErr),
+                },
+              ).catch(() => {});
+              throw retryErr;
+            }
           }
         }
 

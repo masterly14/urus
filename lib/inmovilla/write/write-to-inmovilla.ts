@@ -1,5 +1,5 @@
 import { createInmovillaClient } from "../api/client";
-import { loginToInmovilla } from "../auth/login";
+import { loadSessionFromDb, saveSessionToDb } from "../auth/session-store";
 import type { InmovillaSession } from "../auth/types";
 import { assertParsedSuccess } from "./parsers";
 import { writeOperationRegistry } from "./operation-registry";
@@ -29,7 +29,19 @@ function isSessionExpiredSignal(responseText: string): boolean {
 
 async function resolveSession(options?: WriteOptions): Promise<InmovillaSession> {
   if (options?.session) return options.session;
-  return loginToInmovilla({ headless: options?.headless ?? true });
+
+  const dbSession = await loadSessionFromDb();
+  if (dbSession) {
+    console.log("[write] Sesión cargada desde DB — omitiendo Playwright");
+    return dbSession;
+  }
+
+  const { loginToInmovilla } = await import("../auth/login");
+  const session = await loginToInmovilla({ headless: options?.headless ?? true });
+  await saveSessionToDb(session, "write-fallback").catch((err) =>
+    console.warn("[write] No se pudo guardar sesión en DB:", err),
+  );
+  return session;
 }
 
 export async function writeToInmovilla<T extends WriteOperation>(
@@ -127,7 +139,22 @@ export async function writeToInmovilla<T extends WriteOperation>(
         !hasRetriedBySession
       ) {
         hasRetriedBySession = true;
-        session = await loginToInmovilla({ headless: options.headless ?? true });
+        const freshFromDb = await loadSessionFromDb();
+        if (freshFromDb) {
+          session = freshFromDb;
+          continue;
+        }
+        try {
+          const { loginToInmovilla } = await import("../auth/login");
+          session = await loginToInmovilla({ headless: options.headless ?? true });
+          await saveSessionToDb(session, "write-retry").catch(() => {});
+        } catch (loginErr) {
+          throw new InmovillaWriteError(
+            "SESSION_EXPIRED",
+            "Sesión expirada y no se pudo renovar (DB vacía + Playwright no disponible)",
+            { operation, cause: loginErr instanceof Error ? loginErr.message : String(loginErr) },
+          );
+        }
         continue;
       }
 

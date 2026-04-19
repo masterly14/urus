@@ -1744,3 +1744,19 @@ model Notification {
   @@index([channel, createdAt])
   @@map("notification")
 }
+
+model InmovillaSessionStore {
+  id         String   @id @default("singleton")
+  l          String
+  idPestanya String
+  miid       String
+  idUsuario  String
+  numAgencia String
+  cookies    Json
+  source     String   @default("unknown")
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("inmovilla_session_store")
+}

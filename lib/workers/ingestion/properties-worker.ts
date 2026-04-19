@@ -10,7 +10,7 @@ import type { PropiedadListadoItem } from "@/lib/inmovilla/rest/types";
 import type { InmovillaRestClient } from "@/lib/inmovilla/rest/client";
 import type { PropiedadCompleta } from "@/lib/inmovilla/rest/types";
 import type { InmovillaProperty } from "@/lib/inmovilla/api/types";
-import { loginToInmovilla } from "@/lib/inmovilla/auth/login";
+import { loadSessionFromDb, saveSessionToDb } from "@/lib/inmovilla/auth/session-store";
 import { fetchAllProperties } from "@/lib/inmovilla/api/properties";
 import { loadEnumLookupMaps, type EnumLookupMaps } from "@/lib/inmovilla/rest/enum-lookup";
 import { loadPreviousSnapshot, saveCurrentSnapshot, removeFromSnapshot } from "./snapshot-repo";
@@ -442,8 +442,13 @@ export async function runPropertiesIngestionCycle(): Promise<IngestionCycleResul
             fetchComplete,
           });
         } else {
-          log.info("Modo legacy: login + paginación");
-          const session = await loginToInmovilla({ headless: true });
+          log.info("Modo legacy: resolviendo sesión (DB → Playwright)");
+          let session = await loadSessionFromDb();
+          if (!session) {
+            const { loginToInmovilla } = await import("@/lib/inmovilla/auth/login");
+            session = await loginToInmovilla({ headless: true });
+            await saveSessionToDb(session, "properties-legacy").catch(() => {});
+          }
           properties = await fetchAllProperties(session);
           log.info("Propiedades legacy cargadas", { total: properties.length });
         }

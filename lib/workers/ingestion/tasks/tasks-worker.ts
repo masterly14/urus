@@ -3,7 +3,7 @@
  * creates NotaEncargoSession and enqueues reminder jobs.
  */
 
-import { loginToInmovilla } from "@/lib/inmovilla/auth/login";
+import { loadSessionFromDb, saveSessionToDb } from "@/lib/inmovilla/auth/session-store";
 import { prisma } from "@/lib/prisma";
 import { appendEventAndEnqueueJob } from "@/lib/event-store";
 import { runWithWorkerObservability } from "@/lib/observability";
@@ -63,10 +63,16 @@ async function runTasksIngestion(): Promise<TasksIngestionResult> {
 
   console.log("[tasks-worker] Starting ingestion cycle...");
 
-  const session = await loginToInmovilla({
-    headless: true,
-    persistSession: true,
-  });
+  let session = await loadSessionFromDb();
+  if (!session) {
+    console.log("[tasks-worker] Sin sesión en DB — intentando login Playwright");
+    const { loginToInmovilla } = await import("@/lib/inmovilla/auth/login");
+    session = await loginToInmovilla({
+      headless: true,
+      persistSession: true,
+    });
+    await saveSessionToDb(session, "tasks-login").catch(() => {});
+  }
 
   const allTasks = await fetchTaskList(session);
   result.totalListed = allTasks.length;

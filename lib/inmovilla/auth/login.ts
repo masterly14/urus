@@ -5,6 +5,7 @@ import {
   saveInmovillaSessionToFile,
   tryRestoreInmovillaSession,
 } from "./persist-session";
+import { saveSessionToDb } from "./session-store";
 import { extractSession } from "./session";
 import type { InmovillaSession, InmovillaLoginOptions } from "./types";
 
@@ -98,6 +99,9 @@ export async function loginToInmovilla(
       if (persistSession) {
         await saveInmovillaSessionToFile(session, sessionFile);
       }
+      await saveSessionToDb(session, "login-direct").catch((err) =>
+        console.warn("[login] No se pudo guardar sesión en DB:", err),
+      );
       console.log("[login] Sesión extraída correctamente.");
       return session;
     } catch {
@@ -152,6 +156,9 @@ export async function loginToInmovilla(
     if (persistSession) {
       await saveInmovillaSessionToFile(session, sessionFile);
     }
+    await saveSessionToDb(session, "login-2fa").catch((err) =>
+      console.warn("[login] No se pudo guardar sesión en DB:", err),
+    );
 
     console.log("[login] Sesión extraída correctamente.");
     return session;

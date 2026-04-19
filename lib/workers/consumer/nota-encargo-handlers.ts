@@ -345,11 +345,19 @@ export async function handleCrearProspectoInmovilla(
     );
   }
 
-  // 6. Login to Inmovilla (CRM v2 session)
-  let inmoSession = await loginToInmovilla({
-    headless: true,
-    persistSession: true,
-  });
+  // 6. Resolve Inmovilla CRM v2 session (DB-first, Playwright fallback)
+  const { loadSessionFromDb, saveSessionToDb } = await import(
+    "@/lib/inmovilla/auth/session-store"
+  );
+  let inmoSession = await loadSessionFromDb();
+  if (!inmoSession) {
+    console.log("[crear-prospecto] Sin sesión en DB — intentando login Playwright");
+    inmoSession = await loginToInmovilla({
+      headless: true,
+      persistSession: true,
+    });
+    await saveSessionToDb(inmoSession, "nota-encargo-login").catch(() => {});
+  }
 
   const keyacci = session.tipoOperacion === "ALQUILER" ? 2 : 1;
   const precioinmo = keyacci === 1 ? session.precio : 0;
@@ -388,11 +396,18 @@ export async function handleCrearProspectoInmovilla(
     console.warn(
       `[crear-prospecto] CRM v2 401 — forcing fresh login and retrying...`,
     );
-    inmoSession = await loginToInmovilla({
-      headless: true,
-      persistSession: true,
-      forceFreshLogin: true,
-    });
+    try {
+      inmoSession = await loginToInmovilla({
+        headless: true,
+        persistSession: true,
+        forceFreshLogin: true,
+      });
+      await saveSessionToDb(inmoSession, "nota-encargo-retry").catch(() => {});
+    } catch (loginErr) {
+      throw new Error(
+        `CRM v2 401 y no se pudo renovar sesión: ${loginErr instanceof Error ? loginErr.message : String(loginErr)}`,
+      );
+    }
     createParams.numagencia = inmoSession.numAgencia;
     prospectoResponse = await createProspecto(inmoSession, createParams);
   }
