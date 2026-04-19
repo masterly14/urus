@@ -17,13 +17,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY package.json package-lock.json .npmrc ./
+# Dummy DATABASE_URL solo para build: prisma generate valida el schema pero
+# no conecta a la DB. La URL real se inyecta en runtime por Railway.
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+
+COPY package.json package-lock.json .npmrc prisma.config.ts ./
+COPY prisma ./prisma/
 RUN npm ci --legacy-peer-deps
 
 RUN npx playwright install chromium --with-deps
 
-COPY prisma ./prisma/
-COPY prisma.config.ts ./
 RUN npx prisma generate
 
 COPY tsconfig.json ./
