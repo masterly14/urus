@@ -177,7 +177,6 @@ Registro diario según rutina en `docs/plan.md`.
   - `markFailed` con flag `permanent` y disparo automático de alerta.
   - Clasificación de errores egestion (permanent vs transient).
   - Endpoint API `/api/workers/dead-letter` para gestión operativa de la DLQ.
-  - Variable `ALERT_WHATSAPP_TO` documentada en `.env.example`.
 - [x] **[M0] Eventos `VISITA_EVALUADA` y `VISITA_AGENDADA` en schema Prisma** (`544f4fc`, `abb9585`)
 - [x] **[deps] Shadcn UI inicializado + componentes** (Button, Card, RadioGroup, Textarea, Input, Label, Select) (`b23b0d6`)
 - [x] **[M4] Micro-frontend post-visita** (`69771cb`, `085e8cd`)
@@ -216,11 +215,11 @@ Registro diario según rutina en `docs/plan.md`.
    69771cb feat(M4): implementar API Route post-visit para evaluación de visita
    b23b0d6 chore(deps): añadir Shadcn UI y componentes para formularios
    544f4fc feat(M0): añadir evento VISITA_EVALUADA al event store
-   e6f941f docs(M1): documentar ALERT_WHATSAPP_TO en .env.example
+   e6f941f docs(M1): documentar variable de alerta en .env.example
    641d34b feat(M1): endpoint API /api/workers/dead-letter para gestión DLQ
    d25c90e feat(M1): clasificar errores egestion (permanent vs transient) y propagar en consumer
    6f098c4 feat(M1): markFailed con flag permanent y alerta al pasar a DEAD_LETTER
    241f3b9 feat(M1): utilidades dead-letter queue (listar, stats, replay, purge)
-   f46214d feat(M1): añadir módulo de alertas para dead-letter (log + WhatsApp opcional)
+   f46214d feat(M1): añadir módulo de alertas para dead-letter
    426034a feat(M1): robustez del Ingestion Worker - logging, errores, metricas y reconexion DB
 -->

@@ -2,7 +2,6 @@
  * Resolución del teléfono del comercial asignado a una propiedad.
  *
  * Delega en resolveComercialByProperty (cadena: comercialId FK → keyagente → nombre).
- * Fallback a ALERT_WHATSAPP_TO si no se encuentra teléfono.
  */
 
 import { resolveComercialByProperty } from "@/lib/routing/resolve-comercial";
@@ -32,18 +31,9 @@ export async function resolveAgentPhoneByProperty(
     );
   }
 
-  const fallbackPhone = process.env.ALERT_WHATSAPP_TO?.trim();
-  if (fallbackPhone) {
-    return {
-      comercialId: comercial?.id ?? null,
-      nombre: comercial?.nombre ?? "Comercial",
-      telefono: fallbackPhone,
-    };
-  }
-
   if (!comercial) {
     console.warn(
-      `[resolve-agent] Propiedad ${propertyCode} — sin comercial y sin ALERT_WHATSAPP_TO`,
+      `[resolve-agent] Propiedad ${propertyCode} — sin comercial asignado`,
     );
   }
   return null;

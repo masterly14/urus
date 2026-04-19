@@ -3,6 +3,7 @@ import { z } from "zod";
 import { appendEvent } from "@/lib/event-store/event-store";
 import { AggregateType, EventType } from "@/app/generated/prisma/client";
 import { enqueueJob } from "@/lib/job-queue";
+import { emitManagementAlert } from "@/lib/notifications/emit";
 import { withObservedRoute } from "@/lib/observability";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 
@@ -61,19 +62,19 @@ const postHandler = async (request: Request) => {
       idempotencyKey: `process_event:${event.id}`,
     });
 
-    const alertPhone = process.env.ALERT_WHATSAPP_TO;
-    if (alertPhone) {
-      await enqueueJob({
-        type: "NOTIFY_LEAD_WHATSAPP",
-        payload: {
-          assignedAgentTelefono: alertPhone,
-          leadAggregateId: propertyCode,
-          score: 0,
-          slaLevel: "INCIDENCIA_POSTVENTA",
-        },
-        idempotencyKey: `notify_incidencia:${event.id}`,
-        sourceEventId: event.id,
+    try {
+      await emitManagementAlert({
+        source: "post-venta",
+        severity: "warning",
+        title: "Incidencia post-venta abierta",
+        description:
+          `Propiedad ${propertyCode} con incidencia reportada por ${buyerPhone}.\n` +
+          `Descripcion: ${description}`,
       });
+    } catch (err) {
+      console.error(
+        `[postventa/incidencia] Error emitiendo notificación interna: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
 
     return NextResponse.json({ success: true, eventId: event.id });

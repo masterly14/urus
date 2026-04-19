@@ -264,7 +264,7 @@ Valida que el documento aprobado tiene parties con email y que la firma no se ha
 | **Función** | `handleFirmaEnviada` |
 | **Módulo** | M8 (Firma Digital) |
 
-Envía la URL de firma por WhatsApp a las parties con teléfono. Fallback al vendedor por defecto y, opcionalmente, al comercial (`ALERT_WHATSAPP_TO`).
+Envía la URL de firma por WhatsApp a las parties con teléfono. Fallback al vendedor por defecto y aviso interno para management en plataforma.
 
 **Side effects:** WhatsApp `sendSignatureInitialNotification`.
 
@@ -280,7 +280,7 @@ Documentación detallada: [`docs/firma-digital.md`](../firma-digital.md).
 | **Función** | `handleFirmaCompletada` |
 | **Módulo** | M8 (Firma Digital) |
 
-Encola actualización de estado en Inmovilla (`estadoficha: vendido`) y confirma por WhatsApp al vendedor y al comercial.
+Encola actualización de estado en Inmovilla (`estadoficha: vendido`), confirma por WhatsApp al vendedor y emite aviso interno para management.
 
 **Side effects:** job `WRITE_TO_INMOVILLA` (UPDATE_PROPERTY_STATUS), WhatsApp `sendFirmaCompletadaConfirmation`.
 

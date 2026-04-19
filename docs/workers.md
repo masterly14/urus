@@ -168,7 +168,7 @@ Todas las llamadas `enqueueJob` en el codebase incluyen `idempotencyKey`. La col
 
 ### Alertas
 
-Sistema de alertas en `lib/alerts/alert-service.ts`. Canales: log estructurado + WhatsApp (si `ALERT_WHATSAPP_TO` está configurado).
+Sistema de alertas en `lib/alerts/alert-service.ts`. Canales: log estructurado + notificación interna (`private-notifications-management`).
 
 | Función | Cuándo se emite |
 |---------|-----------------|

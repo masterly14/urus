@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAuthorized } from "@/lib/api/cron-auth";
+import { isQstashAuthorized } from "@/lib/api/cron-auth";
 import { prisma } from "@/lib/prisma";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
 import { sendMicrositeValidationEscalation } from "@/lib/whatsapp/send";
@@ -11,7 +11,7 @@ import { withObservedRoute } from "@/lib/observability";
  * Idempotente vía `escalatedAt`.
  */
 const postHandler = async (request: Request) => {
-  if (!isAuthorized(request)) {
+  if (!(await isQstashAuthorized(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
