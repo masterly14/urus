@@ -30,27 +30,55 @@ function getQstashReceiver(): Receiver | null {
   return qstashReceiver;
 }
 
+function resolveRequestUrl(request: Request): string {
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto =
+    request.headers.get("x-forwarded-proto") ??
+    (request.url.startsWith("https") ? "https" : "http");
+
+  if (!forwardedHost) return request.url;
+
+  const parsed = new URL(request.url);
+  return `${forwardedProto}://${forwardedHost}${parsed.pathname}${parsed.search}`;
+}
+
 /**
- * Autorización oficial de QStash para cron routes.
- * Valida `Upstash-Signature` con llaves de firma actuales.
+ * Autorización para cron routes. Valida en orden:
+ *   1. Firma Upstash-Signature con QSTASH_CURRENT/NEXT_SIGNING_KEY
+ *   2. Header Authorization: Bearer <CRON_SECRET> como fallback
  */
 export async function isQstashAuthorized(request: Request): Promise<boolean> {
   const signature = request.headers.get("Upstash-Signature");
-  if (!signature) return false;
+  const bearerOk = isAuthorized(request);
 
-  const receiver = getQstashReceiver();
-  if (!receiver) return false;
-
-  const body = await request.clone().text();
-
-  try {
-    await receiver.verify({
-      signature,
-      body,
-      url: request.url,
-    });
-    return true;
-  } catch {
+  if (!signature) {
+    if (bearerOk) return true;
+    console.warn("[cron-auth] Sin Upstash-Signature ni Bearer válido");
     return false;
   }
+
+  const receiver = getQstashReceiver();
+  if (!receiver) {
+    console.error(
+      "[cron-auth] QSTASH_CURRENT_SIGNING_KEY / QSTASH_NEXT_SIGNING_KEY no configurados en Vercel",
+    );
+    return bearerOk;
+  }
+
+  const body = await request.clone().text();
+  const candidateUrls = [request.url, resolveRequestUrl(request)];
+  const uniqueUrls = [...new Set(candidateUrls)];
+
+  for (const url of uniqueUrls) {
+    try {
+      await receiver.verify({ signature, body, url });
+      return true;
+    } catch (err) {
+      console.warn(
+        `[cron-auth] verify falló para url=${url}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+  }
+
+  return bearerOk;
 }
