@@ -1,8 +1,11 @@
 "use client";
 
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Bell, Search, LogOut, Settings, User } from "lucide-react";
-import { useRole } from "@/lib/hooks/use-role";
-import { useNotifications } from "@/lib/hooks/use-notifications";
+import { useSession } from "@/lib/hooks/use-session";
+import { signOut } from "@/lib/auth/client";
+import { MAX_NOTIFICATIONS, useNotifications } from "@/lib/hooks/use-notifications";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,22 +52,54 @@ function timeAgo(timestamp: string): string {
     return `hace ${Math.floor(hours / 24)}d`;
 }
 
-export function TopBar() {
-    const { role, setRole } = useRole();
-    const { notifications, unreadCount, markAsRead, markAllRead } = useNotifications();
+function getInitials(name: string): string {
+    return name
+        .split(" ")
+        .slice(0, 2)
+        .map((w) => w[0])
+        .join("")
+        .toUpperCase();
+}
+
+const ROLE_LABELS: Record<string, string> = {
+    ceo: "CEO",
+    admin: "Administrador",
+    comercial: "Comercial",
+};
+
+export function TopBar({ logoSrc }: { logoSrc?: string }) {
+    const router = useRouter();
+    const { session, isCeo, isCeoOrAdmin } = useSession();
+    const { notifications, unreadCount, markAsRead, markAllRead, connected } = useNotifications();
+
+    const handleLogout = async () => {
+        await signOut();
+        router.push("/login");
+    };
 
     return (
         <header className="fixed top-0 left-0 right-0 z-50 flex h-16 items-center justify-between border-b border-border/50 bg-card/80 px-4 backdrop-blur-xl">
             {/* Logo */}
-            <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[var(--urus-gold)] to-[var(--urus-gold)]/70 flex items-center justify-center">
-                        <span className="text-sm font-bold text-background">U</span>
+            <div className="flex min-w-0 shrink-0 items-center gap-3">
+                {logoSrc ? (
+                    <Image
+                        src={logoSrc}
+                        alt="Urus Capital Group"
+                        width={140}
+                        height={48}
+                        priority
+                        className="h-11 w-auto max-w-[min(40vw,180px)] object-contain object-left"
+                    />
+                ) : (
+                    <div className="flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--urus-gold)] to-[var(--urus-gold)]/70">
+                            <span className="text-sm font-bold text-background">U</span>
+                        </div>
+                        <span className="text-lg font-semibold tracking-tight">
+                            URUS <span className="text-[var(--urus-gold)]">Capital</span>
+                        </span>
                     </div>
-                    <span className="text-lg font-semibold tracking-tight">
-                        URUS <span className="text-[var(--urus-gold)]">Capital</span>
-                    </span>
-                </div>
+                )}
             </div>
 
             {/* Center: Search */}
@@ -81,15 +116,10 @@ export function TopBar() {
 
             {/* Right section */}
             <div className="flex items-center gap-3">
-                {/* Role Selector */}
-                <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value as "ceo" | "comercial")}
-                    className="h-8 rounded-md border border-border/50 bg-accent/30 px-2 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-secondary/50"
-                >
-                    <option value="ceo">👔 CEO</option>
-                    <option value="comercial">🏠 Comercial</option>
-                </select>
+                {/* Role badge */}
+                <Badge variant="outline" className="text-xs font-medium px-2 py-0.5">
+                    {ROLE_LABELS[session.role] ?? session.role}
+                </Badge>
 
                 {/* Mode Toggle */}
                 <ModeToggle />
@@ -104,51 +134,76 @@ export function TopBar() {
                                     {unreadCount}
                                 </span>
                             )}
+                            <span
+                                className={cn(
+                                    "absolute bottom-0.5 right-0.5 h-2 w-2 rounded-full border border-card",
+                                    connected ? "bg-emerald-500" : "bg-muted-foreground/40",
+                                )}
+                                title={connected ? "Conectado en tiempo real" : "Desconectado"}
+                            />
                         </Button>
                     </PopoverTrigger>
                     <PopoverContent align="end" className="w-96 p-0">
                         <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
                             <h3 className="text-sm font-semibold">Notificaciones</h3>
                             <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
                                 onClick={markAllRead}
-                                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                className="h-auto shrink-0 px-2 py-1 text-xs font-medium text-foreground/90 hover:bg-accent hover:text-foreground"
                             >
                                 Marcar todas como leídas
                             </Button>
                         </div>
                         <ScrollArea className="h-80">
-                            <div className="divide-y divide-border/30">
-                                {notifications.slice(0, 15).map((notif) => (
-                                    <Button
-                                        key={notif.id}
-                                        onClick={() => markAsRead(notif.id)}
-                                        className={cn(
-                                            "flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/40",
-                                            !notif.read && "bg-accent/20"
-                                        )}
-                                    >
-                                        <span
+                            <div className="divide-y divide-border/40">
+                                {notifications.length === 0 ? (
+                                    <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+                                        No hay notificaciones recientes
+                                    </p>
+                                ) : (
+                                    notifications.slice(0, MAX_NOTIFICATIONS).map((notif) => (
+                                        <Button
+                                            key={notif.id}
+                                            type="button"
+                                            variant="ghost"
+                                            onClick={() => markAsRead(notif.id)}
                                             className={cn(
-                                                "mt-1 h-2 w-2 shrink-0 rounded-full",
-                                                severityColors[notif.severity]
+                                                "flex h-auto min-h-0 w-full shrink-0 items-start justify-start gap-3 rounded-none px-4 py-3.5 text-left font-normal whitespace-normal transition-colors",
+                                                "hover:bg-accent/50 focus-visible:bg-accent/50",
+                                                !notif.read && "bg-accent/25"
                                             )}
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-xs font-semibold truncate">{notif.title}</span>
-                                                <Badge variant="outline" className="text-[10px] shrink-0 px-1.5 py-0">
-                                                    {sourceLabels[notif.source] || notif.source}
-                                                </Badge>
+                                        >
+                                            <span
+                                                className={cn(
+                                                    "mt-1.5 h-2 w-2 shrink-0 rounded-full",
+                                                    severityColors[notif.severity]
+                                                )}
+                                                aria-hidden
+                                            />
+                                            <div className="flex min-w-0 flex-1 flex-col gap-1.5 text-left">
+                                                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                                                    <span className="text-sm font-semibold leading-snug text-foreground">
+                                                        {notif.title}
+                                                    </span>
+                                                    <Badge
+                                                        variant="secondary"
+                                                        className="h-5 shrink-0 border border-border/60 px-2 text-[10px] font-medium"
+                                                    >
+                                                        {sourceLabels[notif.source] || notif.source}
+                                                    </Badge>
+                                                </div>
+                                                <p className="line-clamp-2 break-words text-xs leading-relaxed text-muted-foreground">
+                                                    {notif.description}
+                                                </p>
+                                                <p className="text-[11px] tabular-nums text-muted-foreground">
+                                                    {timeAgo(notif.timestamp)}
+                                                </p>
                                             </div>
-                                            <p className="mt-0.5 text-xs text-muted-foreground truncate">
-                                                {notif.description}
-                                            </p>
-                                            <p className="mt-1 text-[10px] text-muted-foreground/60">
-                                                {timeAgo(notif.timestamp)}
-                                            </p>
-                                        </div>
-                                    </Button>
-                                ))}
+                                        </Button>
+                                    ))
+                                )}
                             </div>
                         </ScrollArea>
                     </PopoverContent>
@@ -160,25 +215,27 @@ export function TopBar() {
                         <Button variant="ghost" className="h-9 w-9 rounded-full p-0">
                             <Avatar className="h-8 w-8">
                                 <AvatarFallback className="bg-gradient-to-br from-[var(--urus-gold)] to-[var(--urus-gold)]/70 text-background text-xs font-bold">
-                                    MC
+                                    {getInitials(session.nombre || "U")}
                                 </AvatarFallback>
                             </Avatar>
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
                         <div className="px-3 py-2">
-                            <p className="text-sm font-medium">Miguel CEO</p>
-                            <p className="text-xs text-muted-foreground">miguel@uruscapital.es</p>
+                            <p className="text-sm font-medium">{session.nombre}</p>
+                            <p className="text-xs text-muted-foreground">{ROLE_LABELS[session.role] ?? session.role}</p>
                         </div>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem>
                             <User className="mr-2 h-4 w-4" /> Perfil
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
-                            <Settings className="mr-2 h-4 w-4" /> Configuración
-                        </DropdownMenuItem>
+                        {isCeoOrAdmin && (
+                            <DropdownMenuItem onClick={() => router.push("/platform/configuracion")}>
+                                <Settings className="mr-2 h-4 w-4" /> Configuración
+                            </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">
+                        <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
                             <LogOut className="mr-2 h-4 w-4" /> Cerrar sesión
                         </DropdownMenuItem>
                     </DropdownMenuContent>

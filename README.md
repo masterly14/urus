@@ -4,22 +4,69 @@
 
 ---
 
-## Estado del repo (M0)
+## Estado del repo (M0 + M1 + M2 + Auth)
 
-Infraestructura base ya implementada según el plan (Semana 1):
+Infraestructura base, workers de Inmovilla y autenticación/autorización implementados:
+
+- **Auth y Autorización**: Better Auth con Prisma adapter, 3 roles (`ceo`, `admin`, `comercial`), invitaciones por email (Resend), protección de rutas con `proxy.ts` (Next.js 16). Ver `docs/auth-autorizacion.md`.
+
+- **Pipeline interno del lead (`LeadStatus`)**: el estado de cada demanda/lead a lo largo del pipeline comercial se gestiona en `DemandCurrent.leadStatus` (enum propio en Neon), **no en Inmovilla**. Los estados (`NUEVO` → `CONTACTADO` → `EN_SELECCION` → `VISITA_PENDIENTE` → `VISITA_CONFIRMADA` → `VISITA_REALIZADA` → `EN_NEGOCIACION` → `EN_FIRMA` → `CERRADO` / `PERDIDO`) se avanzan automáticamente desde los event handlers del consumer. Inmovilla mantiene `keysitu=20` (Buscando) como valor fijo; no se actualiza programáticamente. Ver `docs/lead-status-pipeline.md`.
+
 
 - **Event Store (Neon/PostgreSQL)**: tabla `events` (Prisma `Event`) + API en `lib/event-store/` (`appendEvent`, `getEventsByAggregate`, `getEventsSince`) con tests en `lib/event-store/__tests__/`.
 - **Job Queue (Neon/PostgreSQL)**: tabla `job_queue` (Prisma `JobQueue`) + API en `lib/job-queue/` (`enqueueJob`, `dequeueJob`, `markCompleted`, `markFailed`) con reintentos, idempotencia y tests de ciclo completo en `lib/job-queue/__tests__/`.
+- **Ingestion Worker (M1)**: lectura de propiedades y demandas desde Inmovilla vía `lib/inmovilla/api/` (paginación, normalización). Cron/scripts: `ingestion:properties`, `ingestion:demands`. Documentación: `docs/workers/inmovilla-endpoints.md`.
+- **Egestion Worker / escritura (M2)**: módulo `lib/inmovilla/write/` con `writeToInmovilla(operation, payload)` — operaciones tipadas (`createDemand`, `updateDemandEmail`, `updateDemandPriority`), parsing de respuestas legacy, verificación post-escritura y reintento por sesión expirada. Script: `egestion:write`.
+- **Observabilidad persistente**: capa compartida en `lib/observability/` para API Routes y workers con logs estructurados, `requestId`/correlación y métricas persistidas en Neon (`observability_logs`, `execution_metrics`). Documentación: `docs/observabilidad-workers-api.md`.
 
 Documentación de decisiones:
 
 - `docs/adr/001-event-sourcing-sobre-crud.md`
 - `docs/adr/002-neon-como-job-queue.md`
+- **Dashboard Comercial (métricas / KPIs)**: `docs/dashboard-comercial-metricas.md`
+- **Dashboard Comercial (UI / rutas / hooks)**: `docs/dashboard-comercial-ui.md`
+- **Pipeline interno del lead (LeadStatus)**: `docs/lead-status-pipeline.md` — estados del lead gestionados en Neon, no en Inmovilla.
+
+Escenario de migración a API REST (contactos, propiedades, propietarios) documentado en `docs/plan.md` — estrategia de transición sin romper el flujo actual.
+
+**Mensajería:** se usa **WhatsApp Cloud API (Meta)** en integración directa; no se utiliza BSP (Twilio, 360dialog, MessageBird).
+
+- **Catálogos Inmovilla (enums vía REST)**: `key_loca`, `key_tipo`, `key_zona` se resuelven desde Neon; sincronización con `scripts/sync-inmovilla-enums.ts` (rate limit 2/min). Lectura: `lib/inmovilla/rest/catalogs.ts`. Ver `docs/catalogos-inmovilla.md`.
 
 ### Comandos útiles
 
 - **Tests**: `npm test` (requiere `DATABASE_URL` configurada en el entorno).
+- **Tests integración dashboards**: `npm run test:dashboards` — evento `OPERACION_CERRADA` → hechos → APIs (`/api/dashboard/*`, `/api/ceo/overview`, `/api/colaboradores/dashboard`) y smoke UI (`KpiCard` / `Semaforo` con datos de `getCeoOverview()`). Ver `docs/dashboard-integration-tests.md`.
+- **Smoke live dashboards (Neon + proveedores opcionales)**: `npm run dashboards:live-check` — ejecuta las mismas queries analíticas que alimentan los dashboards y, si existen credenciales, llama a Inmovilla REST (`INMOVILLA_API_TOKEN`) y Statefox (`STATEFOX_BEARER_TOKEN`). Detalle en `docs/dashboard-integration-tests.md`.
+- **Testeo cercano a producción (lógica):** además de la suite anterior, el proyecto usa **scripts** (`scripts/` y comandos `npm run …`) para ejecutar flujos de negocio e integración con la misma configuración que el runtime real en la medida de lo posible. Detalle y reglas en `AGENTS.md` y en `docs/plan.md` (*Estrategia de testeo*).
+- **UI con datos mock:** las rutas con interfaz relevante deben soportar un **query parameter** documentado que active fixtures/mock y permita **previsualizar la UI** sin datos reales. Convención y obligaciones descritas en `AGENTS.md` y `docs/plan.md`.
 - **Build**: `npm run build`
+- **Inmovilla — login**: `npm run inmovilla:login` (requiere `INMOVILLA_USER`, `INMOVILLA_PASSWORD`, `INMOVILLA_OFFICE_KEY` y Composio/Gmail para 2FA).
+- **Inmovilla — lectura propiedades**: `npm run inmovilla:read-properties`
+- **Egestion — escritura en Inmovilla**: `npm run egestion:write -- <operation> [--headless] [--no-verify] [--json]` — operaciones: `createDemand`, `updateDemandEmail`, `updateDemandPriority` (ver variables/args en el script).
+- **Ingestion — propiedades**: `npm run ingestion:properties`
+- **Ingestion — demandas**: `npm run ingestion:demands`
+- **Consumer (procesador de eventos)**: `npm run consumer` — procesa jobs `PROCESS_EVENT` y encola proyecciones.
+- **Proyecciones (worker)**: `npm run projections` — materializa estado actual en `properties_current` y `demands_current` desde la job queue (`UPDATE_PROPERTY_PROJECTION`, `UPDATE_DEMAND_PROJECTION`). Cron: `POST /api/cron/projections` (requiere `CRON_SECRET`).
+- **Reevaluación de pricing (M7)**: cron `POST /api/cron/pricing-reevaluation` — escanea `properties_current` y encola `RUN_PRICING_ANALYSIS` para inmuebles sin leads prolongados o con visitas sin oferta (ver sección *Motor de Pricing*). Requiere `CRON_SECRET`; orquestación recomendada con Upstash QStash (p. ej. 1×/día).
+- **Sincronizar catálogos Inmovilla (enums)**: `npm run inmovilla:sync-enums` (opción `--skip-zonas` para omitir zonas). Requiere `INMOVILLA_API_TOKEN` y `DATABASE_URL`.
+- **Feedback loop NLU (test aislado)**: `npx tsx scripts/test-feedback-loop.ts` — valida `classifyBuyerFeedback` con propiedades mock y NLU real. Requiere `OPENAI_API_KEY`.
+- **Feedback loop E2E (Vitest)**: `npm test -- feedback-loop-e2e` — test de integración determinista del pipeline completo (WA → eventos → jobs → proyección). Usa BD real + NLU stub.
+- **Feedback loop live-RPA**: `npx tsx scripts/test-feedback-loop-live-rpa.ts` — pipeline completo con NLU real y escritura en Inmovilla (RPA). Requiere `FEEDBACK_LOOP_DEMAND_ID` y `FEEDBACK_LOOP_LIVE=true` para escritura real. Sin ese flag ejecuta dry-run. Ver `docs/microsite-feedback-loop.md`.
+- **Firma live E2E (Neon + Cloudinary + WhatsApp + OTP real)**: `npm run firma:live-e2e -- --check-env` para validar prerequisitos y `npm run firma:live-e2e -- --confirm-live` para ejecutar el flujo completo con firma humana. Detalle en `docs/firma-live-e2e.md`.
+- **Post-venta (M9) — plantillas Meta + Flow + anuales**: la cadencia post-venta se envía 100% con plantillas Meta (`postventa_agradecimiento`, `postventa_soporte`, `postventa_resena`, `postventa_referidos`, `postventa_recaptacion`, `postventa_cumpleanos`, `postventa_navidad`, `postventa_formulario`). En D0 se envía un WhatsApp Flow (`postventa_survey`) que recoge nombre, fecha de nacimiento y email; con eso el sistema programa mensajes anuales indefinidos (cumpleaños 12:00 Europe/Madrid, Navidad 24-dic 12:00). Ver `docs/postventa-plantillas-whatsapp.md` (plantillas, Flow JSON, variables). Cron complementario: `POST /api/cron/postventa-rearm` (mensual, `CRON_SECRET`).
+- **Bootstrap post-deploy**: `npm run bootstrap` — script idempotente para inicialización tras despliegue. Controlado por `BOOTSTRAP_ON_DEPLOY=true` y `BOOTSTRAP_MODE=safe|full`. Modo `safe`: seed CEO + check DB. Modo `full`: además sync catálogos Inmovilla y backfill operaciones. El `build` de Vercel solo ejecuta compilación (`next build`); las sincronizaciones pesadas nunca se ejecutan dentro del build.
+
+### Despliegue en Vercel (estrategia DB)
+
+La base de datos operativa es la **rama `develop` de Neon** (no `production`). Esto es intencional: la rama `production` de Neon contiene datos corruptos de testing mezclados con datos reales. Al desplegar en Vercel:
+
+1. `DATABASE_URL` debe apuntar a la rama `develop` de Neon.
+2. Tras el primer deploy, ejecutar `npm run bootstrap` manualmente o configurar como post-deploy hook.
+3. Los cron endpoints (`/api/cron/*`) autenticados con `CRON_SECRET` mantienen la sincronización en tiempo real.
+4. **Migración a `production` de Neon**: solo tras limpiar datos de testing en la rama production y verificar integridad.
+
+**Contribuir:** ramas, commits, PRs y releases siguen la [Guía de contribución (CONTRIBUTING.md)](CONTRIBUTING.md).
 
 ## Tabla de Contenidos
 
@@ -29,10 +76,10 @@ Documentación de decisiones:
 4. [Módulo 2 — Notificación Automática al Comprador](#módulo-2--notificación-automática-al-comprador)
 5. [Módulo 3 — Respuesta del Comprador y Ajuste de Demanda](#módulo-3--respuesta-del-comprador-y-ajuste-automático-de-la-demanda)
 6. [Módulo 4 — Visita y Afinado Humano](#módulo-4--visita-y-afinado-humano)
-7. [Módulo 5 — Sincronización con Statefox](#módulo-5--sincronización-inmovilla--statefox)
-8. [Módulo 6 — Búsqueda Automática en Statefox](#módulo-6--búsqueda-automática-en-statefox-y-generación-de-enlace)
+7. [Módulo 5 — Búsqueda de Stock Externo (Statefox API)](#módulo-5--búsqueda-de-stock-externo-statefox-api-rest)
+8. [Módulo 6 — Microsite de Selección para el Comprador](#módulo-6--microsite-de-selección-para-el-comprador)
 9. [Módulo 7 — Validación del Comercial](#módulo-7--validación-del-comercial)
-10. [Módulo 8 — Envío al Comprador y Feedback Loop](#módulo-8--envío-del-enlace-al-comprador-y-feedback-loop)
+10. [Módulo 8 — Envío del Microsite y Feedback Loop](#módulo-8--envío-del-microsite-al-comprador-y-feedback-loop)
 11. [Resultado Final del Sistema Base](#resultado-final-del-sistema-base)
 12. [Diagrama de Flujo End-to-End](#diagrama-de-flujo-end-to-end)
 13. [SOPs Internos](#sops-internos)
@@ -51,9 +98,9 @@ Documentación de decisiones:
 
 ## Visión General de la Arquitectura
 
-### Orquestador Híbrido: Event Sourcing + Server-Side RPA
+### Orquestador Híbrido: Event Sourcing + API REST + RPA Legacy
 
-El principio fundacional de esta arquitectura es la **Segregación de Responsabilidades**. Se acepta que Inmovilla es un sistema cerrado, rígido y sin capacidades de tiempo real (sin webhooks ni APIs modernas de escritura). Por lo tanto, se relega a ser una **"Bóveda"**, mientras se construye un ecosistema moderno, asíncrono y orientado a eventos que lo envuelve y controla desde fuera.
+El principio fundacional de esta arquitectura es la **Segregación de Responsabilidades**. Inmovilla dispone de una API REST v1 para clientes, propiedades y propietarios, pero no cubre demandas, estados operativos ni webhooks. Se relega a ser una **"Bóveda"** (repositorio pasivo de datos legales) mientras se construye un ecosistema moderno, asíncrono y orientado a eventos que lo envuelve: la API REST se usa donde existe, y RPA legacy donde no.
 
 El sistema se compone de **cuatro capas principales** que interactúan en un flujo continuo.
 
@@ -64,37 +111,52 @@ El sistema se compone de **cuatro capas principales** que interactúan en un flu
 Es la **fuente de verdad inamovible**. Su única función es almacenar los datos finales y legales:
 
 - Propiedades activas
-- Historiales de clientes
-- Facturas y contratos
+- Historiales de clientes (contactos)
+- Facturas
 - Demandas y cruces
 
-**Ningún dato vive de forma definitiva fuera de Inmovilla.** Sin embargo, Inmovilla no toma decisiones, no mide tiempos y no dispara automatizaciones. Actúa como un **repositorio pasivo** que nuestro sistema lee y escribe de forma programática.
+**Ningún dato estructurado vive de forma definitiva fuera de Inmovilla** cuando existe cobertura en su API. Sin embargo, la API REST no expone gestión documental (adjuntar PDFs/DOCXs a propiedades, clientes ni propietarios), por lo que **los documentos legales (contratos, audit trails) se almacenan en Cloudinary/S3 con metadatos en Neon** — mismo patrón que colaboradores externos y microsites. Expone API REST v1 (`procesos.inmovilla.com/api/v1`) para clientes, propiedades y propietarios. No cubre demandas (que requieren polígonos geoespaciales), no mide tiempos y no dispara automatizaciones.
+
+**El estado del pipeline (en qué fase está cada lead) vive exclusivamente en Neon** (`DemandCurrent.leadStatus`), no en Inmovilla. El campo `keysitu` de Inmovilla permanece fijo en `20` (Buscando) y solo lo modifican los agentes manualmente desde el CRM. Ver `docs/lead-status-pipeline.md`.
+
+> **Nota terminológica:** En Inmovilla no existe una entidad "Lead". Lo que el sector llama "lead" se materializa como un **Contacto** (persona) + una **Demanda** (búsqueda activa con polígono geoespacial). Los contactos son accesibles vía API REST; las demandas solo vía RPA legacy.
 
 ---
 
-### Capa 2 — Intercepción y RPA (Workers de Sincronización)
+### Capa 2 — Workers de Integración (API REST + RPA Legacy)
 
-Dado que Inmovilla no emite notificaciones cuando algo ocurre, ni dispone de una API abierta para escrituras complejas, se construye una red de **workers server-side** que absorben toda la fricción técnica heredada.
+Se construye una red de **workers server-side** que conectan con Inmovilla y Statefox por dos vías según la cobertura de cada API.
 
-#### Ingestion Worker (Lectura / Polling)
+**Vía API REST** (clientes, propiedades, propietarios en Inmovilla; propiedades de mercado en Statefox):
+- Cliente HTTP autenticado con token estático (`Token: ...` para Inmovilla, `Bearer` para Statefox).
+- CRUD directo, respuestas JSON tipadas, sin necesidad de Playwright ni sesiones.
+- Rate limits Inmovilla: 10 propiedades/min, 20 clientes/min, 20 propietarios/min.
 
-Un proceso en segundo plano (`cron-job` en Node.js) que monitorea Inmovilla constantemente mediante:
+**Vía RPA Legacy** (creación/actualización de demandas y polígonos geoespaciales en Inmovilla):
+- Login silente con Playwright → código 2FA vía **Composio + Gmail** → captura cookies de sesión → token CSRF → XHR clonado a `guardar.php`.
+- Necesario porque la API REST no cubre demandas (que requieren polígonos geoespaciales dibujados en mapa).
+- **Nota:** los cambios de estado del pipeline **no** se envían a Inmovilla vía RPA. El estado del lead se gestiona en `DemandCurrent.leadStatus` (Neon). Solo se escriben en Inmovilla los criterios de la demanda (precio, zona, habitaciones, tipos) cuando el NLU los actualiza.
 
+#### Ingestion Worker (Lectura)
+
+- **Orquestación de cron-jobs**: todos los cron-jobs del sistema se disparan con **Upstash QStash**.
 - **Polling programático**: consultas regulares a los endpoints de lectura disponibles.
 - **Scraping headless**: cuando no existe endpoint, un navegador headless (Playwright) extrae datos del DOM.
 
-Su trabajo: detectar cambios (por ejemplo, "el comercial cambió el estado a Reserva") y **emitir un evento** inmutable hacia la Capa 3.
+Cron-job en Node.js orquestado con **Upstash QStash**:
 
-#### Egestion Worker (Escritura / Network Interception)
+- **API REST Inmovilla**: `GET /propiedades/?listado` para detectar cambios por `fechaact`, `GET /propiedades/?cod_ofer` para datos completos.
+- **Polling legacy**: lectura de demandas activas (no cubiertas por REST).
+- **API REST Statefox**: `GET /properties` y `GET /snapshot` para datos de mercado (solo lectura).
 
-Cuando la inteligencia artificial decide que hay que actualizar un dato en Inmovilla (subir un precio, adjuntar un PDF, crear un lead), este worker entra en acción. Mediante código TypeScript puro:
+Su trabajo: detectar cambios y **emitir eventos** inmutables hacia la Capa 3.
 
-1. Hace **login silente** con credenciales almacenadas.
-2. Captura las **Session Cookies**.
-3. Raspa el DOM para obtener el **token CSRF** dinámico.
-4. Dispara una **petición HTTP clonada** (XHR/Fetch) directamente a los endpoints internos de Inmovilla.
+#### Egestion Worker (Escritura)
 
-Es una ejecución **determinista, centralizada y server-side**, a prueba de los fallos que tendría una extensión de navegador o una herramienta no-code.
+- **API REST**: para clientes/propiedades/propietarios (`POST/PUT/DELETE` directo).
+- **RPA Legacy**: para demandas y estados (login silente con Composio 2FA → CSRF → XHR clonado).
+
+Las demandas creadas programáticamente requieren **polígonos geoespaciales válidos** (módulo `lib/geo/`). Sin polígono, la demanda es inútil para cruce automático.
 
 ---
 
@@ -113,7 +175,7 @@ Aquí reside la verdadera propiedad intelectual y la lógica de negocio. Es un e
 
 En lugar de guardar fotos estáticas del estado, se registra **cada evento inmutable**:
 
-- `LEAD_INGESTADO`
+- `CONTACTO_INGESTADO`
 - `SLA_INICIADO`
 - `DEMANDA_ACTUALIZADA`
 - `PREAPROBACION_SUBIDA`
@@ -138,11 +200,13 @@ Para evitar que clientes, colaboradores externos o comerciales peleen con la int
 
 | Canal | Implementación |
 |---|---|
-| **WhatsApp** | WhatsApp Business API (integración directa vía código) para precalificar compradores, seguimiento post-venta y notificaciones de matches |
-| **Micro-Frontends** | Rutas dinámicas en Next.js donde un gestor de banco sube un documento, o un comercial valida un enlace de Statefox en 30 segundos |
+| **WhatsApp** | **WhatsApp Cloud API (Meta)** — integración directa con la API de Meta, sin BSP (Twilio/360dialog/MessageBird). Precalificación de compradores, seguimiento post-venta y notificaciones de matches |
+| **Micro-Frontends** | Rutas dinámicas en Next.js para flujos propios que Inmovilla no modela bien, como gestión interna de hitos de colaboradores, subida documental y validaciones rápidas del equipo |
 | **Notificaciones internas** | Webhooks propios hacia Slack/WhatsApp del equipo |
 
-Una vez que el usuario interactúa con la interfaz ligera, la información viaja a la **Capa 3** para ser procesada y, finalmente, escrita en Inmovilla por la **Capa 2**.
+Una vez que el usuario interactúa con la interfaz ligera, la información viaja a la **Capa 3** para ser procesada y, finalmente, escrita en Inmovilla por la **Capa 2** cuando sea necesario persistir el resultado final en el CRM.
+
+Esto es especialmente importante en el flujo de colaboradores: Inmovilla no modela hitos operativos de bancos, abogados ni tasadores (no hay entidad colaborador en su modelo). Ese flujo vive 100% en Neon como fuente operativa y se gestiona desde el **dashboard interno** por el Comercial o el CEO — los colaboradores externos no acceden directamente al sistema. No hay datos de colaboradores que reconciliar desde Inmovilla.
 
 ---
 
@@ -150,12 +214,12 @@ Una vez que el usuario interactúa con la interfaz ligera, la información viaja
 
 Ejemplo 100% automatizado, de principio a fin:
 
-1. **Ingestión**: Entra un lead de Idealista. El `Ingestion Worker` lo captura por polling.
-2. **Orquestación**: La API en Next.js lo recibe. LangGraph evalúa el texto, extrae que busca un piso de 350k€ y le asigna un **Score de 85/100**. Neon inicia un **SLA de 5 minutos**.
-3. **Interacción**: El sistema enruta el lead al mejor comercial y le avisa por **WhatsApp Business API**.
-4. **Egestión**: Inmediatamente, el `Egestion Worker` inyecta el lead perfilado en Inmovilla simulando una petición de red perfecta (login → cookies → CSRF → XHR).
+1. **Ingestión**: Entra un contacto de Idealista. El `Ingestion Worker` lo detecta vía API REST (`GET /propiedades/?leads`) o por polling legacy de demandas.
+2. **Orquestación**: La Capa 3 lo recibe. LangGraph evalúa el texto, extrae que busca un piso de 350k€ y le asigna un **Score de 85/100**. Neon inicia un **SLA de 5 minutos**.
+3. **Interacción**: El sistema enruta al mejor comercial y le avisa por **WhatsApp Business API**.
+4. **Egestión**: El `Egestion Worker` persiste el contacto perfilado en Inmovilla vía API REST (`POST /clientes/`) y crea/actualiza la demanda vía RPA legacy (con polígono geoespacial).
 
-Todo ocurre en milisegundos, en el servidor, sin intervención humana.
+Todo ocurre en el servidor, sin intervención humana. El SLA mide desde el evento `CONTACTO_INGESTADO` en Neon hasta la notificación WhatsApp al comercial.
 
 ---
 
@@ -199,7 +263,7 @@ A cada comprador compatible se le envía automáticamente un mensaje vía **What
 > 2. No me encaja
 > 3. Busco algo diferente"
 
-El agente **no interviene**. El mensaje se genera con plantillas aprobadas y se envía desde una API Route de Next.js que conecta directamente con el proveedor de WhatsApp Business (360dialog / Twilio / MessageBird).
+El agente **no interviene**. El mensaje se genera con plantillas aprobadas y se envía desde una API Route de Next.js que conecta directamente con **WhatsApp Cloud API (Meta)** — sin intermediarios BSP.
 
 ---
 
@@ -221,11 +285,13 @@ Automáticamente:
 
 1. LangGraph extrae las variables modificadas (precio, zona, características).
 2. Se emite un evento `DEMANDA_ACTUALIZADA` en Neon.
-3. El `Egestion Worker` escribe los cambios en Inmovilla mediante network interception (login silente → CSRF → XHR clonado).
+3. El `Egestion Worker` escribe los **criterios** de la demanda en Inmovilla mediante network interception (login silente → CSRF → XHR clonado).
 4. Se guarda histórico del cambio como evento inmutable.
 5. La demanda queda **más afinada**.
 
 El CRM aprende. El comercial no reescribe nada.
+
+> **Sobre el estado del lead:** el avance por las etapas del pipeline (`CONTACTADO`, `EN_SELECCION`, `VISITA_PENDIENTE`, etc.) **no se refleja en Inmovilla** (`keysitu` permanece fijo). El estado del pipeline vive en `DemandCurrent.leadStatus` en Neon y se actualiza automáticamente desde los event handlers del consumer. Ver `docs/lead-status-pipeline.md`.
 
 ---
 
@@ -243,77 +309,77 @@ Aquí entra el agente, pero con rol **limitado y claro**.
 
 **Nada más.** Todo lo demás ya está automatizado. Los datos del agente se recogen mediante un micro-frontend en Next.js (formulario rápido post-visita) que alimenta la Capa 3 directamente.
 
+El endpoint `POST /api/post-visit` emite `VISITA_EVALUADA` sobre la demanda. Para que el **cron de reevaluación de pricing** pueda contar visitas por inmueble, el cuerpo puede incluir **`propertyCode`** (opcional, código de oferta / ficha en Inmovilla); si no se envía, el trigger “visitas sin ofertas” no atribuye visitas a una propiedad concreta.
+
 ---
 
-## Módulo 5 — Sincronización Inmovilla → Statefox
+## Módulo 5 — Búsqueda de Stock Externo (Statefox API REST)
 
 Cuando una demanda cumple las condiciones:
 
 - Está activa
-- Está perfilada (variables afinadas)
+- Está perfilada (variables afinadas con polígono geoespacial definido)
 - Ha mostrado interés real (visita completada o score alto)
 
-El sistema dispara la sincronización automática:
+El sistema consulta el mercado externo:
 
-1. La Capa 3 emite un evento `SYNC_STATEFOX_INICIADO`.
-2. El `Egestion Worker` (adaptado para Statefox) envía los datos de la demanda:
-   - Presupuesto
-   - Zonas
-   - Tipología
-   - Prioridades reales del comprador
+1. La Capa 3 emite un evento `BUSQUEDA_MERCADO_INICIADA`.
+2. Se consulta la **API REST de Statefox** (`GET /properties`) traduciendo los criterios de la demanda a filtros Statefox: zona (`pCity`/`pZone`), tipología (`pHousing`), rango de precio (`pPrice`), metros (`pMeters`).
+3. Se filtran y seleccionan las propiedades más relevantes del mercado (particulares + agencias + stock de portales).
 
-La sincronización se ejecuta mediante llamadas programáticas a los endpoints de Statefox (API o network interception según disponibilidad), de forma análoga al patrón de escritura en Inmovilla.
+> **Nota:** Statefox es una API de **solo lectura**. No se sincronizan demandas a Statefox, no se generan búsquedas ni enlaces en su plataforma. Los datos se consumen directamente por API REST con Bearer token.
 
 ---
 
-## Módulo 6 — Búsqueda Automática en Statefox y Generación de Enlace
+## Módulo 6 — Microsite de Selección para el Comprador
 
-### Statefox ejecuta:
+Con las propiedades relevantes del mercado (de Statefox API), el sistema genera un **microsite propio** (micro-frontend Next.js con branding Urus Capital):
 
-- Rastreo de propiedades de particulares.
-- Rastreo de stock de otras agencias.
-- Filtrado inteligente según la demanda sincronizada.
-- Generación de **enlace privado personalizado** (microsite de selección).
+- Página con token único: `/seleccion/{token}`
+- **Vista demo (mocks):** en desarrollo, abre `/seleccion/demo` para ver fichas de ejemplo sin Neon ni Statefox. En producción, opcionalmente `NEXT_PUBLIC_MICROSITE_MOCK=true` (ver `.env.example`).
+- Fichas completas con imágenes, descripción, precio, metros, zona, extras, certificado energético, mapa
+- Página de detalle de propiedad con carrusel, ficha técnica y navegación entre propiedades
+- Feedback del comprador exclusivamente vía WhatsApp (NLU contextual con LangGraph)
+- Tracking de qué se mostró, a quién, cuándo (persistido en Neon)
 
-El `Ingestion Worker` (adaptado para Statefox) detecta la generación del enlace por polling y emite un evento `ENLACE_STATEFOX_GENERADO` hacia la Capa 3.
+> Este microsite reemplaza completamente la dependencia de enlaces privados de Statefox, que no ofrece esta funcionalidad vía API.
 
 ---
 
 ## Módulo 7 — Validación del Comercial
 
-El comercial recibe una notificación automática (vía WhatsApp Business API o el micro-frontend interno):
+Flujo implementado (M6 Item 3):
 
-> "Demanda [Nombre] — Enlace generado en Statefox.
-> Pendiente de validación."
+1. Tras generar la selección (`GENERATE_MICROSITE`), se encola `NOTIFY_MICROSITE_PENDING_VALIDATION` y el comercial recibe un **WhatsApp** con enlace a **`/validar-seleccion/{validationToken}`** (token distinto del enlace del comprador) y recordatorio de SLA (2 h desde la creación).
+2. El comercial abre el micro-frontend interno y en **30–60 s** puede **Aprobar** o **Rechazar**.
+3. **Aprobar** → evento `SELECCION_VALIDADA` en Neon, estado `APPROVED`, job `SEND_MICROSITE_TO_BUYER` → WhatsApp al comprador con **`/seleccion/{token}`** (requiere `buyerPhone` en la selección, resuelto desde `demands_current.telefono` o `demand_snapshots.raw`).
+4. **Rechazar** → evento `SELECCION_RECHAZADA`, estado `REJECTED` (no se envía enlace al comprador).
+5. **SLA:** cron autenticado **`POST /api/cron/microsite-validation-sla`** (mismo criterio que otros cron: `CRON_SECRET`): selecciones `PENDING_VALIDATION` con `validationDueAt` vencido y sin `escalatedAt` → WhatsApp a `MICROSITE_VALIDATION_ESCALATION_TO` y marca `escalatedAt`.
 
-**El comercial revisa en 30–60 segundos:**
-
-- Que no aparezca marca de otra agencia.
-- Que el precio esté bien presentado.
-- Ajusta texto si hace falta.
-
-Al aprobar, el sistema registra el evento `ENLACE_VALIDADO` y continúa automáticamente. Si el SLA de validación (2 horas) se incumple, se escala al jefe de zona.
+Variables: `NEXT_PUBLIC_APP_URL` (enlaces absolutos en WhatsApp), `MICROSITE_VALIDATION_ESCALATION_TO` — ver `.env.example`.
 
 ---
 
-## Módulo 8 — Envío del Enlace al Comprador y Feedback Loop
+## Módulo 8 — Envío del Microsite al Comprador y Feedback Loop
 
-El sistema envía el enlace Statefox al comprador vía WhatsApp Business API para que:
+El sistema envía el enlace del microsite propio al comprador vía WhatsApp Business API para que:
 
-- Seleccione propiedades.
-- Descarte las que no encajan.
-- Pida ajustes.
+- Explore el **portal de selección** (listado + ficha detalle en el propio dominio).
+- Comunique interés, descartes o nuevos criterios **respondiendo por WhatsApp** (único canal de feedback; no hay botones de valoración en la web pública).
 
 ### Feedback Loop (Sistema Vivo)
 
-El feedback del comprador (capturado por webhook de WhatsApp):
+El feedback del comprador llega por el **webhook de WhatsApp** (`WHATSAPP_RECIBIDO`). La Capa 3 resuelve demanda y microsite activo (`WhatsAppBuyerSession`, contexto de respuesta) y ejecuta **NLU contextual LangGraph** (`classifyBuyerFeedback`): propiedades mostradas + historial conversacional → salida estructurada (intención, `propertyFeedback[]`, variables, `wantsMoreOptions`).
 
-1. Se procesa en la Capa 3 (LangGraph interpreta, extrae variables).
-2. Actualiza la demanda en Neon (evento `FEEDBACK_PROCESADO`).
-3. El `Egestion Worker` escribe los cambios en Inmovilla.
-4. Se reactivan búsquedas en Statefox si procede.
+1. Eventos `SELECCION_COMPRADOR` por propiedad (persistencia de feedback) y, si aplica, `DEMANDA_ACTUALIZADA` con variables extraídas.
+2. Proyección y **Egestion Worker** escriben la demanda en Inmovilla vía RPA legacy (polígono/criterios).
+3. Nueva consulta a Statefox con criterios ajustados → job `GENERATE_MICROSITE` para regenerar el microsite; si el comprador pide más opciones, también se puede disparar la regeneración según reglas del handler.
 
-**Ciclo cerrado, limpio y continuo.**
+Documentación ampliada: `docs/microsite-feedback-loop.md`.
+
+### Suite de evaluación NLU (AI-to-AI)
+
+Para regresión y KPIs del NLU de comprador sin depender de pruebas manuales sesgadas: agente comprador sintético, juez híbrido (reglas + LLM), escenarios por categoría, persistencia en Neon (`EvalRun` / `EvalResult`) y dashboard en `/eval`. Ejecución: `npm run eval:nlu`. Detalle: `docs/nlu-eval-suite.md`.
 
 ---
 
@@ -366,13 +432,13 @@ flowchart TD
     N --> O[Post-visita: agente marca interés + ajustes]
     O --> P{¿Interés real?}
     P -->|No| J
-    P -->|Sí| Q[Egestion Worker: sync Inmovilla → Statefox]
+    P -->|Sí| Q[Capa 3: consulta Statefox API con criterios de demanda]
 
-    Q --> R[Statefox: búsqueda automática stock externo]
-    R --> S[Ingestion Worker detecta enlace generado]
+    Q --> R[Statefox API: propiedades de mercado filtradas]
+    R --> S[Generar microsite propio Next.js con selección]
     S --> T[Notificación al comercial vía WhatsApp/micro-frontend]
     T --> U{Validación comercial 30-60s}
-    U -->|Aprobado| V[WhatsApp Business API: envío enlace al comprador]
+    U -->|Aprobado| V[WhatsApp Business API: envío enlace microsite al comprador]
     U -->|Ajustes| W[Ajuste rápido + aprobar]
     W --> V
 
@@ -462,25 +528,26 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 
 ---
 
-### SOP 5 — Activación Statefox (AD + SYS)
+### SOP 5 — Búsqueda de Mercado + Microsite (AD + SYS)
 
 **Disparador:** demanda con interés real o visita hecha + búsqueda activa.
 
-1. **SYS:** sync Inmovilla → Statefox (demanda perfilada, vía `Egestion Worker`).
-2. **Statefox:** rastrea stock externo, genera enlace privado.
+1. **SYS:** consulta Statefox API REST (`GET /properties`) con filtros traducidos desde la demanda (zona, precio, tipología, metros).
+2. **SYS:** genera microsite propio (Next.js) con las propiedades relevantes del mercado.
 3. **AD** (validación 30–60s):
-   - Revisa branding (nada de marcas de otras agencias).
-   - Ordena/oculta 1–2 fichas si hace falta.
+   - Revisa la selección de propiedades.
+   - Oculta/ajusta fichas si hace falta.
    - Aprueba.
-4. **SYS:** envía enlace al comprador, registra `ENLACE_ENVIADO`.
+4. **SYS:** envía enlace del microsite al comprador vía WhatsApp, registra `MICROSITE_ENVIADO`.
 
 ---
 
 ### SOP 6 — Selección del Comprador (SYS + AD)
 
 - **SYS:**
-  - Recoge selección (clics/guardados/descartes) vía `Ingestion Worker`.
-  - Actualiza demanda en Inmovilla.
+  - Recoge selección (clics/guardados/descartes) vía eventos del microsite propio (persistidos en Neon).
+  - Si el NLU detecta cambios de criterios (precio, zona, habitaciones), actualiza la demanda en Inmovilla vía RPA legacy.
+  - Avanza `DemandCurrent.leadStatus` automáticamente según las decisiones del comprador (→ `EN_SELECCION`, → `VISITA_PENDIENTE`). El estado de pipeline **no** se escribe en Inmovilla.
 - **AD** solo actúa si:
   - "Elige inmuebles" → agenda visitas.
   - "Pide cambios" → valida 1 ajuste si es necesario.
@@ -505,15 +572,19 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 | Componente | Tecnología | Detalles |
 |---|---|---|
 | Framework principal | **Next.js (App Router) + TypeScript** | API Routes como orquestador central |
-| Workers (Ingestion/Egestion) | **Node.js + Playwright** | Cron-jobs, polling, scraping headless, network interception |
+| ORM | **Prisma** | Schema-first, migraciones, tipos generados |
+| Workers (Ingestion/Egestion) | **Node.js + Playwright (solo legacy)** | API REST para clientes/propiedades; RPA legacy solo para demandas/estados |
+| Scheduler de cron-jobs | **Upstash QStash** | Disparo y orquestación de todos los cron-jobs del sistema |
 | Base de datos | **Neon (PostgreSQL serverless)** | Event store, job queue, estado transaccional |
 | Motor IA | **LangGraph + modelos o3** | Flujos agénticos: scoring, clasificación, recomendaciones |
+| API REST Inmovilla | **`procesos.inmovilla.com/api/v1`** | CRUD de clientes, propiedades, propietarios. Token estático. No cubre demandas. |
+| API REST Statefox | **`statefox.com/public/aapi/props`** | Propiedades de mercado y snapshots. Solo lectura, Bearer token. |
 
 ### Canal de Mensajería (WhatsApp)
 
 | Requisito | Implementación |
 |---|---|
-| Proveedor | **360dialog / Twilio / MessageBird** (WhatsApp Business API) |
+| Proveedor | **WhatsApp Cloud API (Meta)** — integración directa, sin BSP. Cuenta Meta Business Manager + WABA. |
 | Plantillas aprobadas | Para primer contacto (obligatorio por política de Meta) |
 | Mensajes interactivos | Botones de respuesta rápida (1/2/3) |
 | Webhooks de entrada | Captura de respuestas → API Route en Next.js |
@@ -525,6 +596,8 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 | Clasificación de intención | **LangGraph** con modelos o3 |
 | Extracción de variables | Zona, precio, metros, extras → campos estructurados |
 | Fallback por baja confianza | Tarea al agente: "respuesta ambigua" |
+| **Feedback comprador (microsite)** | **NLU contextual** (`classifyBuyerFeedback`): mensaje WhatsApp + fichas del microsite activo + historial → `SELECCION_COMPRADOR`, `DEMANDA_ACTUALIZADA`, regeneración de microsite |
+| **Calidad / regresión NLU** | Suite **AI-to-AI** (escenarios, juez, DB, `/eval`); ver `docs/nlu-eval-suite.md` |
 
 ### Calendario / Agenda
 
@@ -534,12 +607,20 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 | Confirmación | Automática vía WhatsApp Business API |
 | Registro en CRM | `Egestion Worker` escribe cita en Inmovilla |
 
+### Autenticación Inmovilla
+
+| Componente | Implementación |
+|---|---|
+| API REST (clientes, propiedades, propietarios) | Token estático en header `Token: ...`. Generado en Ajustes > Opciones > Token para API Rest. **Sin login, sin 2FA, sin cookies, sin Playwright.** |
+| RPA Legacy (demandas, estados) | Login en dos pasos: POST a `comprueba.php` (credenciales) + POST a `login2Fa/verifyCode` (código 2FA). Ver `docs/workers/inmovilla-endpoints.md`. |
+| Código 2FA (solo legacy) | **Composio**: conexión Gmail (OAuth), búsqueda de correos de Inmovilla, extracción del código de 6 dígitos, envío al endpoint de verificación. Solo necesario para operaciones de demandas y estados. |
+
 ### Documentación y Plantillas
 
 | Componente | Implementación |
 |---|---|
 | Motor de plantillas | Generación programática en TypeScript (docx/PDF) con variables y bloques condicionales |
-| Almacenamiento | S3-compatible o sistema de archivos del servidor |
+| Almacenamiento | Cloudinary o sistema de archivos del servidor |
 | Versionado | Naming estándar: `OP-2026-XXXX_Arras_v1.pdf` |
 
 ### Tracking y Observabilidad
@@ -548,7 +629,8 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 |---|---|
 | Dashboard | Micro-frontend Next.js con datos de Neon |
 | Alertas | Cron-jobs que evalúan SLAs y emiten notificaciones vía WhatsApp/Slack |
-| Métricas | Tablas de Neon con queries analíticas |
+| Métricas | Tablas de Neon con queries analíticas y métricas operativas persistentes (`ingestion_cycle_metrics`, `execution_metrics`) |
+| Logging | Logs estructurados y persistentes en Neon (`observability_logs`) para API Routes y workers |
 
 ---
 
@@ -566,34 +648,46 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 
 Cuando se sube o modifica un inmueble en Inmovilla, el sistema:
 
-1. Detecta el cambio vía `Ingestion Worker`.
-2. Vuelca las características a Statefox (vía `Egestion Worker`).
-3. Analiza el mercado real (particulares + agencias + portales).
-4. Compara precio, calidades, posicionamiento y visibilidad.
+1. Detecta el cambio vía `Ingestion Worker` (API REST `GET /propiedades/?listado`).
+2. Consulta la **API REST de Statefox** (`GET /snapshot`) filtrando en memoria por zona (`pCity`/`pZone`), tipología (`pHousing`), rango de precio y metros para obtener comparables del mercado.
+3. Analiza el mercado real (particulares vs profesionales, segmentando por `pAdvert.type`).
+4. Compara precio (`pPricePerMeter` ya calculado por Statefox), calidades, posicionamiento y visibilidad.
 5. Devuelve al comercial un **diagnóstico claro**.
 
 > No es una tasación. Es **inteligencia comercial en tiempo real**.
 
 ### Disparadores (Triggers)
 
-El `Ingestion Worker` detecta cualquiera de estos eventos en Inmovilla:
+**Reactivos (ingestión + cola)**  
+El `Ingestion Worker` detecta cambios en Inmovilla y la Capa 3 materializa eventos en Neon; el consumer encola `RUN_PRICING_ANALYSIS` cuando aplica:
 
-| Evento | Descripción |
+| Origen | Descripción |
 |---|---|
-| Alta de inmueble | Nuevo inmueble creado |
-| Cambio de precio | Modificación del precio de venta |
-| Cambio de estado | Publicado / relanzado |
-| Sin leads X días | Inmueble sin interacción prolongada |
-| Visitas sin ofertas | Muchas visitas pero ninguna oferta |
+| Alta de inmueble | Tras `PROPIEDAD_CREADA` (cruce de demandas + análisis de pricing). |
+| Cambio de precio, metros, habitaciones o baños | Tras `PROPIEDAD_MODIFICADA` cuando el diff de ingesta incluye alguno de esos campos (otros cambios de ficha no encolan pricing por sí solos). |
+
+**Proactivos (cron de reevaluación)**  
+Además, un **cron-job** evalúa el stock ya proyectado en Neon sin esperar un nuevo diff de Inmovilla:
+
+| Condición | Fuentes de datos (schema Prisma) | Comportamiento implementado |
+|---|---|---|
+| Inmueble sin leads X días | Tabla `properties_current` (edad vía `fechaAlta` o `createdAt`) + tabla `events` con `type = MATCH_GENERADO` y `aggregateId` terminado en `:{codigo}` (demanda:propiedad) | Si no hay ningún match y la ficha lleva al menos **14 días** (constante en `lib/pricing/reevaluation-scanner.ts`), se encola reevaluación. |
+| Inmueble con visitas sin ofertas | `events` con `type = VISITA_EVALUADA` y `payload.propertyCode` = código + `events` `ESTADO_CAMBIADO` sobre la propiedad con `newEstado` que indique oferta aceptada (mismas palabras clave que Smart Closing: reserva, señal, arras) | Si hay **≥3** visitas con `propertyCode` y **ningún** cambio de estado de oferta, se encola reevaluación. |
+
+Orquestación: `POST /api/cron/pricing-reevaluation` (`CRON_SECRET`) → `scanPropertiesForPricingReevaluation()` → jobs `RUN_PRICING_ANALYSIS` con payload que reduce carga (ver siguiente apartado).
+
+**Mitigación de cuellos de botella** en esas reevaluaciones en lote: menos páginas de Statefox por job (`maxPages` reducido), sin llamada a LangGraph por defecto (`generateRecommendation: false`, solo semáforo y cluster estadístico), `availableAt` escalonado entre jobs, `idempotencyKey` diaria por propiedad, exclusión si hubo `PRICING_ANALISIS_GENERADO` en los últimos **7 días** (cooldown), y tope de **100** propiedades encoladas por ejecución del scanner.
+
+**Lectura del informe materializado**: el análisis persistido se guarda también en la proyección Prisma `pricing_reports`. La UI consulta `GET /api/pricing/report/{code}` para leer el último informe sin recalcular por defecto; el recálculo explícito sigue entrando por `POST /api/pricing/analyze`.
 
 ### Diagrama de Flujo
 
 ```mermaid
 flowchart TD
     A[Ingestion Worker detecta alta/modificación en Inmovilla] --> B[Extracción de variables clave]
-    B --> C[Egestion Worker: sync Inmovilla → Statefox]
-    C --> D[Statefox: búsqueda de competencia directa]
-    D --> E[Ingestion Worker captura cluster comparativo]
+    B --> C[Capa 3: consulta Statefox API REST con filtros de zona/tipo/precio]
+    C --> D[Statefox API: comparables del mercado real]
+    D --> E[Capa 3: construye cluster comparativo]
     E --> F[Capa 3: Análisis de precios vs mercado]
     F --> G[Capa 3: Análisis de calidades y extras]
     G --> H[Capa 3: Análisis de posicionamiento en portales]
@@ -603,6 +697,19 @@ flowchart TD
     K -->|Mantener| L[Seguimiento automático]
     K -->|Ajustar precio| M[Propuesta de nuevo precio]
     K -->|Reposicionar| N[Recomendaciones de mejora]
+```
+
+**Reevaluación proactiva (cron)** — flujo paralelo cuando el disparador es tiempo/inactividad, no un diff nuevo de Inmovilla:
+
+```mermaid
+flowchart TD
+    Cron["POST /api/cron/pricing-reevaluation"] --> Scan["scanPropertiesForPricingReevaluation"]
+    Scan --> PC["properties_current nodisponible=false"]
+    PC --> Cool["Skip si PRICING_ANALISIS_GENERADO reciente"]
+    Cool --> Eval["Triggers: sin leads 14d sin match o visitas sin oferta"]
+    Eval --> Job["RUN_PRICING_ANALYSIS opciones reducidas"]
+    Job --> Consumer["Consumer y runPricingAnalysis"]
+    Consumer --> WA["NOTIFY_PRICING_WHATSAPP e informe"]
 ```
 
 ### Datos que se vuelcan desde Inmovilla
@@ -624,7 +731,7 @@ Variables mínimas del inmueble:
 
 #### Búsqueda de comparables reales
 
-Statefox rastrea automáticamente propiedades de particulares, agencias y stock activo en portales. LangGraph crea **clusters comparativos**:
+La Capa 3 consulta la API REST de Statefox (`GET /properties`) filtrando por zona, tipo y rango de precio. Con los resultados, LangGraph crea **clusters comparativos**:
 
 - Misma zona/distrito
 - ±15–20% metros
@@ -650,7 +757,9 @@ Statefox rastrea automáticamente propiedades de particulares, agencias y stock 
 
 ### Motor de Recomendación (LangGraph)
 
-El sistema no solo analiza, **recomienda**. Ejemplos reales de output:
+El sistema no solo analiza, **recomienda**. En análisis disparados por **alta o modificación** de propiedad, el flujo completo incluye recomendación textual vía LangGraph cuando está habilitado. En jobs originados por el **cron de reevaluación**, la recomendación LLM se omite por defecto para limitar coste y latencia en lote; el comercial sigue recibiendo semáforo, gap y comparables vía el mismo informe y notificación.
+
+Ejemplos reales de output (cuando el LLM está activo):
 
 **Diagnóstico automático:**
 > "El inmueble está un 8,7% por encima del precio medio del mercado para su zona y tipología."
@@ -671,7 +780,7 @@ El sistema no solo analiza, **recomienda**. Ejemplos reales de output:
 
 ### Entrega al Comercial
 
-El comercial recibe automáticamente (vía micro-frontend o WhatsApp):
+El comercial recibe automáticamente (vía micro-frontend o WhatsApp), tanto tras **alta o cambio** de ficha como tras una **reevaluación por cron** cuando el job completa con datos suficientes:
 
 - **Informe resumen** (1 página).
 - **Semáforo:**
@@ -718,7 +827,7 @@ Cuando una operación pasa a "Reserva/Señal / Arras / Cierre acordado" en Inmov
 3. El gestor revisa hablando (modo conversación) y pide modificaciones.
 4. El sistema aplica cambios, genera nueva versión y vuelve a presentar.
 5. Se envía a firma digital.
-6. Se archiva y se actualiza Inmovilla con estados y documentos.
+6. Se archiva en Cloudinary/Neon y se actualiza el estado de la propiedad en Inmovilla (la API REST de Inmovilla no soporta adjuntar documentos).
 
 ### Disparador
 
@@ -759,9 +868,9 @@ flowchart TD
 
     I --> M[Enviar a firma digital]
     M --> N{¿Firmado?}
-    N -->|No| O[Recordatorios automáticos + seguimiento]
-    N -->|Sí| P[Guardar firmado + adjuntar en Inmovilla vía Egestion Worker]
-    P --> Q[Actualizar Inmovilla: estado, fechas, docs, auditoría]
+    N -->|No| O[Recordatorios WhatsApp +1/+3/+5 días + escalado SLA 5d]
+    N -->|Sí| P[Guardar firmado en Cloudinary/Neon + actualizar estado en Inmovilla]
+    P --> Q[Egestion Worker: actualizar estado de propiedad en Inmovilla vía API REST]
 ```
 
 ### Pipeline de Revisión por Voz
@@ -787,11 +896,35 @@ Si hay ambigüedad (confidence score bajo), el sistema pregunta al gestor: "¿qu
 
 ### Firma Digital
 
-Integración programática con servicios de firma electrónica:
+Firma electrónica simple **in-house** (sin SaaS de firma de terceros):
 
-- **Signaturit** (habitual en España) / DocuSign / Dropbox Sign.
-- Envío y seguimiento automatizado desde API Routes de Next.js.
-- Recordatorios automáticos si no se firma.
+- **Motor:** Next.js + Neon; hash SHA-256, token de enlace, firma manuscrita en lienzo, **OTP por SMS** antes de sellar, PDF con sello visual y pista de auditoría.
+- **Flujo:** `POST /api/contracts/sign` normaliza a **PDF obligatorio**, calcula SHA-256, genera token seguro, y devuelve `signingUrl` = `{NEXT_PUBLIC_APP_URL}/firma/{token}`. En la página pública, el firmante verifica un código SMS y luego `POST /api/firma/{token}/sign` completa el proceso (integridad, evidencia IP/UA/timestamp, `FIRMA_COMPLETADA`). Detalle en [docs/firma-digital.md](docs/firma-digital.md).
+- **Seguridad del endpoint de envío:** proteger con `SIGNATURIT_SIGN_API_TOKEN` (o fallback `CRON_SECRET`) para evitar uso público no autorizado.
+- **Recordatorios si no se firma:** canal **WhatsApp Cloud API (Meta)** — misma integración directa que el resto del producto. No se definen recordatorios genéricos sin canal: el seguimiento operativo al firmante es por **WhatsApp** usando **plantillas aprobadas por Meta** cuando la política de la plataforma lo requiera.
+
+**SLAs y cadencia (construcción):**
+
+| Concepto | Valor documentado | Notas |
+| --- | --- | --- |
+| **SLA de firma completa** | **5 días naturales** desde el envío de la solicitud hasta la firma completada | Parametrizable vía config/env. Fuente de verdad del “completado”: estado en **Neon** y evento `FIRMA_COMPLETADA`. |
+| **Recordatorios al firmante** | **Día +1**, **día +3** y **día +5** (naturales desde el envío) | Solo mientras el estado siga pendiente. El mensaje del día +5 indica **último recordatorio automático** antes del escalado. |
+| **Escalado por SLA** | Tras **5 días naturales** sin firma completa | **WhatsApp** al **comercial asignado** y al **gestor (BO)** con operación, documento y enlace de seguimiento; registro en **Neon** (evento o tarea) para auditoría. |
+
+**Orquestación:** evaluación periódica del estado pendiente mediante **cron-job** (p. ej. **Upstash QStash**) o jobs en la cola del proyecto; evitar envíos duplicados el mismo día.
+
+**Plantillas WhatsApp (Meta Business Manager)** — categoría **UTILITY**, idioma **`es_ES`**. Los nombres coinciden con el `name` en la Cloud API. El cuerpo usa variables en el orden indicado (equivalente a `{{1}}`, `{{2}}`, … en Meta y al orden de `components[].parameters` en el envío).
+
+| Nombre en Meta | Uso | Variables del cuerpo (orden) |
+| --- | --- | --- |
+| `contrato_firma_recordatorio_d1` | Recordatorio al firmante, **día +1** natural desde el envío | **{{1}}** nombre corto del firmante · **{{2}}** tipo de documento (p. ej. «Contrato de arras», alineado con `ContractDocumentKind`) · **{{3}}** referencia de operación (`operationId` o stem `OP-…_Arras_vN`) · **{{4}}** URL de firma (`/firma/{token}`) |
+| `contrato_firma_recordatorio_d3` | Igual, **día +3** | Mismo orden: **{{1}}**–**{{4}}** |
+| `contrato_firma_recordatorio_d5` | Igual, **día +5**; el texto fijo de la plantilla debe indicar **último recordatorio automático** antes del escalado por SLA | Mismo orden: **{{1}}**–**{{4}}** |
+| `contrato_firma_sla_escalado` | Tras **5 días naturales** sin firma completa: **comercial asignado** y **gestor (BO)** | **{{1}}** referencia de operación · **{{2}}** tipo de documento · **{{3}}** enlace absoluto de seguimiento (`{NEXT_PUBLIC_APP_URL}/platform/legal/contratos/{id}`) |
+
+**Variables de entorno opcionales** (si el código resuelve el nombre de plantilla por config): `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D1`, `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D3`, `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D5`, `WHATSAPP_TEMPLATE_CONTRATO_FIRMA_SLA_ESCALADO` — valores por defecto los nombres de la tabla anterior.
+
+**Resto de implementación:** IDs internos de plantilla en Meta (si se usan), variable `FIRMA_TOKEN_SECRET` y tabla de mapeo de estados en [docs/firma-digital.md](docs/firma-digital.md).
 
 ### Control de Versiones y Auditoría
 
@@ -803,7 +936,7 @@ OP-2026-000123_Arras_v2_CambiosGestor.pdf
 OP-2026-000123_Arras_Firmado.pdf
 ```
 
-Registro en Neon (evento `CONTRATO_VERSIONADO`): versión, fecha, autor (gestor), resumen de cambios. Sincronizado con Inmovilla vía `Egestion Worker`.
+Registro en Neon (evento `CONTRATO_VERSIONADO`): versión, fecha, autor (gestor), resumen de cambios. Persistido en la tabla `legal_documents` de Neon. El estado de la propiedad se sincroniza con Inmovilla vía `Egestion Worker` (la API de Inmovilla no tiene endpoints de gestión documental).
 
 ### Qué se autorellena (regla de oro)
 
@@ -833,8 +966,9 @@ El gestor dice "modifica X", el sistema cambia variable/bloque, regenera el docu
 **SYS:**
 - Genera borradores, versiona y registra cambios.
 - Interpreta voz y transforma en instrucciones estructuradas.
-- Envía a firma digital y archiva.
-- Actualiza Inmovilla con todo (incluyendo auditoría).
+- Envía a firma digital **in-house** (`POST /api/contracts/sign`, cierre en `/api/firma/{token}/sign` con OTP) y archiva en Cloudinary/Neon (tabla `legal_documents`).
+- Lanza **recordatorios por WhatsApp** (+1/+3/+5 días) y **escalado** a comercial y gestor si se incumple el **SLA de 5 días naturales**.
+- Actualiza el estado de la propiedad en Inmovilla vía Egestion Worker (`PUT /propiedades/` con `estadoficha`). Los documentos se almacenan en Cloudinary/Neon porque la API de Inmovilla no tiene endpoints de gestión documental.
 
 ### Tiempo Ahorrado
 
@@ -1019,6 +1153,27 @@ No es un dashboard informativo, es un **sistema de gobierno del negocio**:
 > Sin dashboard: se gestiona por sensaciones.
 > Con dashboard: **se gestiona por datos**.
 
+### Implementación (M10) — Sistema de métricas (facts + queries)
+
+Además de la parte conceptual, el repo incluye una implementación v1 del sistema de métricas para el dashboard:
+
+- **Read-model analítico (facts)** en Neon/Prisma:
+  - `commercial_lead_facts` (leads asignados/contactados/perdidos por falta de seguimiento)
+  - `commercial_visit_facts` (visitas agendadas)
+  - `commercial_visit_evaluation_facts` (evaluaciones post-visita)
+  - `commercial_operation_facts` (cierres y volumen/facturación estimada)
+- **Proyección “best-effort”** al consumir eventos (no bloquea el flujo si falla la analítica).
+- **Queries analíticas** en `lib/dashboard/comercial/queries.ts`.
+- **API Routes**:
+  - `GET /api/dashboard/comerciales`
+  - `GET /api/dashboard/comercial/:id`
+- **UI (micro-frontend en Rendimiento)**:
+  - Rutas: `/rendimiento/comerciales` (ranking + KPIs + gráficos) y `/rendimiento/comerciales/[id]` (detalle + evolución semanal).
+  - Hook cliente: `lib/hooks/use-dashboard-comercial.ts`.
+  - Navegación: pestaña y entrada de sidebar bajo **Rendimiento → Comerciales**.
+
+Detalles de KPIs, facts y SQL: `docs/dashboard-comercial-metricas.md`. Infraestructura de la capa UI (rutas, componentes, límites): `docs/dashboard-comercial-ui.md`.
+
 ### Estructura (5 Capas)
 
 ---
@@ -1132,7 +1287,7 @@ Fuentes:
 - Llamadas (call tracking)
 - Referidos / base de datos
 
-El `Ingestion Worker` captura todas las entradas y las normaliza en Neon como eventos `LEAD_INGESTADO` con:
+El `Ingestion Worker` captura todas las entradas (vía API REST para contactos de portales, vía polling legacy para demandas) y las normaliza en Neon como eventos `CONTACTO_INGESTADO` con:
 
 - Origen
 - Ciudad (Córdoba / Málaga / Sevilla)
@@ -1290,9 +1445,9 @@ Se registra automáticamente:
 - Tiempos de respuesta.
 - Resultado final (aprobado / rechazado / retrasado).
 
-Los datos se capturan tanto por el `Ingestion Worker` (si el colaborador interactúa con Inmovilla) como por los **micro-frontends de Next.js** donde los colaboradores suben documentos e interactúan.
+Los datos se capturan desde el **dashboard interno de Next.js** donde el Comercial o el CEO registra asignaciones, sube documentos en nombre de los colaboradores, avanza hitos y cambia estados. Los colaboradores externos **no acceden al sistema directamente**; toda la interacción se gestiona internamente. Inmovilla no modela hitos operativos de bancos/abogados/tasadores (no hay entidad colaborador en su modelo), por lo que no hay datos que reconciliar desde el CRM. Todo el flujo vive en Neon.
 
-> **Regla clave:** ningún colaborador trabaja fuera del sistema.
+> **Regla clave:** la gestión de colaboradores la realiza el equipo interno (Comercial/CEO), no el colaborador externo.
 
 ---
 
@@ -1351,7 +1506,7 @@ LangGraph genera recomendaciones para el CEO:
    - Abogado: revisión contrato → observaciones → validación final.
 3. **Tracking de tiempos:** cada cambio de estado registra timestamp en Neon, el sistema calcula retrasos.
 4. **Reglas de alerta (cron-jobs):** banco supera SLA → alerta jefe de zona; abogado genera incidencias repetidas → alerta CEO.
-5. **Dashboard dinámico (micro-frontend Next.js):** rendimiento semanal, tendencias mensuales, impacto económico acumulado.
+5. **Dashboard interno (Next.js):** rendimiento semanal, tendencias mensuales, impacto económico acumulado. Gestionado por el Comercial y el CEO, no por los colaboradores externos.
 
 ---
 
@@ -1417,7 +1572,6 @@ Se activan automáticamente cuando Neon registra el evento `OPERACION_CERRADA` (
 
 - Mensaje: "Si conoces a alguien que esté pensando en comprar o vender, estaremos encantados de ayudarle como hicimos contigo."
 - Enlace directo a WhatsApp / formulario de referido (micro-frontend).
-- Posible incentivo (opcional y legal).
 
 > Se pide cuando la satisfacción es alta, no en frío.
 
@@ -1602,26 +1756,29 @@ El sistema ofrece lectura **estratégica**, no psicológica:
 |---|---|---|
 | Framework | **Next.js (App Router)** | API Routes, SSR, micro-frontends |
 | Lenguaje | **TypeScript** | Tipado estricto en todo el stack |
+| ORM | **Prisma** | Schema-first, migraciones, tipos generados |
 | Base de datos | **Neon (PostgreSQL serverless)** | Event Store, Job Queue, analítica |
 | Motor IA | **LangGraph** | Orquestación de flujos agénticos |
 | Modelos LLM | **Familia o3 (OpenAI)** | Razonamiento profundo, clasificación, generación |
 | STT | **OpenAI Whisper API** | Speech-to-Text para Smart Closing |
+| Cron Scheduler | **Upstash QStash** | Disparo y orquestación de todos los cron-jobs |
 
 ### Workers Server-Side
 
 | Worker | Tecnología | Función |
 |---|---|---|
-| Ingestion Worker | **Node.js + Playwright** (cron-job) | Polling + scraping headless de Inmovilla/Statefox |
-| Egestion Worker | **Node.js + fetch** (job queue) | Login silente, CSRF, XHR clonado hacia Inmovilla/Statefox |
+| Ingestion Worker | **Node.js** (cron-job con **Upstash QStash**) | API REST para propiedades (Inmovilla + Statefox), polling legacy para demandas |
+| Egestion Worker | **Node.js + fetch/Playwright** (job queue) | API REST para clientes/propiedades, RPA legacy para demandas/estados |
 
 ### Integraciones Externas
 
 | Servicio | Proveedor | Integración |
 |---|---|---|
-| WhatsApp Business | **360dialog / Twilio / MessageBird** | API directa desde código (webhooks + envíos) |
-| Firma digital | **Signaturit / DocuSign** | API REST desde Next.js |
+| **Autenticación Inmovilla (2FA)** | **Composio + Gmail** | Obtención automática del código de verificación por correo: acción Composio sobre Gmail (listar/buscar correos de Inmovilla), extracción del código de 6 dígitos, envío al endpoint `login2Fa/verifyCode`. Ver `docs/workers/inmovilla-endpoints.md`. |
+| WhatsApp | **WhatsApp Cloud API (Meta)** | Integración directa con Meta (sin BSP): API REST, webhooks, plantillas. Cuenta Meta Business + WABA. |
+| Firma digital | **In-house** | Motor propio (SHA-256, OTP por SMS, PDF sellado + audit trail). Página `/firma/{token}`. Recordatorios SLA vía WhatsApp Cloud API. |
 | Calendario | **Google Calendar API** | Micro-frontend de booking |
-| Almacenamiento | **S3-compatible** | Documentos, contratos, adjuntos |
+| Almacenamiento | **Cloudinary** | Documentos, contratos, adjuntos |
 
 ### Interfaces
 
@@ -1629,7 +1786,7 @@ El sistema ofrece lectura **estratégica**, no psicológica:
 |---|---|---|
 | Dashboard CEO | **Micro-frontend Next.js** | CEO, dirección |
 | Dashboard comercial | **Micro-frontend Next.js** | Comerciales, jefes de zona |
-| Portal colaboradores | **Micro-frontend Next.js** | Bancos, abogados, tasadores |
+| Gestión de colaboradores | **Dashboard interno Next.js** | Comerciales, CEO |
 | Formularios post-visita | **Micro-frontend Next.js** | Comerciales en campo |
 | Bot de soporte | **LangGraph + WhatsApp** | Comerciales (canal privado) |
 
@@ -1639,9 +1796,11 @@ El sistema ofrece lectura **estratégica**, no psicológica:
 |---|---|
 | **Event Sourcing** | Todos los cambios se registran como eventos inmutables en Neon |
 | **Job Queue** | Tabla `job_queue` en Neon con reintentos y idempotencia |
-| **Server-Side RPA** | Workers que simulan interacción humana con sistemas cerrados |
-| **Network Interception** | Captura de cookies + CSRF + clonación de XHR para escritura en Inmovilla |
+| **API REST Integration** | Clientes REST tipados para Inmovilla y Statefox con auth por token, rate limiting y reintentos |
+| **Server-Side RPA (legacy)** | Workers con Playwright que simulan interacción humana — solo para **crear/actualizar criterios** de demandas en Inmovilla; los estados del pipeline no se escriben en Inmovilla |
+| **Network Interception** | Cookies + CSRF + clonación de XHR — solo para operaciones no cubiertas por las APIs REST (creación/edición de demandas) |
 | **CQRS** | Lectura (queries analíticas) separada de escritura (eventos) |
+| **Ports & Adapters** | `InmovillaWritePort` / `InmovillaReadPort` con adaptadores REST y legacy intercambiables por feature flag |
 
 ---
 

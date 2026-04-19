@@ -27,10 +27,12 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
+const TEST_JOB_TYPE = "WRITE_TO_INMOVILLA" as const;
+
 describe("enqueueJob", () => {
   it("debe crear un job PENDING con payload", async () => {
     const job = await enqueueJob({
-      type: "PROCESS_EVENT",
+      type: TEST_JOB_TYPE,
       payload: { testRun: TEST_RUN_ID, n: 1 },
       idempotencyKey: buildKey("create"),
       priority: 10,
@@ -38,7 +40,7 @@ describe("enqueueJob", () => {
 
     expect(job.id).toBeDefined();
     expect(job.status).toBe("PENDING");
-    expect(job.type).toBe("PROCESS_EVENT");
+    expect(job.type).toBe(TEST_JOB_TYPE);
     expect(job.payload).toEqual({ testRun: TEST_RUN_ID, n: 1 });
     expect(job.priority).toBe(10);
   });
@@ -47,12 +49,12 @@ describe("enqueueJob", () => {
     const key = buildKey("idempotent");
 
     const first = await enqueueJob({
-      type: "PROCESS_EVENT",
+      type: TEST_JOB_TYPE,
       payload: { testRun: TEST_RUN_ID, x: 1 },
       idempotencyKey: key,
     });
     const second = await enqueueJob({
-      type: "PROCESS_EVENT",
+      type: TEST_JOB_TYPE,
       payload: { testRun: TEST_RUN_ID, x: 999 },
       idempotencyKey: key,
     });
@@ -62,12 +64,18 @@ describe("enqueueJob", () => {
 });
 
 describe("dequeue + markFailed + retry + markCompleted", () => {
+  const dequeueOpts = (now: Date) => ({
+    workerId: WORKER_A,
+    types: [TEST_JOB_TYPE] as const,
+    now,
+  });
+
   it("debe procesar y reintentar: falla -> reintenta -> completa", async () => {
     const key = buildKey("cycle");
     const now = new Date();
 
     const created = await enqueueJob({
-      type: "PROCESS_EVENT",
+      type: TEST_JOB_TYPE,
       payload: { testRun: TEST_RUN_ID, step: "cycle" },
       idempotencyKey: key,
       priority: 1,
@@ -75,10 +83,7 @@ describe("dequeue + markFailed + retry + markCompleted", () => {
       maxAttempts: 3,
     });
 
-    const firstDeq = await dequeueJob({
-      workerId: WORKER_A,
-      now,
-    });
+    const firstDeq = await dequeueJob(dequeueOpts(now));
 
     expect(firstDeq.job?.id).toBe(created.id);
     expect(firstDeq.job?.status).toBe("IN_PROGRESS");
@@ -97,10 +102,7 @@ describe("dequeue + markFailed + retry + markCompleted", () => {
     expect(failed.lastError).toBe("boom");
     expect(failed.lockedBy).toBeNull();
 
-    const secondDeq = await dequeueJob({
-      workerId: WORKER_A,
-      now,
-    });
+    const secondDeq = await dequeueJob(dequeueOpts(now));
 
     expect(secondDeq.job?.id).toBe(created.id);
     expect(secondDeq.job?.status).toBe("IN_PROGRESS");
@@ -122,14 +124,14 @@ describe("dequeue + markFailed + retry + markCompleted", () => {
     const key = buildKey("dlq");
 
     const job = await enqueueJob({
-      type: "PROCESS_EVENT",
+      type: TEST_JOB_TYPE,
       payload: { testRun: TEST_RUN_ID, step: "dlq" },
       idempotencyKey: key,
       availableAt: now,
       maxAttempts: 1,
     });
 
-    const deq = await dequeueJob({ workerId: WORKER_A, now });
+    const deq = await dequeueJob(dequeueOpts(now));
     expect(deq.job?.id).toBe(job.id);
     expect(deq.job?.attempts).toBe(1);
 
@@ -151,14 +153,14 @@ describe("dequeue + markFailed + retry + markCompleted", () => {
     const key = buildKey("ownership");
 
     const job = await enqueueJob({
-      type: "PROCESS_EVENT",
+      type: TEST_JOB_TYPE,
       payload: { testRun: TEST_RUN_ID, step: "ownership" },
       idempotencyKey: key,
       availableAt: now,
       maxAttempts: 2,
     });
 
-    const deq = await dequeueJob({ workerId: WORKER_A, now });
+    const deq = await dequeueJob(dequeueOpts(now));
     expect(deq.job?.id).toBe(job.id);
 
     await expect(

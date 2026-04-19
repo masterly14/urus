@@ -11,6 +11,8 @@ interface KpiCardProps {
     icon: LucideIcon;
     format?: "currency" | "number" | "percent";
     historico?: number[];
+    description?: string;
+    className?: string;
 }
 
 function formatValue(value: number, format: string = "number"): string {
@@ -23,18 +25,25 @@ function formatValue(value: number, format: string = "number"): string {
     return value.toLocaleString("es-ES");
 }
 
+/** Variación mes a mes: evita decimales largos por float de JS. */
+function formatChangePercent(change: number): string {
+    if (!Number.isFinite(change)) return "0";
+    const rounded = Math.round(change * 10) / 10;
+    return rounded.toLocaleString("es-ES", { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+}
+
 const trendIcon = {
     up: TrendingUp,
     down: TrendingDown,
     stable: Minus,
 };
 
-export function KpiCard({ title, value, change, trend, icon: Icon, format = "number", historico = [] }: KpiCardProps) {
+export function KpiCard({ title, value, change, trend, icon: Icon, format = "number", historico = [], description, className }: KpiCardProps) {
     const TrendIcon = trendIcon[trend];
     const isPositive = change >= 0;
 
     return (
-        <Card className="relative overflow-hidden border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-background/20">
+        <Card className={cn("relative overflow-hidden border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-background/20", className)}>
             <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                     <div className="space-y-2">
@@ -58,9 +67,9 @@ export function KpiCard({ title, value, change, trend, icon: Icon, format = "num
                                 )}
                             >
                                 {isPositive ? "+" : ""}
-                                {change}%
+                                {formatChangePercent(change)}%
                             </span>
-                            <span className="text-xs text-muted-foreground">vs mes anterior</span>
+                            <span className="text-xs text-muted-foreground">{description ?? "vs mes anterior"}</span>
                         </div>
                     </div>
                     <div className="flex flex-col items-end gap-2">

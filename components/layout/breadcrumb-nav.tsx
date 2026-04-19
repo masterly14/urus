@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ChevronRight, Home } from "lucide-react";
 
 const labelMap: Record<string, string> = {
+    platform: "Panel",
     coach: "Coach Emocional",
     chat: "Chat",
     metricas: "Métricas",
@@ -39,14 +40,15 @@ const labelMap: Record<string, string> = {
 export function BreadcrumbNav() {
     const pathname = usePathname();
 
-    if (pathname === "/") return null;
+    if (pathname === "/" || pathname === "/login") return null;
+    if (!pathname.startsWith("/platform")) return null;
 
     const segments = pathname.split("/").filter(Boolean);
 
     return (
         <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <Link
-                href="/"
+                href="/platform"
                 className="flex items-center gap-1 hover:text-foreground transition-colors"
             >
                 <Home className="h-3.5 w-3.5" />

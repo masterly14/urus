@@ -2,11 +2,10 @@
 
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { SparklineChart } from "@/components/dashboard/sparkline-chart";
-import type { Comercial } from "@/lib/mock-data/types";
+import type { ComercialCoachStats } from "@/lib/dashboard/mental-health/queries";
 
 interface CoachMetricsTableProps {
-    comerciales: Comercial[];
+    comerciales: ComercialCoachStats[];
     className?: string;
 }
 
@@ -25,7 +24,8 @@ function getUsageLevel(sessions: number): { label: string; color: string } {
     return { label: "Bajo", color: "var(--urus-danger)" };
 }
 
-function formatRelativeTime(isoDate: string): string {
+function formatRelativeTime(isoDate: string | null): string {
+    if (!isoDate) return "Sin sesiones";
     const now = new Date();
     const date = new Date(isoDate);
     const diffMs = now.getTime() - date.getTime();
@@ -38,6 +38,11 @@ function formatRelativeTime(isoDate: string): string {
     return `Hace ${diffD} días`;
 }
 
+function formatEnergia(avg: number | null): string {
+    if (avg === null) return "—";
+    return `${avg.toFixed(1)}/5`;
+}
+
 export function CoachMetricsTable({ comerciales, className }: CoachMetricsTableProps) {
     return (
         <div className={cn("overflow-x-auto", className)}>
@@ -45,21 +50,22 @@ export function CoachMetricsTable({ comerciales, className }: CoachMetricsTableP
                 <thead>
                     <tr className="border-b border-border/50">
                         <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Comercial</th>
-                        <th className="text-center py-3 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sesiones</th>
+                        <th className="text-center py-3 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sesiones (30d)</th>
                         <th className="text-center py-3 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Última Sesión</th>
                         <th className="text-center py-3 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nivel Uso</th>
+                        <th className="text-center py-3 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Energía</th>
                         <th className="text-center py-3 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estrés</th>
-                        <th className="text-right py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tendencia</th>
+                        <th className="text-right py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Flujo principal</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-border/30">
                     {comerciales.map((c) => {
-                        const usage = getUsageLevel(c.sesionesCoach);
+                        const usage = getUsageLevel(c.sesiones30d);
                         const stressColor = getStressColor(c.nivelEstres);
 
                         return (
                             <tr
-                                key={c.id}
+                                key={c.comercialId}
                                 className="hover:bg-accent/20 transition-colors"
                             >
                                 <td className="py-3 px-4">
@@ -74,11 +80,11 @@ export function CoachMetricsTable({ comerciales, className }: CoachMetricsTableP
                                     </div>
                                 </td>
                                 <td className="text-center py-3 px-3">
-                                    <span className="text-sm font-semibold font-mono">{c.sesionesCoach}</span>
+                                    <span className="text-sm font-semibold font-mono">{c.sesiones30d}</span>
                                 </td>
                                 <td className="text-center py-3 px-3">
                                     <span className="text-xs text-muted-foreground">
-                                        {formatRelativeTime(c.ultimaSesionCoach)}
+                                        {formatRelativeTime(c.ultimaSesion)}
                                     </span>
                                 </td>
                                 <td className="text-center py-3 px-3">
@@ -95,6 +101,11 @@ export function CoachMetricsTable({ comerciales, className }: CoachMetricsTableP
                                     </Badge>
                                 </td>
                                 <td className="text-center py-3 px-3">
+                                    <span className="text-xs font-mono text-muted-foreground">
+                                        {formatEnergia(c.nivelEnergiaMedio)}
+                                    </span>
+                                </td>
+                                <td className="text-center py-3 px-3">
                                     <div className="flex items-center justify-center gap-1.5">
                                         <span
                                             className="h-2.5 w-2.5 rounded-full"
@@ -108,15 +119,10 @@ export function CoachMetricsTable({ comerciales, className }: CoachMetricsTableP
                                         </span>
                                     </div>
                                 </td>
-                                <td className="py-3 px-4">
-                                    <div className="flex justify-end">
-                                        <SparklineChart
-                                            data={c.tendencia}
-                                            color={stressColor}
-                                            width={80}
-                                            height={24}
-                                        />
-                                    </div>
+                                <td className="text-right py-3 px-4">
+                                    <span className="text-xs text-muted-foreground capitalize">
+                                        {c.flujoMasFrecuente ?? "—"}
+                                    </span>
                                 </td>
                             </tr>
                         );

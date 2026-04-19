@@ -1,0 +1,101 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { InmovillaDemand } from "@/lib/inmovilla/api/types-demands";
+import type { DemandDiffResult } from "../types";
+import { publishDemandEventsForDiff } from "../event-publisher";
+
+const { appendEventAndEnqueueJobMock } = vi.hoisted(() => ({
+  appendEventAndEnqueueJobMock: vi.fn(),
+}));
+
+vi.mock("@/lib/event-store", () => ({
+  appendEventAndEnqueueJob: appendEventAndEnqueueJobMock,
+}));
+
+function makeDemand(
+  codigo: string,
+  overrides: Partial<InmovillaDemand> = {},
+): InmovillaDemand {
+  return {
+    codigo,
+    ref: `REF-${codigo}`,
+    nombre: "Demanda test",
+    estadoId: "20",
+    estadoNombre: "Buscando",
+    presupuestoMin: 100000,
+    presupuestoMax: 200000,
+    habitacionesMin: 2,
+    tipos: "Piso",
+    zonas: "Centro",
+    fechaActualizacion: "2026-03-11 10:00:00",
+    agente: "Agente",
+    siglas: "MA",
+    inmovillaAgentId: 177892,
+    raw: {},
+    ...overrides,
+  };
+}
+
+describe("publishDemandEventsForDiff", () => {
+  beforeEach(() => {
+    appendEventAndEnqueueJobMock.mockReset();
+    appendEventAndEnqueueJobMock.mockResolvedValue({ id: "evt", type: "DEMANDA_CREADA" });
+  });
+
+  it("publica eventos de demanda con correlationId y metadata", async () => {
+    const diff: DemandDiffResult = {
+      created: [{ type: "created", demand: makeDemand("C-1") }],
+      modified: [
+        {
+          type: "modified",
+          demand: makeDemand("M-1", { presupuestoMax: 220000 }),
+          before: {
+            estadoId: "20",
+            estadoNombre: "Buscando",
+            presupuestoMin: 100000,
+            presupuestoMax: 200000,
+            habitacionesMin: 2,
+            tipos: "Piso",
+            zonas: "Centro",
+            fechaActualizacion: "2026-03-10 10:00:00",
+            agente: "Agente",
+            refConsultada: undefined,
+          },
+          changedFields: ["presupuestoMax"],
+        },
+      ],
+      statusChanged: [
+        {
+          type: "status_changed",
+          demand: makeDemand("S-1", { estadoId: "31", estadoNombre: "Parada" }),
+          previousEstadoId: "20",
+          previousEstadoNombre: "Buscando",
+          newEstadoId: "31",
+          newEstadoNombre: "Parada",
+          otherChangedFields: [],
+        },
+      ],
+      unchanged: 0,
+    };
+
+    const cycleId = "cycle-demand-test-1";
+    const result = await publishDemandEventsForDiff(diff, cycleId);
+
+    expect(result.emitted).toBe(3);
+    expect(appendEventAndEnqueueJobMock).toHaveBeenCalledTimes(3);
+
+    const calls = appendEventAndEnqueueJobMock.mock.calls.map((c) => c[0].event);
+    const types = calls.map((c) => c.type).sort();
+    expect(types).toEqual([
+      "DEMANDA_CREADA",
+      "DEMANDA_ESTADO_CAMBIADO",
+      "DEMANDA_MODIFICADA",
+    ]);
+
+    for (const call of calls) {
+      expect(call.aggregateType).toBe("DEMAND");
+      expect(call.correlationId).toBe(cycleId);
+      expect(call.metadata?.source).toBe("ingestion:demands");
+      expect(call.metadata?.fingerprint).toMatch(/^[a-f0-9]{64}$/);
+    }
+  });
+});

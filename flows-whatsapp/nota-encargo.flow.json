@@ -1,0 +1,168 @@
+{
+  "version": "7.3",
+  "screens": [
+    {
+      "id": "DATOS_PERSONALES",
+      "title": "Datos del Propietario",
+      "data": {
+        "flow_token": { "type": "string", "__example__": "session_abc123" },
+        "direccion_inmueble": { "type": "string", "__example__": "Calle de los Flamencos, 8, La Carlota, Córdoba" },
+        "tipo_operacion": { "type": "string", "__example__": "VENTA" },
+        "precio_inmueble": { "type": "string", "__example__": "275.000 €" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextSubheading",
+            "text": "Complete sus datos personales"
+          },
+          {
+            "type": "TextInput",
+            "name": "nombre_completo",
+            "label": "Nombre y apellidos",
+            "input-type": "text",
+            "required": true,
+            "helper-text": "Como aparece en su DNI"
+          },
+          {
+            "type": "TextInput",
+            "name": "dni",
+            "label": "DNI / NIF / NIE",
+            "input-type": "text",
+            "required": true,
+            "helper-text": "Ej: 12345678A"
+          },
+          {
+            "type": "TextInput",
+            "name": "telefono",
+            "label": "Teléfono de contacto",
+            "input-type": "phone",
+            "required": true,
+            "helper-text": "Teléfono móvil"
+          },
+          {
+            "type": "TextArea",
+            "name": "domicilio_fiscal",
+            "label": "Domicilio fiscal",
+            "required": true,
+            "helper-text": "Dirección completa"
+          },
+          {
+            "type": "Footer",
+            "label": "Siguiente",
+            "on-click-action": {
+              "name": "navigate",
+              "next": { "type": "screen", "name": "DATOS_ENCARGO" },
+              "payload": {
+                "flow_token": "${data.flow_token}",
+                "nombre_completo": "${form.nombre_completo}",
+                "dni": "${form.dni}",
+                "telefono": "${form.telefono}",
+                "domicilio_fiscal": "${form.domicilio_fiscal}",
+                "direccion_inmueble": "${data.direccion_inmueble}",
+                "tipo_operacion": "${data.tipo_operacion}",
+                "precio_inmueble": "${data.precio_inmueble}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "DATOS_ENCARGO",
+      "title": "Datos del Encargo",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "flow_token": { "type": "string", "__example__": "session_abc123" },
+        "nombre_completo": { "type": "string", "__example__": "Juan García López" },
+        "dni": { "type": "string", "__example__": "12345678A" },
+        "telefono": { "type": "string", "__example__": "666777888" },
+        "domicilio_fiscal": { "type": "string", "__example__": "Calle Mayor 1, Córdoba" },
+        "direccion_inmueble": { "type": "string", "__example__": "Calle de los Flamencos, 8" },
+        "tipo_operacion": { "type": "string", "__example__": "VENTA" },
+        "precio_inmueble": { "type": "string", "__example__": "275.000 €" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextSubheading",
+            "text": "Datos del inmueble"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.direccion_inmueble}"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.tipo_operacion}"
+          },
+          {
+            "type": "TextCaption",
+            "text": "${data.precio_inmueble}"
+          },
+          {
+            "type": "TextInput",
+            "name": "duracion_meses",
+            "label": "Duración (meses)",
+            "input-type": "number",
+            "required": true,
+            "helper-text": "Número de meses"
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "name": "tipo_nota",
+            "label": "Tipo de Nota de Encargo",
+            "required": true,
+            "data-source": [
+              {
+                "id": "N1",
+                "title": "N1 — Abierta",
+                "description": "Podrá vender por sí mismo o con otros agentes"
+              },
+              {
+                "id": "N2",
+                "title": "N2 — Agente Único",
+                "description": "Encargo en régimen de agente único a URUS CAPITAL GROUP"
+              },
+              {
+                "id": "N3",
+                "title": "N3 — Representación",
+                "description": "Representación exclusiva por URUS CAPITAL GROUP"
+              }
+            ]
+          },
+          {
+            "type": "TextCaption",
+            "text": "La parte contratante se compromete y da su consentimiento expreso para el tratamiento de cuantos datos personales haya facilitado a URUS CAPITAL GROUP S.L. con CIF: B54560976. Los datos se conservarán mientras se mantenga la relación comercial y durante los años necesarios para cumplir con las obligaciones legales vigentes."
+          },
+          {
+            "type": "OptIn",
+            "name": "acepta_lopd",
+            "label": "Acepto la cláusula de protección de datos",
+            "required": true
+          },
+          {
+            "type": "Footer",
+            "label": "Enviar formulario",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "flow_token": "${data.flow_token}",
+                "nombre_completo": "${data.nombre_completo}",
+                "dni": "${data.dni}",
+                "telefono": "${data.telefono}",
+                "domicilio_fiscal": "${data.domicilio_fiscal}",
+                "duracion_meses": "${form.duracion_meses}",
+                "tipo_nota": "${form.tipo_nota}",
+                "acepta_lopd": "${form.acepta_lopd}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

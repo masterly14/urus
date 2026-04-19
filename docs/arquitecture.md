@@ -73,9 +73,10 @@ Su trabajo: detectar cambios (por ejemplo, "el comercial cambió el estado a Res
 Cuando la inteligencia artificial decide que hay que actualizar un dato en Inmovilla (subir un precio, adjuntar un PDF, crear un lead), este worker entra en acción. Mediante código TypeScript puro:
 
 1. Hace **login silente** con credenciales almacenadas.
-2. Captura las **Session Cookies**.
-3. Raspa el DOM para obtener el **token CSRF** dinámico.
-4. Dispara una **petición HTTP clonada** (XHR/Fetch) directamente a los endpoints internos de Inmovilla.
+2. Obtiene el **código 2FA** por correo: la integración con **Composio** dispara una acción sobre Gmail (listar/buscar correos de Inmovilla) y se extrae el código de 6 dígitos del último correo recibido (ver `docs/workers/inmovilla-endpoints.md`).
+3. Captura las **Session Cookies** y el **token de sesión** (`l`) tras completar el login en dos pasos (credenciales + verificación 2FA).
+4. Raspa el DOM si hace falta para **tokens dinámicos** adicionales.
+5. Dispara **peticiones HTTP clonadas** (XHR/Fetch) directamente a los endpoints internos de Inmovilla.
 
 Es una ejecución **determinista, centralizada y server-side**, a prueba de los fallos que tendría una extensión de navegador o una herramienta no-code.
 
@@ -122,7 +123,7 @@ Para evitar que clientes, colaboradores externos o comerciales peleen con la int
 | Canal | Implementación |
 |---|---|
 | **WhatsApp** | WhatsApp Business API (integración directa vía código) para precalificar compradores, seguimiento post-venta y notificaciones de matches |
-| **Micro-Frontends** | Rutas dinámicas en Next.js donde un gestor de banco sube un documento, o un comercial valida un enlace de Statefox en 30 segundos |
+| **Micro-Frontends** | Rutas dinámicas en Next.js donde el comercial gestiona hitos de colaboradores, sube documentos o valida un enlace de Statefox en 30 segundos |
 | **Notificaciones internas** | Webhooks propios hacia Slack/WhatsApp del equipo |
 
 Una vez que el usuario interactúa con la interfaz ligera, la información viaja a la **Capa 3** para ser procesada y, finalmente, escrita en Inmovilla por la **Capa 2**.
@@ -517,6 +518,13 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 | Confirmación | Automática vía WhatsApp Business API |
 | Registro en CRM | `Egestion Worker` escribe cita en Inmovilla |
 
+### Autenticación Inmovilla (login automático y 2FA)
+
+| Componente | Implementación |
+|---|---|
+| Login en dos pasos | POST a `comprueba.php` (credenciales) + POST a `login2Fa/verifyCode` (código 2FA). Ver `docs/workers/inmovilla-endpoints.md`. |
+| Código 2FA por correo | **Composio**: conexión Gmail (OAuth), acción de listado/búsqueda de correos filtrada por remitente Inmovilla; extracción del código de 6 dígitos del último correo; envío al endpoint de verificación. Permite login totalmente automatizado sin intervención manual. |
+
 ### Documentación y Plantillas
 
 | Componente | Implementación |
@@ -742,7 +750,7 @@ flowchart TD
 
     I --> M[Enviar a firma digital]
     M --> N{¿Firmado?}
-    N -->|No| O[Recordatorios automáticos + seguimiento]
+    N -->|No| O[Recordatorios WhatsApp +1/+3/+5 días + escalado SLA 5d]
     N -->|Sí| P[Guardar firmado + adjuntar en Inmovilla vía Egestion Worker]
     P --> Q[Actualizar Inmovilla: estado, fechas, docs, auditoría]
 ```
@@ -770,11 +778,7 @@ Si hay ambigüedad (confidence score bajo), el sistema pregunta al gestor: "¿qu
 
 ### Firma Digital
 
-Integración programática con servicios de firma electrónica:
-
-- **Signaturit** (habitual en España) / DocuSign / Dropbox Sign.
-- Envío y seguimiento automatizado desde API Routes de Next.js.
-- Recordatorios automáticos si no se firma.
+Motor de firma electrónica simple **in-house** (sin proveedor externo). El sistema genera un token seguro + URL pública (`/firma/{token}`), captura evidencia (SHA-256, IP, User-Agent, consentimiento), sella el PDF con página de certificado, y genera audit trail. Recordatorios y escalados por **WhatsApp Cloud API (Meta)** con **plantillas aprobadas**; **SLA 5 días naturales**; cadencia **+1/+3/+5** días; escalado a comercial y gestor; orquestación con **QStash**/cron. Detalle en `docs/firma-digital.md`.
 
 ### Control de Versiones y Auditoría
 
@@ -816,7 +820,8 @@ El gestor dice "modifica X", el sistema cambia variable/bloque, regenera el docu
 **SYS:**
 - Genera borradores, versiona y registra cambios.
 - Interpreta voz y transforma en instrucciones estructuradas.
-- Envía a firma digital y archiva.
+- Envía a firma digital (API proveedor), procesa **webhook** de resultado y archiva.
+- Lanza **recordatorios por WhatsApp** (+1/+3/+5 días) y **escalado** a comercial y gestor si se incumple el **SLA de 5 días naturales**.
 - Actualiza Inmovilla con todo (incluyendo auditoría).
 
 ### Tiempo Ahorrado
@@ -1273,9 +1278,9 @@ Se registra automáticamente:
 - Tiempos de respuesta.
 - Resultado final (aprobado / rechazado / retrasado).
 
-Los datos se capturan tanto por el `Ingestion Worker` (si el colaborador interactúa con Inmovilla) como por los **micro-frontends de Next.js** donde los colaboradores suben documentos e interactúan.
+Los datos se capturan desde el **dashboard interno de Next.js** donde el Comercial o el CEO registra asignaciones, sube documentos en nombre de los colaboradores, avanza hitos y cambia estados. Los colaboradores externos **no acceden al sistema directamente**; toda la interacción se gestiona internamente.
 
-> **Regla clave:** ningún colaborador trabaja fuera del sistema.
+> **Regla clave:** la gestión de colaboradores la realiza el equipo interno (Comercial/CEO), no el colaborador externo.
 
 ---
 
@@ -1334,7 +1339,7 @@ LangGraph genera recomendaciones para el CEO:
    - Abogado: revisión contrato → observaciones → validación final.
 3. **Tracking de tiempos:** cada cambio de estado registra timestamp en Neon, el sistema calcula retrasos.
 4. **Reglas de alerta (cron-jobs):** banco supera SLA → alerta jefe de zona; abogado genera incidencias repetidas → alerta CEO.
-5. **Dashboard dinámico (micro-frontend Next.js):** rendimiento semanal, tendencias mensuales, impacto económico acumulado.
+5. **Dashboard interno (Next.js):** rendimiento semanal, tendencias mensuales, impacto económico acumulado. Gestionado por el Comercial y el CEO, no por los colaboradores externos.
 
 ---
 
@@ -1400,7 +1405,6 @@ Se activan automáticamente cuando Neon registra el evento `OPERACION_CERRADA` (
 
 - Mensaje: "Si conoces a alguien que esté pensando en comprar o vender, estaremos encantados de ayudarle como hicimos contigo."
 - Enlace directo a WhatsApp / formulario de referido (micro-frontend).
-- Posible incentivo (opcional y legal).
 
 > Se pide cuando la satisfacción es alta, no en frío.
 
@@ -1595,14 +1599,15 @@ El sistema ofrece lectura **estratégica**, no psicológica:
 | Worker | Tecnología | Función |
 |---|---|---|
 | Ingestion Worker | **Node.js + Playwright** (cron-job) | Polling + scraping headless de Inmovilla/Statefox |
-| Egestion Worker | **Node.js + fetch** (job queue) | Login silente, CSRF, XHR clonado hacia Inmovilla/Statefox |
+| Egestion Worker | **Node.js + fetch** (job queue) | Login silente (credenciales + 2FA vía Composio/Gmail), token `l`, XHR clonado hacia Inmovilla/Statefox |
 
 ### Integraciones Externas
 
 | Servicio | Proveedor | Integración |
 |---|---|---|
+| **Autenticación Inmovilla (2FA)** | **Composio + Gmail** | Obtención automática del código de verificación por correo: acción Composio sobre Gmail (listar/buscar correos de Inmovilla), extracción del código de 6 dígitos, envío a `login2Fa/verifyCode`. Ver `docs/workers/inmovilla-endpoints.md`. |
 | WhatsApp Business | **360dialog / Twilio / MessageBird** | API directa desde código (webhooks + envíos) |
-| Firma digital | **Signaturit / DocuSign** | API REST desde Next.js |
+| Firma digital | **In-house** | Motor propio (hash, token, lienzo, OTP por SMS, PDF sellado y audit trail). Página `/firma/{token}`. Recordatorios y escalados SLA vía WhatsApp Cloud API. Detalle: `docs/firma-digital.md`. |
 | Calendario | **Google Calendar API** | Micro-frontend de booking |
 | Almacenamiento | **S3-compatible** | Documentos, contratos, adjuntos |
 
@@ -1612,7 +1617,7 @@ El sistema ofrece lectura **estratégica**, no psicológica:
 |---|---|---|
 | Dashboard CEO | **Micro-frontend Next.js** | CEO, dirección |
 | Dashboard comercial | **Micro-frontend Next.js** | Comerciales, jefes de zona |
-| Portal colaboradores | **Micro-frontend Next.js** | Bancos, abogados, tasadores |
+| Gestión de colaboradores | **Dashboard interno Next.js** | Comerciales, CEO |
 | Formularios post-visita | **Micro-frontend Next.js** | Comerciales en campo |
 | Bot de soporte | **LangGraph + WhatsApp** | Comerciales (canal privado) |
 

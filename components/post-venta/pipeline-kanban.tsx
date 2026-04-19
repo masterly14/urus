@@ -3,7 +3,6 @@
 import { cn } from "@/lib/utils";
 import {
     Send,
-    MessageSquare,
     ArrowDownLeft,
     CheckCircle2,
     Star,
@@ -11,7 +10,7 @@ import {
     RefreshCcw,
     Package,
 } from "lucide-react";
-import type { MensajePostVenta, EtapaPostVenta } from "@/lib/mock-data/types";
+import type { MensajePostVenta, EtapaPostVenta } from "@/lib/postventa/pipeline-types";
 
 interface PipelineKanbanProps {
     children: React.ReactNode;
@@ -75,6 +74,7 @@ export function KanbanColumn({ etapa, label, description, emoji, count, children
                         >
                             {etapaIcons[etapa]}
                         </span>
+                        <span className="text-xs">{emoji}</span>
                         <span className="text-sm font-semibold">{label}</span>
                     </div>
                     <span

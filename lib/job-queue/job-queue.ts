@@ -1,5 +1,6 @@
 import type { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { alertDeadLetter } from "@/lib/alerts";
 import type {
   DequeueJobOptions,
   DequeueJobResult,
@@ -128,27 +129,45 @@ export async function markCompleted(
 ): Promise<JobRecord> {
   const now = defaultNow(input.now);
 
-  const where: Prisma.JobQueueWhereUniqueInput = { id: input.jobId };
-  const job = await prisma.jobQueue.findUnique({ where });
-  if (!job) throw new Error(`Job no existe: ${input.jobId}`);
-  if (job.status !== "IN_PROGRESS") {
-    throw new Error(`Job no está IN_PROGRESS: ${input.jobId}`);
-  }
-  if (input.workerId && job.lockedBy !== input.workerId) {
-    throw new Error(`Job lock no pertenece al worker: ${input.jobId}`);
+  if (input.workerId) {
+    const result = await prisma.$executeRaw`
+      UPDATE "job_queue"
+      SET "status" = 'COMPLETED',
+          "completedAt" = ${now},
+          "lockedAt" = NULL,
+          "lockedBy" = NULL,
+          "lastError" = NULL,
+          "updatedAt" = ${now}
+      WHERE "id" = ${input.jobId}
+        AND "status" = 'IN_PROGRESS'
+        AND "lockedBy" = ${input.workerId}
+    `;
+    if (result === 0) {
+      console.warn(
+        `[job-queue] markCompleted: 0 rows updated for job=${input.jobId} worker=${input.workerId} — ownership mismatch or state changed`,
+      );
+      throw new Error(
+        `Job lock no pertenece al worker o estado cambió: ${input.jobId}`,
+      );
+    }
+  } else {
+    await prisma.$executeRaw`
+      UPDATE "job_queue"
+      SET "status" = 'COMPLETED',
+          "completedAt" = ${now},
+          "lockedAt" = NULL,
+          "lockedBy" = NULL,
+          "lastError" = NULL,
+          "updatedAt" = ${now}
+      WHERE "id" = ${input.jobId}
+        AND "status" = 'IN_PROGRESS'
+    `;
   }
 
-  const updated = await prisma.jobQueue.update({
-    where,
-    data: {
-      status: "COMPLETED",
-      completedAt: now,
-      lockedAt: null,
-      lockedBy: null,
-      lastError: null,
-    },
+  const updated = await prisma.jobQueue.findUnique({
+    where: { id: input.jobId },
   });
-
+  if (!updated) throw new Error(`Job no existe: ${input.jobId}`);
   return updated;
 }
 
@@ -162,14 +181,23 @@ export async function markFailed(input: MarkFailedInput): Promise<JobRecord> {
     throw new Error(`Job no está IN_PROGRESS: ${input.jobId}`);
   }
   if (input.workerId && job.lockedBy !== input.workerId) {
+    console.warn(
+      `[job-queue] markFailed: ownership mismatch for job=${input.jobId} worker=${input.workerId} lockedBy=${job.lockedBy}`,
+    );
     throw new Error(`Job lock no pertenece al worker: ${input.jobId}`);
   }
 
-  const hasAttemptsLeft = job.attempts < job.maxAttempts;
-  const retryDelayMs =
-    input.retryDelayMs ?? computeBackoffMs(Math.max(1, job.attempts));
+  const shouldDeadLetter = input.permanent || job.attempts >= job.maxAttempts;
 
-  if (!hasAttemptsLeft) {
+  if (shouldDeadLetter) {
+    const reason = input.permanent
+      ? "fallo permanente (no retriable)"
+      : `máximo de intentos alcanzado (${job.attempts}/${job.maxAttempts})`;
+
+    console.error(
+      `[job-queue] Job ${job.id} (${job.type}) → DEAD_LETTER: ${reason}. Error: ${input.error}`,
+    );
+
     const updated = await prisma.jobQueue.update({
       where,
       data: {
@@ -180,10 +208,32 @@ export async function markFailed(input: MarkFailedInput): Promise<JobRecord> {
         lockedBy: null,
       },
     });
+
+    const payload = (job.payload ?? {}) as Record<string, unknown>;
+    alertDeadLetter({
+      jobId: job.id,
+      jobType: job.type,
+      attempts: job.attempts,
+      lastError: input.error,
+      operation: typeof payload.operation === "string" ? payload.operation : undefined,
+      details: { reason },
+    }).catch((err) => {
+      console.error(
+        `[job-queue] Error emitiendo alerta DLQ: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
+
     return updated;
   }
 
+  const retryDelayMs =
+    input.retryDelayMs ?? computeBackoffMs(Math.max(1, job.attempts));
   const availableAt = new Date(now.getTime() + Math.max(0, retryDelayMs));
+
+  console.warn(
+    `[job-queue] Job ${job.id} (${job.type}) — reintento ${job.attempts}/${job.maxAttempts}, próximo en ${retryDelayMs}ms (${availableAt.toISOString()}). Error: ${input.error}`,
+  );
+
   const updated = await prisma.jobQueue.update({
     where,
     data: {

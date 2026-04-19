@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useRole } from "@/lib/hooks/use-role";
+import { useSession } from "@/lib/hooks/use-session";
 import {
     LayoutDashboard,
     Brain,
@@ -33,9 +33,14 @@ import {
     ChevronLeft,
     ChevronRight,
     ChevronDown,
+    Users2,
+    Folder,
+    FlaskConical,
+    CalendarCheck,
+    Sparkles,
+    MessagesSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState } from "react";
 import { Button } from "@base-ui/react";
@@ -44,93 +49,112 @@ interface NavItem {
     label: string;
     href: string;
     icon: React.ElementType;
-    badge?: number;
     ceoOnly?: boolean;
-    children?: { label: string; href: string; icon: React.ElementType }[];
+    children?: {
+        label: string;
+        href: string;
+        icon: React.ElementType;
+        ceoOnly?: boolean;
+    }[];
 }
 
 const navItems: NavItem[] = [
-    { label: "Dashboard", href: "/", icon: LayoutDashboard },
+    { label: "Dashboard", href: "/platform", icon: LayoutDashboard },
     {
         label: "Coach Emocional",
-        href: "/coach",
+        href: "/platform/coach",
         icon: Brain,
         children: [
-            { label: "Dashboard", href: "/coach", icon: BarChart3 },
-            { label: "Chat", href: "/coach/chat", icon: MessageCircle },
-            { label: "Métricas", href: "/coach/metricas", icon: BarChart3 },
+            { label: "Dashboard", href: "/platform/coach", icon: BarChart3 },
+            { label: "Métricas", href: "/platform/coach/metricas", icon: BarChart3 },
         ],
     },
     {
         label: "Post-Venta",
-        href: "/post-venta",
+        href: "/platform/post-venta",
         icon: Package,
         children: [
-            { label: "Pipeline", href: "/post-venta/pipeline", icon: GitBranch },
+            { label: "Pipeline", href: "/platform/post-venta/pipeline", icon: GitBranch },
         ],
     },
     {
         label: "Colaboradores",
-        href: "/colaboradores",
+        href: "/platform/colaboradores",
         icon: Users,
-        badge: 2,
         children: [
-            { label: "Vista General", href: "/colaboradores", icon: Users },
-            { label: "Rankings", href: "/colaboradores/ranking", icon: Trophy },
+            { label: "Vista General", href: "/platform/colaboradores", icon: Users },
+            { label: "Rankings", href: "/platform/colaboradores/ranking", icon: Trophy },
         ],
     },
     {
+        label: "Demandas",
+        href: "/platform/demandas",
+        icon: Users2,
+    },
+    {
         label: "Matching",
-        href: "/matching",
+        href: "/platform/matching",
         icon: Shuffle,
         children: [
-            { label: "Cruces Automáticos", href: "/matching/cruces", icon: Shuffle },
-            { label: "Feedback Loop", href: "/matching/feedback", icon: MessageSquare },
+            { label: "Cruces Automáticos", href: "/platform/matching/cruces", icon: Shuffle },
+            { label: "Feedback Loop", href: "/platform/matching/feedback", icon: MessageSquare },
         ],
     },
     {
         label: "Smart Pricing",
-        href: "/pricing",
+        href: "/platform/pricing",
         icon: DollarSign,
-        badge: 1,
         children: [
-            { label: "Semáforo General", href: "/pricing", icon: TrendingUp },
-            { label: "Mercado", href: "/pricing/mercado", icon: ShoppingBag },
+            { label: "Semáforo General", href: "/platform/pricing", icon: TrendingUp },
+            { label: "Mercado", href: "/platform/pricing/mercado", icon: ShoppingBag },
         ],
     },
     {
         label: "Legal",
-        href: "/legal",
+        href: "/platform/legal",
         icon: FileText,
         children: [
-            { label: "Contratos", href: "/legal/contratos", icon: FileSignature },
-            { label: "Plantillas", href: "/legal/plantillas", icon: LayoutTemplate },
+            { label: "Contratos", href: "/platform/legal/contratos", icon: FileSignature },
+            { label: "Plantillas", href: "/platform/legal/plantillas", icon: LayoutTemplate },
+            { label: "Documentos", href: "/platform/legal/documentos", icon: Folder },
         ],
     },
     {
         label: "Business Intelligence",
-        href: "/bi",
+        href: "/platform/bi",
         icon: PieChart,
         ceoOnly: true,
         children: [
-            { label: "Financiero", href: "/bi/financiero", icon: Wallet },
-            { label: "Operativo", href: "/bi/operativo", icon: UserCheck },
-            { label: "Capital Humano", href: "/bi/capital-humano", icon: Users },
-            { label: "Prescriptivo", href: "/bi/prescriptivo", icon: Target },
-            { label: "Expansión", href: "/bi/expansion", icon: Rocket },
-            { label: "Reinversión", href: "/bi/reinversion", icon: Banknote },
+            { label: "Financiero", href: "/platform/bi/reinversion", icon: Wallet },
+            { label: "Operativo", href: "/platform/bi/operativo", icon: UserCheck },
+            { label: "Capital Humano", href: "/platform/bi/capital-humano", icon: Users },
+            { label: "Prescriptivo", href: "/platform/bi/prescriptivo", icon: Target },
+            { label: "Expansión", href: "/platform/bi/expansion", icon: Rocket },
+            { label: "Reinversión", href: "/platform/bi/reinversion", icon: Banknote },
         ],
     },
     {
         label: "Rendimiento",
-        href: "/rendimiento",
+        href: "/platform/rendimiento",
         icon: Award,
         children: [
-            { label: "Equipo", href: "/rendimiento/equipo", icon: UsersRound },
-            { label: "Alertas", href: "/rendimiento/alertas", icon: AlertTriangle, ceoOnly: true },
+            { label: "Equipo", href: "/platform/rendimiento/equipo", icon: UsersRound },
+            { label: "Comerciales", href: "/platform/rendimiento/comerciales", icon: TrendingUp },
+            { label: "Alertas", href: "/platform/rendimiento/alertas", icon: AlertTriangle, ceoOnly: true },
         ],
     },
-    { label: "Configuración", href: "/configuracion", icon: Settings },
+    {
+        label: "Test bench",
+        href: "/platform/test-nlu-microsite",
+        icon: FlaskConical,
+        ceoOnly: true,
+        children: [
+            { label: "NLU Micrositio", href: "/platform/test-nlu-microsite", icon: Sparkles },
+            { label: "Chat Agente", href: "/platform/chat-agente", icon: MessagesSquare },
+            { label: "Agendado Visita", href: "/platform/test-visit", icon: CalendarCheck },
+        ],
+    },
+    { label: "Configuración", href: "/platform/configuracion", icon: Settings },
 ];
 
 interface SidebarProps {
@@ -140,7 +164,7 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     const pathname = usePathname();
-    const { isCeo } = useRole();
+    const { isCeo, isCeoOrAdmin } = useSession();
     const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
     const toggleSection = (label: string) => {
@@ -153,11 +177,13 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     };
 
     const isActive = (href: string) => {
-        if (href === "/") return pathname === "/";
-        return pathname.startsWith(href);
+        if (href === "/platform") {
+            return pathname === "/platform" || pathname === "/platform/";
+        }
+        return pathname === href || pathname.startsWith(`${href}/`);
     };
 
-    const filteredItems = navItems.filter((item) => !item.ceoOnly || isCeo);
+    const filteredItems = navItems.filter((item) => !item.ceoOnly || isCeoOrAdmin);
 
     return (
         <aside
@@ -173,7 +199,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     const active = isActive(item.href);
                     const hasChildren = item.children && item.children.length > 0;
                     const isExpanded = expandedSections.has(item.label);
-                    const filteredChildren = item.children?.filter((c) => !("ceoOnly" in c) || isCeo);
+                    const filteredChildren = item.children?.filter((c) => !("ceoOnly" in c) || isCeoOrAdmin);
 
                     if (collapsed) {
                         return (
@@ -187,9 +213,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                                         )}
                                     >
                                         <Icon className="h-5 w-5" />
-                                        {item.badge && (
-                                            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-[var(--urus-danger)]" />
-                                        )}
                                     </Link>
                                 </TooltipTrigger>
                                 <TooltipContent side="right">{item.label}</TooltipContent>
@@ -209,11 +232,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                                 >
                                     <Icon className="h-5 w-5 shrink-0" />
                                     <span className="flex-1 text-left truncate">{item.label}</span>
-                                    {item.badge && (
-                                        <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-xs">
-                                            {item.badge}
-                                        </Badge>
-                                    )}
                                     <ChevronDown
                                         className={cn(
                                             "h-4 w-4 shrink-0 transition-transform duration-200",
