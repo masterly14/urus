@@ -3,6 +3,7 @@ import type { HandlerResult } from "./types";
 import { prisma } from "@/lib/prisma";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
 import { sendContractDraftReadyNotification } from "@/lib/whatsapp/send";
+import { emitManagementAlert } from "@/lib/notifications/emit";
 import { updateDemandLeadStatus, updateLeadStatusByOperationId } from "@/lib/projections/update-lead-status";
 
 interface BorradorPayload {
@@ -74,7 +75,6 @@ export async function handleContratoBorradorGenerado(
   };
 
   const sellerPhone = process.env.SELLER_DEFAULT_PHONE ?? "34601257555";
-  const comercialPhone = process.env.ALERT_WHATSAPP_TO;
 
   const errors: string[] = [];
 
@@ -89,18 +89,14 @@ export async function handleContratoBorradorGenerado(
     console.error(`[contrato-borrador] Error WA vendedor: ${msg}`);
   }
 
-  if (comercialPhone) {
-    try {
-      await sendContractDraftReadyNotification(comercialPhone, notifyParams);
-      console.log(
-        `[contrato-borrador] WA enviado al comercial ${comercialPhone} para ${operationId}`,
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      errors.push(`WA comercial: ${msg}`);
-      console.error(`[contrato-borrador] Error WA comercial: ${msg}`);
-    }
-  }
+  await emitManagementAlert({
+    source: "legal",
+    severity: "info",
+    title: "Borrador de contrato generado",
+    description:
+      `Operacion ${operationId} (${documentKind}) con borrador listo para revision.\n` +
+      `Panel: ${legalUiUrl}`,
+  });
 
   if (errors.length > 0) {
     console.warn(

@@ -326,7 +326,7 @@ No se genera una alerta si ya existe una del mismo tipo + comercial + metrica si
 
 ### Notificaciones
 
-- **CEO**: via `alertGeneric` de `lib/alerts/` (se envia a `ALERT_WHATSAPP_TO`)
+- **CEO**: via `alertGeneric` de `lib/alerts/` (notificación interna en canal management)
 - **Comercial**: mensaje de texto directo al `telefono` del registro `comerciales`
 
 ### Modelo Prisma
@@ -355,7 +355,7 @@ Migracion: `prisma/migrations/20260401150000_m10_dashboard_alerts/migration.sql`
 | `DASHBOARD_ALERT_SLA_LOST_LEAD_THRESHOLD` | 3 | Numero de leads sin contactar para alerta SLA |
 | `DASHBOARD_ALERT_DEVIATION_ZSCORE` | 1.5 | Z-score minimo para alerta de desviacion |
 
-Reutiliza: `DASHBOARD_LEAD_NO_FOLLOW_UP_HOURS`, `ALERT_WHATSAPP_TO`, `CRON_SECRET`.
+Reutiliza: `DASHBOARD_LEAD_NO_FOLLOW_UP_HOURS`, `CRON_SECRET`.
 
 ### Archivos
 

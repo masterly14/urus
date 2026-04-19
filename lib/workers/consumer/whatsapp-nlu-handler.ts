@@ -24,6 +24,7 @@ import type { PropertySummaryForNLU, ConversationTurn } from "@/lib/agents";
 import { coerceMicrositeCuratedProperties } from "@/lib/microsite/selection";
 import { enqueueJob } from "@/lib/job-queue";
 import { sendTextMessage } from "@/lib/whatsapp";
+import { emitManagementAlert } from "@/lib/notifications/emit";
 import {
   isCoachActivation,
   getActiveSession,
@@ -239,19 +240,19 @@ async function handlePostventaButton(
     },
   ];
 
-  const alertPhone = process.env.ALERT_WHATSAPP_TO;
-  if (alertPhone) {
-    await enqueueJob({
-      type: "NOTIFY_LEAD_WHATSAPP",
-      payload: {
-        assignedAgentTelefono: alertPhone,
-        leadAggregateId: propertyCode,
-        score: 0,
-        slaLevel: "INCIDENCIA_POSTVENTA",
-      },
-      idempotencyKey: `notify_incidencia_wa:${incidenciaEvent.id}`,
-      sourceEventId: incidenciaEvent.id,
+  try {
+    await emitManagementAlert({
+      source: "post-venta",
+      severity: "warning",
+      title: "Incidencia post-venta abierta por WhatsApp",
+      description:
+        `Comprador ${waId} reporta incidencia para propiedad ${propertyCode}` +
+        `${pv.operacionId ? ` (operacion ${pv.operacionId})` : ""}.`,
     });
+  } catch (err) {
+    console.error(
+      `[consumer:whatsapp] Error emitiendo notificación interna de incidencia: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   console.log(

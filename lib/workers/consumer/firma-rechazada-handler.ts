@@ -7,14 +7,14 @@
  *
  * 1. Verificar idempotencia (status ya terminal → skip).
  * 2. Registrar DashboardAlert para visibilidad del equipo.
- * 3. Notificar al comercial/gestor vía WhatsApp.
+ * 3. Crear notificación interna para seguimiento en plataforma.
  */
 
 import type { Event } from "@/types/domain";
 import type { HandlerResult } from "./types";
 import { prisma } from "@/lib/prisma";
-import { sendFirmaRechazadaNotification } from "@/lib/whatsapp/send";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
+import { emitManagementAlert } from "@/lib/notifications/emit";
 
 interface FirmaRechazadaPayload {
   signatureRequestId: string;
@@ -116,25 +116,24 @@ export async function handleFirmaRechazada(
     ? `${appUrl}/platform/legal/contratos/${legalDoc.id}`
     : `${appUrl}/platform/legal/contratos`;
 
-  const comercialPhone = process.env.ALERT_WHATSAPP_TO;
-  if (comercialPhone) {
-    try {
-      await sendFirmaRechazadaNotification(comercialPhone, {
-        operationRef: operationId,
-        documentKind: payload.documentKind ?? sigReq.documentKind,
-        signerName: signerName ?? "Firmante",
-        reason: reason ?? null,
-        legalDocUrl,
-      });
-    } catch (err) {
-      console.error(
-        `[consumer:firma-rechazada] Error WhatsApp comercial: ${err instanceof Error ? err.message : err}`,
-      );
-    }
+  try {
+    await emitManagementAlert({
+      source: "legal",
+      severity: "warning",
+      title: "Firma rechazada",
+      description:
+        `Operacion ${operationId} (${payload.documentKind ?? sigReq.documentKind}) rechazada por ${signerName ?? "Firmante"}.\n` +
+        `${reason ? `Motivo: ${reason}\n` : ""}` +
+        `Panel: ${legalDocUrl}`,
+    });
+  } catch (err) {
+    console.error(
+      `[consumer:firma-rechazada] Error emitiendo notificación interna: ${err instanceof Error ? err.message : err}`,
+    );
   }
 
   console.log(
-    `[consumer:firma-rechazada] Procesado: alert creada, comercial notificado`,
+    `[consumer:firma-rechazada] Procesado: alert creada, notificación interna emitida`,
   );
 
   return { success: true };

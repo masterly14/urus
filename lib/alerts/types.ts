@@ -2,7 +2,7 @@ import type { JobType } from "@/app/generated/prisma/client";
 
 export type AlertSeverity = "warning" | "critical";
 
-export type AlertChannel = "log" | "whatsapp";
+export type AlertChannel = "log" | "management";
 
 export interface AlertPayload {
   title: string;
@@ -27,5 +27,4 @@ export interface ThresholdAlertPayload extends AlertPayload {
 
 export interface AlertConfig {
   channels: AlertChannel[];
-  whatsappAlertTo?: string;
 }

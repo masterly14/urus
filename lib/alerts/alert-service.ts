@@ -6,16 +6,7 @@ import type {
 } from "./types";
 
 function getConfig(): AlertConfig {
-  const channels: AlertConfig["channels"] = ["log"];
-
-  if (process.env.ALERT_WHATSAPP_TO) {
-    channels.push("whatsapp");
-  }
-
-  return {
-    channels,
-    whatsappAlertTo: process.env.ALERT_WHATSAPP_TO,
-  };
+  return { channels: ["log", "management"] };
 }
 
 function logAlert(alert: AlertPayload): void {
@@ -34,33 +25,12 @@ function logAlert(alert: AlertPayload): void {
   console.error(`[alert] ${prefix}: ${alert.title}`);
 }
 
-async function sendWhatsAppAlert(
-  alert: AlertPayload,
-  to: string,
-): Promise<void> {
-  try {
-    const { sendTextMessage } = await import("@/lib/whatsapp/send");
-
-    const emoji = alert.severity === "critical" ? "🔴" : "🟡";
-    const lines = [
-      `${emoji} *Alerta del sistema*`,
-      ``,
-      `*${alert.title}*`,
-      `Severidad: ${alert.severity.toUpperCase()}`,
-      ``,
-      ...Object.entries(alert.details)
-        .filter(([, v]) => v !== undefined && v !== null)
-        .map(([k, v]) => `• ${k}: ${String(v)}`),
-      ``,
-      `📅 ${alert.timestamp}`,
-    ];
-
-    await sendTextMessage(to, lines.join("\n"));
-  } catch (err) {
-    console.error(
-      `[alert] Error enviando alerta WhatsApp: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
+function buildAlertDescription(alert: AlertPayload): string {
+  const detailLines = Object.entries(alert.details)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => `${k}: ${String(v)}`);
+  const suffix = detailLines.length ? `\n${detailLines.join("\n")}` : "";
+  return `Severidad: ${alert.severity.toUpperCase()}\nTimestamp: ${alert.timestamp}${suffix}`;
 }
 
 async function dispatch(alert: AlertPayload): Promise<void> {
@@ -71,9 +41,19 @@ async function dispatch(alert: AlertPayload): Promise<void> {
       case "log":
         logAlert(alert);
         break;
-      case "whatsapp":
-        if (config.whatsappAlertTo) {
-          await sendWhatsAppAlert(alert, config.whatsappAlertTo);
+      case "management":
+        try {
+          const { emitManagementAlert } = await import("@/lib/notifications/emit");
+          await emitManagementAlert({
+            source: "alert-system",
+            severity: alert.severity,
+            title: alert.title,
+            description: buildAlertDescription(alert),
+          });
+        } catch (err) {
+          console.error(
+            `[alert] Error emitiendo notificación interna: ${err instanceof Error ? err.message : String(err)}`,
+          );
         }
         break;
     }

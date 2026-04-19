@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { isAuthorized } from "@/lib/api/cron-auth";
+import { isQstashAuthorized } from "@/lib/api/cron-auth";
 import { generateAndPersistCeoExpansion } from "@/lib/dashboard/ceo/expansion-generator";
 import { withObservedRoute } from "@/lib/observability";
 
 
 const postHandler = async (request: Request) => {
-  if (!isAuthorized(request)) {
+  if (!(await isQstashAuthorized(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

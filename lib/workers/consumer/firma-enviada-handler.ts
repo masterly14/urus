@@ -2,6 +2,7 @@ import type { Event } from "@/types/domain";
 import type { HandlerResult } from "./types";
 import { prisma } from "@/lib/prisma";
 import { sendSignatureInitialNotification } from "@/lib/whatsapp/send";
+import { emitManagementAlert } from "@/lib/notifications/emit";
 import { updateDemandLeadStatus, updateLeadStatusByOperationId } from "@/lib/projections/update-lead-status";
 
 interface FirmaEnviadaPayload {
@@ -110,18 +111,19 @@ export async function handleFirmaEnviada(
     }
   }
 
-  const comercialPhone = process.env.ALERT_WHATSAPP_TO;
-  if (comercialPhone) {
-    try {
-      await sendSignatureInitialNotification(comercialPhone, {
-        signerName: "Comercial",
-        documentKind,
-        operationRef: operationId,
-        signingUrl,
-      });
-    } catch {
-      // non-blocking
-    }
+  try {
+    await emitManagementAlert({
+      source: "legal",
+      severity: "info",
+      title: "Firma enviada a signatarios",
+      description:
+        `Operacion ${operationId} (${documentKind}) enviada para firma.\n` +
+        `Firmantes notificados por WhatsApp: ${sent}.`,
+    });
+  } catch (err) {
+    console.error(
+      `[firma-enviada] Error enviando notificación interna: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   const rawPayload = event.payload as Record<string, unknown> | null;

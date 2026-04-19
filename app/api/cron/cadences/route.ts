@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAuthorized } from "@/lib/api/cron-auth";
+import { isQstashAuthorized } from "@/lib/api/cron-auth";
 import { scanAndEnqueueMissingFollowUps } from "@/lib/leads/cadence-scanner";
 import { withObservedRoute } from "@/lib/observability";
 
@@ -14,7 +14,7 @@ import { withObservedRoute } from "@/lib/observability";
  *    `lib/postventa/cadence-scanner`). No se invoca aquí para no duplicar envíos.
  */
 const postHandler = async (request: Request) => {
-  if (!isAuthorized(request)) {
+  if (!(await isQstashAuthorized(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

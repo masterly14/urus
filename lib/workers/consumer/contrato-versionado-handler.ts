@@ -16,6 +16,7 @@ import type { HandlerResult } from "./types";
 import { prisma } from "@/lib/prisma";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
 import { sendContractDraftReadyNotification } from "@/lib/whatsapp/send";
+import { emitManagementAlert } from "@/lib/notifications/emit";
 
 interface ContratoVersionadoPayload {
   operationId: string;
@@ -134,7 +135,6 @@ export async function handleContratoVersionado(
   };
 
   const sellerPhone = process.env.SELLER_DEFAULT_PHONE ?? "34601257555";
-  const comercialPhone = process.env.ALERT_WHATSAPP_TO;
 
   try {
     await sendContractDraftReadyNotification(sellerPhone, notifyParams);
@@ -148,12 +148,19 @@ export async function handleContratoVersionado(
     );
   }
 
-  if (comercialPhone) {
-    try {
-      await sendContractDraftReadyNotification(comercialPhone, notifyParams);
-    } catch {
-      // non-blocking
-    }
+  try {
+    await emitManagementAlert({
+      source: "legal",
+      severity: "info",
+      title: "Contrato versionado",
+      description:
+        `Operacion ${operationId} (${documentKind}) actualizada a version ${nextTemplateVersion}.\n` +
+        `Panel: ${legalUiUrl}`,
+    });
+  } catch (err) {
+    console.error(
+      `[consumer:contrato-versionado] Error enviando notificación interna: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   return { success: true };

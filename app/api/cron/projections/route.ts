@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAuthorized } from "@/lib/api/cron-auth";
+import { isQstashAuthorized } from "@/lib/api/cron-auth";
 import { runProjectionLoop } from "@/lib/projections";
 import { randomUUID } from "crypto";
 import { withObservedRoute } from "@/lib/observability";
@@ -9,7 +9,7 @@ const DEFAULT_BATCH_SIZE = 20;
 const MAX_BATCH_SIZE = 100;
 
 const postHandler = async (request: Request) => {
-  if (!isAuthorized(request)) {
+  if (!(await isQstashAuthorized(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

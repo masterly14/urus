@@ -1,6 +1,6 @@
 import type { Prisma } from "@/app/generated/prisma/client";
 import { NextResponse } from "next/server";
-import { isAuthorized } from "@/lib/api/cron-auth";
+import { isQstashAuthorized } from "@/lib/api/cron-auth";
 import { prisma } from "@/lib/prisma";
 import {
   scanMentalHealthAlerts,
@@ -23,7 +23,7 @@ import { withObservedRoute } from "@/lib/observability";
  * vía alertGeneric. No se exponen conversaciones individuales.
  */
 const postHandler = async (request: Request) => {
-  if (!isAuthorized(request)) {
+  if (!(await isQstashAuthorized(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

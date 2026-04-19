@@ -7,6 +7,7 @@ import { sendFirmaCompletadaConfirmation } from "@/lib/whatsapp/send";
 import { sendNotaEncargoDocumentoFirmado } from "@/lib/nota-encargo/whatsapp";
 import { sendParteVisitaDocumentoFirmado } from "@/lib/parte-visita/whatsapp";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
+import { emitManagementAlert } from "@/lib/notifications/emit";
 import { updateDemandLeadStatus, updateLeadStatusByOperationId } from "@/lib/projections/update-lead-status";
 
 interface FirmaCompletadaPayload {
@@ -211,15 +212,19 @@ export async function handleFirmaCompletada(
       );
     }
 
-    const comercialPhone = process.env.ALERT_WHATSAPP_TO;
-    if (comercialPhone) {
-      try {
-        await sendFirmaCompletadaConfirmation(comercialPhone, confirmParams);
-      } catch (err) {
-        console.error(
-          `[firma-completada] Error WA comercial: ${err instanceof Error ? err.message : err}`,
-        );
-      }
+    try {
+      await emitManagementAlert({
+        source: "legal",
+        severity: "info",
+        title: "Firma completada",
+        description:
+          `Operacion ${operationId} (${sigReq.documentKind}) completada y marcada para egestion.\n` +
+          `Panel: ${legalDocUrl}`,
+      });
+    } catch (err) {
+      console.error(
+        `[firma-completada] Error enviando notificación interna: ${err instanceof Error ? err.message : err}`,
+      );
     }
 
     const rawPayload = event.payload as Record<string, unknown> | null;

@@ -2,9 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store/event-store";
 import {
   sendSignatureReminderToSigner,
-  sendSignatureSlaEscalation,
 } from "@/lib/whatsapp/send";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
+import { emitManagementAlert } from "@/lib/notifications/emit";
 import { SIGNATURE_PENDING_STATUSES } from "./status";
 
 const REMINDER_DAYS = [1, 3, 5] as const;
@@ -125,20 +125,14 @@ export async function scanAndSendSignatureReminders(): Promise<ScanResult> {
         });
         const trackingUrl = `${appUrl}/platform/legal/contratos/${legalDoc?.id ?? req.operationId}`;
 
-        const comercial = await prisma.comercial.findFirst({
-          where: { activo: true },
-          select: { telefono: true },
+        await emitManagementAlert({
+          source: "legal",
+          severity: "warning",
+          title: "SLA de firma vencido",
+          description:
+            `Operacion ${req.operationId} (${req.documentKind}) venció SLA tras ${Math.floor(daysSinceSent)} días.\n` +
+            `Panel: ${trackingUrl}`,
         });
-        const escalationPhone =
-          process.env.ALERT_WHATSAPP_TO ?? comercial?.telefono;
-
-        if (escalationPhone) {
-          await sendSignatureSlaEscalation(escalationPhone, {
-            operationRef: req.operationId,
-            documentKind: req.documentKind,
-            trackingUrl,
-          });
-        }
 
         await prisma.signatureRequest.update({
           where: { id: req.id },

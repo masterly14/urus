@@ -10,18 +10,30 @@ vi.mock("@/lib/job-queue", () => ({
   enqueueJob: (...args: unknown[]) => mockEnqueueJob(...args),
 }));
 
+const mockEmitManagementAlert = vi.fn();
+vi.mock("@/lib/notifications/emit", () => ({
+  emitManagementAlert: (...args: unknown[]) => mockEmitManagementAlert(...args),
+}));
+
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     event: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }));
 
+vi.mock("@/lib/visit-scheduling/session-manager", () => ({
+  getActiveSessionForBuyer: vi.fn().mockResolvedValue(null),
+  getActiveSessionForComercial: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("@/lib/agents", () => ({
-  classifyWhatsAppResponse: vi.fn().mockResolvedValue({
+  classifyBuyerFeedback: vi.fn().mockResolvedValue({
     intention: "OTRO",
     confidence: 0,
     rawText: "",
     variables: {},
+    wantsMoreOptions: false,
+    propertyFeedback: [],
   }),
 }));
 
@@ -107,6 +119,7 @@ describe("extractPostventaPayload", () => {
 describe("handleWhatsAppRecibido — botones post-venta", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEmitManagementAlert.mockResolvedValue(undefined);
     mockAppendEvent.mockResolvedValue({
       id: "inc-evt-1",
       type: "INCIDENCIA_POSTVENTA_ABIERTA",
@@ -127,8 +140,6 @@ describe("handleWhatsAppRecibido — botones post-venta", () => {
   });
 
   it("procesa POSTVENTA_AYUDA emitiendo INCIDENCIA_POSTVENTA_ABIERTA", async () => {
-    process.env.ALERT_WHATSAPP_TO = "34699888777";
-
     const event = makeEvent({
       type: "button",
       button: { payload: "POSTVENTA_AYUDA:P-200", text: "Necesito ayuda" },
@@ -145,26 +156,18 @@ describe("handleWhatsAppRecibido — botones post-venta", () => {
       }),
     );
 
-    expect(mockEnqueueJob).toHaveBeenCalledWith(
+    expect(mockEmitManagementAlert).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "NOTIFY_LEAD_WHATSAPP",
-        payload: expect.objectContaining({
-          assignedAgentTelefono: "34699888777",
-          leadAggregateId: "P-200",
-          slaLevel: "INCIDENCIA_POSTVENTA",
-        }),
+        source: "post-venta",
+        severity: "warning",
       }),
     );
 
     expect(result.followUpJobs).toHaveLength(1);
     expect(result.followUpJobs![0].type).toBe("PROCESS_EVENT");
-
-    delete process.env.ALERT_WHATSAPP_TO;
   });
 
-  it("POSTVENTA_AYUDA sin ALERT_WHATSAPP_TO no encola notificacion", async () => {
-    delete process.env.ALERT_WHATSAPP_TO;
-
+  it("POSTVENTA_AYUDA emite notificación interna y no encola WhatsApp", async () => {
     const event = makeEvent({
       type: "button",
       button: { payload: "POSTVENTA_AYUDA:P-300", text: "Necesito ayuda" },
@@ -174,13 +177,13 @@ describe("handleWhatsAppRecibido — botones post-venta", () => {
 
     expect(result.success).toBe(true);
     expect(mockAppendEvent).toHaveBeenCalledTimes(1);
+    expect(mockEmitManagementAlert).toHaveBeenCalledTimes(1);
     expect(mockEnqueueJob).not.toHaveBeenCalled();
   });
 
-  it("no intercepta mensajes de texto normales", async () => {
+  it("ignora payload sin texto parseable", async () => {
     const event = makeEvent({
-      type: "text",
-      text: { body: "Hola, tengo una duda" },
+      type: "image",
     });
 
     const result = await handleWhatsAppRecibido(event);

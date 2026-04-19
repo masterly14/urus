@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAuthorized } from "@/lib/api/cron-auth";
+import { isQstashAuthorized } from "@/lib/api/cron-auth";
 import { scanPostventaCadences } from "@/lib/postventa/cadence-scanner";
 import { withObservedRoute } from "@/lib/observability";
 
@@ -13,7 +13,7 @@ import { withObservedRoute } from "@/lib/observability";
  * Respeta pausas por incidencias abiertas.
  */
 const postHandler = async (request: Request) => {
-  if (!isAuthorized(request)) {
+  if (!(await isQstashAuthorized(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
