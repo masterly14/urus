@@ -6,6 +6,7 @@
  */
 
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 
 export type AppRole = "ceo" | "admin" | "comercial";
@@ -16,6 +17,32 @@ export interface AppSession {
   comercialId: string | null;
   nombre: string;
   email: string;
+}
+
+/**
+ * Resolves comercialId from Better Auth session, falling back to a
+ * direct Prisma lookup when the session doesn't include it (e.g.
+ * stale token, Better Auth not returning additionalFields).
+ */
+async function resolveComercialId(
+  userId: string,
+  role: string,
+  sessionValue: unknown,
+): Promise<string | null> {
+  if (typeof sessionValue === "string" && sessionValue.length > 0) {
+    return sessionValue;
+  }
+  if (role !== "comercial") return null;
+
+  try {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { comercialId: true },
+    });
+    return dbUser?.comercialId ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -31,10 +58,20 @@ export async function getSession(): Promise<AppSession | null> {
     return null;
   }
 
+  // Better Auth stores `banned` in DB but does not reject sessions automatically.
+  const userRecord = session.user as Record<string, unknown>;
+  if (userRecord.banned === true) {
+    return null;
+  }
+
+  const role = (session.user.role as AppRole) ?? "comercial";
+  const rawComercialId = userRecord.comercialId;
+  const comercialId = await resolveComercialId(session.user.id, role, rawComercialId);
+
   return {
     userId: session.user.id,
-    role: (session.user.role as AppRole) ?? "comercial",
-    comercialId: (session.user as Record<string, unknown>).comercialId as string | null ?? null,
+    role,
+    comercialId,
     nombre: session.user.name,
     email: session.user.email,
   };
@@ -42,7 +79,6 @@ export async function getSession(): Promise<AppSession | null> {
 
 /**
  * Get session from a raw Request object (for API routes that receive `request`).
- * Falls back to the headers-based approach.
  */
 export async function getSessionFromRequest(request: Request): Promise<AppSession | null> {
   const session = await auth.api.getSession({
@@ -53,10 +89,19 @@ export async function getSessionFromRequest(request: Request): Promise<AppSessio
     return null;
   }
 
+  const userRecord = session.user as Record<string, unknown>;
+  if (userRecord.banned === true) {
+    return null;
+  }
+
+  const role = (session.user.role as AppRole) ?? "comercial";
+  const rawComercialId = userRecord.comercialId;
+  const comercialId = await resolveComercialId(session.user.id, role, rawComercialId);
+
   return {
     userId: session.user.id,
-    role: (session.user.role as AppRole) ?? "comercial",
-    comercialId: (session.user as Record<string, unknown>).comercialId as string | null ?? null,
+    role,
+    comercialId,
     nombre: session.user.name,
     email: session.user.email,
   };

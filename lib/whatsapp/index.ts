@@ -46,6 +46,34 @@ export type {
   WebhookVerifyParams,
 } from "./webhook";
 
+// --- Visit scheduling messages ---
+export {
+  sendVisitProposalToCommercial,
+  sendBuyerRejectionToCommercial,
+  sendBuyerPreferenceToCommercial,
+  sendEscalationToCommercial,
+  sendVisitConfirmedToCommercial,
+  sendSlotProposalToBuyer,
+  sendAskPreferenceToBuyer,
+  sendVisitConfirmedToBuyer,
+  sendEscalationToBuyer,
+  sendVisitCancelledToBuyer,
+  sendCollectDataRequest,
+} from "./visit-messages";
+export type {
+  VisitProposalToCommercialData,
+  BuyerRejectionToCommercialData,
+  BuyerPreferenceToCommercialData,
+  EscalationToCommercialData,
+  VisitConfirmedToCommercialData,
+  SlotProposalToBuyerData,
+  AskPreferenceToBuyerData,
+  VisitConfirmedToBuyerData,
+  EscalationToBuyerData,
+  VisitCancelledToBuyerData,
+  CollectDataRequestData,
+} from "./visit-messages";
+
 export type {
   META_API_VERSION,
   WhatsAppClientConfig,

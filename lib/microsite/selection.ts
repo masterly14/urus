@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { MICROSITE_VALIDATION_SLA_MS } from "@/lib/microsite/constants";
+import { MICROSITE_VALIDATION_SLA_MS, MIN_PREFERRED_PROPERTIES } from "@/lib/microsite/constants";
 import { resolveBuyerPhoneForDemand } from "@/lib/microsite/buyer-phone";
 import {
   searchSnapshotForDemand,
@@ -228,6 +228,47 @@ export function coerceMicrositeCuratedProperties(value: unknown): MicrositeCurat
     .filter((x): x is MicrositeCuratedProperty => Boolean(x));
 }
 
+export type DescriptionUpdateInput = { propertyId: string; description: string | null };
+
+/**
+ * Aplica ediciones de descripción sobre el JSON `properties` de MicrositeSelection.
+ * No muta el argumento; devuelve la lista coaccionada actualizada o un error si falta un propertyId.
+ */
+export function applyDescriptionUpdates(
+  properties: unknown,
+  updates: DescriptionUpdateInput[],
+):
+  | { ok: true; properties: MicrositeCuratedProperty[] }
+  | { ok: false; error: string } {
+  if (updates.length === 0) {
+    return { ok: false, error: "updates vacío" };
+  }
+
+  const list = coerceMicrositeCuratedProperties(properties);
+  if (list.length === 0) {
+    return { ok: false, error: "Propiedades no válidas o vacías" };
+  }
+
+  const byId = new Map(list.map((p) => [p.propertyId, { ...p }]));
+
+  for (const u of updates) {
+    const existing = byId.get(u.propertyId);
+    if (!existing) {
+      return { ok: false, error: `propertyId desconocido: ${u.propertyId}` };
+    }
+    const desc =
+      u.description === null
+        ? null
+        : u.description.trim() === ""
+          ? null
+          : u.description.trim();
+    byId.set(u.propertyId, { ...existing, description: desc });
+  }
+
+  const next = list.map((p) => byId.get(p.propertyId)!);
+  return { ok: true, properties: next };
+}
+
 function scoreForDemand(p: StatefoxSnapshotProperty, demand: DemandFilterInput): number {
   let score = 0;
 
@@ -283,35 +324,89 @@ export async function generateMicrositeSelection(
     }
   }
 
-  let searchResult;
-  try {
-    searchResult = await searchSnapshotForDemand(input.demand, {
-      listingType: "sale",
-      maxPages: 10,
-      targetResults: 30,
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("requires token")) {
-      return { ok: false, reason: "STATEFOX_TOKEN_MISSING" };
+  const PRICE_EXPANSION_FACTOR = 0.2;
+  const searchOpts = { listingType: "sale" as const, maxPages: 10, targetResults: 30 };
+
+  const expansionSteps: Array<{ label: string; demand: DemandFilterInput }> = [
+    { label: "exact", demand: input.demand },
+    {
+      label: "price+20%",
+      demand: {
+        ...input.demand,
+        presupuestoMin: Math.round((input.demand.presupuestoMin ?? 0) * (1 - PRICE_EXPANSION_FACTOR)),
+        presupuestoMax: Math.round((input.demand.presupuestoMax ?? 0) * (1 + PRICE_EXPANSION_FACTOR)),
+      },
+    },
+    {
+      label: "price+20%,no-zone",
+      demand: {
+        ...input.demand,
+        presupuestoMin: Math.round((input.demand.presupuestoMin ?? 0) * (1 - PRICE_EXPANSION_FACTOR)),
+        presupuestoMax: Math.round((input.demand.presupuestoMax ?? 0) * (1 + PRICE_EXPANSION_FACTOR)),
+        zonas: "",
+      },
+    },
+  ];
+
+  const seen = new Set<string>();
+  let allRanked: Array<{ propertyId: string; property: StatefoxSnapshotProperty; score: number }> = [];
+  let totalStock = 0;
+  let lastSearchMeta = { pagesScanned: 0, totalScanned: 0, earlyExit: false };
+
+  for (const step of expansionSteps) {
+    let searchResult;
+    try {
+      searchResult = await searchSnapshotForDemand(step.demand, searchOpts);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("requires token")) {
+        return { ok: false, reason: "STATEFOX_TOKEN_MISSING" };
+      }
+      console.error(`[microsite:selection] Error en snapshot search (${step.label}): ${msg}`);
+      return { ok: false, reason: "STATEFOX_ERROR" };
     }
-    console.error(`[microsite:selection] Error en snapshot search: ${msg}`);
-    return { ok: false, reason: "STATEFOX_ERROR" };
+
+    lastSearchMeta = {
+      pagesScanned: searchResult.pagesScanned,
+      totalScanned: searchResult.totalScanned,
+      earlyExit: searchResult.earlyExit,
+    };
+    totalStock = Math.max(totalStock, searchResult.properties.length);
+
+    for (const m of searchResult.properties) {
+      if (seen.has(m.id)) continue;
+      seen.add(m.id);
+      allRanked.push({
+        propertyId: m.id,
+        property: m.property,
+        score: scoreForDemand(m.property, input.demand),
+      });
+    }
+
+    const withImages = allRanked.filter((x) => extractImages(x.property).length > 0);
+    if (withImages.length >= MIN_PREFERRED_PROPERTIES) {
+      if (step.label !== "exact") {
+        console.log(
+          `[microsite:selection] Búsqueda ampliada (${step.label}) alcanzó ${withImages.length} propiedades con imágenes`,
+        );
+      }
+      break;
+    }
+
+    console.log(
+      `[microsite:selection] Paso ${step.label}: ${withImages.length} con imágenes (< ${MIN_PREFERRED_PROPERTIES}), ampliando...`,
+    );
   }
 
-  if (searchResult.properties.length === 0) {
+  const rankedWithImages = allRanked
+    .filter((x) => extractImages(x.property).length > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (rankedWithImages.length === 0) {
     return { ok: false, reason: "NO_MATCHING_PROPERTIES" };
   }
 
-  const ranked = searchResult.properties
-    .map((m) => ({
-      propertyId: m.id,
-      property: m.property,
-      score: scoreForDemand(m.property, input.demand),
-    }))
-    .sort((a, b) => b.score - a.score);
-
-  const curated = ranked.slice(0, 12).map((x) => curate(x.propertyId, x.property));
+  const curated = rankedWithImages.slice(0, 12).map((x) => curate(x.propertyId, x.property));
 
   const token = generateToken();
   const validationToken = generateToken();
@@ -320,9 +415,9 @@ export async function generateMicrositeSelection(
 
   const searchMeta = {
     endpoint: "snapshot" as const,
-    pagesScanned: searchResult.pagesScanned,
-    totalScanned: searchResult.totalScanned,
-    earlyExit: searchResult.earlyExit,
+    pagesScanned: lastSearchMeta.pagesScanned,
+    totalScanned: lastSearchMeta.totalScanned,
+    earlyExit: lastSearchMeta.earlyExit,
   };
 
   const created = await prisma.micrositeSelection.create({
@@ -336,7 +431,7 @@ export async function generateMicrositeSelection(
       statefoxQuery: searchMeta as unknown as object,
       resultFilters: {} as unknown as object,
       properties: curated as unknown as object,
-      stockCount: searchResult.properties.length,
+      stockCount: totalStock,
       sourceEventId: input.sourceEventId,
       validationDueAt,
     },
@@ -348,7 +443,7 @@ export async function generateMicrositeSelection(
     token,
     selectionId: created.id,
     propertiesCount: curated.length,
-    stockCount: searchResult.properties.length,
+    stockCount: totalStock,
   };
 }
 

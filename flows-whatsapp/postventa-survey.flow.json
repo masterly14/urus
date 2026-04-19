@@ -1,0 +1,126 @@
+{
+  "version": "7.3",
+  "screens": [
+    {
+      "id": "BIENVENIDA",
+      "title": "Post-Venta",
+      "data": {
+        "flow_token": {
+          "type": "string",
+          "__example__": "session_abc123"
+        },
+        "buyer_name_hint": {
+          "type": "string",
+          "__example__": "Juan García"
+        },
+        "operation_ref": {
+          "type": "string",
+          "__example__": "OP-2026-000123"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextSubheading",
+            "text": "¡Gracias por confiar en URUS Capital!"
+          },
+          {
+            "type": "TextBody",
+            "text": "Completa unos datos antes de continuar."
+          },
+          {
+            "type": "TextCaption",
+            "text": "Operación de referencia: ${data.operation_ref}"
+          },
+          {
+            "type": "Footer",
+            "label": "Continuar",
+            "on-click-action": {
+              "name": "navigate",
+              "next": {
+                "type": "screen",
+                "name": "DATOS_CLIENTE"
+              },
+              "payload": {
+                "flow_token": "${data.flow_token}",
+                "buyer_name_hint": "${data.buyer_name_hint}",
+                "operation_ref": "${data.operation_ref}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "DATOS_CLIENTE",
+      "title": "Tus datos",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "flow_token": {
+          "type": "string",
+          "__example__": "session_abc123"
+        },
+        "buyer_name_hint": {
+          "type": "string",
+          "__example__": "Juan García"
+        },
+        "operation_ref": {
+          "type": "string",
+          "__example__": "OP-2026-000123"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextSubheading",
+            "text": "Completa tus datos"
+          },
+          {
+            "type": "TextInput",
+            "name": "nombre_completo",
+            "label": "Nombre y apellidos",
+            "input-type": "text",
+            "required": true,
+            "helper-text": "Como aparece en tu DNI/NIE"
+          },
+          {
+            "type": "DatePicker",
+            "name": "fecha_nacimiento",
+            "label": "Fecha de nacimiento",
+            "required": true,
+            "helper-text": "Día/Mes/Año"
+          },
+          {
+            "type": "TextInput",
+            "name": "email",
+            "label": "Email de contacto",
+            "input-type": "email",
+            "required": true,
+            "helper-text": "Te enviaremos el resumen de la operación y novedades puntuales"
+          },
+          {
+            "type": "TextCaption",
+            "text": "Operación de referencia: ${data.operation_ref}"
+          },
+          {
+            "type": "Footer",
+            "label": "Enviar",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "flow_token": "${data.flow_token}",
+                "operation_ref": "${data.operation_ref}",
+                "nombre_completo": "${form.nombre_completo}",
+                "fecha_nacimiento": "${form.fecha_nacimiento}",
+                "email": "${form.email}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

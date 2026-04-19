@@ -62,9 +62,12 @@ function toSnapshotData(p: InmovillaProperty): PropertySnapshotData {
   };
 }
 
+/** Hard cap to prevent OOM on unbounded snapshot load. Sized for current catalogue (~5k properties). */
+const SNAPSHOT_LOAD_LIMIT = 10_000;
+
 export async function loadPreviousSnapshot(): Promise<SnapshotMap> {
   const rows = await withDbRetry(
-    () => prisma.propertySnapshot.findMany(),
+    () => prisma.propertySnapshot.findMany({ take: SNAPSHOT_LOAD_LIMIT }),
     "loadPreviousSnapshot",
   );
   const map: SnapshotMap = new Map();

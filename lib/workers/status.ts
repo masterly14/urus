@@ -1,4 +1,5 @@
 import { JobStatus, JobType } from "@/app/generated/prisma/client";
+import type { CircuitBreakerStatus } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
 // Tiempo máximo (en minutos) sin poll exitoso antes de marcar un worker como "degraded".
@@ -50,6 +51,15 @@ export interface PendingJobsByType {
   count: number;
 }
 
+export interface CircuitBreakerInfo {
+  id: string;
+  status: CircuitBreakerStatus;
+  failureCount: number;
+  lastFailedAt: string | null;
+  openedAt: string | null;
+  updatedAt: string;
+}
+
 export interface WorkersStatusFull {
   status: "ok" | "degraded" | "error";
   db: "ok" | "error";
@@ -59,6 +69,7 @@ export interface WorkersStatusFull {
   pendingJobs: PendingJobInfo[];
   pendingByType: PendingJobsByType[];
   recentErrors: RecentError[];
+  circuitBreakers: CircuitBreakerInfo[];
 }
 
 export interface WorkersStatusMinimal {
@@ -207,6 +218,20 @@ async function getPendingJobsByType(): Promise<PendingJobsByType[]> {
   }));
 }
 
+async function getCircuitBreakers(): Promise<CircuitBreakerInfo[]> {
+  const rows = await prisma.circuitBreaker.findMany({
+    orderBy: { updatedAt: "desc" },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    status: r.status,
+    failureCount: r.failureCount,
+    lastFailedAt: toIsoOrNull(r.lastFailedAt),
+    openedAt: toIsoOrNull(r.openedAt),
+    updatedAt: r.updatedAt.toISOString(),
+  }));
+}
+
 async function getRecentErrors(): Promise<RecentError[]> {
   const jobs = await prisma.jobQueue.findMany({
     where: { status: { in: [JobStatus.FAILED, JobStatus.DEAD_LETTER] } },
@@ -248,6 +273,7 @@ export async function getWorkersStatusFull(): Promise<WorkersStatusFull> {
       pendingJobs: [],
       pendingByType: [],
       recentErrors: [],
+      circuitBreakers: [],
     };
   }
 
@@ -262,6 +288,7 @@ export async function getWorkersStatusFull(): Promise<WorkersStatusFull> {
     pendingJobs,
     pendingByType,
     recentErrors,
+    circuitBreakers,
   ] =
     await Promise.all([
       getLastIngestionMetricSuccess("properties"),
@@ -274,6 +301,7 @@ export async function getWorkersStatusFull(): Promise<WorkersStatusFull> {
       getPendingJobs(),
       getPendingJobsByType(),
       getRecentErrors(),
+      getCircuitBreakers(),
     ]);
 
   const lastPropSuccess = lastPropMetricSuccess ?? lastPropSnapshotUpdate;
@@ -326,5 +354,6 @@ export async function getWorkersStatusFull(): Promise<WorkersStatusFull> {
     pendingJobs,
     pendingByType,
     recentErrors,
+    circuitBreakers,
   };
 }

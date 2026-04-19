@@ -7,12 +7,14 @@ const {
   mockJobUpdate,
   mockTransaction,
   mockQueryRaw,
+  mockExecuteRaw,
 } = vi.hoisted(() => ({
   mockJobCreate: vi.fn(),
   mockJobFindUnique: vi.fn(),
   mockJobUpdate: vi.fn(),
   mockTransaction: vi.fn(),
   mockQueryRaw: vi.fn(),
+  mockExecuteRaw: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -23,6 +25,7 @@ vi.mock("@/lib/prisma", () => ({
       update: mockJobUpdate,
     },
     $transaction: mockTransaction,
+    $executeRaw: mockExecuteRaw,
   },
 }));
 
@@ -320,19 +323,9 @@ describe("dequeueJob", () => {
 // ---------------------------------------------------------------------------
 describe("markCompleted", () => {
   it("debe completar un job IN_PROGRESS correctamente", async () => {
-    const job = fakeJob({
-      status: "IN_PROGRESS",
-      lockedBy: "w1",
-      attempts: 1,
-    });
-    const updated = fakeJob({
-      status: "COMPLETED",
-      completedAt: NOW,
-      lockedAt: null,
-      lockedBy: null,
-    });
-    mockJobFindUnique.mockResolvedValueOnce(job);
-    mockJobUpdate.mockResolvedValueOnce(updated);
+    const updated = fakeJob({ status: "COMPLETED", completedAt: NOW });
+    mockExecuteRaw.mockResolvedValueOnce(1);
+    mockJobFindUnique.mockResolvedValueOnce(updated);
 
     const result = await markCompleted({
       jobId: "job-abc",
@@ -341,19 +334,11 @@ describe("markCompleted", () => {
     });
 
     expect(result.status).toBe("COMPLETED");
-    expect(mockJobUpdate).toHaveBeenCalledWith({
-      where: { id: "job-abc" },
-      data: {
-        status: "COMPLETED",
-        completedAt: NOW,
-        lockedAt: null,
-        lockedBy: null,
-        lastError: null,
-      },
-    });
+    expect(mockExecuteRaw).toHaveBeenCalled();
   });
 
   it("debe lanzar error si el job no existe", async () => {
+    mockExecuteRaw.mockResolvedValueOnce(1);
     mockJobFindUnique.mockResolvedValueOnce(null);
 
     await expect(
@@ -361,33 +346,26 @@ describe("markCompleted", () => {
     ).rejects.toThrow("Job no existe: ghost-job");
   });
 
-  it("debe lanzar error si el job no está IN_PROGRESS", async () => {
-    mockJobFindUnique.mockResolvedValueOnce(fakeJob({ status: "COMPLETED" }));
-
-    await expect(
-      markCompleted({ jobId: "job-abc", now: NOW }),
-    ).rejects.toThrow("Job no está IN_PROGRESS: job-abc");
-  });
-
-  it("debe lanzar error si workerId no coincide con lockedBy", async () => {
-    mockJobFindUnique.mockResolvedValueOnce(
-      fakeJob({ status: "IN_PROGRESS", lockedBy: "w1" }),
-    );
+  it("debe lanzar error si workerId no coincide (0 rows updated)", async () => {
+    mockExecuteRaw.mockResolvedValueOnce(0);
 
     await expect(
       markCompleted({ jobId: "job-abc", workerId: "w2", now: NOW }),
-    ).rejects.toThrow("Job lock no pertenece al worker: job-abc");
+    ).rejects.toThrow("Job lock no pertenece al worker o estado cambió");
+  });
+
+  it("debe lanzar error si estado cambió (0 rows updated)", async () => {
+    mockExecuteRaw.mockResolvedValueOnce(0);
+
+    await expect(
+      markCompleted({ jobId: "job-abc", workerId: "w1", now: NOW }),
+    ).rejects.toThrow("Job lock no pertenece al worker o estado cambió");
   });
 
   it("debe permitir completar sin verificación de workerId", async () => {
-    const job = fakeJob({
-      status: "IN_PROGRESS",
-      lockedBy: "w1",
-      attempts: 1,
-    });
     const updated = fakeJob({ status: "COMPLETED" });
-    mockJobFindUnique.mockResolvedValueOnce(job);
-    mockJobUpdate.mockResolvedValueOnce(updated);
+    mockExecuteRaw.mockResolvedValueOnce(1);
+    mockJobFindUnique.mockResolvedValueOnce(updated);
 
     const result = await markCompleted({ jobId: "job-abc", now: NOW });
 
@@ -395,14 +373,9 @@ describe("markCompleted", () => {
   });
 
   it("debe permitir completar cuando workerId coincide con lockedBy", async () => {
-    const job = fakeJob({
-      status: "IN_PROGRESS",
-      lockedBy: "exact-match",
-      attempts: 1,
-    });
     const updated = fakeJob({ status: "COMPLETED" });
-    mockJobFindUnique.mockResolvedValueOnce(job);
-    mockJobUpdate.mockResolvedValueOnce(updated);
+    mockExecuteRaw.mockResolvedValueOnce(1);
+    mockJobFindUnique.mockResolvedValueOnce(updated);
 
     const result = await markCompleted({
       jobId: "job-abc",

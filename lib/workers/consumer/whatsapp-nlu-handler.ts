@@ -16,12 +16,14 @@ import type { Event } from "@/types/domain";
 import type { HandlerResult } from "./types";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import { appendEvent } from "@/lib/event-store";
+import { updateDemandLeadStatus } from "@/lib/projections/update-lead-status";
 import type { JsonValue } from "@/lib/event-store/types";
 import { prisma } from "@/lib/prisma";
 import { classifyBuyerFeedback } from "@/lib/agents";
 import type { PropertySummaryForNLU, ConversationTurn } from "@/lib/agents";
 import { coerceMicrositeCuratedProperties } from "@/lib/microsite/selection";
 import { enqueueJob } from "@/lib/job-queue";
+import { sendTextMessage } from "@/lib/whatsapp";
 import {
   isCoachActivation,
   getActiveSession,
@@ -31,6 +33,21 @@ import {
   isExerciseRequest,
   routeToDevProgramIfApplicable,
 } from "@/lib/dev-program/exercise-router";
+import { handleConversationalFlow } from "./conversational-handler";
+import {
+  classifyButtonReply,
+  classifyVisitIntent,
+} from "@/lib/agents/visit-intent-classifier";
+import {
+  getActiveSessionForBuyer,
+  getActiveSessionForComercial,
+} from "@/lib/visit-scheduling/session-manager";
+import { handleVisitMessage } from "@/lib/visit-scheduling/handle-visit-message";
+import {
+  initiateVisitScheduling,
+} from "@/lib/visit-scheduling/orchestrator";
+import { ComposioNotConnectedError } from "@/lib/visit-scheduling/types";
+import { TERMINAL_STATES } from "@/lib/visit-scheduling/constants";
 
 type WhatsAppReceivedPayload = {
   messageId?: string;
@@ -365,6 +382,94 @@ async function routeToMentalHealthIfApplicable(
 }
 
 // ---------------------------------------------------------------------------
+// M4: routing al flujo de agendamiento de visitas
+// ---------------------------------------------------------------------------
+
+async function routeToVisitSchedulingIfApplicable(
+  event: Event,
+  payload: WhatsAppReceivedPayload,
+  messageText: string,
+  waId: string,
+): Promise<HandlerResult | null> {
+  const interactiveId =
+    payload.interactive?.button_reply?.id ?? payload.interactive?.list_reply?.id;
+
+  // 1. ¿Hay sesión activa de visita para este waId?
+  const [buyerSession, commercialSession] = await Promise.all([
+    getActiveSessionForBuyer(waId),
+    getActiveSessionForComercial(waId),
+  ]);
+
+  const activeSession = buyerSession ?? commercialSession;
+
+  if (activeSession) {
+    // 2a. Botón interactivo → clasificación determinista (sin LLM)
+    let intent = interactiveId
+      ? classifyButtonReply(interactiveId)
+      : null;
+
+    // 2b. Texto libre → clasificar con LLM (H29: tolerante a fallos)
+    if (!intent) {
+      try {
+        intent = await classifyVisitIntent(messageText, activeSession.state);
+      } catch (err) {
+        console.error(
+          `[consumer:whatsapp] classifyVisitIntent falló waId=${waId} sessionId=${activeSession.id}: ${err instanceof Error ? err.message : err}`,
+        );
+
+        // Fallback conservador: notificar al comercial para revisión manual y no bloquear el flujo.
+        try {
+          await sendTextMessage(
+            activeSession.comercialWaId,
+            `No se pudo clasificar automáticamente el mensaje del comprador (${waId}) en la sesión de visita ${activeSession.id}. Mensaje recibido: "${messageText}". Revísalo manualmente.`,
+          );
+        } catch (notifyErr) {
+          console.error(
+            `[consumer:whatsapp] Fallback notifyCommercial falló: ${notifyErr instanceof Error ? notifyErr.message : notifyErr}`,
+          );
+        }
+
+        // Retornar success sin encolar follow-ups: el mensaje queda registrado
+        // en Event Store pero no se procesa automáticamente.
+        return { success: true };
+      }
+    }
+
+    // 3. Si intención es visit-related → delegar al router de visitas
+    if (intent.intent !== "NO_VISIT_RELATED") {
+      const result = await handleVisitMessage(
+        activeSession,
+        intent,
+        interactiveId ?? null,
+        waId,
+      );
+
+      if (result.handled) {
+        return { success: true };
+      }
+      // Si no se manejó (AMBIGUO o datos incompletos), dejamos pasar al flujo NLU general
+    }
+
+    // 4. NO_VISIT_RELATED o no manejado → continuar con flujo NLU general
+    return null;
+  }
+
+  // 5. Sin sesión activa: ¿el mensaje es QUIERE_VISITAR?
+  //    Solo clasificar si hay un botón de visita o texto que sugiera visita.
+  //    Para evitar llamadas LLM innecesarias, solo clasificamos si hay
+  //    un contexto de demanda resolvible (se verificará después en el flujo general).
+  if (interactiveId) {
+    const buttonIntent = classifyButtonReply(interactiveId);
+    if (buttonIntent) {
+      // Es un botón de visita sin sesión activa → ya se procesará al crearse
+      return null;
+    }
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Handler principal
 // ---------------------------------------------------------------------------
 
@@ -384,6 +489,15 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
     );
     return { success: true };
   }
+
+  // --- M4: routing a flujo de agendamiento de visitas ---
+  const visitRouted = await routeToVisitSchedulingIfApplicable(
+    event,
+    payload,
+    messageText,
+    waId,
+  );
+  if (visitRouted) return visitRouted;
 
   // --- M12: routing a Desarrollo Continuo (ejercicios / completado) ---
   if (isExerciseRequest(messageText)) {
@@ -435,6 +549,36 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
     return { success: true };
   }
 
+  // Primer contacto del comprador: avanzar leadStatus de NUEVO → CONTACTADO.
+  // Best-effort; no bloquea el flujo NLU si falla.
+  prisma.demandCurrent
+    .updateMany({
+      where: { codigo: ctx.demandId, leadStatus: "NUEVO" },
+      data: { leadStatus: "CONTACTADO" },
+    })
+    .then((r) => {
+      if (r.count > 0) {
+        console.log(
+          `[lead-status] demandId=${ctx!.demandId} NUEVO → CONTACTADO (primer WhatsApp recibido)`,
+        );
+      }
+    })
+    .catch((e: unknown) => {
+      console.warn(
+        `[lead-status] Error actualizando CONTACTADO demandId=${ctx!.demandId}: ${e instanceof Error ? e.message : e}`,
+      );
+    });
+
+  // --- Feature flag: agente conversacional ---
+
+  if (process.env.CONVERSATIONAL_AGENT_ENABLED === "true") {
+    return handleConversationalFlow(event, waId, messageText, {
+      demandId: ctx.demandId,
+      selectionId: ctx.selectionId,
+      propertyId: ctx.propertyId,
+    });
+  }
+
   // --- Cargar contexto del microsite y historial ---
 
   let selectionProperties: PropertySummaryForNLU[] = [];
@@ -453,15 +597,53 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
 
   const conversationHistory = await loadConversationHistory(waId);
 
-  // --- NLU contextual ---
+  // --- NLU contextual (H28: tolerante a fallos) ---
 
-  const nlu = await classifyBuyerFeedback({
-    messageText,
-    buyerPhone: waId,
-    demandId: ctx.demandId,
-    selectionProperties,
-    conversationHistory,
-  });
+  let nlu;
+  try {
+    nlu = await classifyBuyerFeedback({
+      messageText,
+      buyerPhone: waId,
+      demandId: ctx.demandId,
+      selectionProperties,
+      conversationHistory,
+    });
+  } catch (err) {
+    console.error(
+      `[consumer:whatsapp] classifyBuyerFeedback falló waId=${waId} demandId=${ctx.demandId}: ${err instanceof Error ? err.message : err}`,
+    );
+
+    // Fallback graceful: pedir al comprador que reformule el mensaje.
+    // No emitimos eventos derivados, pero sí actualizamos la session y retornamos success
+    // para no reintentar con el mismo input problemático (el job no debe fallar).
+    try {
+      await sendTextMessage(
+        waId,
+        "Perdona, no he entendido bien tu mensaje. ¿Puedes reformularlo o darme más detalles sobre lo que buscas?",
+      );
+    } catch (notifyErr) {
+      console.error(
+        `[consumer:whatsapp] Fallback sendTextMessage falló waId=${waId}: ${notifyErr instanceof Error ? notifyErr.message : notifyErr}`,
+      );
+    }
+
+    await prisma.whatsAppBuyerSession.upsert({
+      where: { waId },
+      create: {
+        waId,
+        demandId: ctx.demandId,
+        selectionId: ctx.selectionId,
+        lastMessageAt: new Date(),
+        turnCount: 1,
+      },
+      update: {
+        lastMessageAt: new Date(),
+        turnCount: { increment: 1 },
+      },
+    });
+
+    return { success: true };
+  }
 
   const followUpJobs: EnqueueJobInput[] = [];
 
@@ -506,6 +688,57 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
     console.log(
       `[consumer:whatsapp] Emitidos ${nlu.propertyFeedback.length} SELECCION_COMPRADOR waId=${waId} demandId=${ctx.demandId}`,
     );
+  }
+
+  // --- Inicio automático de visita si intención = ME_ENCAJA ---
+
+  if (nlu.intention === "ME_ENCAJA") {
+    const interestedProperties = nlu.propertyFeedback.filter(
+      (fb) => fb.sentiment === "ME_INTERESA",
+    );
+
+    const firstInterested = interestedProperties[0];
+    if (firstInterested) {
+      const existingVisitSession = await getActiveSessionForBuyer(
+        waId,
+        firstInterested.propertyId,
+      );
+
+      if (!existingVisitSession) {
+        try {
+          const session = await initiateVisitScheduling(
+            ctx.demandId,
+            firstInterested.propertyId,
+            waId,
+            event.correlationId ?? undefined,
+          );
+
+          if (session) {
+            console.log(
+              `[consumer:whatsapp] Visita iniciada automáticamente sessionId=${session.id} demandId=${ctx.demandId} propertyId=${firstInterested.propertyId}`,
+            );
+          } else {
+            console.warn(
+              `[consumer:whatsapp] initiateVisitScheduling retornó null — comercial sin configurar para propertyId=${firstInterested.propertyId}`,
+            );
+          }
+        } catch (err) {
+          if (err instanceof ComposioNotConnectedError) {
+            console.warn(
+              `[consumer:whatsapp] Visita no iniciada — comercial sin calendario (Composio) para propertyId=${firstInterested.propertyId}`,
+            );
+          } else {
+            console.error(
+              `[consumer:whatsapp] Error iniciando visita automática para propertyId=${firstInterested.propertyId}: ${err instanceof Error ? err.message : err}`,
+            );
+          }
+        }
+      } else {
+        console.log(
+          `[consumer:whatsapp] Visita ya activa sessionId=${existingVisitSession.id} para waId=${waId} propertyId=${firstInterested.propertyId} — no se crea otra`,
+        );
+      }
+    }
   }
 
   // --- Emitir DEMANDA_ACTUALIZADA si hay ajuste de demanda ---

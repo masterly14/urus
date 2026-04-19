@@ -11,6 +11,7 @@
 import { Annotation, StateGraph, START, END } from "@langchain/langgraph";
 import { z } from "zod";
 import { llm } from "./llm";
+import { withRetry } from "./utils/retry";
 import type { AIScoringGraphInput, AIScoringResult } from "@/lib/scoring/ai-types";
 
 // ── Schema Zod ──────────────────────────────────────────────────────────────
@@ -192,10 +193,12 @@ async function scoreLeadNode(
   const input = state.input;
 
   try {
-    const raw = await llmStructured.invoke([
-      { role: "system", content: buildSystemPrompt(input) },
-      { role: "user", content: buildUserMessage(input) },
-    ]);
+    const raw = await withRetry(() =>
+      llmStructured.invoke([
+        { role: "system", content: buildSystemPrompt(input) },
+        { role: "user", content: buildUserMessage(input) },
+      ]),
+    );
 
     const scoringResult: AIScoringResult = {
       pcloseAdjustment: raw.pcloseAdjustment,

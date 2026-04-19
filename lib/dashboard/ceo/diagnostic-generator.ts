@@ -40,6 +40,31 @@ export type CeoDiagnosticGeneratorResult = {
 // ---------------------------------------------------------------------------
 
 export async function generateAndPersistCeoDiagnostic(): Promise<CeoDiagnosticGeneratorResult> {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const existing = await prisma.event.findFirst({
+    where: {
+      type: "CEO_DIAGNOSTICO_GENERADO",
+      createdAt: { gte: monthStart },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { payload: true, createdAt: true },
+  });
+  if (existing?.payload && typeof existing.payload === "object") {
+    const p = existing.payload as Record<string, unknown>;
+    return {
+      recommendation: {
+        diagnostico_general: (p.diagnostico_general as string) ?? "",
+        recomendaciones: (p.recomendaciones as CeoDiagnosticRecommendation["recomendaciones"]) ?? [],
+        resumen_ejecutivo: (p.resumen_ejecutivo as string) ?? "",
+        semaforo_global: (p.semaforo_global as CeoDiagnosticRecommendation["semaforo_global"]) ?? "amarillo",
+        confidence: (p.confidence as number) ?? 0,
+        reasoning: (p.reasoning as string) ?? "",
+      },
+      generatedAt: existing.createdAt.toISOString(),
+    };
+  }
+
   const range = getDefaultDashboardRange();
 
   const [overview, cities, comercialesResult, leadScoreRows, alertasRaw, colabEvent] =

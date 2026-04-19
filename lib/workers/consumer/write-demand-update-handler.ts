@@ -24,6 +24,21 @@ type DemandUpdateVariables = {
   tipos?: string[];
 };
 
+const SYNTHETIC_INMOVILLA_ID_PATTERNS: RegExp[] = [
+  /^DEM[-_]/i,
+  /^CLI[-_]/i,
+  /^AGT[-_]/i,
+  /^MSF[-_]/i,
+  /TEST/i,
+  /E2E/i,
+];
+
+function isSyntheticInmovillaId(value: string): boolean {
+  const normalized = value.trim();
+  if (!normalized) return true;
+  return SYNTHETIC_INMOVILLA_ID_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
 function pickString(map: Record<string, unknown>, keys: string[]): string | null {
   for (const k of keys) {
     const v = map[k];
@@ -113,22 +128,35 @@ export async function handleDemandaActualizada(event: Event): Promise<HandlerRes
     tipos: joinList(variables.tipos) ?? undefined,
   };
 
-  followUpJobs.push({
-    type: "WRITE_TO_INMOVILLA",
-    payload: {
-      operation: "updateDemandCriteria",
-      args: {
-        demandId,
-        demandRef,
-        clientId,
-        agentId,
-        propertyTypes,
-        patch: inmovillaPatch,
+  const syntheticIdReasons: string[] = [];
+  if (isSyntheticInmovillaId(demandId)) syntheticIdReasons.push(`demandId=${demandId}`);
+  if (isSyntheticInmovillaId(clientId)) syntheticIdReasons.push(`clientId=${clientId}`);
+  if (isSyntheticInmovillaId(agentId)) syntheticIdReasons.push(`agentId=${agentId}`);
+
+  const shouldEnqueueWrite = syntheticIdReasons.length === 0;
+
+  if (shouldEnqueueWrite) {
+    followUpJobs.push({
+      type: "WRITE_TO_INMOVILLA",
+      payload: {
+        operation: "updateDemandCriteria",
+        args: {
+          demandId,
+          demandRef,
+          clientId,
+          agentId,
+          propertyTypes,
+          patch: inmovillaPatch,
+        },
       },
-    },
-    idempotencyKey: `write_to_inmovilla:updateDemandCriteria:${event.id}`,
-    sourceEventId: event.id,
-  });
+      idempotencyKey: `write_to_inmovilla:updateDemandCriteria:${event.id}`,
+      sourceEventId: event.id,
+    });
+  } else {
+    console.warn(
+      `[consumer:smart-matching] DEMANDA_ACTUALIZADA demandId=${demandId} → omitiendo WRITE_TO_INMOVILLA por identificadores sintéticos (${syntheticIdReasons.join(", ")})`,
+    );
+  }
 
   const source = (p.source ?? {}) as Record<string, unknown>;
   if (source.selectionId || source.channel === "whatsapp_feedback") {
@@ -146,13 +174,25 @@ export async function handleDemandaActualizada(event: Event): Promise<HandlerRes
       idempotencyKey: `generate_microsite:${event.id}`,
       sourceEventId: event.id,
     });
-    console.log(
-      `[consumer:smart-matching] DEMANDA_ACTUALIZADA demandId=${demandId} → encolado WRITE_TO_INMOVILLA + GENERATE_MICROSITE (feedback loop)`,
-    );
+    if (shouldEnqueueWrite) {
+      console.log(
+        `[consumer:smart-matching] DEMANDA_ACTUALIZADA demandId=${demandId} → encolado WRITE_TO_INMOVILLA + GENERATE_MICROSITE (feedback loop)`,
+      );
+    } else {
+      console.log(
+        `[consumer:smart-matching] DEMANDA_ACTUALIZADA demandId=${demandId} → encolado GENERATE_MICROSITE (feedback loop), WRITE_TO_INMOVILLA omitido`,
+      );
+    }
   } else {
-    console.log(
-      `[consumer:smart-matching] DEMANDA_ACTUALIZADA demandId=${demandId} → encolado WRITE_TO_INMOVILLA (updateDemandCriteria)`,
-    );
+    if (shouldEnqueueWrite) {
+      console.log(
+        `[consumer:smart-matching] DEMANDA_ACTUALIZADA demandId=${demandId} → encolado WRITE_TO_INMOVILLA (updateDemandCriteria)`,
+      );
+    } else {
+      console.log(
+        `[consumer:smart-matching] DEMANDA_ACTUALIZADA demandId=${demandId} → WRITE_TO_INMOVILLA omitido (identificadores sintéticos)`,
+      );
+    }
   }
 
   return { success: true, followUpJobs };

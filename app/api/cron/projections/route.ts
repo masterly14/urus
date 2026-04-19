@@ -36,4 +36,5 @@ const postHandler = async (request: Request) => {
 
 export const POST = withObservedRoute({ method: "POST", route: "/api/cron/projections" }, postHandler);
 
-export const maxDuration = 60;
+// Vercel Hobby: 60s, Pro: 300s. Increase to 300 when on Pro to drain larger backlogs.
+export const maxDuration = 300;

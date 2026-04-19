@@ -9,6 +9,11 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSessionFromRequest } from "@/lib/auth/session";
+import {
+  loadComercialForInteractiveTest,
+  canAccessTestVisitSession,
+} from "@/lib/visit-scheduling/test-visit-session";
 import { setTestSendInterceptor } from "@/lib/whatsapp/send";
 import {
   captureOutboundRaw,
@@ -21,6 +26,8 @@ import {
 } from "@/lib/visit-scheduling/test-message-store";
 import { initiateVisitScheduling } from "@/lib/visit-scheduling/orchestrator";
 import { getSessionById } from "@/lib/visit-scheduling/session-manager";
+import { resolveComercialByProperty } from "@/lib/routing/resolve-comercial";
+import { extractRefCode } from "@/lib/routing/parse-ref-code";
 
 const TEST_BUYER_WAID = "34600999888";
 const TEST_DEMAND_PREFIX = "TEST-VISIT-DEM";
@@ -35,6 +42,14 @@ export async function GET(request: Request) {
 
   if (sessionId) {
     try {
+      const appSession = await getSessionFromRequest(request);
+      if (!appSession) {
+        return NextResponse.json(
+          { error: "No autenticado" },
+          { status: 401 },
+        );
+      }
+
       const session = await prisma.visitSchedulingSession.findUnique({
         where: { id: sessionId },
       });
@@ -43,6 +58,9 @@ export async function GET(request: Request) {
           { error: "Sesión no encontrada" },
           { status: 404 },
         );
+      }
+      if (!canAccessTestVisitSession(appSession, session.comercialId)) {
+        return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
       }
       return NextResponse.json({
         session: serializeSession(session),
@@ -56,44 +74,85 @@ export async function GET(request: Request) {
     }
   }
 
-  const comercial = await prisma.comercial.findFirst({
-    where: {
-      composioConnectionId: { not: null },
-      activo: true,
-    },
-    select: {
-      id: true,
-      nombre: true,
-      waId: true,
-      composioConnectionId: true,
-      composioConnectedAt: true,
-    },
-  });
+  const appSession = await getSessionFromRequest(request);
+  if (!appSession) {
+    return NextResponse.json(
+      {
+        properties: [],
+        comercial: null,
+        testBuyerWaId: TEST_BUYER_WAID,
+        error: "No autenticado",
+      },
+      { status: 401 },
+    );
+  }
+
+  const comercial = await loadComercialForInteractiveTest(appSession);
 
   if (!comercial) {
     return NextResponse.json({
       properties: [],
       comercial: null,
-      error: "No hay comercial con conexión Composio activa",
+      testBuyerWaId: TEST_BUYER_WAID,
+      error: appSession.comercialId
+        ? "No se encontró tu ficha de comercial activa"
+        : "Tu cuenta no tiene un comercial vinculado",
     });
   }
 
-  const properties = await prisma.propertyCurrent.findMany({
-    where: { agente: comercial.nombre, nodisponible: false },
-    select: {
-      codigo: true,
-      ref: true,
-      titulo: true,
-      ciudad: true,
-      zona: true,
-      precio: true,
-      habitaciones: true,
-      metrosConstruidos: true,
-      agente: true,
+  const propertySelect = {
+    codigo: true,
+    ref: true,
+    titulo: true,
+    ciudad: true,
+    zona: true,
+    precio: true,
+    habitaciones: true,
+    metrosConstruidos: true,
+    agente: true,
+    comercialId: true,
+  } as const;
+
+  const primary = await prisma.propertyCurrent.findMany({
+    where: {
+      nodisponible: false,
+      OR: [
+        { comercialId: comercial.id },
+        { agente: comercial.nombre },
+      ],
     },
-    take: 50,
+    select: propertySelect,
+    take: 80,
     orderBy: { codigo: "asc" },
   });
+
+  const refCode = comercial.inmovillaRefCode?.trim().toUpperCase() ?? "";
+  const byCode = new Map(primary.map((p) => [p.codigo, p]));
+
+  if (refCode) {
+    const existingCodes = [...byCode.keys()];
+    const refCandidates = await prisma.propertyCurrent.findMany({
+      where: {
+        nodisponible: false,
+        ref: { startsWith: "URUS", mode: "insensitive" },
+        ...(existingCodes.length > 0
+          ? { codigo: { notIn: existingCodes } }
+          : {}),
+      },
+      select: propertySelect,
+      take: 300,
+      orderBy: { codigo: "asc" },
+    });
+    for (const p of refCandidates) {
+      if (extractRefCode(p.ref ?? "") === refCode) {
+        byCode.set(p.codigo, p);
+      }
+    }
+  }
+
+  const properties = [...byCode.values()]
+    .sort((a, b) => a.codigo.localeCompare(b.codigo))
+    .slice(0, 50);
 
   return NextResponse.json({
     properties,
@@ -112,6 +171,11 @@ export async function GET(request: Request) {
 // ---------------------------------------------------------------------------
 
 export async function POST(request: Request) {
+  const appSession = await getSessionFromRequest(request);
+  if (!appSession) {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   const body = await request.json();
   const propertyCode = body.propertyCode as string;
 
@@ -119,6 +183,18 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Se requiere propertyCode" },
       { status: 400 },
+    );
+  }
+
+  const comercial = await loadComercialForInteractiveTest(appSession);
+  if (!comercial) {
+    return NextResponse.json(
+      {
+        error: appSession.comercialId
+          ? "No se encontró tu ficha de comercial activa"
+          : "Tu cuenta no tiene un comercial vinculado",
+      },
+      { status: 403 },
     );
   }
 
@@ -132,13 +208,37 @@ export async function POST(request: Request) {
     );
   }
 
-  const comercial = await prisma.comercial.findFirst({
-    where: { nombre: property.agente, activo: true },
-  });
-  if (!comercial?.composioConnectionId || !comercial.waId) {
+  const resolved = await resolveComercialByProperty(propertyCode);
+  const comercialRef = comercial.inmovillaRefCode?.trim().toUpperCase() ?? "";
+  const propRefExtracted = extractRefCode(property.ref ?? "");
+  const refOwner =
+    Boolean(comercialRef) &&
+    propRefExtracted !== null &&
+    propRefExtracted === comercialRef;
+  const agenteOwner =
+    property.agente?.trim().toLowerCase() ===
+    comercial.nombre.trim().toLowerCase();
+
+  const isOwner =
+    resolved?.id === comercial.id ||
+    property.comercialId === comercial.id ||
+    agenteOwner ||
+    refOwner;
+
+  if (!isOwner) {
     return NextResponse.json(
       {
-        error: `Comercial ${property.agente} sin Composio/WhatsApp configurado`,
+        error:
+          "Esta propiedad no está asignada a tu usuario comercial en la base de datos",
+      },
+      { status: 403 },
+    );
+  }
+
+  if (!comercial.composioConnectionId || !comercial.waId) {
+    return NextResponse.json(
+      {
+        error: `Tu comercial (${comercial.nombre}) necesita WhatsApp y calendario Composio configurados`,
       },
       { status: 400 },
     );
@@ -157,7 +257,7 @@ export async function POST(request: Request) {
       habitacionesMin: property.habitaciones || 1,
       tipos: "Piso",
       zonas: property.zona,
-      agente: property.agente,
+      agente: comercial.nombre,
       lastEventId: "test-seed",
       lastEventPosition: BigInt(0),
       lastEventAt: new Date(),
@@ -228,10 +328,19 @@ export async function DELETE(request: Request) {
     );
   }
 
+  const appSession = await getSessionFromRequest(request);
+  if (!appSession) {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   try {
     const session = await prisma.visitSchedulingSession.findUnique({
       where: { id: sessionId },
     });
+
+    if (session && !canAccessTestVisitSession(appSession, session.comercialId)) {
+      return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+    }
 
     if (session) {
       await prisma.visitSlotLock.deleteMany({ where: { sessionId } });

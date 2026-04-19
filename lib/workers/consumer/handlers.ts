@@ -10,7 +10,6 @@ import { handleWhatsAppRecibido } from "./whatsapp-nlu-handler";
 import { handleVisitaEvaluada } from "./visita-evaluada-handler";
 import { handleVisitaAgendada } from "./visita-agendada-handler";
 import { handleEstadoCambiado } from "./smart-closing-handler";
-import { handleOperacionCerrada } from "@/lib/post-sale/post-sale-handler";
 import { handleFirmaCompletada } from "./firma-completada-handler";
 import { handleContratoBorradorGenerado } from "./contrato-borrador-handler";
 import { handleFirmaEnviada } from "./firma-enviada-handler";
@@ -20,6 +19,19 @@ import { handleContratoAprobado } from "./contrato-aprobado-handler";
 import { handleContratoVersionado } from "./contrato-versionado-handler";
 import { handleFirmaSlaEscalado } from "./firma-sla-escalado-handler";
 import { handleFirmaRechazada } from "./firma-rechazada-handler";
+import {
+  handleVisitaSolicitada,
+  handleVisitaSlotsPropuestos,
+  handleVisitaSlotSeleccionado,
+  handleVisitaPropuestaEnviada,
+  handleVisitaCompradorAcepto,
+  handleVisitaCompradorRechazo,
+  handleVisitaDatosRecopilados,
+  handleVisitaEscaladaManual,
+  handleVisitaCancelada,
+  handleVisitaReprogramada,
+} from "./visit-scheduling-event-handlers";
+import { handleNotaEncargoFormularioCompletado } from "./nota-encargo-handlers";
 
 const registry = new Map<EventType, EventHandler>();
 
@@ -113,13 +125,15 @@ function auditOnlyHandler(reason: string): EventHandler {
 // --- Property handlers ---
 // PROPIEDAD_CREADA dispara cruce de demandas + projection (matching-handler.ts)
 registerHandler("PROPIEDAD_CREADA", handlePropertyMatching);
-registerHandler("PROPIEDAD_MODIFICADA", propertyHandler("UPDATE_PROPERTY_PROJECTION"));
+registerHandler("PROPIEDAD_MODIFICADA", handlePropertyMatching);
+registerHandler("PROPIEDAD_ELIMINADA", propertyHandler("UPDATE_PROPERTY_PROJECTION"));
 registerHandler("ESTADO_CAMBIADO", handleEstadoCambiado);
 
 // --- Demand handlers ---
 registerHandler("DEMANDA_CREADA", demandHandler("UPDATE_DEMAND_PROJECTION"));
 registerHandler("DEMANDA_MODIFICADA", demandHandler("UPDATE_DEMAND_PROJECTION"));
 registerHandler("DEMANDA_ESTADO_CAMBIADO", demandHandler("UPDATE_DEMAND_PROJECTION"));
+registerHandler("DEMANDA_ELIMINADA", demandHandler("UPDATE_DEMAND_PROJECTION"));
 
 // --- Lead scoring + SLA ---
 registerHandler("LEAD_INGESTADO", handleLeadIngestado);
@@ -134,6 +148,10 @@ registerHandler("VISITA_AGENDADA", handleVisitaAgendada);
 registerHandler("SELECCION_COMPRADOR", handleSeleccionComprador);
 registerHandler("SELECCION_VALIDADA", auditOnlyHandler("side effects en API route /validar-seleccion: DB update + job SEND_MICROSITE_TO_BUYER"));
 registerHandler("SELECCION_RECHAZADA", auditOnlyHandler("side effects en API route /validar-seleccion: DB update a REJECTED"));
+registerHandler(
+  "SELECCION_MICROSITE_DESCRIPCIONES_EDITADAS",
+  auditOnlyHandler("side effects en API route PATCH /validar-seleccion: properties JSON actualizado"),
+);
 
 // --- Smart Closing (M8) ---
 registerHandler("DATOS_INCOMPLETOS", auditOnlyHandler("emisor emit-incomplete.ts ya encola NOTIFY_CONTRACT_DATA_INCOMPLETE"));
@@ -154,7 +172,35 @@ registerHandler("INCIDENCIA_POSTVENTA_ABIERTA", auditOnlyHandler("API route ya e
 registerHandler("INCIDENCIA_POSTVENTA_RESUELTA", auditOnlyHandler("reanudación automática por cron scanner declarativo en cadence-scanner"));
 
 // --- Post-Venta (M9) ---
-registerHandler("OPERACION_CERRADA", handleOperacionCerrada);
+// NOTA (2026-04-17): La cadencia legacy `post-sale` (lib/post-sale/*) queda
+// deprecada. La cadencia canónica vive en `lib/postventa/*` y se dispara
+// dentro de `handleEstadoCambiado` (smart-closing-handler) encolando
+// `START_POSTVENTA_CADENCE`. Por tanto OPERACION_CERRADA ya no tiene efectos
+// de lado aquí; se trata como trazabilidad. Ver docs/postventa-plantillas-whatsapp.md.
+registerHandler(
+  "OPERACION_CERRADA",
+  auditOnlyHandler(
+    "Cadencia canónica en lib/postventa (START_POSTVENTA_CADENCE). Legacy post-sale deprecado.",
+  ),
+);
+
+// --- Visit Scheduling (M4 rediseño) ---
+registerHandler("VISITA_SOLICITADA", handleVisitaSolicitada);
+registerHandler("VISITA_SLOTS_PROPUESTOS", handleVisitaSlotsPropuestos);
+registerHandler("VISITA_SLOT_SELECCIONADO", handleVisitaSlotSeleccionado);
+registerHandler("VISITA_PROPUESTA_ENVIADA", handleVisitaPropuestaEnviada);
+registerHandler("VISITA_COMPRADOR_ACEPTO", handleVisitaCompradorAcepto);
+registerHandler("VISITA_COMPRADOR_RECHAZO", handleVisitaCompradorRechazo);
+registerHandler("VISITA_DATOS_RECOPILADOS", handleVisitaDatosRecopilados);
+registerHandler("VISITA_ESCALADA_MANUAL", handleVisitaEscaladaManual);
+registerHandler("VISITA_CANCELADA", handleVisitaCancelada);
+registerHandler("VISITA_REPROGRAMADA", handleVisitaReprogramada);
+
+// --- Nota de Encargo ---
+registerHandler("NOTA_ENCARGO_DETECTADA", auditOnlyHandler("side effects en tasks-worker: crea session + encola NOTA_ENCARGO_RECORDATORIO"));
+registerHandler("NOTA_ENCARGO_CONFIRMADA", auditOnlyHandler("side effects en webhook: actualiza state + encola NOTA_ENCARGO_ENVIAR_FORMULARIO"));
+registerHandler("NOTA_ENCARGO_NO_CONFIRMADA", auditOnlyHandler("trazabilidad: check-confirmacion job ya notificó al comercial"));
+registerHandler("NOTA_ENCARGO_FORMULARIO_COMPLETADO", handleNotaEncargoFormularioCompletado);
 
 // --- Audit-only (eventos de trazabilidad o reservados) ---
 registerHandler("LEAD_SCORED", auditOnlyHandler("evento legacy no emitido; scoring incrustado en LEAD_INGESTADO"));

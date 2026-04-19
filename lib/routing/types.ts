@@ -10,6 +10,7 @@ export interface AgentProfile {
   cargaMaxima: number;
   leadsAsignados: number;
   leadsCerrados: number;
+  /** Ratio 0–1 (e.g. 0.15 = 15%). Stored as Float in DB. */
   tasaConversion: number;
 }
 

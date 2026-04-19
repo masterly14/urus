@@ -8,6 +8,7 @@ import type {
   WhatsAppClientConfig,
   TemplateObject,
   InteractiveObject,
+  DocumentObject,
   SendMessageSuccess,
 } from "./types";
 
@@ -19,6 +20,32 @@ type SendOptions = Partial<WhatsAppClientConfig> & {
 /** Código de idioma de plantillas Meta; debe coincidir con la traducción aprobada (p. ej. `es` o `es_ES`). */
 const WHATSAPP_TEMPLATE_LANGUAGE_CODE =
   process.env.WHATSAPP_TEMPLATE_LANGUAGE?.trim() || "es";
+
+/**
+ * Registry of all WhatsApp template names used in this codebase.
+ * Each must exist in Meta Business Manager with the exact number of variables
+ * specified in the comment. Deploy checklist: verify all templates are approved
+ * before sending business-initiated messages.
+ */
+export const WHATSAPP_TEMPLATES = {
+  PROPIEDAD_MATCH: "propiedad_match",                               // body: 2 vars (nombre, enlace)
+  LEAD_ASIGNADO: process.env.WHATSAPP_TEMPLATE_LEAD_ASIGNADO ?? "lead_asignado",     // body: 3 vars (leadId, score, slaLevel)
+  LEAD_FOLLOW_UP: "lead_follow_up",                                  // body: 3 vars (leadId, step, score)
+  CONTRATO_FIRMA_ENVIADA: process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_ENVIADA ?? "contrato_firma_enviada",     // body: 4 vars
+  CONTRATO_FIRMA_RECORDATORIO_D1: process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D1 ?? "contrato_firma_recordatorio_d1", // body: 4 vars
+  CONTRATO_FIRMA_RECORDATORIO_D3: process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D3 ?? "contrato_firma_recordatorio_d3", // body: 4 vars
+  CONTRATO_FIRMA_RECORDATORIO_D5: process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D5 ?? "contrato_firma_recordatorio_d5", // body: 4 vars
+  CONTRATO_FIRMA_SLA_ESCALADO: process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_SLA_ESCALADO ?? "contrato_firma_sla_escalado", // body: 3 vars
+  PRICING_INFORME: process.env.WHATSAPP_TEMPLATE_PRICING_INFORME ?? "pricing_informe_listo",           // body: 5 vars
+  POSTVENTA_AGRADECIMIENTO: process.env.WHATSAPP_TEMPLATE_POSTVENTA_AGRADECIMIENTO ?? "postventa_agradecimiento", // body: 3 vars
+  POSTVENTA_SOPORTE: process.env.WHATSAPP_TEMPLATE_POSTVENTA_SOPORTE ?? "postventa_soporte",           // body: 2 vars + 2 buttons
+  POSTVENTA_RESENA: process.env.WHATSAPP_TEMPLATE_POSTVENTA_RESENA ?? "postventa_resena",             // body: 2 vars
+  POSTVENTA_REFERIDOS: process.env.WHATSAPP_TEMPLATE_POSTVENTA_REFERIDOS ?? "postventa_referidos",       // body: 2 vars
+  POSTVENTA_RECAPTACION: process.env.WHATSAPP_TEMPLATE_POSTVENTA_RECAPTACION ?? "postventa_recaptacion",   // body: 3 vars
+  POSTVENTA_CUMPLEANOS: process.env.WHATSAPP_TEMPLATE_POSTVENTA_CUMPLEANOS ?? "postventa_cumpleanos",     // body: 2 vars
+  POSTVENTA_NAVIDAD: process.env.WHATSAPP_TEMPLATE_POSTVENTA_NAVIDAD ?? "postventa_navidad",           // body: 2 vars
+  DEV_EJERCICIO: process.env.WHATSAPP_TEMPLATE_DEV_EXERCISE ?? "dev_ejercicio_diario",               // body: 3 vars
+} as const;
 
 // ---------------------------------------------------------------------------
 // Test interceptor — permite capturar mensajes salientes sin enviar a Meta.
@@ -90,11 +117,35 @@ export async function sendTemplateMessage(
 }
 
 /**
+ * Envía un documento (PDF, imagen, etc.) como mensaje de WhatsApp.
+ * Solo válido dentro de una ventana de 24h de conversación activa.
+ * Ideal para entregar documentos firmados directamente al usuario.
+ */
+export async function sendDocumentMessage(
+  to: string,
+  document: DocumentObject,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  if (_testSendInterceptor) {
+    _testSendInterceptor({ to, type: "text", payload: { document } });
+    return { messages: [{ id: testId() }] } as SendMessageSuccess;
+  }
+  const client = createWhatsAppClient(options);
+  return client.sendMessage({
+    to,
+    type: "document",
+    document,
+    ...(options?.contextMessageId
+      ? { context: { message_id: options.contextMessageId } }
+      : {}),
+  });
+}
+
+/**
  * Envía un mensaje interactivo con botones de respuesta rápida (reply buttons)
  * o lista de opciones. Requiere ventana de conversación activa.
  */
-export async function sendInteractiveMessage(
-  to: string,
+export async function sendInteractiveMessage(  to: string,
   interactive: InteractiveObject,
   options?: SendOptions,
 ): Promise<SendMessageSuccess> {
@@ -148,60 +199,35 @@ export interface LeadAssignedParams {
   reasons?: string[];
 }
 
-const LEAD_ASSIGNED_TEMPLATE = "lead_asignado";
+const LEAD_ASSIGNED_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_LEAD_ASIGNADO ?? "lead_asignado";
 
 /**
  * Notifica al comercial que tiene un nuevo lead asignado.
- *
- * MVP: usa sendTextMessage (requiere ventana de 24h).
- * Producción: sustituir por sendTemplateMessage con plantilla "lead_asignado"
- * aprobada en Meta Business Manager.
+ * Siempre usa plantilla Meta (business-initiated, fuera de ventana 24h).
+ * Requiere plantilla "lead_asignado" aprobada en Meta Business Manager
+ * con 3 variables: {{1}}=leadId, {{2}}=score, {{3}}=slaLevel.
  */
 export async function sendLeadAssignedToCommercial(
   to: string,
   params: LeadAssignedParams,
-  options?: SendOptions & { useTemplate?: boolean },
+  options?: SendOptions,
 ): Promise<SendMessageSuccess> {
-  if (options?.useTemplate) {
-    const template: TemplateObject = {
-      name: LEAD_ASSIGNED_TEMPLATE,
-      language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
-      components: [
-        {
-          type: "body",
-          parameters: [
-            { type: "text", text: params.leadId },
-            { type: "text", text: String(params.score) },
-            { type: "text", text: params.slaLevel },
-          ],
-        },
-      ],
-    };
-    return sendTemplateMessage(to, template, options);
-  }
-
-  const slaLabel = formatSlaLabel(params.slaLevel, params.maxResponseMs);
-  const lines = [
-    `📋 *Nuevo lead asignado*`,
-    ``,
-    `• ID: ${params.leadId}`,
-    `• Score: ${params.score}/100`,
-    `• SLA: ${slaLabel}`,
-  ];
-  if (params.ciudad) lines.push(`• Ciudad: ${params.ciudad}`);
-  if (params.reasons?.length) {
-    lines.push(`• Señales: ${params.reasons.join(", ")}`);
-  }
-  lines.push(``, `Revisa el panel para más detalles.`);
-
-  return sendTextMessage(to, lines.join("\n"), options);
-}
-
-function formatSlaLabel(level: string, maxResponseMs?: number): string {
-  if (!maxResponseMs) return level;
-  const minutes = Math.round(maxResponseMs / 60_000);
-  if (minutes < 60) return `${level} (< ${minutes}min)`;
-  return `${level} (< ${Math.round(minutes / 60)}h)`;
+  const template: TemplateObject = {
+    name: LEAD_ASSIGNED_TEMPLATE,
+    language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
+    components: [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: params.leadId },
+          { type: "text", text: String(params.score) },
+          { type: "text", text: params.slaLevel },
+        ],
+      },
+    ],
+  };
+  return sendTemplateMessage(to, template, options);
 }
 
 export interface FollowUpParams {
@@ -324,8 +350,52 @@ export async function sendMicrositeLinkToBuyer(
     `Aquí tienes una selección de propiedades que encajan con tu búsqueda:`,
     params.buyerUrl,
     ``,
-    `Indica cuáles te interesan desde la página.`,
+    `Revísalas con calma y, en este chat, cuéntame cuáles te gustan o qué prefieres cambiar (zona, presupuesto, metros, etc.).`,
   ];
+  return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
+}
+
+export type NoStockAvailableToBuyerParams = {
+  demandNombre: string;
+  /**
+   * URL de la última selección aprobada que el comprador ya tiene. Si no existe
+   * (es su primer microsite), se omite la sección de "revisa las actuales".
+   */
+  currentSelectionUrl?: string | null;
+};
+
+/**
+ * Aviso al comprador cuando no se han encontrado propiedades nuevas que
+ * encajen con los criterios actuales. Si tenía una selección previa, se le
+ * invita a revisarla; si no, se le invita a ajustar los criterios.
+ */
+export async function sendNoStockAvailableToBuyer(
+  to: string,
+  params: NoStockAvailableToBuyerParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const firstName = params.demandNombre.trim().split(/\s+/)[0];
+  const greeting = `Hola${firstName ? ` ${firstName}` : ""},`;
+
+  const lines: string[] = [greeting, ``];
+
+  if (params.currentSelectionUrl) {
+    lines.push(
+      `De momento no he encontrado opciones nuevas que encajen con los criterios que me has dado, así que todavía no tengo alternativas que mandarte.`,
+      ``,
+      `Mientras tanto, si quieres échale un vistazo de nuevo a la selección que ya tienes, por si alguna te encaja mejor ahora:`,
+      params.currentSelectionUrl,
+      ``,
+      `Si prefieres que busque con otros criterios (presupuesto, zona, metros, habitaciones…), dímelo por aquí y ajusto la búsqueda.`,
+    );
+  } else {
+    lines.push(
+      `De momento no he encontrado propiedades que encajen con los criterios que me has dado.`,
+      ``,
+      `Si quieres, dime por aquí con qué margen podemos movernos (presupuesto, zona, metros, habitaciones…) y vuelvo a buscar.`,
+    );
+  }
+
   return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
 }
 
@@ -467,12 +537,45 @@ function buildRecaptacionMessage(params: PostSaleMessageParams): string {
   ].join("\n");
 }
 
+function buildResenaMessage(params: PostSaleMessageParams): string {
+  const name = params.clientName ? ` ${params.clientName}` : "";
+  const lines = [
+    `⭐ *Tu opinión nos ayuda mucho*`,
+    ``,
+    `Hola${name}, nos alegra que todo vaya bien.`,
+    `¿Podrías dejarnos una reseña? Solo toma un minuto.`,
+  ];
+  if (params.postVentaUrl) {
+    lines.push(``, params.postVentaUrl);
+  }
+  lines.push(``, `¡Gracias!`);
+  return lines.join("\n");
+}
+
+function buildReferidosMessage(params: PostSaleMessageParams): string {
+  const name = params.clientName ? ` ${params.clientName}` : "";
+  const lines = [
+    `🤝 *¿Conoces a alguien que busque vivienda?*`,
+    ``,
+    `Hola${name}, si conoces a alguien que esté pensando en comprar o vender,`,
+    `estaremos encantados de ayudarle como hicimos contigo.`,
+  ];
+  if (params.postVentaUrl) {
+    lines.push(``, `Comparte este enlace:`, params.postVentaUrl);
+  } else {
+    lines.push(``, `Responda con el nombre y teléfono, y nos pondremos en contacto.`);
+  }
+  return lines.join("\n");
+}
+
 const PHASE_BUILDERS: Record<
-  "agradecimiento" | "soporte" | "recaptacion",
+  PostSalePhase,
   (params: PostSaleMessageParams) => string
 > = {
   agradecimiento: buildAgradecimientoMessage,
   soporte: buildSoporteMessage,
+  resena: buildResenaMessage,
+  referidos: buildReferidosMessage,
   recaptacion: buildRecaptacionMessage,
 };
 
@@ -481,10 +584,7 @@ export async function sendPostSaleMessage(
   params: PostSaleMessageParams,
   options?: SendOptions,
 ): Promise<SendMessageSuccess> {
-  const builder = PHASE_BUILDERS[params.phase as keyof typeof PHASE_BUILDERS];
-  if (!builder) {
-    throw new Error(`No message builder for post-sale phase: ${params.phase}`);
-  }
+  const builder = PHASE_BUILDERS[params.phase];
   return sendTextMessage(to, builder(params), options);
 }
 
@@ -1145,6 +1245,73 @@ export async function sendDevExerciseNudge(
           { type: "text", text: params.comercialName },
           { type: "text", text: params.exerciseTypeLabel },
           { type: "text", text: params.themeLabel },
+        ],
+      },
+    ],
+  };
+  return sendTemplateMessage(to, template, options);
+}
+
+// ---------------------------------------------------------------------------
+// Post-venta — Cumpleaños (plantilla obligatoria Meta, envío anual)
+// ---------------------------------------------------------------------------
+
+export type PostventaCumpleanosParams = {
+  buyerName: string;
+  agencyName: string;
+};
+
+const POSTVENTA_CUMPLEANOS_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_POSTVENTA_CUMPLEANOS ??
+  "postventa_cumpleanos";
+
+export async function sendPostventaCumpleanos(
+  to: string,
+  params: PostventaCumpleanosParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const template: TemplateObject = {
+    name: POSTVENTA_CUMPLEANOS_TEMPLATE,
+    language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
+    components: [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: params.buyerName },
+          { type: "text", text: params.agencyName },
+        ],
+      },
+    ],
+  };
+  return sendTemplateMessage(to, template, options);
+}
+
+// ---------------------------------------------------------------------------
+// Post-venta — Navidad (plantilla obligatoria Meta, envío anual 24-dic)
+// ---------------------------------------------------------------------------
+
+export type PostventaNavidadParams = {
+  buyerName: string;
+  agencyName: string;
+};
+
+const POSTVENTA_NAVIDAD_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_POSTVENTA_NAVIDAD ?? "postventa_navidad";
+
+export async function sendPostventaNavidad(
+  to: string,
+  params: PostventaNavidadParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const template: TemplateObject = {
+    name: POSTVENTA_NAVIDAD_TEMPLATE,
+    language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
+    components: [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: params.buyerName },
+          { type: "text", text: params.agencyName },
         ],
       },
     ],

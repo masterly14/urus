@@ -26,5 +26,6 @@ export async function GET(request: NextRequest) {
     ok: true,
     email: invitation.email,
     role: invitation.role,
+    invitedName: invitation.invitedName.trim() || null,
   });
 }

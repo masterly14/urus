@@ -7,6 +7,9 @@ vi.mock("@/lib/prisma", () => ({
     micrositeSelectionFeedback: {
       upsert: vi.fn().mockResolvedValue({ id: "fb-1" }),
     },
+    demandCurrent: {
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
   },
 }));
 

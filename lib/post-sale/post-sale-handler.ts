@@ -3,6 +3,7 @@ import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import type { HandlerResult } from "@/lib/workers/consumer/types";
 import { POST_SALE_CADENCE, getPhaseLabel } from "./cadence";
 import { upsertCommercialOperationFactFromOperacionCerradaEvent } from "@/lib/dashboard/comercial/facts";
+import { updateDemandLeadStatus, updateLeadStatusByOperationId } from "@/lib/projections/update-lead-status";
 
 interface OperacionCerradaPayload {
   previousEstado: string;
@@ -50,6 +51,9 @@ export async function handleOperacionCerrada(
   }
 
   const { propertyCode, newEstado, closedAt, operacionId } = payload;
+  const demandIdFromPayload = typeof (payload as Record<string, unknown>).demandId === "string"
+    ? (payload as Record<string, unknown>).demandId as string
+    : null;
   const closedDate = new Date(closedAt);
 
   if (isNaN(closedDate.getTime())) {
@@ -89,6 +93,24 @@ export async function handleOperacionCerrada(
       idempotencyKey: `post_sale:${idKey}:${step.phase}`,
       sourceEventId: event.id,
     });
+  }
+
+  if (demandIdFromPayload) {
+    try {
+      await updateDemandLeadStatus(demandIdFromPayload, "CERRADO");
+    } catch (err) {
+      console.warn(
+        `[post-sale] Error actualizando leadStatus a CERRADO (directo): ${err instanceof Error ? err.message : err}`,
+      );
+    }
+  } else if (operacionId) {
+    try {
+      await updateLeadStatusByOperationId(operacionId, "CERRADO");
+    } catch (err) {
+      console.warn(
+        `[post-sale] Error actualizando leadStatus a CERRADO: ${err instanceof Error ? err.message : err}`,
+      );
+    }
   }
 
   console.log(

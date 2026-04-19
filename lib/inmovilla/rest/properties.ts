@@ -82,7 +82,12 @@ export function normalizePropertyFromRest(
     codigo: raw.cod_ofer != null ? String(raw.cod_ofer) : "",
     ref: String(raw.ref ?? ""),
     titulo: String(raw.tituloes ?? raw.descripciones ?? ""),
-    tipoOfer: raw.key_tipo != null ? String(raw.key_tipo) : "",
+    tipoOfer:
+      (raw.key_tipo != null && enumMaps
+        ? enumMaps.tipoByKeyTipo.get(Number(raw.key_tipo)) ?? String(raw.key_tipo)
+        : raw.key_tipo != null
+          ? String(raw.key_tipo)
+          : ""),
     precio: Number(raw.precioinmo ?? raw.precio ?? 0),
     metrosConstruidos: Number(raw.m_cons ?? 0),
     habitaciones: Number(raw.habitaciones ?? 0),

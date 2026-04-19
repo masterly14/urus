@@ -136,7 +136,8 @@ async function updateCheckpoint(
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`[projection-worker] Error actualizando checkpoint: ${msg}`);
+    console.error(`[projection-worker] Error actualizando checkpoint: ${msg}`);
+    throw err;
   }
 }
 

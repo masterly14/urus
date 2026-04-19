@@ -20,6 +20,8 @@ function makeDemand(
     zonas: "Centro",
     fechaActualizacion: "2026-03-11 09:00:00",
     agente: "Agente",
+    siglas: "MA",
+    inmovillaAgentId: 177892,
     raw: {},
     ...overrides,
   };

@@ -9,13 +9,21 @@ import { computeDemandDiff } from "./demands-diff";
 import { publishDemandEventsForDiff } from "./event-publisher";
 import type { DemandIngestionCycleResult } from "./types";
 import { demandsLogger } from "../logger";
-import { classifyError } from "../errors";
+import { classifyError, isRetryableError } from "../errors";
 import { saveCycleMetrics, PhaseTimer } from "../metrics";
 import type { PhaseTimings } from "../metrics";
 import {
   persistWorkerExecutionMetric,
   runWithWorkerObservability,
 } from "@/lib/observability";
+import { alertGeneric } from "@/lib/alerts";
+
+const LOGIN_RETRY_DELAY_MS = 10_000;
+const FETCH_RETRY_DELAY_MS = 5_000;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export async function runDemandsIngestionCycle(): Promise<DemandIngestionCycleResult> {
   const cycleId = randomUUID();
@@ -35,13 +43,51 @@ export async function runDemandsIngestionCycle(): Promise<DemandIngestionCycleRe
       log.info("Ciclo iniciado", { mode: "legacy" });
 
       try {
-        // ── Fase 1: login + lectura de demandas ──────────────────────────────
+        // ── Fase 1: login con retry ─────────────────────────────────────────
         let t = new PhaseTimer();
         log.info("Iniciando login en Inmovilla...");
-        const session = await loginToInmovilla({ headless: true });
+        let session;
+        try {
+          session = await loginToInmovilla({ headless: true });
+        } catch (loginErr) {
+          const classified = classifyError(loginErr);
+          log.warn("Login fallido, reintentando en 10s", {
+            errorCode: classified.code,
+            error: classified.message,
+          });
+          await delay(LOGIN_RETRY_DELAY_MS);
+          try {
+            session = await loginToInmovilla({ headless: true });
+          } catch (retryErr) {
+            alertGeneric(
+              "Ingesta demandas: login fallido tras 2 intentos",
+              "critical",
+              {
+                error: retryErr instanceof Error ? retryErr.message : String(retryErr),
+              },
+            ).catch(() => {});
+            throw retryErr;
+          }
+        }
 
+        // ── Fase 1b: lectura de demandas con retry ──────────────────────────
         log.info("Leyendo demandas...");
-        const demands = await fetchAllDemands(session);
+        let demands;
+        try {
+          demands = await fetchAllDemands(session);
+        } catch (fetchErr) {
+          if (isRetryableError(fetchErr)) {
+            const classified = classifyError(fetchErr);
+            log.warn("Fetch demandas fallido, reintentando en 5s", {
+              errorCode: classified.code,
+              error: classified.message,
+            });
+            await delay(FETCH_RETRY_DELAY_MS);
+            demands = await fetchAllDemands(session);
+          } else {
+            throw fetchErr;
+          }
+        }
         phases.fetchData = t.end();
         log.phase("fetchData", phases.fetchData, { demandsRead: demands.length });
 
@@ -63,6 +109,7 @@ export async function runDemandsIngestionCycle(): Promise<DemandIngestionCycleRe
           created: diff.created.length,
           modified: diff.modified.length,
           statusChanged: diff.statusChanged.length,
+          removed: diff.removed.length,
           unchanged: diff.unchanged,
         });
 
@@ -95,6 +142,7 @@ export async function runDemandsIngestionCycle(): Promise<DemandIngestionCycleRe
             created: diff.created.length,
             modified: diff.modified.length,
             statusChanged: diff.statusChanged.length,
+            removed: diff.removed.length,
             unchanged: diff.unchanged,
           },
         };
@@ -198,7 +246,7 @@ export async function runDemandsIngestionCycle(): Promise<DemandIngestionCycleRe
           durationMs,
           demandsRead: 0,
           eventsEmitted: 0,
-          diff: { created: 0, modified: 0, statusChanged: 0, unchanged: 0 },
+          diff: { created: 0, modified: 0, statusChanged: 0, removed: 0, unchanged: 0 },
           error: classified.message,
         };
       }

@@ -33,6 +33,38 @@ export type CeoFinancialGeneratorResult = {
 // ---------------------------------------------------------------------------
 
 export async function generateAndPersistCeoFinancial(): Promise<CeoFinancialGeneratorResult> {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const existing = await prisma.event.findFirst({
+    where: {
+      type: "CEO_FINANZAS_GENERADA",
+      createdAt: { gte: monthStart },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { payload: true, createdAt: true },
+  });
+  if (existing?.payload && typeof existing.payload === "object") {
+    const p = existing.payload as Record<string, unknown>;
+    return {
+      recommendation: {
+        costes_fijos_eur: (p.costes_fijos_eur as number) ?? 0,
+        costes_variables_eur: (p.costes_variables_eur as number) ?? 0,
+        coste_por_operacion_eur: (p.coste_por_operacion_eur as number) ?? 0,
+        ratio_fijo_variable: (p.ratio_fijo_variable as number) ?? 0,
+        automatizaciones: (p.automatizaciones as CeoFinancialRecommendation["automatizaciones"]) ?? [],
+        roi_automatizaciones_total: (p.roi_automatizaciones_total as number) ?? 0,
+        capacidad_reinversion_eur: (p.capacidad_reinversion_eur as number) ?? 0,
+        recomendaciones: (p.recomendaciones as CeoFinancialRecommendation["recomendaciones"]) ?? [],
+        semaforo_financiero:
+          (p.semaforo_financiero as CeoFinancialRecommendation["semaforo_financiero"]) ?? "rojo",
+        resumen_ejecutivo: (p.resumen_ejecutivo as string) ?? "",
+        confidence: (p.confidence as number) ?? 0,
+        reasoning: (p.reasoning as string) ?? "",
+      },
+      generatedAt: existing.createdAt.toISOString(),
+    };
+  }
+
   const [overview, cities] = await Promise.all([
     getCeoOverview(),
     getCeoCityPerformance(),

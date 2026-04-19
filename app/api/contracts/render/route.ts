@@ -23,9 +23,14 @@ const BodySchema = z.object({
   contractTemplateInput: ContractTemplateInputSchema,
 });
 
+/** Solo en builds/runtime de producción se exige sesión (Next/Vercel fijan NODE_ENV=production). */
+const requireSessionForRender = process.env.NODE_ENV === "production";
+
 const postHandler = async (request: Request) => {
-  const session = await getSessionFromRequest(request);
-  if (!session) return unauthorized();
+  if (requireSessionForRender) {
+    const session = await getSessionFromRequest(request);
+    if (!session) return unauthorized();
+  }
 
   let json: unknown;
   try {

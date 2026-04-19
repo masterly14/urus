@@ -84,6 +84,18 @@ export interface OperacionPostVenta {
   precio: number;
   fechaCierre: string;
   comercial: string;
+  operacionEstado?: string;
+  demandLeadStatus?:
+    | "NUEVO"
+    | "CONTACTADO"
+    | "EN_SELECCION"
+    | "VISITA_PENDIENTE"
+    | "VISITA_CONFIRMADA"
+    | "VISITA_REALIZADA"
+    | "EN_NEGOCIACION"
+    | "EN_FIRMA"
+    | "CERRADO"
+    | "PERDIDO";
   etapaActual: EtapaPostVenta;
   tipoCliente: TipoCliente;
   mensajes: MensajePostVenta[];
@@ -179,6 +191,8 @@ export interface AppNotification {
   description: string;
   timestamp: string;
   read: boolean;
+  eventId?: string;
+  eventType?: string;
 }
 
 // ── Activity Feed ────────────────────────────────────────────

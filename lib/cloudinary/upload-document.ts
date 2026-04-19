@@ -1,5 +1,20 @@
 import { getCloudinary } from "./client";
 
+function mimeTypeForContractFileName(fileName: string): string {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".pdf")) return "application/pdf";
+  if (lower.endsWith(".docx")) {
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  }
+  if (lower.endsWith(".doc")) return "application/msword";
+  return "application/octet-stream";
+}
+
+function formatFallbackFromFileName(fileName: string): string {
+  const m = /\.([a-z0-9]+)$/i.exec(fileName.trim());
+  return m?.[1]?.toLowerCase() ?? "bin";
+}
+
 export interface UploadDocumentOptions {
   /** Buffer del archivo a subir. */
   buffer: Buffer;
@@ -41,7 +56,8 @@ export async function uploadContractDocument(
         .join("|")
     : undefined;
 
-  const dataUri = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${buffer.toString("base64")}`;
+  const mime = mimeTypeForContractFileName(safeFileName);
+  const dataUri = `data:${mime};base64,${buffer.toString("base64")}`;
 
   const result = await cloudinary.uploader.upload(dataUri, {
     resource_type: "raw",
@@ -60,7 +76,7 @@ export async function uploadContractDocument(
     secureUrl: result.secure_url,
     url: result.url,
     bytes: result.bytes,
-    format: result.format ?? "docx",
+    format: result.format ?? formatFallbackFromFileName(safeFileName),
     resourceType: result.resource_type,
     createdAt: result.created_at,
   };

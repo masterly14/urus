@@ -1,14 +1,14 @@
 import type { HistoricalStats } from "./ai-types";
 import { prisma } from "@/lib/prisma";
 
-const CACHE_TTL_MS = 10 * 60_000;
+const CACHE_TTL_MS = 5 * 60_000;
 
 let cached: HistoricalStats | null = null;
 let cachedAt = 0;
 
 /**
  * Fetches aggregate conversion stats from CommercialLeadFact + CommercialOperationFact.
- * Results are cached for 10 minutes to avoid per-lead DB overhead.
+ * Results are cached for 5 minutes to avoid per-lead DB overhead.
  */
 export async function fetchHistoricalStats(): Promise<HistoricalStats> {
   const now = Date.now();
@@ -27,11 +27,16 @@ export async function fetchHistoricalStats(): Promise<HistoricalStats> {
 async function computeStats(): Promise<HistoricalStats> {
   const [leadFacts, opFacts] = await Promise.all([
     prisma.commercialLeadFact.findMany({
-      select: { leadId: true, score: true, ciudad: true, source: true },
+      select: {
+        leadId: true,
+        inmovillaDemandId: true,
+        score: true,
+        ciudad: true,
+        source: true,
+      },
     }),
     prisma.commercialOperationFact.findMany({
-      where: { closedAt: { not: null } },
-      select: { sourceEventId: true, ciudad: true },
+      select: { demandId: true, ciudad: true },
     }),
   ]);
 
@@ -44,37 +49,44 @@ async function computeStats(): Promise<HistoricalStats> {
   const sourceLeadCounts: Record<string, number> = {};
   const sourceClosedCounts: Record<string, number> = {};
 
+  // Set of Inmovilla demandIds for closed operations — se cruza contra
+  // CommercialLeadFact.inmovillaDemandId (mismo ID-space) para detectar leads cerrados.
+  const closedDemandIds = new Set(
+    opFacts.map((o) => o.demandId).filter((id): id is string => id != null && id !== ""),
+  );
+
   let closedScoreSum = 0;
   let closedScoreCount = 0;
   let openScoreSum = 0;
   let openScoreCount = 0;
-
-  const leadSourceById = new Map<string, string>();
 
   for (const lead of leadFacts) {
     const city = lead.ciudad || "unknown";
     const source = lead.source || "unknown";
     cityLeadCounts[city] = (cityLeadCounts[city] ?? 0) + 1;
     sourceLeadCounts[source] = (sourceLeadCounts[source] ?? 0) + 1;
-    leadSourceById.set(lead.leadId, source);
   }
-
-  const closedLeadIds = new Set<string>();
 
   for (const op of opFacts) {
     const city = op.ciudad || "unknown";
     cityClosedCounts[city] = (cityClosedCounts[city] ?? 0) + 1;
-
-    if (op.sourceEventId) {
-      closedLeadIds.add(op.sourceEventId);
-      const source = leadSourceById.get(op.sourceEventId) ?? "unknown";
-      sourceClosedCounts[source] = (sourceClosedCounts[source] ?? 0) + 1;
-    }
   }
 
   for (const lead of leadFacts) {
+    const source = lead.source || "unknown";
+    const matchedByDemand =
+      lead.inmovillaDemandId != null && closedDemandIds.has(lead.inmovillaDemandId);
+
+    if (matchedByDemand) {
+      sourceClosedCounts[source] = (sourceClosedCounts[source] ?? 0) + 1;
+    }
+
     if (lead.score == null) continue;
-    const isClosed = closedLeadIds.has(lead.leadId) || closedCities.has(lead.ciudad);
+
+    // Un lead se considera "cerrado" si matchea por demandId real. El fallback por
+    // ciudad se conserva porque no todos los leads traen demandId (p. ej. web forms),
+    // pero prioriza el match directo cuando existe.
+    const isClosed = matchedByDemand || closedCities.has(lead.ciudad);
     if (isClosed) {
       closedScoreSum += lead.score;
       closedScoreCount++;

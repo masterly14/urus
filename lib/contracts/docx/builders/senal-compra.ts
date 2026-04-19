@@ -5,7 +5,6 @@ import {
   LineRuleType,
   Paragraph,
   TextRun,
-  UnderlineType,
 } from "docx";
 import type { SenalCompraContractPayload } from "@/types/contracts";
 import {
@@ -204,7 +203,6 @@ export async function buildSenalCompraDocument(payload: SenalCompraContractPaylo
       children: [
         new TextRun({
           text: `${toUpperLegal("Agencia")}                               ${toUpperLegal("Comprador")}`,
-          underline: { type: UnderlineType.SINGLE },
           size: 24,
         }),
       ],

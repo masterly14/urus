@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-
 const PostBodySchema = z.object({
   token: z.string(),
-  name: z.string().min(1),
   password: z.string().min(8),
 });
+
+function isStoredSpainE164(digits: string): boolean {
+  return digits.length === 11 && digits.startsWith("34");
+}
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -23,7 +25,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { token, name, password } = parsed.data;
+  const { token, password } = parsed.data;
 
   const invitation = await prisma.invitation.findUnique({ where: { token } });
 
@@ -31,6 +33,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { ok: false, error: "Invitación inválida o expirada" },
       { status: 400 }
+    );
+  }
+
+  // Atomic claim: mark token as used only if still unused.
+  // If another request races us, updateMany returns count=0.
+  const claimed = await prisma.invitation.updateMany({
+    where: { id: invitation.id, used: false },
+    data: { used: true },
+  });
+  if (claimed.count === 0) {
+    return NextResponse.json(
+      { ok: false, error: "Invitación ya utilizada" },
+      { status: 409 }
     );
   }
 
@@ -44,6 +59,34 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const name = invitation.invitedName.trim();
+  if (!name) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Esta invitación no incluye nombre. Pide al administrador que envíe una invitación nueva.",
+      },
+      { status: 400 },
+    );
+  }
+
+  let phoneDigits: string | null = null;
+  if (invitation.role === "comercial") {
+    const stored = invitation.invitedPhone.trim();
+    if (!stored || !isStoredSpainE164(stored)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Esta invitación no incluye un teléfono válido. Pide al administrador que envíe una invitación nueva.",
+        },
+        { status: 400 },
+      );
+    }
+    phoneDigits = stored;
+  }
+
   const signUpResult = await auth.api.signUpEmail({
     body: {
       email: invitation.email,
@@ -53,32 +96,98 @@ export async function POST(request: NextRequest) {
   });
 
   if (!signUpResult?.user) {
+    // Rollback: un-claim the invitation so it can be retried
+    await prisma.invitation.update({
+      where: { id: invitation.id },
+      data: { used: false },
+    });
     return NextResponse.json(
       { ok: false, error: "Error al crear el usuario" },
       { status: 500 }
     );
   }
 
-  await prisma.user.update({
-    where: { id: signUpResult.user.id },
-    data: {
-      role: invitation.role,
-      emailVerified: true,
-    },
-  });
+  const userId = signUpResult.user.id;
+  let comercialId: string | null = null;
 
-  await prisma.invitation.update({
-    where: { id: invitation.id },
-    data: { used: true },
-  });
+  // H3 completado: envolver provisioning post-signUp en transacción.
+  // signUp queda fuera (Better Auth gestiona su propia tx), pero el tramo
+  // Comercial + user.update es atómico: si cualquier paso falla, nada queda
+  // a medio aplicar (invitation used=true + user sin rol/comercial).
+  try {
+    comercialId = await prisma.$transaction(async (tx) => {
+      let cId: string | null = null;
+
+      if (invitation.role === "comercial" && phoneDigits) {
+        const byEmail = await tx.comercial.findFirst({
+          where: {
+            email: { equals: invitation.email.trim(), mode: "insensitive" },
+            activo: true,
+            user: { is: null },
+          },
+          select: { id: true, ciudad: true, inmovillaRefCode: true },
+        });
+
+        if (byEmail) {
+          cId = byEmail.id;
+          await tx.comercial.update({
+            where: { id: cId },
+            data: {
+              nombre: name,
+              telefono: phoneDigits,
+              waId: phoneDigits,
+              ...(!byEmail.ciudad?.trim() ? { ciudad: "Córdoba" } : {}),
+              ...(invitation.refCode && !byEmail.inmovillaRefCode
+                ? { inmovillaRefCode: invitation.refCode }
+                : {}),
+            },
+          });
+        } else {
+          const newComercial = await tx.comercial.create({
+            data: {
+              nombre: name,
+              email: invitation.email,
+              telefono: phoneDigits,
+              waId: phoneDigits,
+              ciudad: "Córdoba",
+              especialidad: "general",
+              activo: true,
+              inmovillaRefCode: invitation.refCode ?? null,
+            },
+          });
+          cId = newComercial.id;
+        }
+      }
+
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          role: invitation.role,
+          emailVerified: true,
+          ...(cId ? { comercialId: cId } : {}),
+        },
+      });
+
+      return cId;
+    });
+  } catch (txErr) {
+    console.error(
+      `[invitations/accept] Transacción post-signUp falló para userId=${userId}: ${txErr instanceof Error ? txErr.message : txErr}`,
+    );
+    return NextResponse.json(
+      { ok: false, error: "Error al configurar la cuenta. Contacta al administrador." },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json({
     ok: true,
     user: {
-      id: signUpResult.user.id,
+      id: userId,
       email: signUpResult.user.email,
       name: signUpResult.user.name,
       role: invitation.role,
+      comercialId,
     },
   });
 }

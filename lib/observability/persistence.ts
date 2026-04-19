@@ -61,8 +61,11 @@ export async function persistObservabilityLog(
         NOW()
       )
     `;
-  } catch {
-    // Best-effort: la observabilidad nunca debe romper el flujo principal.
+  } catch (err) {
+    console.error(
+      "[observability] persistObservabilityLog failed:",
+      err instanceof Error ? err.message : err,
+    );
   }
 }
 
@@ -107,7 +110,10 @@ export async function persistExecutionMetric(
         NOW()
       )
     `;
-  } catch {
-    // Best-effort: la observabilidad nunca debe romper el flujo principal.
+  } catch (err) {
+    console.error(
+      "[observability] persistExecutionMetric failed:",
+      err instanceof Error ? err.message : err,
+    );
   }
 }

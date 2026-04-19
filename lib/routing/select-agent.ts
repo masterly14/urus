@@ -44,7 +44,8 @@ export function selectBestAgent(
         ? (agent.cargaMaxima - agent.cargaActual) / agent.cargaMaxima
         : 0;
 
-    const conversionScore = agent.tasaConversion;
+    const raw = agent.tasaConversion;
+    const conversionScore = raw > 1 ? raw / 100 : raw;
 
     let score = W_CAPACITY * capacityScore + W_CONVERSION * conversionScore;
 

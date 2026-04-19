@@ -4,6 +4,7 @@ import { appendEvent } from "@/lib/event-store/event-store";
 import { AggregateType, EventType } from "@/app/generated/prisma/client";
 import { enqueueJob } from "@/lib/job-queue";
 import { withObservedRoute } from "@/lib/observability";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 
 const PostBodySchema = z.object({
   propertyCode: z.string(),
@@ -23,6 +24,9 @@ const PatchBodySchema = z.object({
  * Emite evento INCIDENCIA_POSTVENTA_ABIERTA y notifica al comercial.
  */
 const postHandler = async (request: Request) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+
   try {
     const body = await request.json();
     const parsed = PostBodySchema.safeParse(body);
@@ -91,6 +95,9 @@ export const POST = withObservedRoute({ method: "POST", route: "/api/postventa/i
  * automáticamente en el siguiente ciclo del cron scanner.
  */
 const patchHandler = async (request: Request) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+
   try {
     const body = await request.json();
     const parsed = PatchBodySchema.safeParse(body);

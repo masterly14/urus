@@ -1,5 +1,8 @@
 import { createHash, randomInt } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { getObservabilityContext } from "@/lib/observability/context";
+import { createLogger } from "@/lib/observability/logger";
+import { maskPhone } from "./mask-phone";
 import { sendOtpSms } from "./vonage";
 
 const OTP_LENGTH = 6;
@@ -16,9 +19,16 @@ function hashOtpCode(code: string): string {
   return createHash("sha256").update(code).digest("hex");
 }
 
-function maskPhone(phone: string): string {
-  if (phone.length <= 4) return "****";
-  return "*".repeat(phone.length - 4) + phone.slice(-4);
+function otpDebugLogger() {
+  const ctx = getObservabilityContext();
+  if (ctx) {
+    return createLogger(ctx).child({ operation: `${ctx.operation} › otp` });
+  }
+  return createLogger({
+    scope: "api",
+    source: "api",
+    operation: "firma/otp",
+  });
 }
 
 export interface CreateOtpResult {
@@ -43,7 +53,34 @@ export async function createOtp(
     },
   });
 
-  await sendOtpSms(phone, code);
+  const log = otpDebugLogger();
+  log.info("OTP persistido en BD; inicio envío SMS", {
+    signatureRequestId,
+    otpId: otp.id,
+    phoneMasked: maskPhone(phone),
+    expiresAt: expiresAt.toISOString(),
+  });
+
+  try {
+    await sendOtpSms(phone, code);
+  } catch (err) {
+    log.error(
+      "Fallo al enviar SMS (Vonage); el OTP ya está guardado — reintentar puede crear otro registro",
+      err,
+      {
+        signatureRequestId,
+        otpId: otp.id,
+        phoneMasked: maskPhone(phone),
+      },
+    );
+    throw err;
+  }
+
+  log.info("OTP enviado por SMS correctamente", {
+    signatureRequestId,
+    otpId: otp.id,
+    phoneMasked: maskPhone(phone),
+  });
 
   return {
     otpId: otp.id,

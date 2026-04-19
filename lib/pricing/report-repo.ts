@@ -75,13 +75,13 @@ export async function getLatestPricingReport(
 
   return {
     propertyCode: row.propertyCode,
-    input: row.input as PricingAnalysisResult["input"],
-    stats: row.stats as PricingAnalysisResult["stats"],
-    comparables: row.comparables as PricingAnalysisResult["comparables"],
-    recommendation: (row.recommendation ?? undefined) as PricingAnalysisResult["recommendation"],
+    input: row.input as unknown as PricingAnalysisResult["input"],
+    stats: row.stats as unknown as PricingAnalysisResult["stats"],
+    comparables: row.comparables as unknown as PricingAnalysisResult["comparables"],
+    recommendation: (row.recommendation ?? undefined) as unknown as PricingAnalysisResult["recommendation"],
     recommendationError: row.recommendationError ?? undefined,
-    trend: (row.trend ?? undefined) as PricingAnalysisResult["trend"],
-    queryMeta: row.queryMeta as PricingAnalysisResult["queryMeta"],
+    trend: (row.trend ?? undefined) as unknown as PricingAnalysisResult["trend"],
+    queryMeta: row.queryMeta as unknown as PricingAnalysisResult["queryMeta"],
     analyzedAt: row.analyzedAt.toISOString(),
   };
 }

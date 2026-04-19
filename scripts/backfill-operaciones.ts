@@ -5,10 +5,14 @@
  * y crea filas Operacion preservando el código existente.
  * Luego vincula CommercialOperationFact con el operacionId creado.
  *
+ * También resuelve demandId para operaciones existentes que no lo tengan,
+ * consultando VisitSchedulingSession, MicrositeSelectionFeedback y MATCH_GENERADO.
+ *
  * Ejecución: npx tsx scripts/backfill-operaciones.ts
  * Idempotente: omite documentos cuyo operationId ya existe como Operacion.codigo.
  */
 import { PrismaClient } from "@/app/generated/prisma/client";
+import { resolveDemandIdForProperty } from "../lib/operacion/resolve-demand";
 
 const prisma = new PrismaClient();
 
@@ -24,6 +28,7 @@ async function main() {
   let created = 0;
   let skipped = 0;
   let factsLinked = 0;
+  let demandsLinked = 0;
 
   for (const doc of docs) {
     const existing = await prisma.operacion.findFirst({
@@ -31,6 +36,16 @@ async function main() {
     });
 
     if (existing) {
+      if (!existing.demandId) {
+        const demandId = await resolveDemandIdForProperty(doc.propertyCode);
+        if (demandId) {
+          await prisma.operacion.update({
+            where: { id: existing.id },
+            data: { demandId },
+          });
+          demandsLinked++;
+        }
+      }
       skipped++;
       continue;
     }
@@ -63,12 +78,13 @@ async function main() {
 
     let comercialId: string | null = null;
     if (snapshot?.agente) {
-      const comercial = await prisma.comercial.findFirst({
-        where: { nombre: snapshot.agente.trim() },
-        select: { id: true },
-      });
+      const { resolveComercialFromAgente } = await import("../lib/routing/resolve-comercial");
+      const comercial = await resolveComercialFromAgente(snapshot.agente);
       comercialId = comercial?.id ?? null;
     }
+
+    const demandId = await resolveDemandIdForProperty(doc.propertyCode);
+    if (demandId) demandsLinked++;
 
     const operacion = await prisma.operacion.create({
       data: {
@@ -78,6 +94,7 @@ async function main() {
         estado,
         closedAt,
         comercialId,
+        demandId,
       },
     });
 
@@ -91,8 +108,28 @@ async function main() {
     factsLinked += updatedFacts.count;
   }
 
+  // Second pass: patch existing operaciones without demandId
+  const opsWithoutDemand = await prisma.operacion.findMany({
+    where: { demandId: null },
+    select: { id: true, propertyCode: true },
+  });
+
+  console.log(`[backfill] ${opsWithoutDemand.length} operaciones sin demandId — resolviendo...`);
+  let patchedExisting = 0;
+
+  for (const op of opsWithoutDemand) {
+    const demandId = await resolveDemandIdForProperty(op.propertyCode);
+    if (demandId) {
+      await prisma.operacion.update({
+        where: { id: op.id },
+        data: { demandId },
+      });
+      patchedExisting++;
+    }
+  }
+
   console.log(
-    `[backfill] Completado: ${created} creadas, ${skipped} omitidas, ${factsLinked} facts vinculados`,
+    `[backfill] Completado: ${created} creadas, ${skipped} omitidas, ${factsLinked} facts vinculados, ${demandsLinked + patchedExisting} demandas vinculadas (${patchedExisting} existentes parcheadas)`,
   );
 }
 

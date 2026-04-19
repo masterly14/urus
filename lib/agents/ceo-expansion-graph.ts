@@ -8,6 +8,7 @@
 
 import { Annotation, StateGraph, START, END } from "@langchain/langgraph";
 import { llm } from "./llm";
+import { withRetry } from "./utils/retry";
 import {
   CeoExpansionSchema,
   type CeoExpansionRecommendation,
@@ -190,13 +191,15 @@ async function expansionNode(
   try {
     const userContent = serializeInputForPrompt(input);
 
-    const raw = await llmStructured.invoke([
-      { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: `Evalúa la readiness de expansión geográfica de Urus Capital Group con los siguientes datos y genera tu recomendación:\n\n${userContent}`,
-      },
-    ]);
+    const raw = await withRetry(() =>
+      llmStructured.invoke([
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `Evalúa la readiness de expansión geográfica de Urus Capital Group con los siguientes datos y genera tu recomendación:\n\n${userContent}`,
+        },
+      ]),
+    );
 
     const recommendation: CeoExpansionRecommendation = {
       readiness_global: raw.readiness_global,

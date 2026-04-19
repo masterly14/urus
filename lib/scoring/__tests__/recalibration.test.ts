@@ -32,16 +32,22 @@ describe("fitLogisticRegression", () => {
     expect(w3).not.toBe(0);
   });
 
-  it("produces weights that sum to ~1 after normalization", () => {
+  it("produces weights whose magnitudes sum to ~1 after normalization (H23)", () => {
     const samples = makeSamples();
     const { w1, w2, w3 } = fitLogisticRegression(samples);
     const normalized = normalizeCoefficients(w1, w2, w3);
 
-    const sum = normalized.pclose + normalized.value + normalized.urgency;
-    expect(sum).toBeCloseTo(1, 1);
-    expect(normalized.pclose).toBeGreaterThan(0);
-    expect(normalized.value).toBeGreaterThan(0);
-    expect(normalized.urgency).toBeGreaterThan(0);
+    // Σ|wᵢ| = 1 (sign-preserving normalization).
+    const sumAbs =
+      Math.abs(normalized.pclose) +
+      Math.abs(normalized.value) +
+      Math.abs(normalized.urgency);
+    expect(sumAbs).toBeCloseTo(1, 1);
+
+    // Cada peso normalizado hereda el signo de su coeficiente original.
+    expect(Math.sign(normalized.pclose)).toBe(Math.sign(w1));
+    expect(Math.sign(normalized.value)).toBe(Math.sign(w2));
+    expect(Math.sign(normalized.urgency)).toBe(Math.sign(w3));
   });
 });
 
@@ -59,11 +65,18 @@ describe("normalizeCoefficients", () => {
     expect(result.urgency).toBe(0.15);
   });
 
-  it("uses absolute values (negative coefficients become positive weights)", () => {
+  it("preserves the sign of negative coefficients (H23)", () => {
     const result = normalizeCoefficients(-0.6, 0.3, 0.1);
-    expect(result.pclose).toBeGreaterThan(0);
+    // pclose is negative → normalized weight must be negative
+    expect(result.pclose).toBeLessThan(0);
     expect(result.value).toBeGreaterThan(0);
     expect(result.urgency).toBeGreaterThan(0);
+    // Magnitude still normalizes correctly: |pclose| is the largest
+    expect(Math.abs(result.pclose)).toBeGreaterThan(Math.abs(result.value));
+    expect(Math.abs(result.value)).toBeGreaterThan(Math.abs(result.urgency));
+    // Σ|wᵢ| = 1 (within rounding)
+    const sumAbs = Math.abs(result.pclose) + Math.abs(result.value) + Math.abs(result.urgency);
+    expect(sumAbs).toBeCloseTo(1, 1);
   });
 });
 

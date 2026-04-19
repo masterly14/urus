@@ -28,7 +28,7 @@ const mockedNLU = vi.mocked(classifyBuyerFeedback);
 
 const TEST_RUN = `feedback-e2e-${Date.now()}`;
 const WORKER_ID = `feedback-worker-${Date.now()}`;
-const DEMAND_ID = `DEM-FBK-${Date.now()}`;
+const DEMAND_ID = `389${Date.now()}`;
 const SELECTION_ID_HOLDER: { id: string; token: string } = { id: "", token: "" };
 const WA_ID = "34600999888";
 const PROPERTY_ID = "sfx-test-001";
@@ -116,9 +116,9 @@ beforeAll(async () => {
       tipos: "Piso",
       zonas: "Centro",
       raw: {
-        keycli: "CLI-TEST-001",
-        keyagente: "AGT-TEST-001",
-        tipopropiedad: "Piso",
+        keycli: "10001",
+        keyagente: "20001",
+        tipopropiedad: "2799,3399",
       },
     },
   });

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { InmovillaDemand } from "@/lib/inmovilla/api/types-demands";
 import type { DemandSnapshotData } from "./types";
 import { classifyError } from "../errors";
+import { extractRefConsultadaFromDemandMap } from "@/lib/inmovilla/api/ref-consultada";
 
 async function withDbRetry<T>(
   fn: () => Promise<T>,
@@ -46,17 +47,25 @@ function toSnapshotData(d: InmovillaDemand): DemandSnapshotData {
     zonas: d.zonas,
     fechaActualizacion: d.fechaActualizacion,
     agente: d.agente,
+    telefono: d.telefono ?? "",
   };
 }
 
+/** Hard cap to prevent OOM on unbounded snapshot load. Sized for current catalogue (~5k demands). */
+const DEMAND_SNAPSHOT_LOAD_LIMIT = 10_000;
+
 export async function loadPreviousDemandSnapshot(): Promise<DemandSnapshotMap> {
   const rows = await withDbRetry(
-    () => prisma.demandSnapshot.findMany(),
+    () => prisma.demandSnapshot.findMany({ take: DEMAND_SNAPSHOT_LOAD_LIMIT }),
     "loadPreviousDemandSnapshot",
   );
   const map: DemandSnapshotMap = new Map();
 
   for (const row of rows) {
+    const rawObj =
+      row.raw && typeof row.raw === "object" && !Array.isArray(row.raw)
+        ? (row.raw as Record<string, unknown>)
+        : {};
     map.set(row.codigo, {
       codigo: row.codigo,
       ref: row.ref,
@@ -70,6 +79,8 @@ export async function loadPreviousDemandSnapshot(): Promise<DemandSnapshotMap> {
       zonas: row.zonas,
       fechaActualizacion: row.fechaActualizacion,
       agente: row.agente,
+      telefono: row.telefono ?? "",
+      refConsultada: extractRefConsultadaFromDemandMap(rawObj),
     });
   }
 

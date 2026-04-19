@@ -1,4 +1,5 @@
 export { runPropertiesIngestionCycle } from "./properties-worker";
+export { runTasksIngestionCycle } from "./tasks";
 export { publishEventsForDiff } from "./event-publisher";
 export { computePropertyDiff } from "./properties-diff";
 export { loadPreviousSnapshot, saveCurrentSnapshot } from "./snapshot-repo";

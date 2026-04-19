@@ -50,6 +50,9 @@ const postHandler = async (request: Request) => {
     console.log(
       `[pricing/analyze] Análisis completado: property=${propertyCode} comparables=${result.stats.totalComparables} semaforo=${result.stats.semaforo} recomendacion=${result.recommendation?.accion ?? result.recommendationError ?? "skipped"}`,
     );
+    console.log(
+      `[pricing/analyze] Cuerpo de respuesta (JSON exacto enviado al cliente): ${JSON.stringify(result)}`,
+    );
 
     return NextResponse.json(result);
   } catch (err) {

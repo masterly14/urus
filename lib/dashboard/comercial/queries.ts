@@ -22,7 +22,21 @@ export type ComercialesDashboardRow = {
   revenuePerOperationEur: number;
   revenuePerLeadAssignedEur: number;
   lostLeadRate: number;
+  /**
+   * Facturación estimada por semana en las últimas `SPARKLINE_WEEKS` semanas
+   * (ordenadas antigua → reciente, longitud fija, padded con 0).
+   * Solo se rellena en `getComercialesDashboard`; es undefined en contextos
+   * donde no se calcula la tendencia (p. ej. detalle individual).
+   */
+  weeklyRevenue?: number[];
 };
+
+/**
+ * Número de semanas incluidas en el sparkline de tendencia por comercial.
+ * Se define como constante exportable por si otros consumidores (tests, UI)
+ * necesitan asumir la misma longitud.
+ */
+export const SPARKLINE_WEEKS = 6;
 
 export type ComercialDashboardDetail = {
   summary: ComercialesDashboardRow | null;
@@ -59,6 +73,71 @@ export function getLeadNoFollowUpThresholdHours(): number {
   const n = raw ? Number(raw) : NaN;
   if (Number.isFinite(n) && n > 0) return n;
   return 24;
+}
+
+/**
+ * Devuelve la facturación estimada por comercial × semana durante las últimas
+ * `SPARKLINE_WEEKS` semanas (incluida la semana de `range.to`).
+ *
+ * Usa `date_trunc('week', ...)` (ISO week, lunes 00:00) consistente con el resto
+ * de queries del dashboard. `CROSS JOIN weeks` garantiza que cada comercial
+ * tenga exactamente `SPARKLINE_WEEKS` entradas, rellenando con 0 los huecos.
+ */
+async function getWeeklyRevenueByComercial(
+  sparklineEnd: Date,
+  commissionRate: number,
+  includeInactive: boolean,
+): Promise<Map<string, number[]>> {
+  const sparklineStart = new Date(
+    sparklineEnd.getTime() - (SPARKLINE_WEEKS - 1) * 7 * 24 * 60 * 60 * 1000,
+  );
+
+  type RawRow = {
+    comercialId: string;
+    weekStart: string;
+    estimatedRevenueEur: number;
+  };
+
+  const rows = await prisma.$queryRaw<RawRow[]>`
+    WITH weeks AS (
+      SELECT generate_series(
+        date_trunc('week', ${sparklineStart}::timestamp),
+        date_trunc('week', ${sparklineEnd}::timestamp),
+        interval '1 week'
+      ) AS week_start
+    )
+    SELECT
+      c.id AS "comercialId",
+      w.week_start::text AS "weekStart",
+      COALESCE(SUM(COALESCE(o."grossAmountEur", 0) * ${commissionRate}), 0)::float8
+        AS "estimatedRevenueEur"
+    FROM "comerciales" c
+    CROSS JOIN weeks w
+    LEFT JOIN "commercial_operation_facts" o
+      ON o."comercialId" = c.id
+      AND date_trunc('week', o."closedAt") = w.week_start
+    WHERE (${includeInactive} OR c.activo = true)
+    GROUP BY c.id, w.week_start
+    ORDER BY c.id, w.week_start ASC;
+  `;
+
+  const map = new Map<string, number[]>();
+  for (const row of rows) {
+    const arr = map.get(row.comercialId) ?? [];
+    arr.push(Number(row.estimatedRevenueEur) || 0);
+    map.set(row.comercialId, arr);
+  }
+
+  for (const [id, arr] of map) {
+    if (arr.length < SPARKLINE_WEEKS) {
+      while (arr.length < SPARKLINE_WEEKS) arr.push(0);
+      map.set(id, arr);
+    } else if (arr.length > SPARKLINE_WEEKS) {
+      map.set(id, arr.slice(-SPARKLINE_WEEKS));
+    }
+  }
+
+  return map;
 }
 
 export async function getComercialesDashboard(
@@ -151,8 +230,20 @@ export async function getComercialesDashboard(
     ORDER BY "estimatedRevenueEur" DESC, "closings" DESC, "visits" DESC, "leadsAssigned" DESC;
   `;
 
+  const weeklyMap = await getWeeklyRevenueByComercial(
+    range.to,
+    commissionRate,
+    includeInactive,
+  );
+
+  const emptyTrend = new Array(SPARKLINE_WEEKS).fill(0);
+  const enrichedRows: ComercialesDashboardRow[] = rows.map((r) => ({
+    ...r,
+    weeklyRevenue: weeklyMap.get(r.comercialId) ?? emptyTrend.slice(),
+  }));
+
   return {
-    rows,
+    rows: enrichedRows,
     commissionRate,
     range: { from: range.from.toISOString(), to: range.to.toISOString() },
   };

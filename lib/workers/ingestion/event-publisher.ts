@@ -1,6 +1,5 @@
 import { createHash } from "crypto";
-import { appendEvent } from "@/lib/event-store";
-import { enqueueJob } from "@/lib/job-queue";
+import { appendEventAndEnqueueJob } from "@/lib/event-store";
 import type { Property } from "@/types/domain";
 import type { PropertyDiffResult } from "./types";
 import type {
@@ -77,6 +76,7 @@ function buildCandidates(
         nodisponible: change.property.nodisponible,
         prospecto: change.property.prospecto,
         fechaActualizacion: change.property.fechaActualizacion,
+        agente: change.property.agente,
       },
       changedFields: change.changedFields,
       detectedAt,
@@ -133,20 +133,18 @@ export async function publishEventsForDiff(
       changedFields: candidate.changedFields,
     };
 
-    const event = await appendEvent({
-      type: candidate.eventType,
-      aggregateType: "PROPERTY",
-      aggregateId: candidate.aggregateId,
-      payload: candidate.payload,
-      metadata,
-      correlationId: cycleId,
-    });
+    const idempotencyKeyPrefix = `ingestion:${fingerprint}`;
 
-    await enqueueJob({
-      type: "PROCESS_EVENT",
-      payload: { eventId: event.id, eventType: event.type },
-      sourceEventId: event.id,
-      idempotencyKey: `process-event:${event.id}`,
+    await appendEventAndEnqueueJob({
+      event: {
+        type: candidate.eventType,
+        aggregateType: "PROPERTY",
+        aggregateId: candidate.aggregateId,
+        payload: candidate.payload,
+        metadata,
+        correlationId: cycleId,
+      },
+      idempotencyKeyPrefix,
     });
 
     console.log(

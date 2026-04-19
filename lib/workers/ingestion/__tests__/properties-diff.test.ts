@@ -193,7 +193,6 @@ describe("computePropertyDiff", () => {
     const curr = makeProperty({
       codigo: "10001",
       titulo: "Título cambiado",
-      agente: "Otro agente",
       numFotos: 99,
     });
 
@@ -202,5 +201,16 @@ describe("computePropertyDiff", () => {
     expect(result.unchanged).toBe(1);
     expect(result.modified).toHaveLength(0);
     expect(result.statusChanged).toHaveLength(0);
+  });
+
+  it("debe detectar cambio de agente como PROPIEDAD_MODIFICADA (agente está en DIFF_FIELDS)", () => {
+    const prev = makeSnapshot({ codigo: "10001", agente: "Agente Previo" });
+    const curr = makeProperty({ codigo: "10001", agente: "Otro agente" });
+
+    const result = computePropertyDiff([curr], toSnapshotMap([prev]));
+
+    expect(result.modified).toHaveLength(1);
+    expect(result.modified[0].changedFields).toContain("agente");
+    expect(result.modified[0].before.agente).toBe("Agente Previo");
   });
 });

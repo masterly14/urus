@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 
 
 /**
@@ -8,6 +9,9 @@ import { withObservedRoute } from "@/lib/observability";
  * Query params: estado, search, limit
  */
 const getHandler = async (request: Request) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+
   const url = new URL(request.url);
   const estado = url.searchParams.get("estado") || undefined;
   const search = url.searchParams.get("search") || undefined;

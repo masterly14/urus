@@ -40,6 +40,32 @@ export type CeoExpansionGeneratorResult = {
 // ---------------------------------------------------------------------------
 
 export async function generateAndPersistCeoExpansion(): Promise<CeoExpansionGeneratorResult> {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const existing = await prisma.event.findFirst({
+    where: {
+      type: "CEO_EXPANSION_EVALUADA",
+      createdAt: { gte: monthStart },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { payload: true, createdAt: true },
+  });
+  if (existing?.payload && typeof existing.payload === "object") {
+    const p = existing.payload as Record<string, unknown>;
+    return {
+      recommendation: {
+        readiness_global: (p.readiness_global as CeoExpansionRecommendation["readiness_global"]) ?? "no_apto",
+        criterios_evaluados: (p.criterios_evaluados as CeoExpansionRecommendation["criterios_evaluados"]) ?? [],
+        ciudades_recomendadas: (p.ciudades_recomendadas as CeoExpansionRecommendation["ciudades_recomendadas"]) ?? [],
+        plan_expansion: (p.plan_expansion as string) ?? "",
+        resumen_ejecutivo: (p.resumen_ejecutivo as string) ?? "",
+        confidence: (p.confidence as number) ?? 0,
+        reasoning: (p.reasoning as string) ?? "",
+      },
+      generatedAt: existing.createdAt.toISOString(),
+    };
+  }
+
   const range = getDefaultDashboardRange();
 
   const [overview, cities, comercialesResult, leadScoreRows] = await Promise.all([

@@ -117,6 +117,20 @@ function buildSystemPrompt(input: GenerateExerciseInput): string {
   return parts.join("\n");
 }
 
+const FALLBACK_EXERCISES: Record<string, string> = {
+  DAILY:
+    "Antes de tu primera llamada del día, coge un post-it y escribe el precio " +
+    "más alto que vas a manejar hoy. Ponlo donde lo veas. Cada vez que lo mires, " +
+    "tu cabeza se acostumbra un poco más a decir esa cifra con naturalidad. " +
+    "Cuando termines la jornada, revisa si lo dijiste con la misma soltura que " +
+    "un «buenos días».",
+  WEEKLY_CHALLENGE:
+    "Esta semana, después de cada visita, apunta en una línea qué objeción " +
+    "recibiste y cómo la manejaste. El viernes revisa la lista: si la misma " +
+    "objeción aparece más de dos veces, prepara una respuesta definitiva para " +
+    "la semana que viene.",
+};
+
 export async function generateExercise(
   input: GenerateExerciseInput,
 ): Promise<string> {
@@ -127,15 +141,22 @@ export async function generateExercise(
       ? `un reto semanal sobre "${input.theme.label}"`
       : `un micro-ejercicio diario sobre "${input.theme.label}" para el ${DAY_NAMES[input.dayOfWeek] ?? "día"}`;
 
-  const response = await llmDevExercise.invoke([
-    new SystemMessage(systemPrompt),
-    new HumanMessage(`Genera ${typeLabel}. Semana ${input.weekNumber + 1} del programa.`),
-  ]);
+  try {
+    const response = await llmDevExercise.invoke([
+      new SystemMessage(systemPrompt),
+      new HumanMessage(`Genera ${typeLabel}. Semana ${input.weekNumber + 1} del programa.`),
+    ]);
 
-  const content =
-    typeof response.content === "string"
-      ? response.content
-      : JSON.stringify(response.content);
+    const content =
+      typeof response.content === "string"
+        ? response.content
+        : JSON.stringify(response.content);
 
-  return content.trim();
+    return content.trim();
+  } catch (err) {
+    console.error(
+      `[dev-program/generate-exercise] LLM falló, usando fallback: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return FALLBACK_EXERCISES[input.type] ?? FALLBACK_EXERCISES.DAILY;
+  }
 }

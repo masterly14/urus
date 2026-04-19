@@ -39,7 +39,7 @@ describe("handleStartPostventaCadence", () => {
     vi.clearAllMocks();
   });
 
-  it("encola 5 SEND_POSTVENTA_MESSAGE con delayMs escalonado", async () => {
+  it("encola la cadencia completa con delayMs escalonado (formulario via SEND_POSTVENTA_FORM)", async () => {
     const closedAt = "2026-03-15T10:00:00.000Z";
     const job = makeJob({
       propertyCode: "P-123",
@@ -51,7 +51,7 @@ describe("handleStartPostventaCadence", () => {
     const result = await handleStartPostventaCadence(job);
 
     expect(result.success).toBe(true);
-    expect(mockEnqueueJob).toHaveBeenCalledTimes(5);
+    expect(mockEnqueueJob).toHaveBeenCalledTimes(POSTVENTA_CADENCE.length);
 
     const baseTime = new Date(closedAt).getTime();
 
@@ -59,11 +59,15 @@ describe("handleStartPostventaCadence", () => {
       const step = POSTVENTA_CADENCE[i];
       const call = mockEnqueueJob.mock.calls[i][0];
 
-      expect(call.type).toBe("SEND_POSTVENTA_MESSAGE");
+      const expectedJobType =
+        step.template === "formulario" ? "SEND_POSTVENTA_FORM" : "SEND_POSTVENTA_MESSAGE";
+      expect(call.type).toBe(expectedJobType);
       expect(call.payload.propertyCode).toBe("P-123");
-      expect(call.payload.step).toBe(step.label);
-      expect(call.payload.template).toBe(step.template);
-      expect(call.payload.requiresNoIncidencia).toBe(step.requiresNoIncidencia);
+      if (expectedJobType === "SEND_POSTVENTA_MESSAGE") {
+        expect(call.payload.step).toBe(step.label);
+        expect(call.payload.template).toBe(step.template);
+        expect(call.payload.requiresNoIncidencia).toBe(step.requiresNoIncidencia);
+      }
       expect(call.idempotencyKey).toBe(`postventa:P-123:${step.label}`);
       expect(call.availableAt.getTime()).toBe(baseTime + step.delayMs);
     }
@@ -102,7 +106,7 @@ describe("handleStartPostventaCadence", () => {
       (c: unknown[]) => (c[0] as { idempotencyKey: string }).idempotencyKey,
     );
     const uniqueKeys = new Set(keys);
-    expect(uniqueKeys.size).toBe(5);
+    expect(uniqueKeys.size).toBe(POSTVENTA_CADENCE.length);
     expect(keys.every((k: string) => k.startsWith("postventa:P-456:"))).toBe(true);
   });
 

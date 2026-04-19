@@ -40,3 +40,30 @@ export function verifyDemandPriority(
     actual,
   };
 }
+
+/**
+ * Post-write verification for updateDemandCriteria.
+ * Checks `presupuestoMax` (ventahasta) when present in the patch,
+ * as it is the most commonly updated and reliably parseable field.
+ */
+export function verifyDemandCriteria(
+  fichaResponseText: string,
+  patch: Record<string, unknown>,
+): VerifyResult {
+  if (typeof patch.presupuestoMax === "number") {
+    const expected = String(Math.round(patch.presupuestoMax as number));
+    const actual = parseFichaFieldValue(fichaResponseText, "demandas", "ventahasta");
+    if (actual === null) {
+      return { ok: false, field: "demandas.ventahasta", expected };
+    }
+    const normalizedActual = actual.replace(/[^0-9]/g, "");
+    return {
+      ok: normalizedActual === expected,
+      field: "demandas.ventahasta",
+      expected,
+      actual,
+    };
+  }
+
+  return { ok: true, field: "none", expected: "n/a", actual: "n/a" };
+}

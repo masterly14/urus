@@ -1,0 +1,125 @@
+{
+  "version": "7.3",
+  "screens": [
+    {
+      "id": "DATOS_INTERESADO",
+      "title": "Parte de Visita",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "flow_token": { "type": "string", "__example__": "session_abc123" },
+        "direccion_inmueble": { "type": "string", "__example__": "Calle de los Flamencos, 8, La Carlota, Córdoba" },
+        "tipo_operacion": { "type": "string", "__example__": "VENTA" },
+        "precio_inmueble": { "type": "string", "__example__": "275.000 €" },
+        "agente_nombre": { "type": "string", "__example__": "Miguel Angel Carrillo Ramos" },
+        "fecha_visita": { "type": "string", "__example__": "16/04/2026" },
+        "hora_visita": { "type": "string", "__example__": "16:00" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextSubheading",
+            "text": "Inmueble visitado"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.direccion_inmueble}"
+          },
+          {
+            "type": "TextCaption",
+            "text": "${data.tipo_operacion}"
+          },
+          {
+            "type": "TextCaption",
+            "text": "${data.precio_inmueble}"
+          },
+          {
+            "type": "TextCaption",
+            "text": "Fecha de la visita:"
+          },
+          {
+            "type": "TextCaption",
+            "text": "${data.fecha_visita}"
+          },
+          {
+            "type": "TextCaption",
+            "text": "Hora:"
+          },
+          {
+            "type": "TextCaption",
+            "text": "${data.hora_visita}"
+          },
+          {
+            "type": "TextCaption",
+            "text": "Agente:"
+          },
+          {
+            "type": "TextCaption",
+            "text": "${data.agente_nombre}"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Datos del interesado"
+          },
+          {
+            "type": "TextInput",
+            "name": "nombre_completo",
+            "label": "Nombre y apellidos",
+            "input-type": "text",
+            "required": true,
+            "helper-text": "Como aparece en su DNI"
+          },
+          {
+            "type": "TextInput",
+            "name": "dni",
+            "label": "DNI / NIF / NIE",
+            "input-type": "text",
+            "required": true,
+            "helper-text": "Ej: 12345678A"
+          },
+          {
+            "type": "TextInput",
+            "name": "telefono",
+            "label": "Teléfono de contacto",
+            "input-type": "phone",
+            "required": true,
+            "helper-text": "Teléfono móvil"
+          },
+          {
+            "type": "TextCaption",
+            "text": "El interesado reconoce que NO ha visitado el inmueble anteriormente, y lo hace por primera vez en la fecha y hora del presente documento acompañado del agente de la inmobiliaria URUS CAPITAL GROUP S.L."
+          },
+          {
+            "type": "TextCaption",
+            "text": "Los honorarios convenidos serán de 2.5% más IVA del precio de venta con un mínimo de 3.500€ más IVA, y en caso de alquiler de una mensualidad de la renta más IVA."
+          },
+          {
+            "type": "TextCaption",
+            "text": "La parte contratante se compromete y da su consentimiento expreso para el tratamiento de cuantos datos personales haya facilitado a URUS CAPITAL GROUP S.L. con CIF: B55460976. Los datos se conservarán mientras se mantenga la relación comercial y durante los años necesarios para cumplir con las obligaciones legales vigentes."
+          },
+          {
+            "type": "OptIn",
+            "name": "acepta_lopd",
+            "label": "Acepto la cláusula de protección de datos y los términos del parte de visita",
+            "required": true
+          },
+          {
+            "type": "Footer",
+            "label": "Firmar parte de visita",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "flow_token": "${data.flow_token}",
+                "nombre_completo": "${form.nombre_completo}",
+                "dni": "${form.dni}",
+                "telefono": "${form.telefono}",
+                "acepta_lopd": "${form.acepta_lopd}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

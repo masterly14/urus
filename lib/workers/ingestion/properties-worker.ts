@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { prisma } from "@/lib/prisma";
 import { createInmovillaRestClient } from "@/lib/inmovilla/rest/client";
 import {
   fetchPropertyList,
@@ -19,12 +20,48 @@ import { publishEventsForDiff } from "./event-publisher";
 import type { IngestionCycleResult, PropertySnapshotData } from "./types";
 import { propertiesLogger } from "./logger";
 import { classifyError, isRateLimitError } from "./errors";
+import { alertGeneric } from "@/lib/alerts";
 import { saveCycleMetrics, PhaseTimer } from "./metrics";
 import type { PhaseTimings } from "./metrics";
 import {
   persistWorkerExecutionMetric,
   runWithWorkerObservability,
 } from "@/lib/observability";
+
+// ---------------------------------------------------------------------------
+// H6: Ingestion checkpoint — persiste el índice del último código procesado
+// para que la siguiente invocación del cron continúe desde donde quedó en vez
+// de re-empezar de cero. Se almacena en una tabla ligera key-value.
+// ---------------------------------------------------------------------------
+const CHECKPOINT_KEY = "ingestion:properties:fetchIndex";
+
+async function loadCheckpoint(): Promise<{ pendingCodes: string[] } | null> {
+  const rows = await prisma.$queryRaw<
+    Array<{ value: string }>
+  >`SELECT "value" FROM "kv_store" WHERE "key" = ${CHECKPOINT_KEY} LIMIT 1`;
+  if (rows.length === 0) return null;
+  try {
+    return JSON.parse(rows[0].value) as { pendingCodes: string[] };
+  } catch {
+    return null;
+  }
+}
+
+async function saveCheckpoint(pendingCodes: string[]): Promise<void> {
+  const value = JSON.stringify({ pendingCodes });
+  await prisma.$executeRaw`
+    INSERT INTO "kv_store" ("key", "value", "updatedAt")
+    VALUES (${CHECKPOINT_KEY}, ${value}::text, NOW())
+    ON CONFLICT ("key")
+    DO UPDATE SET "value" = ${value}::text, "updatedAt" = NOW()
+  `;
+}
+
+async function clearCheckpoint(): Promise<void> {
+  await prisma.$executeRaw`
+    DELETE FROM "kv_store" WHERE "key" = ${CHECKPOINT_KEY}
+  `;
+}
 
 /**
  * Rate limits Inmovilla REST para propiedades (doc):
@@ -36,6 +73,21 @@ import {
  * El listado (GET /propiedades/?listado) TAMBIÉN cuenta como 1 petición.
  */
 const REST_PROPERTY_FETCH_INTERVAL_MS = 13_000;
+
+/**
+ * H6: máximo de propiedades a fetchear por invocación del cron.
+ * Con 13s de intervalo, 20 fichas ≈ 260s, dejando margen dentro de los 300s
+ * de maxDuration de Vercel. Fichas restantes se procesan en la siguiente
+ * invocación gracias al checkpoint (ver `IngestionCheckpoint`).
+ */
+const MAX_PROPERTIES_PER_RUN = 20;
+
+/**
+ * H6: time-budget — si queda menos de este margen antes del maxDuration
+ * de Vercel (300s), el loop se detiene y guarda checkpoint.
+ * 30s de margen para snapshot + diff + publish + métricas.
+ */
+const TIME_BUDGET_MARGIN_MS = 30_000;
 
 /** Máx. reintentos para errores de red/timeout (no rate limit). */
 const MAX_NETWORK_RETRIES = 3;
@@ -169,11 +221,13 @@ async function fetchPropertiesViaRest(
   previousSnapshot: SnapshotMap,
   log: ReturnType<typeof propertiesLogger.child>,
   enumMaps?: EnumLookupMaps,
+  cycleStartedAt?: Date,
 ): Promise<{
   properties: InmovillaProperty[];
   fetched: number;
   failed: number;
   totalRetries: number;
+  fetchComplete: boolean;
 }> {
   const client = createInmovillaRestClient();
 
@@ -181,7 +235,24 @@ async function fetchPropertiesViaRest(
   const listado = await fetchPropertyList(client);
   log.info("Listado recibido", { total: listado.length });
 
-  const { toFetch, unchanged } = listadoDiff(listado, previousSnapshot);
+  const { toFetch: allToFetch, unchanged } = listadoDiff(listado, previousSnapshot);
+
+  // H6: checkpoint — si existe un checkpoint de una invocación anterior que
+  // no terminó, continuamos desde los códigos pendientes en vez de empezar
+  // de cero. Esto evita que un catálogo grande quede en bucle sin avance.
+  const checkpoint = await loadCheckpoint();
+  let toFetch: string[];
+  if (checkpoint && checkpoint.pendingCodes.length > 0) {
+    const pending = new Set(checkpoint.pendingCodes);
+    toFetch = allToFetch.filter((c) => pending.has(c));
+    log.info("Reanudando desde checkpoint", {
+      totalToFetch: allToFetch.length,
+      pendingFromCheckpoint: toFetch.length,
+    });
+  } else {
+    toFetch = allToFetch;
+  }
+
   log.info("Análisis de cambios", {
     toFetch: toFetch.length,
     unchanged: unchanged.size,
@@ -202,8 +273,29 @@ async function fetchPropertiesViaRest(
   let fetched = 0;
   let failed = 0;
   let totalRetries = 0;
+  let fetchComplete = true;
+  const runStart = cycleStartedAt ?? new Date();
 
-  for (let i = 0; i < toFetch.length; i++) {
+  // H6: el loop se acota por MAX_PROPERTIES_PER_RUN y por time-budget.
+  const limit = Math.min(toFetch.length, MAX_PROPERTIES_PER_RUN);
+
+  let lastProcessedIndex = -1;
+
+  for (let i = 0; i < limit; i++) {
+    // H6: time-budget — si queda menos de TIME_BUDGET_MARGIN_MS antes de los
+    // 300s de Vercel, paramos y guardamos checkpoint con los códigos restantes.
+    const elapsed = Date.now() - runStart.getTime();
+    const maxDurationMs = 300_000;
+    if (elapsed > maxDurationMs - TIME_BUDGET_MARGIN_MS) {
+      log.warn("Time-budget agotado — guardando checkpoint", {
+        elapsedMs: elapsed,
+        processed: i,
+        remaining: toFetch.length - i,
+      });
+      fetchComplete = false;
+      break;
+    }
+
     const codigo = toFetch[i];
     log.debug(`[${i + 1}/${toFetch.length}] GET cod_ofer=${codigo}`);
 
@@ -213,7 +305,6 @@ async function fetchPropertiesViaRest(
 
       if (result) {
         const normalized = normalizePropertyFromRest(result, enumMaps);
-        // Solo sincronizamos propiedades en estado Libre
         if (normalized.estado === "Libre") {
           currentProperties.push(normalized);
         } else {
@@ -224,21 +315,44 @@ async function fetchPropertiesViaRest(
       } else {
         failed++;
       }
+      lastProcessedIndex = i;
     } catch (err) {
       if (isRateLimitError(err)) {
+        fetchComplete = false;
         log.error(
-          "Rate limit persistente — guardando propiedades obtenidas hasta ahora y terminando batch",
+          "Rate limit persistente — fetch incompleto, snapshot NO se guardará",
           err,
           { fetchedSoFar: fetched },
         );
+        alertGeneric(
+          "Ingesta propiedades: batch cortado por rate limit persistente",
+          "warning",
+          {
+            fetchedSoFar: fetched,
+            totalToFetch: toFetch.length,
+            failedIndex: i,
+            lastCodigo: codigo,
+          },
+        ).catch(() => {});
         break;
       }
       failed++;
+      lastProcessedIndex = i;
     }
 
-    if (i < toFetch.length - 1) {
+    if (i < limit - 1) {
       await delay(REST_PROPERTY_FETCH_INTERVAL_MS);
     }
+  }
+
+  // H6: persistir o limpiar checkpoint según si quedaron fichas pendientes.
+  const remainingCodes = toFetch.slice(lastProcessedIndex + 1);
+  if (remainingCodes.length > 0) {
+    fetchComplete = false;
+    await saveCheckpoint(remainingCodes);
+    log.info("Checkpoint guardado", { remaining: remainingCodes.length });
+  } else {
+    await clearCheckpoint();
   }
 
   log.info("Fichas completadas", {
@@ -246,13 +360,14 @@ async function fetchPropertiesViaRest(
     failed,
     unchanged: unchanged.size,
     totalRetries,
+    fetchComplete,
   });
 
   for (const [, data] of unchanged) {
     currentProperties.push(snapshotToProperty(data));
   }
 
-  return { properties: currentProperties, fetched, failed, totalRetries };
+  return { properties: currentProperties, fetched, failed, totalRetries, fetchComplete };
 }
 
 export async function runPropertiesIngestionCycle(): Promise<IngestionCycleResult> {
@@ -310,17 +425,21 @@ export async function runPropertiesIngestionCycle(): Promise<IngestionCycleResul
         let itemsFetched = 0;
         let itemsFailed = 0;
 
+        let fetchComplete = true;
+
         if (useRest) {
           log.info("Modo API REST: listado + fichas cambiadas");
-          const restResult = await fetchPropertiesViaRest(previousSnapshot, log, enumMaps);
+          const restResult = await fetchPropertiesViaRest(previousSnapshot, log, enumMaps, startedAt);
           properties = restResult.properties;
           itemsFetched = restResult.fetched;
           itemsFailed = restResult.failed;
+          fetchComplete = restResult.fetchComplete;
           log.info("Propiedades REST cargadas", {
             total: properties.length,
             fetched: itemsFetched,
             failed: itemsFailed,
             retries: restResult.totalRetries,
+            fetchComplete,
           });
         } else {
           log.info("Modo legacy: login + paginación");
@@ -344,25 +463,33 @@ export async function runPropertiesIngestionCycle(): Promise<IngestionCycleResul
           unchanged: diff.unchanged,
         });
 
-        // ── Fase 4: publicar eventos ──────────────────────────────────────────
+        // ── Fase 4: guardar snapshot (ANTES de publicar eventos) ─────────────
+        // Persistir primero garantiza que si la publicación falla, el siguiente
+        // ciclo detectará el diff correcto sin duplicar eventos.
+        // ONLY save snapshot if the fetch completed fully — a partial snapshot
+        // would produce incorrect diffs in the next cycle.
+        t = new PhaseTimer();
+        if (fetchComplete) {
+          log.info("Guardando snapshot actual...");
+          await saveCurrentSnapshot(properties, startedAt);
+          if (diff.removed.length > 0) {
+            const removedCodes = diff.removed.map((r) => r.codigo);
+            log.info("Eliminando del snapshot propiedades no-Libre", { count: removedCodes.length });
+            await removeFromSnapshot(removedCodes);
+          }
+        } else {
+          log.warn("Snapshot NO guardado: fetch incompleto por rate limit — se conserva snapshot anterior");
+        }
+        phases.saveSnapshot = t.end();
+        log.phase("saveSnapshot", phases.saveSnapshot);
+
+        // ── Fase 5: publicar eventos ──────────────────────────────────────────
         t = new PhaseTimer();
         log.info("Publicando eventos...");
         const publication = await publishEventsForDiff(diff, cycleId);
         const eventsEmitted = publication.emitted;
         phases.publishEvents = t.end();
         log.phase("publishEvents", phases.publishEvents, { eventsEmitted });
-
-        // ── Fase 5: guardar snapshot ──────────────────────────────────────────
-        t = new PhaseTimer();
-        log.info("Guardando snapshot actual...");
-        await saveCurrentSnapshot(properties, startedAt);
-        if (diff.removed.length > 0) {
-          const removedCodes = diff.removed.map((r) => r.codigo);
-          log.info("Eliminando del snapshot propiedades no-Libre", { count: removedCodes.length });
-          await removeFromSnapshot(removedCodes);
-        }
-        phases.saveSnapshot = t.end();
-        log.phase("saveSnapshot", phases.saveSnapshot);
 
         const finishedAt = new Date();
         const durationMs = finishedAt.getTime() - startedAt.getTime();

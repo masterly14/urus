@@ -1,6 +1,8 @@
 /**
  * Autorización compartida para rutas de cron y workers.
- * Acepta: header Authorization Bearer <CRON_SECRET> o query param "token".
+ * Solo acepta header `Authorization: Bearer <CRON_SECRET>`.
+ * Vercel Cron y QStash deben configurarse para enviar el secret vía header,
+ * nunca como query param (evita filtración en logs, Referer y URL bar).
  * Usado por: /api/cron/*, /api/events (POST y GET).
  */
 export function isAuthorized(request: Request): boolean {
@@ -8,8 +10,5 @@ export function isAuthorized(request: Request): boolean {
   if (!token) return false;
 
   const authHeader = request.headers.get("authorization");
-  if (authHeader === `Bearer ${token}`) return true;
-
-  const url = new URL(request.url);
-  return url.searchParams.get("token") === token;
+  return authHeader === `Bearer ${token}`;
 }

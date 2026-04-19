@@ -1,0 +1,5 @@
+/** Enmascara el teléfono para logs (últimos 4 dígitos visibles). */
+export function maskPhone(phone: string): string {
+  if (phone.length <= 4) return "****";
+  return "*".repeat(phone.length - 4) + phone.slice(-4);
+}

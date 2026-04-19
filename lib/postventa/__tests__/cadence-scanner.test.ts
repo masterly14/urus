@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockEventFindMany = vi.fn();
 const mockEventFindFirst = vi.fn();
 const mockJobFindUnique = vi.fn();
+const mockOperacionFindFirst = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -12,6 +13,9 @@ vi.mock("@/lib/prisma", () => ({
     },
     jobQueue: {
       findUnique: (...args: unknown[]) => mockJobFindUnique(...args),
+    },
+    operacion: {
+      findFirst: (...args: unknown[]) => mockOperacionFindFirst(...args),
     },
   },
 }));
@@ -42,6 +46,7 @@ describe("scanPostventaCadences", () => {
     vi.clearAllMocks();
     mockEventFindFirst.mockResolvedValue(null);
     mockJobFindUnique.mockResolvedValue(null);
+    mockOperacionFindFirst.mockResolvedValue(null);
   });
 
   it("encola steps faltantes para operación cerrada", async () => {

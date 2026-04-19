@@ -128,16 +128,29 @@ export async function replayDeadLetterJob(
   return updated;
 }
 
+const REPLAY_BATCH_LIMIT = 100;
+
 /**
- * Reencola todos los jobs de la DLQ de un tipo específico.
- * Devuelve la cantidad de jobs reencolados.
+ * Reencola jobs de la DLQ de un tipo específico, en batches de {@link REPLAY_BATCH_LIMIT}.
+ * Devuelve la cantidad de jobs reencolados en esta invocación.
  */
 export async function replayAllDeadLetterByType(
   type: JobType,
-  options?: { maxAttempts?: number },
+  options?: { maxAttempts?: number; batchSize?: number },
 ): Promise<number> {
-  const result = await prisma.jobQueue.updateMany({
+  const limit = options?.batchSize ?? REPLAY_BATCH_LIMIT;
+
+  const ids = await prisma.jobQueue.findMany({
     where: { status: "DEAD_LETTER", type },
+    select: { id: true },
+    take: limit,
+    orderBy: { failedAt: "asc" },
+  });
+
+  if (ids.length === 0) return 0;
+
+  const result = await prisma.jobQueue.updateMany({
+    where: { id: { in: ids.map((j) => j.id) } },
     data: {
       status: "PENDING",
       attempts: 0,
@@ -151,7 +164,7 @@ export async function replayAllDeadLetterByType(
   });
 
   console.log(
-    `[dead-letter] ${result.count} job(s) ${type} reencolados como PENDING`,
+    `[dead-letter] ${result.count} job(s) ${type} reencolados como PENDING (batch limit: ${limit})`,
   );
 
   return result.count;

@@ -5,6 +5,8 @@ const PUBLIC_PATHS = [
   "/login",
   "/register",
   "/api/auth",
+  "/api/invitations/validate",
+  "/api/invitations/accept",
   "/api/whatsapp/webhook",
   "/api/cron",
   "/api/events",
@@ -24,12 +26,14 @@ const PUBLIC_PATHS = [
   "/platform/postventa",
 ];
 
+const AUTH_PAGES = ["/login", "/register"];
+
 function isPublicPath(pathname: string): boolean {
   if (pathname === "/") return true;
   return PUBLIC_PATHS.some((prefix) => pathname.startsWith(prefix));
 }
 
-const STATIC_EXTENSIONS = /\.(_next|favicon|.*\.(ico|png|jpg|jpeg|svg|css|js|woff2?|ttf))$/;
+const STATIC_EXTENSIONS = /\.(ico|png|jpe?g|svg|webp|gif|css|js|woff2?|ttf|eot)$/i;
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -38,11 +42,15 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const sessionCookie = getSessionCookie(request);
+
+  if (AUTH_PAGES.some((p) => pathname.startsWith(p)) && sessionCookie) {
+    return NextResponse.redirect(new URL("/platform", request.url));
+  }
+
   if (isPublicPath(pathname)) {
     return NextResponse.next();
   }
-
-  const sessionCookie = getSessionCookie(request);
 
   if (!sessionCookie) {
     const loginUrl = new URL("/login", request.url);

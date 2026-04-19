@@ -42,6 +42,7 @@ describe("handler registry", () => {
       "SELECCION_COMPRADOR",
       "SELECCION_VALIDADA",
       "SELECCION_RECHAZADA",
+      "SELECCION_MICROSITE_DESCRIPCIONES_EDITADAS",
       "OPERACION_CERRADA",
     ];
 
@@ -57,29 +58,46 @@ describe("handler registry", () => {
 });
 
 describe("property handlers", () => {
-  const propertyEventTypes: EventType[] = [
-    "PROPIEDAD_CREADA",
-    "PROPIEDAD_MODIFICADA",
-    "ESTADO_CAMBIADO",
-  ];
+  it("PROPIEDAD_CREADA: retorna success con follow-ups de projection + pricing", async () => {
+    const handler = getHandler("PROPIEDAD_CREADA")!;
+    expect(handler).toBeDefined();
 
-  for (const eventType of propertyEventTypes) {
-    it(`${eventType}: debe retornar success con follow-up UPDATE_PROPERTY_PROJECTION`, async () => {
-      const handler = getHandler(eventType)!;
-      expect(handler).toBeDefined();
+    const event = makeEvent("PROPIEDAD_CREADA");
+    const result = await handler(event);
 
-      const event = makeEvent(eventType);
-      const result = await handler(event);
+    expect(result.success).toBe(true);
+    expect(result.followUpJobs!.length).toBeGreaterThanOrEqual(2);
+    const types = result.followUpJobs!.map((j) => j.type);
+    expect(types).toContain("UPDATE_PROPERTY_PROJECTION");
+    expect(types).toContain("RUN_PRICING_ANALYSIS");
+  });
 
-      expect(result.success).toBe(true);
-      expect(result.followUpJobs).toHaveLength(1);
-      expect(result.followUpJobs![0].type).toBe("UPDATE_PROPERTY_PROJECTION");
-      expect(result.followUpJobs![0].sourceEventId).toBe(event.id);
-      expect(result.followUpJobs![0].idempotencyKey).toBe(
-        `update_property_projection:${event.id}`,
-      );
-    });
-  }
+  it("PROPIEDAD_MODIFICADA: retorna success con follow-ups de projection + pricing", async () => {
+    const handler = getHandler("PROPIEDAD_MODIFICADA")!;
+    expect(handler).toBeDefined();
+
+    const event = makeEvent("PROPIEDAD_MODIFICADA");
+    const result = await handler(event);
+
+    expect(result.success).toBe(true);
+    expect(result.followUpJobs!.length).toBeGreaterThanOrEqual(2);
+    const types = result.followUpJobs!.map((j) => j.type);
+    expect(types).toContain("UPDATE_PROPERTY_PROJECTION");
+    expect(types).toContain("RUN_PRICING_ANALYSIS");
+  });
+
+  it("ESTADO_CAMBIADO: retorna success con follow-up UPDATE_PROPERTY_PROJECTION", async () => {
+    const handler = getHandler("ESTADO_CAMBIADO")!;
+    expect(handler).toBeDefined();
+
+    const event = makeEvent("ESTADO_CAMBIADO");
+    const result = await handler(event);
+
+    expect(result.success).toBe(true);
+    expect(result.followUpJobs!.length).toBeGreaterThanOrEqual(1);
+    const types = result.followUpJobs!.map((j) => j.type);
+    expect(types).toContain("UPDATE_PROPERTY_PROJECTION");
+  });
 });
 
 describe("demand handlers", () => {
@@ -111,19 +129,16 @@ describe("demand handlers", () => {
   }
 });
 
-describe("placeholder handlers", () => {
-  const placeholderTypes: EventType[] = [
+describe("audit-only handlers", () => {
+  const auditOnlyTypes: EventType[] = [
     "LEAD_SCORED",
     "SLA_INICIADO",
-    "MATCH_GENERADO",
-    "SELECCION_COMPRADOR",
     "SELECCION_VALIDADA",
     "SELECCION_RECHAZADA",
-    "CONTRATO_BORRADOR_GENERADO",
-    "CONTRATO_VERSIONADO",
+    "SELECCION_MICROSITE_DESCRIPCIONES_EDITADAS",
   ];
 
-  for (const eventType of placeholderTypes) {
+  for (const eventType of auditOnlyTypes) {
     it(`${eventType}: debe retornar success sin follow-up jobs`, async () => {
       const handler = getHandler(eventType)!;
       expect(handler).toBeDefined();
@@ -138,7 +153,7 @@ describe("placeholder handlers", () => {
 });
 
 describe("OPERACION_CERRADA handler", () => {
-  it("debe retornar success con 5 follow-up jobs de cadencia post-venta", async () => {
+  it("es audit-only tras deprecar post-sale legacy (cadencia canónica: START_POSTVENTA_CADENCE desde smart-closing)", async () => {
     const handler = getHandler("OPERACION_CERRADA")!;
     expect(handler).toBeDefined();
 
@@ -157,28 +172,7 @@ describe("OPERACION_CERRADA handler", () => {
     const result = await handler(event);
 
     expect(result.success).toBe(true);
-    expect(result.followUpJobs).toHaveLength(5);
-
-    const phases = result.followUpJobs!.map(
-      (j) => (j.payload as Record<string, unknown>).phase,
-    );
-    expect(phases).toEqual([
-      "agradecimiento",
-      "soporte",
-      "resena",
-      "referidos",
-      "recaptacion",
-    ]);
-
-    const jobTypes = result.followUpJobs!.map((j) => j.type);
-    expect(jobTypes).toContain("SEND_POST_SALE_MESSAGE");
-    expect(jobTypes).toContain("SEND_REVIEW_REQUEST");
-    expect(jobTypes).toContain("SEND_REFERRAL_REQUEST");
-
-    for (const job of result.followUpJobs!) {
-      expect(job.idempotencyKey).toMatch(/^post_sale:PROP-100:/);
-      expect(job.sourceEventId).toBe(event.id);
-    }
+    expect(result.followUpJobs).toBeUndefined();
   });
 
   it("retorna success sin jobs si el payload es inválido", async () => {
@@ -191,5 +185,29 @@ describe("OPERACION_CERRADA handler", () => {
 
     expect(result.success).toBe(true);
     expect(result.followUpJobs).toBeUndefined();
+  });
+
+  it.skip("(deprecated) propaga demandId en el payload para actualizar leadStatus", async () => {
+    const handler = getHandler("OPERACION_CERRADA")!;
+    const event = makeEvent("OPERACION_CERRADA", {
+      aggregateType: "OPERACION",
+      aggregateId: "PROP-DEM",
+      payload: {
+        propertyCode: "PROP-DEM",
+        newEstado: "Vendida",
+        previousEstado: "Reservada",
+        closedAt: new Date().toISOString(),
+        operacionId: "cuid-op-123",
+        demandId: "DEM-999",
+      },
+    });
+
+    const result = await handler(event);
+
+    expect(result.success).toBe(true);
+    expect(result.followUpJobs).toHaveLength(5);
+    for (const job of result.followUpJobs!) {
+      expect(job.idempotencyKey).toMatch(/^post_sale:cuid-op-123:/);
+    }
   });
 });

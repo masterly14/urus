@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store/event-store";
+import { enqueueJob } from "@/lib/job-queue";
 import { uploadContractDocument } from "@/lib/cloudinary";
 import { verifySigningToken } from "@/lib/firma/token";
 import {
@@ -19,6 +20,11 @@ import { withObservedRoute } from "@/lib/observability";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+function isOtpBypassEnabled(): boolean {
+  const value = process.env.FIRMA_OTP_BYPASS?.trim().toLowerCase();
+  return value === "1" || value === "true" || value === "si";
+}
 
 /**
  * POST /api/firma/{token}/sign
@@ -40,6 +46,7 @@ const postHandler = async (request: Request, { params }: { params: Promise<{ tok
   }
 
   const { signatureImageBase64, otpId } = body;
+  const otpBypass = isOtpBypassEnabled();
 
   if (!signatureImageBase64 || signatureImageBase64.length < 100) {
     return NextResponse.json(
@@ -48,7 +55,7 @@ const postHandler = async (request: Request, { params }: { params: Promise<{ tok
     );
   }
 
-  if (!otpId) {
+  if (!otpBypass && !otpId) {
     return NextResponse.json(
       { error: "Se requiere verificación OTP antes de firmar (otpId)" },
       { status: 400 },
@@ -63,12 +70,14 @@ const postHandler = async (request: Request, { params }: { params: Promise<{ tok
     return NextResponse.json({ error: "Firma no encontrada" }, { status: 404 });
   }
 
-  const otpValid = await isOtpVerified(otpId, sigReq.id);
-  if (!otpValid) {
-    return NextResponse.json(
-      { error: "OTP no verificado o no corresponde a esta firma" },
-      { status: 403 },
-    );
+  if (!otpBypass) {
+    const otpValid = await isOtpVerified(otpId!, sigReq.id);
+    if (!otpValid) {
+      return NextResponse.json(
+        { error: "OTP no verificado o no corresponde a esta firma" },
+        { status: 403 },
+      );
+    }
   }
 
   if (isSignatureTerminalStatus(sigReq.status)) {
@@ -198,7 +207,7 @@ const postHandler = async (request: Request, { params }: { params: Promise<{ tok
     });
   }
 
-  await appendEvent({
+  const firmaCompletadaEvent = await appendEvent({
     type: "FIRMA_COMPLETADA",
     aggregateType: "PROPERTY",
     aggregateId: sigReq.propertyCode,
@@ -213,6 +222,13 @@ const postHandler = async (request: Request, { params }: { params: Promise<{ tok
       signedDocumentUrl: signedUpload.secureUrl,
       auditTrailUrl: auditUpload.secureUrl,
     },
+  });
+
+  await enqueueJob({
+    type: "PROCESS_EVENT",
+    payload: { eventId: firmaCompletadaEvent.id, eventType: firmaCompletadaEvent.type },
+    sourceEventId: firmaCompletadaEvent.id,
+    idempotencyKey: `process-event:${firmaCompletadaEvent.id}`,
   });
 
   console.log(

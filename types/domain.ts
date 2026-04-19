@@ -47,6 +47,16 @@ export interface Demand {
   zonas: string;
   fechaActualizacion: string;
   agente: string;
+  /** Iniciales del comercial en Inmovilla (campo `siglas`, ej. "MA"). Equivale a Comercial.inmovillaRefCode. */
+  siglas?: string;
+  /** ID numérico del agente/comercial en Inmovilla (campo `keyagente`). Equivale a Comercial.inmovillaAgentId. */
+  inmovillaAgentId?: number;
+  /**
+   * Ref del inmueble en "Consultada" (cruce), p. ej. URUS103VMA desde "Ref. URUS103VMA".
+   * Se usa para resolver comercial por inmovillaRefCode como en propiedades.
+   */
+  refConsultada?: string;
+  telefono?: string;
   raw?: Record<string, unknown>;
 }
 

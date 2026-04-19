@@ -6,6 +6,7 @@
 import { Annotation, StateGraph, START, END } from "@langchain/langgraph";
 import { z } from "zod";
 import { llm } from "./llm";
+import { withRetry } from "./utils/retry";
 import type {
   ContractInstructionGraphInput,
   ContractVoiceStructuredPatch,
@@ -161,16 +162,18 @@ async function interpretNode(state: InstructionStateType): Promise<Partial<Instr
   const { transcript, documentKind, currentPayload } = state.input;
 
   try {
-    const raw = await llmStructured.invoke([
-      { role: "system", content: buildSystemPrompt(documentKind) },
-      {
-        role: "user",
-        content:
-          `Transcripción del gestor:\n"""${transcript}"""\n\n` +
-          `Tipo de documento: ${documentKind}\n\n` +
-          `Borrador actual (JSON):\n${JSON.stringify(currentPayload, null, 2)}`,
-      },
-    ]);
+    const raw = await withRetry(() =>
+      llmStructured.invoke([
+        { role: "system", content: buildSystemPrompt(documentKind) },
+        {
+          role: "user",
+          content:
+            `Transcripción del gestor:\n"""${transcript}"""\n\n` +
+            `Tipo de documento: ${documentKind}\n\n` +
+            `Borrador actual (JSON):\n${JSON.stringify(currentPayload, null, 2)}`,
+        },
+      ]),
+    );
 
     return { patch: emptyPatch(raw as unknown as Record<string, unknown>) };
   } catch (err) {

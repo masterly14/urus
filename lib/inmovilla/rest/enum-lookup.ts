@@ -11,10 +11,12 @@ export type EnumLookupMaps = {
   /** Clave compuesta `${key_loca}:${key_zona}` → nombre de zona */
   zonaByLocaZona: Map<string, string>;
   estadoByValue: Map<number, string>;
+  /** key_tipo numérico → nombre legible ("Piso", "Casa", "Local comercial"…) */
+  tipoByKeyTipo: Map<number, string>;
 };
 
 export async function loadEnumLookupMaps(): Promise<EnumLookupMaps> {
-  const [ciudades, zonas, estadoRows] = await Promise.all([
+  const [ciudades, zonas, estadoRows, tipoRows] = await Promise.all([
     prisma.inmovillaEnumCiudad.findMany({
       select: { key_loca: true, ciudad: true },
     }),
@@ -23,6 +25,10 @@ export async function loadEnumLookupMaps(): Promise<EnumLookupMaps> {
     }),
     prisma.inmovillaEnumTipo.findMany({
       where: { tipo: "estadoficha" },
+      select: { valor: true, nombre: true },
+    }),
+    prisma.inmovillaEnumTipo.findMany({
+      where: { tipo: "key_tipo" },
       select: { valor: true, nombre: true },
     }),
   ]);
@@ -42,5 +48,10 @@ export async function loadEnumLookupMaps(): Promise<EnumLookupMaps> {
     estadoByValue.set(e.valor, e.nombre);
   }
 
-  return { ciudadByKeyLoca, zonaByLocaZona, estadoByValue };
+  const tipoByKeyTipo = new Map<number, string>();
+  for (const t of tipoRows) {
+    tipoByKeyTipo.set(t.valor, t.nombre);
+  }
+
+  return { ciudadByKeyLoca, zonaByLocaZona, estadoByValue, tipoByKeyTipo };
 }

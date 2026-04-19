@@ -1,6 +1,5 @@
 import { createHash } from "crypto";
-import { appendEvent } from "@/lib/event-store";
-import { enqueueJob } from "@/lib/job-queue";
+import { appendEventAndEnqueueJob } from "@/lib/event-store";
 import type { Demand } from "@/types/domain";
 import type { DemandDiffResult } from "./types";
 import type {
@@ -8,6 +7,7 @@ import type {
   DemandCreatedEventPayload,
   DemandModifiedEventPayload,
   DemandStatusChangedEventPayload,
+  DemandRemovedEventPayload,
   DemandIngestionEventMetadata,
   DemandEventPublicationSummary,
 } from "./types";
@@ -16,6 +16,7 @@ const EVENT_ORDER = {
   DEMANDA_CREADA: 0,
   DEMANDA_MODIFICADA: 1,
   DEMANDA_ESTADO_CAMBIADO: 2,
+  DEMANDA_ELIMINADA: 3,
 } as const;
 
 type PublishCandidate = {
@@ -24,7 +25,8 @@ type PublishCandidate = {
   payload:
     | DemandCreatedEventPayload
     | DemandModifiedEventPayload
-    | DemandStatusChangedEventPayload;
+    | DemandStatusChangedEventPayload
+    | DemandRemovedEventPayload;
   changedFields: DemandDiffField[];
 };
 
@@ -63,6 +65,9 @@ function buildCandidates(
     payload: {
       before: change.before,
       after: {
+        nombre: change.demand.nombre,
+        ref: change.demand.ref,
+        telefono: change.demand.telefono,
         estadoId: change.demand.estadoId,
         estadoNombre: change.demand.estadoNombre,
         presupuestoMin: change.demand.presupuestoMin,
@@ -71,6 +76,8 @@ function buildCandidates(
         tipos: change.demand.tipos,
         zonas: change.demand.zonas,
         fechaActualizacion: change.demand.fechaActualizacion,
+        agente: change.demand.agente,
+        refConsultada: change.demand.refConsultada,
       },
       changedFields: change.changedFields,
       detectedAt,
@@ -97,7 +104,18 @@ function buildCandidates(
     ],
   }));
 
-  return [...created, ...modified, ...statusChanged].sort((a, b) => {
+  const removed: PublishCandidate[] = (diff.removed ?? []).map((change) => ({
+    eventType: "DEMANDA_ELIMINADA",
+    aggregateId: change.codigo,
+    payload: {
+      previousEstadoId: change.previousEstadoId,
+      previousEstadoNombre: change.previousEstadoNombre,
+      detectedAt,
+    },
+    changedFields: [],
+  }));
+
+  return [...created, ...modified, ...statusChanged, ...removed].sort((a, b) => {
     if (a.aggregateId === b.aggregateId) {
       return EVENT_ORDER[a.eventType] - EVENT_ORDER[b.eventType];
     }
@@ -123,20 +141,15 @@ export async function publishDemandEventsForDiff(
       changedFields: candidate.changedFields,
     };
 
-    const event = await appendEvent({
-      type: candidate.eventType,
-      aggregateType: "DEMAND",
-      aggregateId: candidate.aggregateId,
-      payload: candidate.payload,
-      metadata,
-      correlationId: cycleId,
-    });
-
-    await enqueueJob({
-      type: "PROCESS_EVENT",
-      payload: { eventId: event.id, eventType: event.type },
-      sourceEventId: event.id,
-      idempotencyKey: `process-event:${event.id}`,
+    await appendEventAndEnqueueJob({
+      event: {
+        type: candidate.eventType,
+        aggregateType: "DEMAND",
+        aggregateId: candidate.aggregateId,
+        payload: candidate.payload,
+        metadata,
+        correlationId: cycleId,
+      },
     });
 
     console.log(

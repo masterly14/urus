@@ -16,9 +16,9 @@ function parseArgs(): { operation: WriteOperation; payload: unknown } {
   const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
   const operation = args[0] as WriteOperation | undefined;
 
-  if (!operation || !["createDemand", "updateDemandEmail", "updateDemandPriority"].includes(operation)) {
+  if (!operation || !["createDemand", "updateDemandEmail", "updateDemandPriority", "updateDemandCriteria"].includes(operation)) {
     console.error("Uso: tsx scripts/run-write-inmovilla.ts <operation> [--headless] [--no-verify] [--json]");
-    console.error("  operation: createDemand | updateDemandEmail | updateDemandPriority");
+    console.error("  operation: createDemand | updateDemandEmail | updateDemandPriority | updateDemandCriteria");
     console.error("");
     console.error("  updateDemandEmail: requiere env o --demandId, --demandRef, --clientId, --agentId, --propertyTypes, --email");
     console.error("  updateDemandPriority: requiere env o --demandId, --demandRef, --clientId, --agentId, --propertyTypes, --priority");
@@ -63,6 +63,32 @@ function parseArgs(): { operation: WriteOperation; payload: unknown } {
     };
     if (!payload.demandId || !payload.clientId || !payload.priority) {
       console.error("Faltan demandId, clientId o priority (env o --demandId=... --clientId=... --priority=...)");
+      process.exit(1);
+    }
+    return { operation, payload };
+  }
+
+  if (operation === "updateDemandCriteria") {
+    const payload: WriteOperationPayloadMap["updateDemandCriteria"] = {
+      demandId: get("demandId"),
+      demandRef: get("demandRef") || get("demandId"),
+      clientId: get("clientId"),
+      agentId: get("agentId") || process.env.INMOVILLA_AGENT_ID || "",
+      propertyTypes: get("propertyTypes") || "2799,2899,4399,2999,3099,3299,3399,3499",
+      patch: {},
+    };
+    const presupuestoMin = get("presupuestoMin");
+    const presupuestoMax = get("presupuestoMax");
+    const habitacionesMin = get("habitacionesMin");
+    const metrosMin = get("metrosMin");
+    const metrosMax = get("metrosMax");
+    if (presupuestoMin) payload.patch.presupuestoMin = Number(presupuestoMin);
+    if (presupuestoMax) payload.patch.presupuestoMax = Number(presupuestoMax);
+    if (habitacionesMin) payload.patch.habitacionesMin = Number(habitacionesMin);
+    if (metrosMin) payload.patch.metrosMin = Number(metrosMin);
+    if (metrosMax) payload.patch.metrosMax = Number(metrosMax);
+    if (!payload.demandId || !payload.clientId) {
+      console.error("Faltan demandId o clientId (env o --demandId=... --clientId=...)");
       process.exit(1);
     }
     return { operation, payload };

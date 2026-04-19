@@ -2,6 +2,7 @@ import type { Event } from "@/types/domain";
 import type { HandlerResult } from "./types";
 import { prisma } from "@/lib/prisma";
 import { sendSignatureInitialNotification } from "@/lib/whatsapp/send";
+import { updateDemandLeadStatus, updateLeadStatusByOperationId } from "@/lib/projections/update-lead-status";
 
 interface FirmaEnviadaPayload {
   signatureRequestId: string;
@@ -120,6 +121,27 @@ export async function handleFirmaEnviada(
       });
     } catch {
       // non-blocking
+    }
+  }
+
+  const rawPayload = event.payload as Record<string, unknown> | null;
+  const demandIdFromPayload = typeof rawPayload?.demandId === "string" ? rawPayload.demandId : null;
+
+  if (demandIdFromPayload) {
+    try {
+      await updateDemandLeadStatus(demandIdFromPayload, "EN_FIRMA");
+    } catch (err) {
+      console.warn(
+        `[firma-enviada] Error actualizando leadStatus (directo): ${err instanceof Error ? err.message : err}`,
+      );
+    }
+  } else {
+    try {
+      await updateLeadStatusByOperationId(operationId, "EN_FIRMA");
+    } catch (err) {
+      console.warn(
+        `[firma-enviada] Error actualizando leadStatus: ${err instanceof Error ? err.message : err}`,
+      );
     }
   }
 

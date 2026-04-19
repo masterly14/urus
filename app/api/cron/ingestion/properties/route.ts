@@ -20,4 +20,6 @@ const postHandler = async (request: Request) => {
 
 export const POST = withObservedRoute({ method: "POST", route: "/api/cron/ingestion/properties" }, postHandler);
 
-export const maxDuration = 120;
+// With 13s per REST request and N properties, large catalogues can take >2min.
+// Vercel Pro allows up to 300s; set to max to avoid premature timeout.
+export const maxDuration = 300;

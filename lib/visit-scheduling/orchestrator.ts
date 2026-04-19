@@ -52,6 +52,7 @@ import {
 } from "./constants";
 import type { VisitContext, VisitorData } from "./types";
 import { ComposioNotConnectedError } from "./types";
+import { scheduleParteVisita } from "@/lib/parte-visita/schedule";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -151,6 +152,7 @@ export async function initiateVisitScheduling(
 export async function fetchAndProposeSlots(
   sessionId: string,
   correlationId?: string,
+  rejectedSlotLabel?: string,
 ) {
   const session = await getSessionById(sessionId);
 
@@ -168,12 +170,37 @@ export async function fetchAndProposeSlots(
 
   await transitionState(sessionId, "FETCHING_SLOTS");
 
-  const result = await findAvailableSlots({
-    comercialId: session.comercialId,
-    composioConnectionId: comercial.composioConnectionId,
-    propertyCode: session.propertyCode,
-    excludeSessionId: sessionId,
-  });
+  // En rondas > 0 excluimos el slot que el comprador acaba de rechazar
+  // para que no vuelva a aparecer como opción al comercial.
+  const excludeSlotStarts: Date[] = [];
+  if (session.currentRound > 0 && session.confirmedSlotStart) {
+    excludeSlotStarts.push(session.confirmedSlotStart);
+  }
+
+  // H30: si la API de free/busy falla, findAvailableSlots lanza un error
+  // explícito (ya no hay fallback LLM no determinista). En ese caso escalamos
+  // al comercial para que gestione manualmente la cita en vez de proponer
+  // slots sobre disponibilidad desconocida.
+  let result;
+  try {
+    result = await findAvailableSlots({
+      comercialId: session.comercialId,
+      composioConnectionId: comercial.composioConnectionId,
+      propertyCode: session.propertyCode,
+      excludeSessionId: sessionId,
+      excludeSlotStarts: excludeSlotStarts.length ? excludeSlotStarts : undefined,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[orchestrator] findAvailableSlots falló session=${sessionId}: ${msg}`,
+    );
+    return handleEscalation(
+      sessionId,
+      `No se pudo consultar la disponibilidad del calendario (${msg}). Gestiona la visita manualmente.`,
+      correlationId,
+    );
+  }
 
   if (result.available.length === 0) {
     return handleEscalation(
@@ -217,6 +244,7 @@ export async function fetchAndProposeSlots(
     buyerWaId: session.buyerWaId,
     slots: slotsForMessage,
     round: session.currentRound + 1,
+    rejectedSlotLabel,
   });
 
   await transitionState(sessionId, "SLOTS_PROPOSED_TO_COMMERCIAL", {
@@ -430,7 +458,7 @@ export async function handleBuyerRejection(
       propertyRef: session.propertyCode,
     });
 
-    await fetchAndProposeSlots(sessionId, correlationId);
+    await fetchAndProposeSlots(sessionId, correlationId, slotLabel);
   } else {
     await transitionState(sessionId, "ASKING_BUYER_PREFERENCE");
 
@@ -481,13 +509,28 @@ export async function handleBuyerPreference(
 
   await transitionState(sessionId, "FETCHING_SPECIFIC_SLOT");
 
-  const result = await findSpecificSlot({
-    comercialId: session.comercialId,
-    composioConnectionId: comercial.composioConnectionId,
-    propertyCode: session.propertyCode,
-    excludeSessionId: sessionId,
-    preferredDate,
-  });
+  // H30: findSpecificSlot ya no tiene fallback LLM. Si la API de Composio
+  // falla propagamos el error y escalamos al comercial.
+  let result;
+  try {
+    result = await findSpecificSlot({
+      comercialId: session.comercialId,
+      composioConnectionId: comercial.composioConnectionId,
+      propertyCode: session.propertyCode,
+      excludeSessionId: sessionId,
+      preferredDate,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[orchestrator] findSpecificSlot falló session=${sessionId}: ${msg}`,
+    );
+    return handleEscalation(
+      sessionId,
+      `No se pudo verificar disponibilidad para el horario preferido del comprador (${msg}). Gestiona la visita manualmente.`,
+      correlationId,
+    );
+  }
 
   if (result.available.length === 0) {
     await transitionState(sessionId, "ASKING_BUYER_PREFERENCE", {
@@ -680,6 +723,17 @@ export async function handleVisitorData(
     comercialName: comercial.nombre,
     comercialPhone: comercial.telefono || undefined,
   });
+
+  // Schedule Parte de Visita document flow for the visit start time
+  const updatedSession = await getSessionById(sessionId);
+  try {
+    await scheduleParteVisita(updatedSession);
+  } catch (err) {
+    console.error(
+      `[orchestrator] Error scheduling parte de visita for session ${sessionId}:`,
+      err instanceof Error ? err.message : err,
+    );
+  }
 
   return confirmResult;
 }

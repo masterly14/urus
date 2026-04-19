@@ -1,15 +1,30 @@
 import type { JobRecord } from "@/lib/job-queue/types";
 import type { HandlerResult } from "@/lib/workers/consumer/types";
 import { prisma } from "@/lib/prisma";
+import { enqueueJob } from "@/lib/job-queue";
 import { resolveComercialByProperty } from "@/lib/routing/resolve-comercial";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
+import { sendPostventaFormulario } from "@/lib/postventa/whatsapp";
+import { getBuyerInfoForProperty } from "@/lib/postventa/resolve-buyer";
 import {
   sendPostventaAgradecimiento,
   sendPostventaSoporte,
   sendPostventaResena,
   sendPostventaReferidos,
   sendPostventaRecaptacion,
+  sendPostventaCumpleanos,
+  sendPostventaNavidad,
 } from "@/lib/whatsapp/send";
+import {
+  localYear,
+  postventaTimezone,
+  postventaBirthdayHourLocal,
+  postventaNavidadDay,
+  postventaNavidadMonth,
+  postventaNavidadHourLocal,
+  localDateTimeToUtc,
+  nextAnnualOccurrenceUtc,
+} from "./anniversary-schedule";
 
 interface SendPostventaPayload {
   propertyCode: string;
@@ -18,6 +33,9 @@ interface SendPostventaPayload {
   template: string;
   closedAt: string;
   requiresNoIncidencia: boolean;
+  sessionId?: string;
+  year?: number;
+  birthDate?: string;
 }
 
 function parsePayload(raw: unknown): SendPostventaPayload | null {
@@ -38,6 +56,9 @@ function parsePayload(raw: unknown): SendPostventaPayload | null {
     template: p.template,
     closedAt: p.closedAt,
     requiresNoIncidencia: p.requiresNoIncidencia === true,
+    sessionId: typeof p.sessionId === "string" ? p.sessionId : undefined,
+    year: typeof p.year === "number" ? p.year : undefined,
+    birthDate: typeof p.birthDate === "string" ? p.birthDate : undefined,
   };
 }
 
@@ -46,59 +67,17 @@ interface BuyerInfo {
   name: string;
 }
 
-/**
- * Obtiene datos del comprador buscando en LegalDocumentParty (role COMPRADOR),
- * con fallback a DemandCurrent vía eventos SELECCION_COMPRADOR.
- */
-async function resolveBuyerInfo(propertyCode: string): Promise<BuyerInfo | null> {
-  const party = await prisma.legalDocumentParty.findFirst({
-    where: {
-      role: "COMPRADOR",
-      legalDocument: { propertyCode },
-    },
-    select: { phone: true, fullName: true },
-    orderBy: { createdAt: "desc" },
-  });
-
-  if (party?.phone) {
-    return { phone: party.phone, name: party.fullName };
-  }
-
-  const selectionEvent = await prisma.event.findFirst({
-    where: {
-      aggregateId: propertyCode,
-      type: "SELECCION_COMPRADOR",
-    },
-    select: { payload: true },
-    orderBy: { occurredAt: "desc" },
-  });
-
-  if (selectionEvent?.payload) {
-    const ep = selectionEvent.payload as Record<string, unknown>;
-    const demandId = typeof ep.demandId === "string" ? ep.demandId : null;
-    if (demandId) {
-      const demand = await prisma.demandCurrent.findUnique({
-        where: { codigo: demandId },
-        select: { telefono: true, nombre: true },
-      });
-      if (demand?.telefono) {
-        return { phone: demand.telefono, name: demand.nombre };
-      }
-    }
-  }
-
-  return null;
-}
-
-async function resolveComercialInfo(propertyCode: string): Promise<{ name: string } | null> {
+async function resolveComercialInfo(
+  propertyCode: string,
+): Promise<{ name: string } | null> {
   const comercial = await resolveComercialByProperty(propertyCode);
   if (!comercial) return null;
   return { name: comercial.nombre };
 }
 
 /**
- * Verifica si hay una incidencia post-venta abierta (sin resolver)
- * para la propiedad desde la fecha de cierre.
+ * Verifica si hay una incidencia post-venta abierta (sin resolver) para la
+ * propiedad desde la fecha de cierre.
  */
 export async function hasOpenIncidencia(
   propertyCode: string,
@@ -126,7 +105,13 @@ export async function hasOpenIncidencia(
   return !resuelta;
 }
 
-type TemplateSender = (buyer: BuyerInfo, propertyCode: string, comercialName: string, operacionId?: string) => Promise<void>;
+type TemplateSender = (args: {
+  buyer: BuyerInfo;
+  propertyCode: string;
+  comercialName: string;
+  operacionId?: string;
+  sessionId?: string;
+}) => Promise<void>;
 
 function buildTemplateSenders(): Record<string, TemplateSender> {
   const appUrl = getPublicAppUrl();
@@ -134,52 +119,172 @@ function buildTemplateSenders(): Record<string, TemplateSender> {
   const reviewUrl = process.env.GOOGLE_REVIEW_URL ?? "";
 
   return {
-    agradecimiento: async (buyer, _pc, comercialName) => {
-      await sendPostventaAgradecimiento(buyer.phone, {
-        buyerName: buyer.name,
-        agencyName,
-        comercialName,
+    agradecimiento: async ({ buyer, comercialName }) => {
+      await sendPostventaAgradecimiento(
+        buyer.phone,
+        {
+          buyerName: buyer.name,
+          agencyName,
+          comercialName,
+        },
+        { useTemplate: true },
+      );
+    },
+    formulario: async ({ buyer, propertyCode, operacionId, sessionId }) => {
+      if (!sessionId) {
+        throw new Error(
+          `template "formulario" requiere sessionId en el payload (propertyCode=${propertyCode})`,
+        );
+      }
+      const operationRef = operacionId
+        ? await resolveOperationRef(operacionId, propertyCode)
+        : propertyCode;
+      await sendPostventaFormulario(buyer.phone, {
+        sessionId,
+        buyerName: buyer.name || "cliente",
+        operationRef,
       });
     },
-    soporte: async (buyer, propertyCode, _comercialName, operacionId) => {
+    soporte: async ({ buyer, propertyCode, operacionId }) => {
       const guideUrl = `${appUrl}/postventa/guia`;
-      await sendPostventaSoporte(buyer.phone, {
-        buyerName: buyer.name,
-        guideUrl,
-        propertyCode: operacionId ?? propertyCode,
-      });
+      await sendPostventaSoporte(
+        buyer.phone,
+        {
+          buyerName: buyer.name,
+          guideUrl,
+          propertyCode: operacionId ?? propertyCode,
+        },
+        { useTemplate: true },
+      );
     },
-    resena: async (buyer) => {
+    resena: async ({ buyer }) => {
       if (!reviewUrl) {
-        console.warn("[postventa] GOOGLE_REVIEW_URL no configurada — omitiendo reseña");
+        console.warn(
+          "[postventa] GOOGLE_REVIEW_URL no configurada — omitiendo reseña",
+        );
         return;
       }
-      await sendPostventaResena(buyer.phone, {
-        buyerName: buyer.name,
-        reviewUrl,
-      });
+      await sendPostventaResena(
+        buyer.phone,
+        { buyerName: buyer.name, reviewUrl },
+        { useTemplate: true },
+      );
     },
-    referidos: async (buyer) => {
+    referidos: async ({ buyer }) => {
       const referralUrl = `${appUrl}/postventa/referidos`;
-      await sendPostventaReferidos(buyer.phone, {
-        buyerName: buyer.name,
-        referralUrl,
+      await sendPostventaReferidos(
+        buyer.phone,
+        { buyerName: buyer.name, referralUrl },
+        { useTemplate: true },
+      );
+    },
+    recaptacion: async ({ buyer, comercialName }) => {
+      const contactUrl = `${appUrl}/contacto`;
+      await sendPostventaRecaptacion(
+        buyer.phone,
+        { buyerName: buyer.name, comercialName, contactUrl },
+        { useTemplate: true },
+      );
+    },
+    cumple: async ({ buyer }) => {
+      await sendPostventaCumpleanos(buyer.phone, {
+        buyerName: buyer.name || "cliente",
+        agencyName,
       });
     },
-    recaptacion: async (buyer, _pc, comercialName) => {
-      const contactUrl = `${appUrl}/contacto`;
-      await sendPostventaRecaptacion(buyer.phone, {
-        buyerName: buyer.name,
-        comercialName,
-        contactUrl,
+    navidad: async ({ buyer }) => {
+      await sendPostventaNavidad(buyer.phone, {
+        buyerName: buyer.name || "cliente",
+        agencyName,
       });
     },
   };
 }
 
+async function resolveOperationRef(
+  operacionId: string,
+  propertyCode: string,
+): Promise<string> {
+  const op = await prisma.operacion.findUnique({
+    where: { id: operacionId },
+    select: { codigo: true },
+  });
+  return op?.codigo ?? propertyCode;
+}
+
 /**
- * Job handler para SEND_POSTVENTA_MESSAGE.
- * Resuelve datos del comprador, verifica incidencias y envía el WhatsApp.
+ * Tras enviar un mensaje anual (`cumple` / `navidad`), encola el del año
+ * siguiente con idempotencyKey basada en el año natural. Diseñado para ser
+ * idempotente y re-entrante.
+ */
+async function reScheduleAnnualIfNeeded(
+  template: string,
+  payload: SendPostventaPayload,
+): Promise<void> {
+  if (!payload.operacionId) return;
+  const tz = postventaTimezone();
+  const currentYear = payload.year ?? localYear(new Date(), tz);
+  const nextYear = currentYear + 1;
+
+  if (template === "cumple") {
+    if (!payload.birthDate) return;
+    const birth = new Date(payload.birthDate);
+    if (Number.isNaN(birth.getTime())) return;
+    const nextDate = localDateTimeToUtc(
+      nextYear,
+      birth.getUTCMonth(),
+      birth.getUTCDate(),
+      postventaBirthdayHourLocal(),
+      tz,
+    );
+    await enqueueJob({
+      type: "SEND_POSTVENTA_MESSAGE",
+      payload: {
+        ...payload,
+        step: `BIRTHDAY_${nextYear}`,
+        template: "cumple",
+        year: nextYear,
+      },
+      availableAt: nextDate,
+      idempotencyKey: `postventa:cumple:${payload.operacionId}:${nextYear}`,
+    });
+    console.log(
+      `[postventa:send] reagendado cumpleaños ${nextYear} para operacionId=${payload.operacionId} en ${nextDate.toISOString()}`,
+    );
+    return;
+  }
+
+  if (template === "navidad") {
+    const nextDate = nextAnnualOccurrenceUtc({
+      monthIndex: postventaNavidadMonth() - 1,
+      day: postventaNavidadDay(),
+      hourLocal: postventaNavidadHourLocal(),
+      timezone: tz,
+      now: new Date(Date.UTC(nextYear, 0, 1)),
+    });
+    await enqueueJob({
+      type: "SEND_POSTVENTA_MESSAGE",
+      payload: {
+        ...payload,
+        step: `NAVIDAD_${nextYear}`,
+        template: "navidad",
+        year: nextYear,
+      },
+      availableAt: nextDate,
+      idempotencyKey: `postventa:navidad:${payload.operacionId}:${nextYear}`,
+    });
+    console.log(
+      `[postventa:send] reagendada navidad ${nextYear} para operacionId=${payload.operacionId} en ${nextDate.toISOString()}`,
+    );
+  }
+}
+
+/**
+ * Job handler para `SEND_POSTVENTA_MESSAGE`.
+ * - Resuelve datos del comprador
+ * - Verifica incidencias si aplica
+ * - Envía SIEMPRE vía plantilla Meta (`useTemplate: true`)
+ * - Si es anual (cumple/navidad), reagenda el siguiente año al completar
  */
 export async function handleSendPostventaMessage(
   job: JobRecord,
@@ -193,7 +298,15 @@ export async function handleSendPostventaMessage(
     };
   }
 
-  const { propertyCode, operacionId, step, template, closedAt, requiresNoIncidencia } = payload;
+  const {
+    propertyCode,
+    operacionId,
+    step,
+    template,
+    closedAt,
+    requiresNoIncidencia,
+    sessionId,
+  } = payload;
 
   if (requiresNoIncidencia) {
     const paused = await hasOpenIncidencia(propertyCode, new Date(closedAt));
@@ -205,7 +318,22 @@ export async function handleSendPostventaMessage(
     }
   }
 
-  const buyer = await resolveBuyerInfo(propertyCode);
+  // Preferimos `buyerName` almacenado en la `PostventaSurveySession` si
+  // existe (más fiable que `LegalDocumentParty` en leads puramente digitales).
+  let buyer = await getBuyerInfoForProperty(propertyCode);
+  if (operacionId) {
+    const session = await prisma.postventaSurveySession.findUnique({
+      where: { operacionId },
+      select: { buyerPhone: true, buyerName: true },
+    });
+    if (session?.buyerPhone) {
+      buyer = {
+        phone: session.buyerPhone,
+        name: session.buyerName || buyer?.name || "",
+      };
+    }
+  }
+
   if (!buyer) {
     console.warn(
       `[postventa] SEND_POSTVENTA_MESSAGE ${step} para ${propertyCode} — sin datos de comprador`,
@@ -228,9 +356,15 @@ export async function handleSendPostventaMessage(
   }
 
   try {
-    await sender(buyer, propertyCode, comercialName, operacionId);
+    await sender({
+      buyer,
+      propertyCode,
+      comercialName,
+      operacionId,
+      sessionId,
+    });
     console.log(
-      `[postventa] SEND_POSTVENTA_MESSAGE ${step} para ${propertyCode}${operacionId ? ` (operacion=${operacionId})` : ""} — enviado a ${buyer.phone}`,
+      `[postventa] SEND_POSTVENTA_MESSAGE ${step} para ${propertyCode}${operacionId ? ` (operacion=${operacionId})` : ""} — plantilla enviada a ${buyer.phone}`,
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -238,6 +372,17 @@ export async function handleSendPostventaMessage(
       `[postventa] SEND_POSTVENTA_MESSAGE ${step} para ${propertyCode} — error: ${message}`,
     );
     return { success: false, error: message };
+  }
+
+  if (template === "cumple" || template === "navidad") {
+    try {
+      await reScheduleAnnualIfNeeded(template, payload);
+    } catch (err) {
+      console.error(
+        `[postventa] reScheduleAnnualIfNeeded falló para operacionId=${operacionId}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
   }
 
   return { success: true };

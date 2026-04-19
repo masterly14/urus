@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { EventRecord } from "@/lib/event-store/types";
 import type { ProjectionApplyResult } from "./types";
 import { str, num, int } from "@/lib/utils/normalize";
-import { resolveComercialFromAgente } from "@/lib/routing/resolve-comercial";
+import { resolveComercialFromAgente, resolveComercialFromRef } from "@/lib/routing/resolve-comercial";
 
 type PropertyPayloadSnapshot = {
   codigo: string;
@@ -42,7 +42,10 @@ async function snapshotToUpsertData(
   snapshot: PropertyPayloadSnapshot,
   event: EventRecord,
 ): Promise<{ create: Prisma.PropertyCurrentCreateInput; update: Prisma.PropertyCurrentUpdateInput }> {
-  const comercial = await resolveComercialFromAgente(snapshot.agente);
+  let comercial = await resolveComercialFromAgente(snapshot.agente);
+  if (!comercial) {
+    comercial = await resolveComercialFromRef(snapshot.ref);
+  }
 
   const base = {
     ref: str(snapshot.ref),

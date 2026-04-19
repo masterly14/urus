@@ -38,6 +38,7 @@ function pickDiffFields(
     nodisponible: snapshot.nodisponible,
     prospecto: snapshot.prospecto,
     fechaActualizacion: snapshot.fechaActualizacion,
+    agente: snapshot.agente,
   };
 }
 
@@ -54,9 +55,17 @@ export function computePropertyDiff(
   // Códigos presentes en el ciclo actual (ya filtrados a Libre)
   const currentCodigos = new Set(currentProperties.map((p) => p.codigo));
 
-  // Propiedades en snapshot previo que ya no aparecen como Libre
+  // Propiedades en snapshot previo que ya no aparecen en el fetch actual.
+  // Solo emitir PROPIEDAD_ELIMINADA si la propiedad no estaba en un estado
+  // filtrado (nodisponible/prospecto). Esos estados se excluyen del fetch REST
+  // en listadoDiff, así que su ausencia no implica eliminación real.
+  const FILTERED_NOT_REMOVED_STATES = new Set(["nodisponible", "prospecto"]);
+
   for (const [codigo, prev] of previousSnapshot) {
     if (!currentCodigos.has(codigo)) {
+      if (prev.nodisponible || prev.prospecto || FILTERED_NOT_REMOVED_STATES.has(prev.estado?.toLowerCase())) {
+        continue;
+      }
       removed.push({ type: "removed", codigo, previousEstado: prev.estado });
     }
   }

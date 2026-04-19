@@ -1,6 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
-import type { JudgeInput, JudgeEvaluation, PropertySummaryForNLU } from "./types";
+import type { ExpectedOutcome, JudgeInput, JudgeEvaluation, PropertySummaryForNLU } from "./types";
 
 const judgeLlm = new ChatOpenAI({
   model: "gpt-5.4-mini",
@@ -40,6 +40,18 @@ function formatPropertiesForJudge(properties: PropertySummaryForNLU[]): string {
     if (p.extras.length > 0) parts.push(`Extras: ${p.extras.join(", ")}`);
     return parts.join(" | ");
   }).join("\n");
+}
+
+function expectsNoPropertyRows(o: ExpectedOutcome): boolean {
+  return o.propertyFeedback === undefined || o.propertyFeedback.length === 0;
+}
+
+function expectsNoVariableKeys(o: ExpectedOutcome): boolean {
+  return o.variableKeys === undefined || o.variableKeys.length === 0;
+}
+
+function variableFieldCount(vars: Record<string, unknown>): number {
+  return Object.keys(vars).length;
 }
 
 function computeDeterministicScores(input: JudgeInput): {
@@ -87,13 +99,31 @@ PROPIEDADES DEL MICROSITE (con IDs reales):
 ${formatPropertiesForJudge(properties)}
 
 RESULTADO ESPERADO (ground truth del escenario "${scenario.name}"):
-${expectedOutcome.propertyFeedback ? `- Propiedades mencionadas: ${JSON.stringify(expectedOutcome.propertyFeedback)}` : "- No se especifican propiedades concretas esperadas"}
-${expectedOutcome.variableKeys ? `- Variables esperadas: ${expectedOutcome.variableKeys.join(", ")}` : "- No se especifican variables esperadas"}
+${(() => {
+  const pf = expectedOutcome.propertyFeedback;
+  if (pf == null) {
+    return "- Propiedades: no se exige identificar filas del listado; propertyFeedback=[] es correcto si el mensaje no señala una propiedad concreta.";
+  }
+  if (pf.length === 0) {
+    return "- Propiedades: debe ser propertyFeedback vacío (sin IDs).";
+  }
+  return `- Propiedades esperadas: ${JSON.stringify(pf)}`;
+})()}
+${(() => {
+  const vk = expectedOutcome.variableKeys;
+  if (vk == null) {
+    return "- Variables: no hay claves obligatorias listadas; objeto vacío es válido si el comprador no cita criterios de búsqueda.";
+  }
+  if (vk.length === 0) {
+    return "- Variables: debe ser objeto vacío (sin claves).";
+  }
+  return `- Variables esperadas (claves): ${vk.join(", ")}`;
+})()}
 
 Evalúa cada dimensión con un score de 0 a 1. Sé estricto pero justo.
-- propertyResolutionScore: ¿identificó las propiedades correctas? Penaliza si faltan o sobran.
-- sentimentAccuracyScore: ¿clasificó bien ME_INTERESA vs NO_ME_ENCAJA por cada propiedad?
-- variableExtractionScore: ¿extrajo las variables de demanda correctas? Penaliza si inventó variables no mencionadas.`;
+- propertyResolutionScore: ¿identificó las propiedades correctas? Penaliza si faltan o sobran cuando el mensaje SÍ señala filas. Si el ground truth no exige filas y el mensaje es genérico (p. ej. solo "ok"), 1.0 con propertyFeedback=[].
+- sentimentAccuracyScore: igual criterio; sin filas esperadas ni mención concreta, 1.0 con array vacío.
+- variableExtractionScore: penaliza variables inventadas respecto al mensaje. Si no hay claves esperadas y el NLU no devuelve variables, 1.0.`;
 
   const userPrompt = `MENSAJE DEL COMPRADOR:
 "${buyerMessage}"
@@ -134,6 +164,18 @@ export async function evaluateNLUResult(input: JudgeInput): Promise<JudgeEvaluat
   const deterministic = computeDeterministicScores(input);
   const llmScores = await computeLLMScores(input);
 
+  let propertyResolutionScore = llmScores.propertyResolutionScore;
+  let sentimentAccuracyScore = llmScores.sentimentAccuracyScore;
+  let variableExtractionScore = llmScores.variableExtractionScore;
+
+  if (expectsNoPropertyRows(input.expectedOutcome) && input.nluResult.propertyFeedback.length === 0) {
+    propertyResolutionScore = 1;
+    sentimentAccuracyScore = 1;
+  }
+  if (expectsNoVariableKeys(input.expectedOutcome) && variableFieldCount(input.nluResult.variables as Record<string, unknown>) === 0) {
+    variableExtractionScore = 1;
+  }
+
   const allFailures = [...llmScores.failures];
   if (deterministic.hallucinationPenalty > 0) {
     allFailures.push(`Hallucination: ${deterministic.hallucinationPenalty.toFixed(2)} de los propertyIds no existen en el listado`);
@@ -148,17 +190,17 @@ export async function evaluateNLUResult(input: JudgeInput): Promise<JudgeEvaluat
   const hallucinationScore = 1 - deterministic.hallucinationPenalty;
 
   const overallScore =
-    llmScores.propertyResolutionScore * SCORE_WEIGHTS.propertyResolution +
-    llmScores.sentimentAccuracyScore * SCORE_WEIGHTS.sentimentAccuracy +
-    llmScores.variableExtractionScore * SCORE_WEIGHTS.variableExtraction +
+    propertyResolutionScore * SCORE_WEIGHTS.propertyResolution +
+    sentimentAccuracyScore * SCORE_WEIGHTS.sentimentAccuracy +
+    variableExtractionScore * SCORE_WEIGHTS.variableExtraction +
     deterministic.intentionScore * SCORE_WEIGHTS.intention +
     deterministic.wantsMoreScore * SCORE_WEIGHTS.wantsMore +
     hallucinationScore * SCORE_WEIGHTS.hallucination;
 
   return {
-    propertyResolutionScore: llmScores.propertyResolutionScore,
-    sentimentAccuracyScore: llmScores.sentimentAccuracyScore,
-    variableExtractionScore: llmScores.variableExtractionScore,
+    propertyResolutionScore,
+    sentimentAccuracyScore,
+    variableExtractionScore,
     intentionScore: deterministic.intentionScore,
     wantsMoreScore: deterministic.wantsMoreScore,
     hallucinationPenalty: deterministic.hallucinationPenalty,

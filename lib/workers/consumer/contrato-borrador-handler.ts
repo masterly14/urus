@@ -3,11 +3,14 @@ import type { HandlerResult } from "./types";
 import { prisma } from "@/lib/prisma";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
 import { sendContractDraftReadyNotification } from "@/lib/whatsapp/send";
+import { updateDemandLeadStatus, updateLeadStatusByOperationId } from "@/lib/projections/update-lead-status";
 
 interface BorradorPayload {
   operationId: string;
   propertyCode: string;
   documentKind: string;
+  demandId?: string;
+  operacionId?: string;
   cloudinary?: { secureUrl?: string };
 }
 
@@ -28,6 +31,8 @@ function parsePayload(raw: unknown): BorradorPayload | null {
     operationId: p.operationId,
     propertyCode: p.propertyCode,
     documentKind: p.documentKind,
+    demandId: typeof p.demandId === "string" ? p.demandId : undefined,
+    operacionId: typeof p.operacionId === "string" ? p.operacionId : undefined,
     cloudinary,
   };
 }
@@ -101,6 +106,24 @@ export async function handleContratoBorradorGenerado(
     console.warn(
       `[contrato-borrador] ${errors.length} error(es) de notificación, pero el handler continúa`,
     );
+  }
+
+  if (payload.demandId) {
+    try {
+      await updateDemandLeadStatus(payload.demandId, "EN_NEGOCIACION");
+    } catch (err) {
+      console.warn(
+        `[contrato-borrador] Error actualizando leadStatus (directo): ${err instanceof Error ? err.message : err}`,
+      );
+    }
+  } else {
+    try {
+      await updateLeadStatusByOperationId(payload.operacionId ?? operationId, "EN_NEGOCIACION");
+    } catch (err) {
+      console.warn(
+        `[contrato-borrador] Error actualizando leadStatus: ${err instanceof Error ? err.message : err}`,
+      );
+    }
   }
 
   return { success: true };

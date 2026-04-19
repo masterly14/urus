@@ -8,6 +8,7 @@
 
 import { Annotation, StateGraph, START, END } from "@langchain/langgraph";
 import { llm } from "./llm";
+import { withRetry } from "./utils/retry";
 import {
   CeoFinancialSchema,
   type CeoFinancialRecommendation,
@@ -217,13 +218,15 @@ async function financialNode(
   try {
     const userContent = serializeInputForPrompt(input);
 
-    const raw = await llmStructured.invoke([
-      { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: `Analiza la estructura financiera de Urus Capital Group y genera tus recomendaciones de reinversión:\n\n${userContent}`,
-      },
-    ]);
+    const raw = await withRetry(() =>
+      llmStructured.invoke([
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `Analiza la estructura financiera de Urus Capital Group y genera tus recomendaciones de reinversión:\n\n${userContent}`,
+        },
+      ]),
+    );
 
     const recommendation: CeoFinancialRecommendation = {
       costes_fijos_eur: raw.costes_fijos_eur,

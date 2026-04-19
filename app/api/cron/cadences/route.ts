@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthorized } from "@/lib/api/cron-auth";
 import { scanAndEnqueueMissingFollowUps } from "@/lib/leads/cadence-scanner";
-import { scanAndEnqueueMissingPostSaleJobs } from "@/lib/post-sale/cadence-scanner";
 import { withObservedRoute } from "@/lib/observability";
 
 
@@ -10,7 +9,9 @@ import { withObservedRoute } from "@/lib/observability";
  * Ejecutar cada 6–12h (Upstash QStash schedule).
  *
  * 1. Leads: revisa leads sin respuesta y encola follow-ups faltantes.
- * 2. Post-venta: revisa operaciones cerradas y encola cadencias M9 faltantes.
+ * 2. (Deprecated 2026-04-17) Post-venta `post-sale` legacy — la red de seguridad
+ *    canónica vive ahora en `/api/cron/postventa-cadences` (usa
+ *    `lib/postventa/cadence-scanner`). No se invoca aquí para no duplicar envíos.
  */
 const postHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
@@ -18,19 +19,13 @@ const postHandler = async (request: Request) => {
   }
 
   try {
-    const [leadResult, postSaleResult] = await Promise.all([
-      scanAndEnqueueMissingFollowUps(),
-      scanAndEnqueueMissingPostSaleJobs(),
-    ]);
+    const leadResult = await scanAndEnqueueMissingFollowUps();
 
     console.log(
       `[cron/cadences] leads=${leadResult.leadsScanned} encolados=${leadResult.followUpsEnqueued} cubiertos=${leadResult.leadsAlreadyCovered}`,
     );
-    console.log(
-      `[cron/cadences] post-venta ops=${postSaleResult.operationsScanned} encolados=${postSaleResult.jobsEnqueued} cubiertos=${postSaleResult.operationsAlreadyCovered}`,
-    );
 
-    return NextResponse.json({ leads: leadResult, postSale: postSaleResult });
+    return NextResponse.json({ leads: leadResult });
   } catch (err) {
     console.error(
       "[cron/cadences] Error:",

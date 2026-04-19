@@ -71,3 +71,19 @@ export type {
   MentalHealthConversationTurn,
   MentalHealthCrmContext,
 } from "./mental-health-types";
+
+// --- Visit intent classifier (M4 rediseño) ---
+export {
+  classifyButtonReply,
+  classifyVisitIntent,
+} from "./visit-intent-classifier";
+
+// --- Conversational Agent (Augmented LLM) ---
+export { conversationalGraph, runConversationalAgent } from "./conversational-graph";
+export type {
+  ConversationalAgentInput,
+  ConversationalAgentOutput,
+  ConversationPhase,
+  ToolCallResult,
+  ConversationalGraphState,
+} from "./conversational-agent-types";

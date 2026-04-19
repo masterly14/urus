@@ -7,7 +7,9 @@ import {
   createCalendarEvent,
   type CalendarEventInput,
 } from "@/lib/composio";
+import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 
 const BodySchema = z.object({
   demandId: z.string(),
@@ -22,6 +24,9 @@ const BodySchema = z.object({
 });
 
 const postHandler = async (request: Request) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+
   try {
     const body = await request.json();
     const parsed = BodySchema.safeParse(body);
@@ -48,6 +53,36 @@ const postHandler = async (request: Request) => {
       notas,
     } = parsed.data;
 
+    // H25: resolver la conexión de Composio del comercial autenticado en vez
+    // de usar una variable de entorno global. Cada comercial tiene su propia
+    // conexión OAuth en `Comercial.composioConnectionId`.
+    const effectiveComercialId = comercialId ?? session.comercialId ?? null;
+    if (!effectiveComercialId) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Sin comercial asociado a la sesión para agendar la visita",
+        },
+        { status: 400 },
+      );
+    }
+
+    const comercial = await prisma.comercial.findUnique({
+      where: { id: effectiveComercialId },
+      select: { composioConnectionId: true, nombre: true },
+    });
+
+    if (!comercial?.composioConnectionId) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "El comercial no tiene conectado su calendario. Pídele que lo conecte en Configuración → Google Calendar.",
+        },
+        { status: 409 },
+      );
+    }
+
     const calendarInput: CalendarEventInput = {
       titulo: `Visita: ${propiedad} — ${clienteNombre}`,
       descripcion: [
@@ -64,21 +99,26 @@ const postHandler = async (request: Request) => {
       ubicacion,
     };
 
-    const calendarResult = await createCalendarEvent(calendarInput);
+    const calendarResult = await createCalendarEvent(
+      calendarInput,
+      comercial.composioConnectionId,
+    );
 
     const event = await appendEvent({
       type: EventType.VISITA_AGENDADA,
       aggregateType: AggregateType.DEMAND,
       aggregateId: demandId,
       payload: {
-        comercialId: comercialId || "system",
-        clienteNombre,
-        propiedad,
+        sessionId: null,
+        comercialId: effectiveComercialId,
+        comercialNombre: comercial.nombre ?? clienteNombre,
+        demandId,
+        propertyCode: propiedad,
         fecha,
         horaInicio,
         horaFin,
-        ubicacion: ubicacion || "",
-        notas: notas || "",
+        visitorName: clienteNombre,
+        visitorPhone: "",
         calendarEventId: calendarResult.eventId || null,
         calendarLink: calendarResult.link || null,
         calendarSuccess: calendarResult.success,

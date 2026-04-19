@@ -5,6 +5,9 @@ const mockEventFindFirst = vi.fn();
 const mockDemandCurrentFindUnique = vi.fn();
 const mockPropertyCurrentFindUnique = vi.fn();
 const mockComercialFindFirst = vi.fn();
+const mockOperacionFindUnique = vi.fn();
+const mockPostventaSessionFindUnique = vi.fn();
+const mockEnqueueJob = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -23,7 +26,17 @@ vi.mock("@/lib/prisma", () => ({
     comercial: {
       findFirst: (...args: unknown[]) => mockComercialFindFirst(...args),
     },
+    operacion: {
+      findUnique: (...args: unknown[]) => mockOperacionFindUnique(...args),
+    },
+    postventaSurveySession: {
+      findUnique: (...args: unknown[]) => mockPostventaSessionFindUnique(...args),
+    },
   },
+}));
+
+vi.mock("@/lib/job-queue", () => ({
+  enqueueJob: (...args: unknown[]) => mockEnqueueJob(...args),
 }));
 
 const mockSendAgradecimiento = vi.fn();
@@ -31,6 +44,8 @@ const mockSendSoporte = vi.fn();
 const mockSendResena = vi.fn();
 const mockSendReferidos = vi.fn();
 const mockSendRecaptacion = vi.fn();
+const mockSendCumpleanos = vi.fn();
+const mockSendNavidad = vi.fn();
 
 vi.mock("@/lib/whatsapp/send", () => ({
   sendPostventaAgradecimiento: (...args: unknown[]) => mockSendAgradecimiento(...args),
@@ -38,6 +53,18 @@ vi.mock("@/lib/whatsapp/send", () => ({
   sendPostventaResena: (...args: unknown[]) => mockSendResena(...args),
   sendPostventaReferidos: (...args: unknown[]) => mockSendReferidos(...args),
   sendPostventaRecaptacion: (...args: unknown[]) => mockSendRecaptacion(...args),
+  sendPostventaCumpleanos: (...args: unknown[]) => mockSendCumpleanos(...args),
+  sendPostventaNavidad: (...args: unknown[]) => mockSendNavidad(...args),
+}));
+
+const mockSendFormulario = vi.fn();
+vi.mock("@/lib/postventa/whatsapp", () => ({
+  sendPostventaFormulario: (...args: unknown[]) => mockSendFormulario(...args),
+}));
+
+const mockResolveComercialByProperty = vi.fn();
+vi.mock("@/lib/routing/resolve-comercial", () => ({
+  resolveComercialByProperty: (...args: unknown[]) => mockResolveComercialByProperty(...args),
 }));
 
 vi.mock("@/lib/microsite/app-url", () => ({
@@ -80,8 +107,7 @@ function setupNoBuyer() {
 }
 
 function setupComercial(name: string) {
-  mockPropertyCurrentFindUnique.mockResolvedValue({ agente: "com-1" });
-  mockComercialFindFirst.mockResolvedValue({ nombre: name });
+  mockResolveComercialByProperty.mockResolvedValue({ nombre: name });
 }
 
 describe("handleSendPostventaMessage", () => {
@@ -89,6 +115,8 @@ describe("handleSendPostventaMessage", () => {
     vi.clearAllMocks();
     process.env.AGENCY_NAME = "Test Agency";
     process.env.GOOGLE_REVIEW_URL = "https://g.page/r/test";
+    mockPostventaSessionFindUnique.mockResolvedValue(null);
+    mockOperacionFindUnique.mockResolvedValue(null);
   });
 
   it("envía agradecimiento D0 con datos del comprador", async () => {
@@ -113,6 +141,7 @@ describe("handleSendPostventaMessage", () => {
         agencyName: "Test Agency",
         comercialName: "María López",
       }),
+      expect.objectContaining({ useTemplate: true }),
     );
   });
 
@@ -138,6 +167,7 @@ describe("handleSendPostventaMessage", () => {
         guideUrl: "https://app.test/postventa/guia",
         propertyCode: "P-1",
       }),
+      expect.objectContaining({ useTemplate: true }),
     );
   });
 

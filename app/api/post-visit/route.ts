@@ -4,6 +4,7 @@ import { appendEvent } from "@/lib/event-store/event-store";
 import { AggregateType, EventType } from "@/app/generated/prisma/client";
 import { enqueueJob } from "@/lib/job-queue";
 import { withObservedRoute } from "@/lib/observability";
+import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 
 const BodySchema = z.object({
   demandId: z.string(),
@@ -14,6 +15,9 @@ const BodySchema = z.object({
 });
 
 const postHandler = async (request: Request) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+
   try {
     const body = await request.json();
     const parsed = BodySchema.safeParse(body);

@@ -9,6 +9,7 @@
 
 import { Annotation, StateGraph, START, END } from "@langchain/langgraph";
 import { llm } from "./llm";
+import { withRetry } from "./utils/retry";
 import {
   CeoDiagnosticSchema,
   type CeoDiagnosticRecommendation,
@@ -223,13 +224,15 @@ async function diagnosticNode(
   try {
     const userContent = serializeInputForPrompt(input);
 
-    const raw = await llmStructured.invoke([
-      { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: `Analiza los siguientes datos de Urus Capital Group y genera tu diagnóstico estratégico con recomendaciones:\n\n${userContent}`,
-      },
-    ]);
+    const raw = await withRetry(() =>
+      llmStructured.invoke([
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `Analiza los siguientes datos de Urus Capital Group y genera tu diagnóstico estratégico con recomendaciones:\n\n${userContent}`,
+        },
+      ]),
+    );
 
     const recommendation: CeoDiagnosticRecommendation = {
       diagnostico_general: raw.diagnostico_general,

@@ -1,0 +1,108 @@
+name: Eval Conversacional - Regresión
+
+# Ejecuta el golden regression dataset del agente conversacional.
+# Falla si el pass@k del dataset marcado como isRegression cae por debajo del umbral.
+#
+# Trigger:
+#   - PRs hacia develop/main (siempre que toquen el agente, evals, prompts o el workflow)
+#   - Push directo a develop/main
+#   - Manual (workflow_dispatch)
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - "lib/agents/**"
+      - "lib/eval/**"
+      - "app/api/eval/**"
+      - "scripts/run-conversational-eval.ts"
+      - ".github/workflows/eval-conversational-regression.yml"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches: [develop, main]
+    paths:
+      - "lib/agents/**"
+      - "lib/eval/**"
+      - "app/api/eval/**"
+      - "scripts/run-conversational-eval.ts"
+      - ".github/workflows/eval-conversational-regression.yml"
+  workflow_dispatch:
+    inputs:
+      threshold:
+        description: "Umbral pass@k (0.0 - 1.0)"
+        required: false
+        default: "0.95"
+      trials:
+        description: "Trials por escenario"
+        required: false
+        default: "3"
+
+concurrency:
+  group: eval-conversational-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    name: Golden Regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      CI: "true"
+      NODE_ENV: test
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      CONVERSATIONAL_AGENT_TEMPERATURE: "0.2"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Validar OPENAI_API_KEY
+        run: |
+          if [ -z "${OPENAI_API_KEY}" ]; then
+            echo "::error::Falta el secret OPENAI_API_KEY en el repo."
+            exit 1
+          fi
+
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+
+      - name: Generar cliente Prisma
+        run: npx prisma generate
+
+      - name: Ejecutar regresión conversacional
+        run: |
+          THRESHOLD="${{ github.event.inputs.threshold || '0.95' }}"
+          TRIALS="${{ github.event.inputs.trials || '3' }}"
+          echo "Threshold=$THRESHOLD | Trials=$TRIALS"
+          npx tsx scripts/run-conversational-eval.ts \
+            --name "ci-regression-${GITHUB_RUN_ID}" \
+            --regression \
+            --trials "$TRIALS" \
+            --threshold "$THRESHOLD" \
+            --concurrency 2 \
+            | tee eval-output.txt
+
+      - name: Resumen en GitHub Actions
+        if: always()
+        run: |
+          echo "## Regresión conversacional" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -n 40 eval-output.txt >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Subir log completo como artefacto
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-conversational-regression-${{ github.run_id }}
+          path: eval-output.txt
+          retention-days: 14

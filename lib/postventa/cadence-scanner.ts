@@ -6,6 +6,7 @@ import { hasOpenIncidencia } from "./send-message-handler";
 import type { OperacionEstado } from "@/app/generated/prisma/client";
 
 const MAX_OPERATIONS_PER_SCAN = 100;
+const EVENT_PAGE_SIZE = 500;
 
 export interface PostventaScanResult {
   operationsScanned: number;
@@ -30,42 +31,49 @@ interface ClosedOperation {
  * Tambien re-encola steps pendientes tras resolución de incidencias.
  */
 export async function scanPostventaCadences(): Promise<PostventaScanResult> {
-  const closingEvents = await prisma.event.findMany({
-    where: { type: "ESTADO_CAMBIADO" },
-    select: {
-      id: true,
-      aggregateId: true,
-      occurredAt: true,
-      payload: true,
-    },
-    orderBy: { occurredAt: "desc" },
-    take: MAX_OPERATIONS_PER_SCAN * 3,
-  });
-
   const closedOperations: ClosedOperation[] = [];
   const seen = new Set<string>();
+  let cursor: string | undefined;
 
-  for (const ev of closingEvents) {
-    if (seen.has(ev.aggregateId)) continue;
-    const payload = ev.payload as Record<string, unknown> | null;
-    const newEstado = typeof payload?.newEstado === "string" ? payload.newEstado : "";
-    if (!isOperacionCerrada(newEstado)) continue;
-
-    seen.add(ev.aggregateId);
-
-    const opPayload = ev.payload as Record<string, unknown> | null;
-    const payloadOperacionId =
-      typeof opPayload?.operacionId === "string" ? opPayload.operacionId : undefined;
-
-    closedOperations.push({
-      aggregateId: ev.aggregateId,
-      operacionId: payloadOperacionId,
-      eventId: ev.id,
-      occurredAt: ev.occurredAt,
-      closedAt: ev.occurredAt.toISOString(),
+  while (closedOperations.length < MAX_OPERATIONS_PER_SCAN) {
+    const closingEvents = await prisma.event.findMany({
+      where: { type: "ESTADO_CAMBIADO" },
+      select: {
+        id: true,
+        aggregateId: true,
+        occurredAt: true,
+        payload: true,
+      },
+      orderBy: { occurredAt: "desc" },
+      take: EVENT_PAGE_SIZE,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     });
 
-    if (closedOperations.length >= MAX_OPERATIONS_PER_SCAN) break;
+    if (closingEvents.length === 0) break;
+    cursor = closingEvents[closingEvents.length - 1].id;
+
+    for (const ev of closingEvents) {
+      if (seen.has(ev.aggregateId)) continue;
+      const payload = ev.payload as Record<string, unknown> | null;
+      const newEstado = typeof payload?.newEstado === "string" ? payload.newEstado : "";
+      if (!isOperacionCerrada(newEstado)) continue;
+
+      seen.add(ev.aggregateId);
+
+      const opPayload = ev.payload as Record<string, unknown> | null;
+      const payloadOperacionId =
+        typeof opPayload?.operacionId === "string" ? opPayload.operacionId : undefined;
+
+      closedOperations.push({
+        aggregateId: ev.aggregateId,
+        operacionId: payloadOperacionId,
+        eventId: ev.id,
+        occurredAt: ev.occurredAt,
+        closedAt: ev.occurredAt.toISOString(),
+      });
+
+      if (closedOperations.length >= MAX_OPERATIONS_PER_SCAN) break;
+    }
   }
 
   let followUpsEnqueued = 0;
@@ -114,19 +122,33 @@ export async function scanPostventaCadences(): Promise<PostventaScanResult> {
 
       allCovered = false;
 
-      await enqueueJob({
-        type: "SEND_POSTVENTA_MESSAGE",
-        payload: {
-          propertyCode: op.aggregateId,
-          operacionId: resolvedOperacionId,
-          step: step.label,
-          template: step.template,
-          closedAt: op.closedAt,
-          requiresNoIncidencia: step.requiresNoIncidencia,
-        },
-        idempotencyKey,
-        sourceEventId: op.eventId,
-      });
+      if (step.template === "formulario") {
+        await enqueueJob({
+          type: "SEND_POSTVENTA_FORM",
+          payload: {
+            propertyCode: op.aggregateId,
+            operacionId: resolvedOperacionId,
+            closedAt: op.closedAt,
+            sourceEventId: op.eventId,
+          },
+          idempotencyKey,
+          sourceEventId: op.eventId,
+        });
+      } else {
+        await enqueueJob({
+          type: "SEND_POSTVENTA_MESSAGE",
+          payload: {
+            propertyCode: op.aggregateId,
+            operacionId: resolvedOperacionId,
+            step: step.label,
+            template: step.template,
+            closedAt: op.closedAt,
+            requiresNoIncidencia: step.requiresNoIncidencia,
+          },
+          idempotencyKey,
+          sourceEventId: op.eventId,
+        });
+      }
 
       followUpsEnqueued++;
     }

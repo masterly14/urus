@@ -52,6 +52,14 @@ export async function searchClient(
   if (Object.keys(query).length === 0) {
     return [];
   }
-  const result = await client.get<Cliente[] | Cliente>("/clientes/buscar/", query);
-  return Array.isArray(result) ? result : [result];
+  try {
+    const result = await client.get<Cliente[] | Cliente>("/clientes/buscar/", query);
+    return Array.isArray(result) ? result : [result];
+  } catch (err) {
+    // REST v1 returns 404 when no clients match — treat as empty result
+    if (err instanceof Error && err.message.includes("404")) {
+      return [];
+    }
+    throw err;
+  }
 }

@@ -1,14 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EventRecord } from "@/lib/event-store/types";
 
-const { upsertMock } = vi.hoisted(() => ({
+const { upsertMock, comercialFindUniqueMock, comercialFindFirstMock } = vi.hoisted(() => ({
   upsertMock: vi.fn(),
+  comercialFindUniqueMock: vi.fn().mockResolvedValue(null),
+  comercialFindFirstMock: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     demandCurrent: {
       upsert: upsertMock,
+    },
+    comercial: {
+      findUnique: comercialFindUniqueMock,
+      findFirst: comercialFindFirstMock,
     },
   },
 }));
@@ -56,6 +62,11 @@ describe("applyDemandProjection", () => {
   beforeEach(() => {
     upsertMock.mockReset();
     upsertMock.mockResolvedValue({});
+    comercialFindUniqueMock.mockReset();
+    comercialFindUniqueMock.mockResolvedValue(null);
+    comercialFindFirstMock.mockReset();
+    comercialFindFirstMock.mockResolvedValue(null);
+    vi.stubEnv("DEMAND_RESOLVE_TRACE", "0");
   });
 
   it("DEMANDA_CREADA: debe hacer upsert con snapshot completo", async () => {

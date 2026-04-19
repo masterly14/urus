@@ -1,8 +1,8 @@
 import "dotenv/config";
 import { randomUUID } from "crypto";
-import { runConsumerLoop } from "../lib/workers/consumer";
+import { runConsumerLoop, ALL_CONSUMER_JOB_TYPES } from "../lib/workers/consumer";
 
-const DEFAULT_MAX_CYCLES = 50;
+const DEFAULT_MAX_CYCLES = 600;
 
 async function main() {
   const maxCycles = Number(process.env.CONSUMER_MAX_CYCLES) || DEFAULT_MAX_CYCLES;
@@ -15,26 +15,7 @@ async function main() {
     maxCycles,
     batchSize: maxCycles,
     pollIntervalMs: 1_000,
-    types: [
-      "PROCESS_EVENT",
-      "NOTIFY_LEAD_WHATSAPP",
-      "FOLLOW_UP_LEAD",
-      "GENERATE_MICROSITE",
-      "NOTIFY_MICROSITE_PENDING_VALIDATION",
-      "SEND_MICROSITE_TO_BUYER",
-      "WRITE_TO_INMOVILLA",
-      "GENERATE_CONTRACT_DRAFT",
-      "NOTIFY_CONTRACT_DATA_INCOMPLETE",
-      "SEND_SIGNATURE_REQUEST",
-      "RUN_PRICING_ANALYSIS",
-      "NOTIFY_PRICING_WHATSAPP",
-      "SEND_POST_SALE_MESSAGE",
-      "SEND_REVIEW_REQUEST",
-      "SEND_REVIEW_REMINDER",
-      "SEND_REFERRAL_REQUEST",
-      "START_POSTVENTA_CADENCE",
-      "SEND_POSTVENTA_MESSAGE",
-    ],
+    types: ALL_CONSUMER_JOB_TYPES,
   });
 
   console.log("\n=== Resultado del consumer ===");

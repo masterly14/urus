@@ -56,9 +56,14 @@ export type TemplateComponentHeader = {
 
 export type TemplateComponentButton = {
   type: "button";
-  sub_type: "quick_reply" | "url";
+  sub_type: "quick_reply" | "url" | "flow";
   index: string;
-  parameters: Array<{ type: "payload" | "text"; payload?: string; text?: string }>;
+  parameters: Array<{
+    type: "payload" | "text" | "action";
+    payload?: string;
+    text?: string;
+    action?: Record<string, unknown>;
+  }>;
 };
 
 export type TemplateComponent =
@@ -98,15 +103,47 @@ export type InteractiveActionList = {
   }>;
 };
 
+export type InteractiveActionFlow = {
+  name: "flow";
+  parameters: {
+    flow_message_version: string;
+    flow_id?: string;
+    flow_name?: string;
+    flow_cta: string;
+    flow_token?: string;
+    flow_action?: "navigate" | "data_exchange";
+    flow_action_payload?: {
+      screen?: string;
+      data?: string;
+    };
+    mode?: "draft" | "published";
+  };
+};
+
 export type InteractiveObject = {
-  type: "button" | "list";
+  type: "button" | "list" | "flow";
   header?: { type: "text"; text: string };
   body: { text: string };
   footer?: { text: string };
-  action: InteractiveActionButtons | InteractiveActionList;
+  action: InteractiveActionButtons | InteractiveActionList | InteractiveActionFlow;
+};
+
+// ---- Objeto de documento ----
+
+export type DocumentObject = {
+  link: string;
+  filename?: string;
+  caption?: string;
 };
 
 // ---- Payload de envío (discriminado por type) ----
+
+export type SendMessagePayloadDocument = {
+  to: string;
+  type: "document";
+  document: DocumentObject;
+  context?: { message_id: string };
+};
 
 export type SendMessagePayloadText = {
   to: string;
@@ -132,7 +169,8 @@ export type SendMessagePayloadInteractive = {
 export type SendMessagePayload =
   | SendMessagePayloadText
   | SendMessagePayloadTemplate
-  | SendMessagePayloadInteractive;
+  | SendMessagePayloadInteractive
+  | SendMessagePayloadDocument;
 
 // ---- Respuesta de envío ----
 

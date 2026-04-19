@@ -8,6 +8,7 @@
 
 import { Annotation, StateGraph, START, END } from "@langchain/langgraph";
 import { llm } from "./llm";
+import { withRetry } from "./utils/retry";
 import {
   PricingRecommendationSchema,
   type PricingRecommendation,
@@ -167,13 +168,15 @@ async function recommendNode(
   try {
     const userContent = serializeAnalysisForPrompt(analysis);
 
-    const raw = await llmStructured.invoke([
-      { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: `Analiza el siguiente inmueble y genera tu recomendación de pricing:\n\n${userContent}`,
-      },
-    ]);
+    const raw = await withRetry(() =>
+      llmStructured.invoke([
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `Analiza el siguiente inmueble y genera tu recomendación de pricing:\n\n${userContent}`,
+        },
+      ]),
+    );
 
     const recommendation: PricingRecommendation = {
       accion: raw.accion,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { assignSla } from "@/lib/sla";
+import { assignSla, MAX_RESPONSE_INFINITE } from "@/lib/sla";
 
 describe("assignSla", () => {
   it("score >= 80 => CRITICAL, <5min, notifyImmediately, no cadence", () => {
@@ -45,7 +45,7 @@ describe("assignSla", () => {
   it("score < 40 => LOW, cadencia D+1/D+3/D+7, no notify immediately", () => {
     const result = assignSla(20);
     expect(result.sla.level).toBe("LOW");
-    expect(result.sla.maxResponseMs).toBe(Infinity);
+    expect(result.sla.maxResponseMs).toBe(MAX_RESPONSE_INFINITE);
     expect(result.notifyImmediately).toBe(false);
     expect(result.followUpCadence).not.toBeNull();
     expect(result.followUpCadence).toHaveLength(3);

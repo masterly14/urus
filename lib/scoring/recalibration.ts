@@ -35,22 +35,27 @@ const ITERATIONS = 500;
 
 /**
  * Builds labeled samples by joining CommercialLeadFact with
- * CommercialOperationFact. A lead is "closed" if its aggregateId
- * matches any operation fact's sourceEventId pattern.
+ * CommercialOperationFact. A lead is "closed" if its `inmovillaDemandId`
+ * matches the `demandId` of any `CommercialOperationFact` row
+ * (ambos en el ID-space de Inmovilla).
+ *
+ * Nota: leads sin `inmovillaDemandId` (p. ej. web forms sin demanda en Inmovilla)
+ * se etiquetan como no-cerrados. Para esos leads no tenemos señal de cierre fiable.
  */
 export async function collectLabeledSamples(): Promise<LabeledSample[]> {
   const [leadFacts, opFacts] = await Promise.all([
     prisma.commercialLeadFact.findMany({
       where: { score: { not: null } },
-      select: { leadId: true, raw: true, tipo: true },
+      select: { leadId: true, inmovillaDemandId: true, raw: true, tipo: true },
     }),
     prisma.commercialOperationFact.findMany({
-      where: { closedAt: { not: null } },
-      select: { sourceEventId: true },
+      select: { demandId: true },
     }),
   ]);
 
-  const closedEventIds = new Set(opFacts.map((o) => o.sourceEventId));
+  const closedDemandIds = new Set(
+    opFacts.map((o) => o.demandId).filter((id): id is string => id != null && id !== ""),
+  );
 
   const samples: LabeledSample[] = [];
 
@@ -80,7 +85,8 @@ export async function collectLabeledSamples(): Promise<LabeledSample[]> {
     const value = normalize(points.value, ranges.value.min, ranges.value.max);
     const urgency = normalize(points.urgency, ranges.urgency.min, ranges.urgency.max);
 
-    const closed = closedEventIds.has(lead.leadId);
+    const closed =
+      lead.inmovillaDemandId != null && closedDemandIds.has(lead.inmovillaDemandId);
 
     samples.push({ pclose, value, urgency, closed });
   }
@@ -132,8 +138,15 @@ export function fitLogisticRegression(
 }
 
 /**
- * Converts raw logistic regression coefficients to normalized weights
- * that sum to 1 and are non-negative.
+ * Converts raw logistic regression coefficients to normalized weights.
+ *
+ * H23: la normalización preserva el signo del coeficiente original. Un coeficiente
+ * negativo indica una relación inversa entre el feature y el cierre (más del feature
+ * reduce la probabilidad de cierre) y es semánticamente significativo — no puede
+ * colapsarse a un peso positivo.
+ *
+ * Escala: cada peso vale `sign(w_i) * (|w_i| / sum(|w_j|))`, por lo que la magnitud
+ * total sigue sumando 1 (Σ|wᵢ| = 1) pero la dirección de cada feature se preserva.
  */
 export function normalizeCoefficients(
   w1: number,
@@ -149,10 +162,15 @@ export function normalizeCoefficients(
     return { pclose: DEFAULT_WEIGHTS.pclose, value: DEFAULT_WEIGHTS.value, urgency: DEFAULT_WEIGHTS.urgency };
   }
 
+  const normalize = (w: number, abs: number): number => {
+    const sign = w < 0 ? -1 : 1;
+    return Math.round(sign * (abs / total) * 100) / 100;
+  };
+
   return {
-    pclose: Math.round((abs1 / total) * 100) / 100,
-    value: Math.round((abs2 / total) * 100) / 100,
-    urgency: Math.round((abs3 / total) * 100) / 100,
+    pclose: normalize(w1, abs1),
+    value: normalize(w2, abs2),
+    urgency: normalize(w3, abs3),
   };
 }
 

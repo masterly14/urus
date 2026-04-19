@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthorized } from "@/lib/api/cron-auth";
-import { runConsumerLoop } from "@/lib/workers/consumer";
+import { runConsumerLoop, ALL_CONSUMER_JOB_TYPES } from "@/lib/workers/consumer";
 import { randomUUID } from "crypto";
 import { withObservedRoute } from "@/lib/observability";
 
@@ -29,27 +29,7 @@ const postHandler = async (request: Request) => {
     maxCycles: batchSize,
     batchSize,
     pollIntervalMs: 500,
-    types: [
-      "PROCESS_EVENT",
-      "NOTIFY_LEAD_WHATSAPP",
-      "FOLLOW_UP_LEAD",
-      "GENERATE_MICROSITE",
-      "NOTIFY_MICROSITE_PENDING_VALIDATION",
-      "SEND_MICROSITE_TO_BUYER",
-      "WRITE_TO_INMOVILLA",
-      "GENERATE_CONTRACT_DRAFT",
-      "NOTIFY_CONTRACT_DATA_INCOMPLETE",
-      "SEND_SIGNATURE_REQUEST",
-      "RUN_PRICING_ANALYSIS",
-      "NOTIFY_PRICING_WHATSAPP",
-      "SEND_POST_SALE_MESSAGE",
-      "SEND_REVIEW_REQUEST",
-      "SEND_REVIEW_REMINDER",
-      "SEND_REFERRAL_REQUEST",
-      "START_POSTVENTA_CADENCE",
-      "SEND_POSTVENTA_MESSAGE",
-      "SEND_DEV_EXERCISE_NUDGE",
-    ],
+    types: ALL_CONSUMER_JOB_TYPES,
   });
 
   return NextResponse.json(result);
@@ -57,4 +37,5 @@ const postHandler = async (request: Request) => {
 
 export const POST = withObservedRoute({ method: "POST", route: "/api/cron/consumer" }, postHandler);
 
-export const maxDuration = 60;
+// Vercel Hobby: 60s, Pro: 300s. Increase to 300 when on Pro to drain larger backlogs.
+export const maxDuration = 300;

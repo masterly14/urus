@@ -5,7 +5,6 @@ import {
   LineRuleType,
   Paragraph,
   TextRun,
-  UnderlineType,
 } from "docx";
 import type { ArrasContractPayload } from "@/types/contracts";
 import {
@@ -179,11 +178,7 @@ export async function buildArrasDocument(payload: ArrasContractPayload): Promise
             spacing: { before: 320, after: 140 },
             alignment: AlignmentType.CENTER,
             children: [
-              new TextRun({
-                text: model.signatureLine,
-                underline: { type: UnderlineType.SINGLE },
-                size: 24,
-              }),
+              new TextRun({ text: model.signatureLine, size: 24 }),
             ],
           }),
         ],

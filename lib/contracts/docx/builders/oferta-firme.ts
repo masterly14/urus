@@ -5,7 +5,6 @@ import {
   LineRuleType,
   Paragraph,
   TextRun,
-  UnderlineType,
 } from "docx";
 import type { OfertaFirmeContractPayload } from "@/types/contracts";
 import {
@@ -172,7 +171,6 @@ export async function buildOfertaFirmeDocument(payload: OfertaFirmeContractPaylo
       children: [
         new TextRun({
           text: signLine,
-          underline: { type: UnderlineType.SINGLE },
           size: 24,
         }),
       ],

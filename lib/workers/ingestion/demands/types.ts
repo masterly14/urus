@@ -2,6 +2,8 @@ import type { Demand } from "@/types/domain";
 import type { InmovillaDemand } from "@/lib/inmovilla/api/types-demands";
 
 export const DEMAND_DIFF_FIELDS = [
+  "nombre",
+  "ref",
   "estadoId",
   "estadoNombre",
   "presupuestoMin",
@@ -11,6 +13,8 @@ export const DEMAND_DIFF_FIELDS = [
   "zonas",
   "fechaActualizacion",
   "agente",
+  "refConsultada",
+  "telefono",
 ] as const satisfies readonly (keyof Demand)[];
 
 export type DemandDiffField = (typeof DEMAND_DIFF_FIELDS)[number];
@@ -37,10 +41,18 @@ export type DemandStatusChangedChange = {
   otherChangedFields: DemandDiffField[];
 };
 
+export type DemandRemovedChange = {
+  type: "removed";
+  codigo: string;
+  previousEstadoId: string;
+  previousEstadoNombre: string;
+};
+
 export type DemandDiffResult = {
   created: DemandCreatedChange[];
   modified: DemandModifiedChange[];
   statusChanged: DemandStatusChangedChange[];
+  removed: DemandRemovedChange[];
   unchanged: number;
 };
 
@@ -55,6 +67,7 @@ export type DemandIngestionCycleResult = {
     created: number;
     modified: number;
     statusChanged: number;
+    removed: number;
     unchanged: number;
   };
   error?: string;
@@ -82,6 +95,12 @@ export type DemandStatusChangedEventPayload = {
   detectedAt: string;
 };
 
+export type DemandRemovedEventPayload = {
+  previousEstadoId: string;
+  previousEstadoNombre: string;
+  detectedAt: string;
+};
+
 export type DemandIngestionEventMetadata = {
   source: "ingestion:demands";
   cycleId: string;
@@ -90,7 +109,8 @@ export type DemandIngestionEventMetadata = {
   eventType:
     | "DEMANDA_CREADA"
     | "DEMANDA_MODIFICADA"
-    | "DEMANDA_ESTADO_CAMBIADO";
+    | "DEMANDA_ESTADO_CAMBIADO"
+    | "DEMANDA_ELIMINADA";
   changedFields: DemandDiffField[];
 };
 
@@ -112,6 +132,10 @@ export type DemandSnapshotData = Pick<
   | "zonas"
   | "fechaActualizacion"
   | "agente"
+  | "siglas"
+  | "inmovillaAgentId"
+  | "refConsultada"
+  | "telefono"
 >;
 
 /** Compatibilidad: InmovillaDemand cumple el contrato de dominio Demand. */

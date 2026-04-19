@@ -16,6 +16,48 @@ import type {
 const DEFAULT_API_VERSION: typeof META_API_VERSION = "v20.0";
 const DEFAULT_TIMEOUT_MS = 15_000;
 
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 1_000;
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || (status >= 500 && status <= 599);
+}
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Executes an async operation with exponential backoff.
+ * Retries on 429 (rate limit) and 5xx (server errors) only.
+ */
+export async function fetchWithRetry(
+  fn: () => Promise<Response>,
+  maxRetries = MAX_RETRIES,
+): Promise<Response> {
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    let response: Response;
+    try {
+      response = await fn();
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < maxRetries) {
+        await sleep(BASE_DELAY_MS * Math.pow(2, attempt));
+        continue;
+      }
+      throw lastError;
+    }
+
+    if (response.ok || !isRetryableStatus(response.status) || attempt === maxRetries) {
+      return response;
+    }
+
+    await sleep(BASE_DELAY_MS * Math.pow(2, attempt));
+  }
+  throw lastError ?? new Error("fetchWithRetry: exhausted retries");
+}
+
 export type WhatsAppClient = {
   sendMessage: (payload: SendMessagePayload) => Promise<SendMessageSuccess>;
 };
@@ -61,25 +103,19 @@ export function createWhatsAppClient(config?: Partial<WhatsAppClientConfig>): Wh
   async function sendMessage(payload: SendMessagePayload): Promise<SendMessageSuccess> {
     const url = `${baseUrl}/${phoneNumberId}/messages`;
 
-    const body: Record<string, unknown> = {
+    const jsonBody = JSON.stringify({
       messaging_product: "whatsapp",
       recipient_type: "individual",
       ...payload,
-    };
+    });
 
-    let response: Response;
-    try {
-      response = await fetchWithTimeout(
+    const response = await fetchWithRetry(() =>
+      fetchWithTimeout(
         url,
-        { method: "POST", headers, body: JSON.stringify(body) },
+        { method: "POST", headers, body: jsonBody },
         { timeoutMs, dispatcher },
-      );
-    } catch (err) {
-      throw new Error(
-        `WhatsApp sendMessage falló: ${err instanceof Error ? err.message : String(err)}`,
-        { cause: err instanceof Error ? err : undefined },
-      );
-    }
+      ),
+    );
 
     if (!response.ok) {
       await handleMetaError(response);

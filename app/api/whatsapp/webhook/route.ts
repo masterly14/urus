@@ -16,9 +16,15 @@ import {
   parseWebhookPayload,
 } from "@/lib/whatsapp";
 import type { ParsedWebhookMessage } from "@/lib/whatsapp";
-import { appendEvent } from "@/lib/event-store";
-import { enqueueJob } from "@/lib/job-queue";
+import { appendEventAndEnqueueJob } from "@/lib/event-store";
+import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
+import {
+  handleNotaEncargoButtonReply,
+  handleNotaEncargoNfmReply,
+} from "@/lib/nota-encargo";
+import { handleParteVisitaNfmReply } from "@/lib/parte-visita/webhook-handler";
+import { handlePostventaFormNfmReply } from "@/lib/postventa/form-response-handler";
 
 
 // ---- GET: verificación del challenge ----
@@ -43,15 +49,20 @@ export const GET = withObservedRoute({ method: "GET", route: "/api/whatsapp/webh
 // ---- POST: eventos entrantes ----
 
 const postHandler = async (request: NextRequest): Promise<NextResponse> => {
+  const appSecret = process.env.WHATSAPP_APP_SECRET;
+  if (!appSecret) {
+    console.error("[whatsapp/webhook] WHATSAPP_APP_SECRET no configurado — rechazando request (fail-closed)");
+    return NextResponse.json(
+      { error: "Configuración de seguridad incompleta: WHATSAPP_APP_SECRET requerido" },
+      { status: 500 },
+    );
+  }
+
   const rawBody = await request.text();
 
-  // Verificar firma si WHATSAPP_APP_SECRET está configurado
-  const appSecret = process.env.WHATSAPP_APP_SECRET;
-  if (appSecret) {
-    const signature = request.headers.get("x-hub-signature-256") ?? "";
-    if (!verifyWebhookSignature(rawBody, signature, appSecret)) {
-      return NextResponse.json({ error: "Firma inválida" }, { status: 401 });
-    }
+  const signature = request.headers.get("x-hub-signature-256") ?? "";
+  if (!verifyWebhookSignature(rawBody, signature, appSecret)) {
+    return NextResponse.json({ error: "Firma inválida" }, { status: 401 });
   }
 
   let body: unknown;
@@ -63,13 +74,69 @@ const postHandler = async (request: NextRequest): Promise<NextResponse> => {
 
   const events = parseWebhookPayload(body);
 
+  // --- Nota de Encargo: intercept button replies & Flow nfm_reply ---
+  for (const evt of events) {
+    if (evt.kind !== "message") continue;
+    const msg = evt.message as Record<string, unknown>;
+    const from = evt.waId;
+    const interactive = msg.interactive as Record<string, unknown> | undefined;
+
+    if (msg.type === "interactive" && interactive) {
+      try {
+        if (interactive.type === "button_reply") {
+          const btnReply = interactive.button_reply as { id: string } | undefined;
+          if (btnReply?.id) {
+            const handled = await handleNotaEncargoButtonReply(from, btnReply.id);
+            if (handled) continue;
+          }
+        }
+
+        if (interactive.type === "nfm_reply") {
+          const nfmReply = interactive.nfm_reply as { name?: string; response_json?: string } | undefined;
+          if (nfmReply?.name === "flow" && nfmReply.response_json) {
+            const handled = await handleNotaEncargoNfmReply(from, nfmReply.response_json);
+            if (handled) continue;
+
+            const handledPV = await handleParteVisitaNfmReply(from, nfmReply.response_json);
+            if (handledPV) continue;
+
+            const handledPostventa = await handlePostventaFormNfmReply(
+              from,
+              nfmReply.response_json,
+            );
+            if (handledPostventa) continue;
+          }
+        }
+      } catch (err) {
+        console.error(
+          "[whatsapp/webhook] Nota de Encargo intercept error:",
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+  }
+
   const results = await Promise.allSettled(
     events
       .filter((e): e is ParsedWebhookMessage => e.kind === "message")
         .map(async (e) => {
+          const waMessageId = e.message.id;
+
+          // Dedup: Meta may retry delivery; skip if we already stored this messageId
+          const existing = await prisma.event.findFirst({
+            where: {
+              type: "WHATSAPP_RECIBIDO",
+              aggregateType: "WHATSAPP_CONVERSATION",
+              aggregateId: e.waId,
+              payload: { path: ["messageId"], equals: waMessageId },
+            },
+            select: { id: true },
+          });
+          if (existing) return { deduplicated: true, messageId: waMessageId };
+
           const msg = e.message as Record<string, unknown>;
           const content: Record<string, unknown> = {
-            messageId: e.message.id,
+            messageId: waMessageId,
             from: e.waId,
             profileName: e.profileName ?? null,
             phoneNumberId: e.phoneNumberId,
@@ -81,20 +148,14 @@ const postHandler = async (request: NextRequest): Promise<NextResponse> => {
           if (e.message.type === "button" && "button" in msg) content["button"] = msg["button"];
           if ("context" in msg) content["context"] = msg["context"];
 
-          const stored = await appendEvent({
-            type: "WHATSAPP_RECIBIDO",
-            aggregateType: "WHATSAPP_CONVERSATION",
-            aggregateId: e.waId,
-            payload: content as import("@/lib/event-store").JsonValue,
-            metadata: { source: "whatsapp_webhook" },
-          });
-
-          // Dispara el pipeline: consumer (PROCESS_EVENT) → handler WHATSAPP_RECIBIDO → NLU → DEMANDA_ACTUALIZADA
-          await enqueueJob({
-            type: "PROCESS_EVENT",
-            payload: { eventId: stored.id, eventType: stored.type },
-            sourceEventId: stored.id,
-            idempotencyKey: `process-event:${stored.id}`,
+          const stored = await appendEventAndEnqueueJob({
+            event: {
+              type: "WHATSAPP_RECIBIDO",
+              aggregateType: "WHATSAPP_CONVERSATION",
+              aggregateId: e.waId,
+              payload: content as import("@/lib/event-store").JsonValue,
+              metadata: { source: "whatsapp_webhook", waMessageId },
+            },
           });
 
           return stored;

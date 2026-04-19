@@ -9,7 +9,7 @@
  */
 
 export { matchDemandsToProperty, matchDemandsToPropertyById } from "./match-demands";
-export { computeMatchScore, DEFAULT_CONFIG } from "./scoring";
+export { computeMatchScore, operationMatches, DEFAULT_CONFIG } from "./scoring";
 export type {
   MatchResult,
   MatchScore,

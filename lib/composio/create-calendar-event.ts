@@ -21,25 +21,31 @@ export interface CalendarEventResult {
 /**
  * Crea un evento en Google Calendar del comercial usando Composio.
  *
- * Sigue el mismo patrón de instanciación que get-inmovilla-2fa-code.ts:
- * Composio + OpenAIAgentsProvider + Agent de @openai/agents.
+ * H25: el connectionId se pasa por parámetro para que cada comercial use
+ * su propia conexión OAuth (persistida en `Comercial.composioConnectionId`).
+ * NO se acepta `process.env.COMPOSIO_USER_ID` como fallback — eso colocaría
+ * los eventos en el calendario global/de pruebas y es un bug en multi-tenant.
  *
  * Requiere en .env:
  *   COMPOSIO_API_KEY  – API key de Composio
- *   COMPOSIO_USER_ID  – User ID con conexión Google Calendar activa
  *   OPENAI_API_KEY    – API key de OpenAI
  */
 export async function createCalendarEvent(
   input: CalendarEventInput,
+  composioConnectionId: string,
 ): Promise<CalendarEventResult> {
+  if (!composioConnectionId) {
+    throw new Error(
+      "createCalendarEvent requiere composioConnectionId del comercial",
+    );
+  }
+
   const composio = new Composio({
     apiKey: process.env.COMPOSIO_API_KEY,
     provider: new OpenAIAgentsProvider(),
   });
 
-  const userId = process.env.COMPOSIO_USER_ID ?? "default";
-
-  const session = await composio.create(userId);
+  const session = await composio.create(composioConnectionId);
   const tools = await session.tools();
 
   const startDateTime = `${input.fecha}T${input.horaInicio}:00`;

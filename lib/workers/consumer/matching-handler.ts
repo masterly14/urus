@@ -1,7 +1,9 @@
 /**
  * Handler del consumer para el cruce automático de demandas.
  *
- * Se activa con PROPIEDAD_CREADA (y opcionalmente PROPIEDAD_MODIFICADA):
+ * Se activa con PROPIEDAD_CREADA y PROPIEDAD_MODIFICADA (cuando cambian
+ * campos relevantes para el matching: precio, zona, ciudad, tipología, metros, habitaciones).
+ *
  * 1. Ejecuta matchDemandsToPropertyById(aggregateId).
  * 2. Para cada match, emite evento MATCH_GENERADO.
  * 3. Encola follow-up jobs: projection + notificación.
@@ -27,6 +29,31 @@ type PropertySnapshot = {
   zona?: string;
 };
 
+const MATCHING_RELEVANT_FIELDS = new Set([
+  "precio",
+  "metrosConstruidos",
+  "habitaciones",
+  "zona",
+  "ciudad",
+  "tipoOfer",
+]);
+
+/**
+ * H20: Límite duro de fan-out por ejecución de matching para una propiedad.
+ * Evita que una propiedad con decenas/cientos de matches dispare avalanchas de
+ * eventos MATCH_GENERADO y jobs PROCESS_EVENT en un único handler.
+ * Se toman los N mejores por `totalScore` (matches vienen ya ordenados).
+ */
+const MAX_MATCHES_PER_PROPERTY = 20;
+
+const PRICING_RELEVANT_FIELDS = new Set([
+  "precio",
+  "metrosConstruidos",
+  "habitaciones",
+  "banyos",
+  "estado",
+]);
+
 function extractPropertyFromPayload(
   event: Event,
 ): PropertyForMatching | null {
@@ -46,8 +73,49 @@ function extractPropertyFromPayload(
   };
 }
 
+function hasMatchingRelevantChanges(event: Event): boolean {
+  const payload = event.payload as Record<string, unknown> | null;
+  const changedFields = Array.isArray(payload?.changedFields)
+    ? (payload.changedFields as string[])
+    : [];
+  if (changedFields.length === 0) return true;
+  return changedFields.some((f) => MATCHING_RELEVANT_FIELDS.has(f));
+}
+
+function hasPricingRelevantChanges(event: Event): boolean {
+  const payload = event.payload as Record<string, unknown> | null;
+  const changedFields = Array.isArray(payload?.changedFields)
+    ? (payload.changedFields as string[])
+    : [];
+  if (changedFields.length === 0) return true;
+  return changedFields.some((f) => PRICING_RELEVANT_FIELDS.has(f));
+}
+
 export async function handlePropertyMatching(event: Event): Promise<HandlerResult> {
   const propertyId = event.aggregateId;
+
+  if (event.type === "PROPIEDAD_MODIFICADA" && !hasMatchingRelevantChanges(event)) {
+    console.log(
+      `[consumer:matching] PROPIEDAD_MODIFICADA ${propertyId} — sin campos relevantes para matching, solo projection`,
+    );
+    const jobs: EnqueueJobInput[] = [
+      {
+        type: "UPDATE_PROPERTY_PROJECTION",
+        payload: { eventId: event.id },
+        idempotencyKey: `update_property_projection:${event.id}`,
+        sourceEventId: event.id,
+      },
+    ];
+    if (hasPricingRelevantChanges(event)) {
+      jobs.push({
+        type: "RUN_PRICING_ANALYSIS",
+        payload: { propertyCode: propertyId },
+        idempotencyKey: `run-pricing:${event.id}`,
+        sourceEventId: event.id,
+      });
+    }
+    return { success: true, followUpJobs: jobs };
+  }
 
   console.log(
     `[consumer:matching] ${event.type} propertyId=${propertyId} → ejecutando cruce de demandas`,
@@ -60,13 +128,15 @@ export async function handlePropertyMatching(event: Event): Promise<HandlerResul
       idempotencyKey: `update_property_projection:${event.id}`,
       sourceEventId: event.id,
     },
-    {
+  ];
+  if (event.type !== "PROPIEDAD_MODIFICADA" || hasPricingRelevantChanges(event)) {
+    followUpJobs.push({
       type: "RUN_PRICING_ANALYSIS",
       payload: { propertyCode: propertyId },
       idempotencyKey: `run-pricing:${event.id}`,
       sourceEventId: event.id,
-    },
-  ];
+    });
+  }
 
   try {
     let result = await matchDemandsToPropertyById(propertyId);
@@ -87,16 +157,25 @@ export async function handlePropertyMatching(event: Event): Promise<HandlerResul
 
     if (result.matches.length === 0) {
       console.log(
-        `[consumer:matching] Propiedad ${propertyId} — 0 matches de ${result.totalDemands} demandas`,
+        `[consumer:matching] Propiedad ${propertyId} — 0 matches de ${result.totalDemands} demandas (${result.filteredOut} filtradas)`,
       );
       return { success: true, followUpJobs };
     }
 
-    console.log(
-      `[consumer:matching] Propiedad ${propertyId} — ${result.matches.length} matches encontrados`,
-    );
+    // H20: limitar fan-out a los top-N por totalScore (ya ordenados desc en matchDemandsToProperty)
+    const totalMatches = result.matches.length;
+    const topMatches = result.matches.slice(0, MAX_MATCHES_PER_PROPERTY);
+    if (totalMatches > MAX_MATCHES_PER_PROPERTY) {
+      console.warn(
+        `[consumer:matching] Propiedad ${propertyId} — ${totalMatches} matches detectados, limitando a top-${MAX_MATCHES_PER_PROPERTY} (${totalMatches - MAX_MATCHES_PER_PROPERTY} descartados)`,
+      );
+    } else {
+      console.log(
+        `[consumer:matching] Propiedad ${propertyId} — ${totalMatches} matches encontrados (${result.filteredOut} filtradas)`,
+      );
+    }
 
-    for (const match of result.matches) {
+    for (const match of topMatches) {
       const matchEvent = await appendEvent({
         type: "MATCH_GENERADO",
         aggregateType: "MATCH",

@@ -1,5 +1,5 @@
 import { parseGuardarResponse } from "./parsers";
-import { verifyDemandEmail, verifyDemandPriority } from "./verify";
+import { verifyDemandEmail, verifyDemandPriority, verifyDemandCriteria } from "./verify";
 import type {
   WriteOperation,
   WriteOperationSpec,
@@ -220,6 +220,19 @@ const updateDemandCriteriaSpec: WriteOperationSpec<"updateDemandCriteria"> = {
     };
   },
   parseMainResponse: parseGuardarResponse,
+  verify: (ctx, demandId) => ({
+    path: `/new/app/cargas/fichacliente/fichacliente.php?${toQueryString({
+      eS: "0",
+      cache: buildCacheToken(ctx.session.numAgencia),
+    })}`,
+    body: {
+      "demandas-cod_dempriclave": demandId,
+      nbclave: "demandas.cod_dem",
+    },
+    responseMode: "text",
+  }),
+  parseVerify: (responseText, ctx) =>
+    verifyDemandCriteria(responseText, ctx.payload.patch ?? {}),
 };
 
 export const writeOperationRegistry: {

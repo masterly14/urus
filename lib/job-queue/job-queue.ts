@@ -129,27 +129,45 @@ export async function markCompleted(
 ): Promise<JobRecord> {
   const now = defaultNow(input.now);
 
-  const where: Prisma.JobQueueWhereUniqueInput = { id: input.jobId };
-  const job = await prisma.jobQueue.findUnique({ where });
-  if (!job) throw new Error(`Job no existe: ${input.jobId}`);
-  if (job.status !== "IN_PROGRESS") {
-    throw new Error(`Job no está IN_PROGRESS: ${input.jobId}`);
-  }
-  if (input.workerId && job.lockedBy !== input.workerId) {
-    throw new Error(`Job lock no pertenece al worker: ${input.jobId}`);
+  if (input.workerId) {
+    const result = await prisma.$executeRaw`
+      UPDATE "job_queue"
+      SET "status" = 'COMPLETED',
+          "completedAt" = ${now},
+          "lockedAt" = NULL,
+          "lockedBy" = NULL,
+          "lastError" = NULL,
+          "updatedAt" = ${now}
+      WHERE "id" = ${input.jobId}
+        AND "status" = 'IN_PROGRESS'
+        AND "lockedBy" = ${input.workerId}
+    `;
+    if (result === 0) {
+      console.warn(
+        `[job-queue] markCompleted: 0 rows updated for job=${input.jobId} worker=${input.workerId} — ownership mismatch or state changed`,
+      );
+      throw new Error(
+        `Job lock no pertenece al worker o estado cambió: ${input.jobId}`,
+      );
+    }
+  } else {
+    await prisma.$executeRaw`
+      UPDATE "job_queue"
+      SET "status" = 'COMPLETED',
+          "completedAt" = ${now},
+          "lockedAt" = NULL,
+          "lockedBy" = NULL,
+          "lastError" = NULL,
+          "updatedAt" = ${now}
+      WHERE "id" = ${input.jobId}
+        AND "status" = 'IN_PROGRESS'
+    `;
   }
 
-  const updated = await prisma.jobQueue.update({
-    where,
-    data: {
-      status: "COMPLETED",
-      completedAt: now,
-      lockedAt: null,
-      lockedBy: null,
-      lastError: null,
-    },
+  const updated = await prisma.jobQueue.findUnique({
+    where: { id: input.jobId },
   });
-
+  if (!updated) throw new Error(`Job no existe: ${input.jobId}`);
   return updated;
 }
 
@@ -163,6 +181,9 @@ export async function markFailed(input: MarkFailedInput): Promise<JobRecord> {
     throw new Error(`Job no está IN_PROGRESS: ${input.jobId}`);
   }
   if (input.workerId && job.lockedBy !== input.workerId) {
+    console.warn(
+      `[job-queue] markFailed: ownership mismatch for job=${input.jobId} worker=${input.workerId} lockedBy=${job.lockedBy}`,
+    );
     throw new Error(`Job lock no pertenece al worker: ${input.jobId}`);
   }
 

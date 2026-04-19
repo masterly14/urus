@@ -7,6 +7,11 @@ import { withObservedRoute } from "@/lib/observability";
 
 export const runtime = "nodejs";
 
+function isOtpBypassEnabled(): boolean {
+  const value = process.env.FIRMA_OTP_BYPASS?.trim().toLowerCase();
+  return value === "1" || value === "true" || value === "si";
+}
+
 /**
  * GET /api/firma/{token}
  * Devuelve metadata de la firma para la página pública.
@@ -42,6 +47,7 @@ const getHandler = async (_request: Request, { params }: { params: Promise<{ tok
     sigReq.legalDocument?.parties?.find((p: { phone: string | null }) => p.phone)?.phone ??
     null;
   const hasPhone = !!phone;
+  const otpRequired = hasPhone && !isOtpBypassEnabled();
   const phoneMasked = phone
     ? "*".repeat(Math.max(0, phone.length - 4)) + phone.slice(-4)
     : null;
@@ -54,6 +60,7 @@ const getHandler = async (_request: Request, { params }: { params: Promise<{ tok
     status: sigReq.status,
     isTerminal,
     hasPhone,
+    otpRequired,
     phoneMasked,
     pdfUrl: sigReq.cloudinaryUrl,
     signedDocumentUrl: sigReq.signedDocumentUrl,

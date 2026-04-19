@@ -107,3 +107,20 @@ export interface RunSummary {
 }
 
 export type { PropertySummaryForNLU, ConversationTurn, NLUResult, IntentionWhatsApp };
+
+// Re-export conversational eval types
+export type {
+  ConversationalEvalCategory,
+  ConversationalEvalScenario,
+  EvalConversationTurn,
+  ResponseTraitExpectation,
+  TrajectoryMatchMode,
+  ConversationalJudgeInput,
+  ConversationalJudgeEvaluation,
+  GraderResult,
+  ConversationalTrial,
+  ConversationalScenarioResult,
+  ConversationalCategorySummary,
+  ConversationalRunSummary,
+  ConversationalEvalConfig,
+} from "./conversational-types";

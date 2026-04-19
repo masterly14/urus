@@ -2,7 +2,7 @@ import "dotenv/config";
 import { randomUUID } from "crypto";
 import { runProjectionLoop } from "../lib/projections";
 
-const DEFAULT_MAX_CYCLES = 100;
+const DEFAULT_MAX_CYCLES = 600;
 
 async function main() {
   const maxCycles = Number(process.env.PROJECTIONS_MAX_CYCLES) || DEFAULT_MAX_CYCLES;

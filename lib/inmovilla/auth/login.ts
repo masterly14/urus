@@ -1,6 +1,11 @@
 import { createBrowser } from "../../playwright/browser";
-import { extractSession } from "./session";
 import { getInmovilla2FACode } from "../../composio/get-inmovilla-2fa-code";
+import {
+  getInmovillaSessionFilePath,
+  saveInmovillaSessionToFile,
+  tryRestoreInmovillaSession,
+} from "./persist-session";
+import { extractSession } from "./session";
 import type { InmovillaSession, InmovillaLoginOptions } from "./types";
 
 const LOGIN_URL = "https://crm.inmovilla.com/login/es";
@@ -9,6 +14,8 @@ const PANEL_GLOB = "**/panel/**";
 const DEFAULT_2FA_DELAY_MS = 10_000;
 const DEFAULT_TIMEOUT_MS = 90_000;
 const RETRY_EXTRA_DELAY_MS = 5_000;
+/** Tras credenciales OK: tiempo máximo para detectar si Inmovilla redirige al panel sin pedir 2FA. */
+const DIRECT_PANEL_DETECTION_MS = 30_000;
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -25,7 +32,25 @@ export async function loginToInmovilla(
     headless = false,
     twoFADelayMs = DEFAULT_2FA_DELAY_MS,
     timeoutMs = DEFAULT_TIMEOUT_MS,
+    persistSession = true,
+    sessionFile: sessionFileOpt,
+    forceFreshLogin = false,
   } = options;
+
+  const sessionFile = sessionFileOpt ?? getInmovillaSessionFilePath();
+
+  if (persistSession && !forceFreshLogin) {
+    const restored = await tryRestoreInmovillaSession(sessionFile, {
+      headless,
+      timeoutMs,
+    });
+    if (restored) {
+      console.log(
+        "[login] Sesión reutilizada desde disco — login interactivo omitido.",
+      );
+      return restored;
+    }
+  }
 
   const user = requireEnv("INMOVILLA_USER");
   const password = requireEnv("INMOVILLA_PASSWORD");
@@ -61,8 +86,28 @@ export async function loginToInmovilla(
     await submitBtn.click();
     await responsePromise;
 
+    console.log("[login] Paso 1 completado — comprobando si hay acceso directo al panel (sin 2FA)...");
+
+    // --- Cuentas sin 2FA: Inmovilla puede redirigir de inmediato a /panel/ ---
+    try {
+      await page.waitForURL(PANEL_GLOB, { timeout: DIRECT_PANEL_DETECTION_MS });
+      console.log(
+        "[login] Panel alcanzado sin pantalla 2FA — omitiendo Composio y entrada de código OTP.",
+      );
+      const session = await extractSession(page, context);
+      if (persistSession) {
+        await saveInmovillaSessionToFile(session, sessionFile);
+      }
+      console.log("[login] Sesión extraída correctamente.");
+      return session;
+    } catch {
+      console.log(
+        "[login] Sin redirección al panel en el plazo esperado — continuando con flujo 2FA (Composio + OTP).",
+      );
+    }
+
     const twoFASentAt = new Date();
-    console.log("[login] Paso 1 completado — esperando correo 2FA...");
+    console.log("[login] Esperando correo 2FA...");
 
     // --- Delay pre-2FA ---
     await delay(twoFADelayMs);
@@ -104,6 +149,9 @@ export async function loginToInmovilla(
 
     // --- Extraer sesión ---
     const session = await extractSession(page, context);
+    if (persistSession) {
+      await saveInmovillaSessionToFile(session, sessionFile);
+    }
 
     console.log("[login] Sesión extraída correctamente.");
     return session;

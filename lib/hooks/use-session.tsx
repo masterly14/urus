@@ -33,6 +33,9 @@ const EMPTY_SESSION: SessionContextValue = {
   comercialId: null,
 };
 
+/** Misma referencia en todos los renders (Better Auth manda cookies; sin headers extra). */
+const STABLE_EMPTY_HEADERS: Record<string, string> = {};
+
 export function useAppSession(): SessionContextValue {
   const { data: session, isPending } = useBetterAuthSession();
 
@@ -79,6 +82,6 @@ export function useSession() {
     session: s.user
       ? { role: s.user.role, comercialId: s.user.comercialId, nombre: s.user.name }
       : { role: "comercial" as AppRole, comercialId: null, nombre: "" },
-    sessionHeaders: {} as Record<string, string>,
+    sessionHeaders: STABLE_EMPTY_HEADERS,
   };
 }

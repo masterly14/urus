@@ -1,0 +1,154 @@
+/**
+ * WhatsApp sending functions specific to the Parte de Visita flow.
+ */
+
+import {
+  sendTemplateMessage,
+  sendInteractiveMessage,
+  sendDocumentMessage,
+} from "@/lib/whatsapp/send";
+import type {
+  TemplateObject,
+  InteractiveObject,
+  SendMessageSuccess,
+} from "@/lib/whatsapp/types";
+
+const WHATSAPP_TEMPLATE_LANGUAGE_CODE =
+  process.env.WHATSAPP_TEMPLATE_LANGUAGE?.trim() || "es";
+
+const FLOW_ID = process.env.WHATSAPP_FLOW_PARTE_VISITA_ID || "";
+
+const FORMULARIO_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_PARTE_VISITA_FORMULARIO ||
+  "parte_visita_formulario";
+
+// ---------------------------------------------------------------------------
+// Send Flow (formulario parte de visita)
+// ---------------------------------------------------------------------------
+
+export async function sendParteVisitaFlow(
+  to: string,
+  params: {
+    sessionId: string;
+    direccion: string;
+    tipoOperacion: string;
+    precio: number;
+    propertyRef: string;
+    agenteName: string;
+    fechaVisita: string;
+    horaVisita: string;
+  },
+): Promise<SendMessageSuccess> {
+  const precioFmt =
+    new Intl.NumberFormat("es-ES").format(params.precio) + " €";
+
+  if (FLOW_ID) {
+    return sendParteVisitaFlowInteractive(to, params, precioFmt);
+  }
+
+  const template: TemplateObject = {
+    name: FORMULARIO_TEMPLATE,
+    language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
+    components: [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: "interesado" },
+          { type: "text", text: params.direccion || params.propertyRef },
+        ],
+      },
+      {
+        type: "button",
+        sub_type: "flow",
+        index: "0",
+        parameters: [
+          {
+            type: "action",
+            action: {
+              flow_token: params.sessionId,
+              flow_action_data: {
+                flow_token: params.sessionId,
+                direccion_inmueble: params.direccion,
+                tipo_operacion: params.tipoOperacion,
+                precio_inmueble: precioFmt,
+                agente_nombre: params.agenteName,
+                fecha_visita: params.fechaVisita,
+                hora_visita: params.horaVisita,
+              },
+            },
+          },
+        ],
+      },
+    ],
+  };
+
+  return sendTemplateMessage(to, template);
+}
+
+async function sendParteVisitaFlowInteractive(
+  to: string,
+  params: {
+    sessionId: string;
+    direccion: string;
+    tipoOperacion: string;
+    precio: number;
+    propertyRef: string;
+    agenteName: string;
+    fechaVisita: string;
+    horaVisita: string;
+  },
+  precioFmt: string,
+): Promise<SendMessageSuccess> {
+  const interactive: InteractiveObject = {
+    type: "flow",
+    header: { type: "text", text: "Parte de Visita" },
+    body: {
+      text: `Complete sus datos para el parte de visita de ${params.direccion || params.propertyRef}.`,
+    },
+    footer: { text: "URUS Capital Group" },
+    action: {
+      name: "flow",
+      parameters: {
+        flow_message_version: "3",
+        flow_id: FLOW_ID,
+        flow_cta: "Completar parte de visita",
+        flow_token: params.sessionId,
+        flow_action: "navigate",
+        flow_action_payload: {
+          screen: "DATOS_INTERESADO",
+          data: JSON.stringify({
+            flow_token: params.sessionId,
+            direccion_inmueble: params.direccion,
+            tipo_operacion: params.tipoOperacion,
+            precio_inmueble: precioFmt,
+            agente_nombre: params.agenteName,
+            fecha_visita: params.fechaVisita,
+            hora_visita: params.horaVisita,
+          }),
+        },
+      },
+    },
+  };
+
+  return sendInteractiveMessage(to, interactive);
+}
+
+// ---------------------------------------------------------------------------
+// Documento firmado (dentro de ventana de 24h)
+// ---------------------------------------------------------------------------
+
+export async function sendParteVisitaDocumentoFirmado(
+  to: string,
+  params: {
+    propertyRef: string;
+    signedDocumentUrl: string;
+  },
+): Promise<SendMessageSuccess> {
+  return sendDocumentMessage(to, {
+    link: params.signedDocumentUrl,
+    filename: `parte_visita_${params.propertyRef}_firmado.pdf`,
+    caption:
+      `✅ Aquí tiene su Parte de Visita firmado (ref: ${params.propertyRef}). ` +
+      `Guarde este documento para sus registros. Gracias por confiar en URUS Capital Group.`,
+  });
+}

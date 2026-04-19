@@ -10,6 +10,7 @@
 import { Annotation, StateGraph, START, END } from "@langchain/langgraph";
 import { z } from "zod";
 import { llm } from "./llm";
+import { withRetry } from "./utils/retry";
 import type {
   NLUResult,
   NLUGraphInput,
@@ -61,9 +62,10 @@ const ContextualNLUOutputSchema = z.object({
   ),
   confidence: z.number().min(0).max(1).describe("Confianza 0–1."),
   propertyFeedback: z.array(PropertyFeedbackSchema).describe(
-    "Feedback por propiedad mencionada por el comprador. " +
-    "Solo incluir propiedades que el comprador mencione explícitamente. " +
-    "Array vacío si no menciona ninguna en concreto."
+    "Una entrada por propiedad que el comprador identifique SIN AMBIGÜEDAD respecto al listado. " +
+    "NO incluir filas solo porque comparten zona/precio/ciudad con lo dicho: si no señala cuál del listado, array vacío. " +
+    "Si dudas entre dos IDs o entre incluir o no, array vacío. " +
+    "Ordinales, 'la de [extra único]', precio que solo coincide con una fila, o 'todas'/'ninguna' sí permiten mapear."
   ),
   variables: VariablesSchema.describe("Variables de demanda extraídas."),
   wantsMoreOptions: z.boolean().describe(
@@ -144,16 +146,23 @@ Tu tarea:
 4. Extraer variables de demanda si el comprador indica ajustes.
 5. Detectar si pide ver más opciones (wantsMoreOptions).
 
+PROPIEDADES (propertyFeedback) — evitar sobrerresolución:
+- Incluye un propertyId SOLO si el comprador identifica ESA fila del listado de forma clara: ordinales ("la primera", "la segunda"), "la de la piscina" cuando solo una tiene piscina, precio mencionado que desempata a una sola fila, título o rasgo único que una sola cumple, o "todas"/"ninguna".
+- NO añadas entradas porque el mensaje cita una zona, ciudad o rango de precio que "podría" corresponder a una propiedad del listado si el comprador no señala cuál. En ese caso propertyFeedback=[] y, si aplica, rellena solo variables de demanda.
+- NO rellenes el array para "ayudar" al sistema: ante la menor duda entre dos IDs o entre poner o no poner, deja propertyFeedback vacío.
+
 INTENCIÓN GLOBAL — prioridad sobre tono coloquial:
-- ME_ENCAJA: el comprador muestra claramente que le encajan las opciones mostradas (aprobación, entusiasmo, "me quedo con…", "me gusta esta", OK sin matizar tras ver casas).
+- ME_ENCAJA: el comprador muestra claramente que le encajan las opciones mostradas (aprobación, entusiasmo, "me quedo con…", "me gusta esta").
+- Excepción explícita — acuerdo mínimo: si el mensaje COMPLETO (sin contar espacios finales) es únicamente una confirmación breve —ok, vale, sí, perfecto, genial, de acuerdo— opcionalmente con puntuación o emoji y nada más, entonces intention=ME_ENCAJA y propertyFeedback=[] (no adivines propiedad).
 - NO_ME_ENCAJA: hay rechazo, desacuerdo o desajuste con lo mostrado. Usa esta etiqueta si aparece CUALQUIERA de: "no", "paso", "no me convence(n)", "ninguna", "caro/cara", "pequeño/pequeña", "no cumple(n)", "necesito…", "quiero…" con criterios nuevos que implican que lo actual no vale, críticas a tipología o precio, o sentimiento NO_ME_ENCAJA hacia alguna propiedad mencionada sin compensar con un ME_INTERESA claro a otra.
-- NO uses ME_ENCAJA si el mensaje mezcla entusiasmo genérico con exigencias o rechazo a lo enseñado; en caso de duda entre positivo y negativo, elige NO_ME_ENCAJA.
+- NO uses ME_ENCAJA si el mensaje mezcla entusiasmo genérico con exigencias o rechazo a lo enseñado. En caso de duda entre positivo y negativo, elige NO_ME_ENCAJA, salvo la excepción de acuerdo mínimo de arriba.
 - BUSCO_DIFERENTE: solo si pide un cambio de búsqueda radicalmente distinto (otro segmento, otro uso, "otra cosa totalmente distinta"). NO lo uses cuando solo ajusta presupuesto, zona, metros, habitaciones o extras: eso es NO_ME_ENCAJA (o ME_ENCAJA si además aprueba algo) más variables.
 
 Extracción de variables — reglas estrictas:
 
 UBICACIÓN:
 - "ciudad": solo el nombre de la ciudad (ej: "Córdoba", "Madrid"). NUNCA incluir barrios aquí.
+- NUNCA rellenar ciudad ni zonas solo porque aparecen en títulos o datos del listado de propiedades: el comprador debe decirlas en su mensaje.
 - "zonas": barrios o zonas DENTRO de la ciudad (ej: ["Centro", "Norte", "La Flota"]). NO incluir la ciudad.
 - "en el centro de Córdoba" → ciudad="Córdoba", zonas=["Centro"].
 
@@ -186,7 +195,8 @@ EXTRAS:
 - "extrasNoDeseados": los que RECHAZA ("sin garaje"→extrasNoDeseados=["garaje"], "no quiero piscina"→extrasNoDeseados=["piscina"]).
 
 RESPUESTAS CORTAS:
-- "ok", "sí", "vale", "perfecto", "me gusta" solo si NO van acompañados de rechazo ni de lista de exigencias; si en el mismo mensaje pide otra cosa o critica lo visto → NO_ME_ENCAJA y extrae variables.
+- Mensaje que es solo confirmación mínima (una sola intención de sí: "ok", "ok.", "vale", "sí", "si", "perfecto", "genial", "de acuerdo", con emoji opcional) → ME_ENCAJA, propertyFeedback=[], variables sin rellenar salvo que en ese mismo texto pida criterios.
+- Si en el MISMO mensaje hay confirmación Y rechazo, exigencias, listas de requisitos o críticas → NO_ME_ENCAJA y extrae variables; no apliques la excepción anterior.
 - "no", "paso", "nada" sin más contexto → intention=NO_ME_ENCAJA, variables vacías.
 - Emojis positivos (👍, 😍, ❤️) refuerzan sentimiento positivo. Emojis negativos (👎, 😒) refuerzan negativo.
 
@@ -205,13 +215,15 @@ Extrae variables de demanda ajustada cuando el comprador las mencione.
 
 INTENCIÓN:
 - ME_ENCAJA: aprobación clara sin rechazo ni exigencias que desmonten lo ofrecido.
-- NO_ME_ENCAJA: "no", "paso", críticas de precio/tamaño/tipo, criterios nuevos que implican desajuste, o mensaje ambivalente con parte negativa fuerte. Si dudas entre positivo y negativo, NO_ME_ENCAJA.
+- Si el mensaje entero es solo "ok"/"vale"/"sí"/"perfecto"/"genial"/"de acuerdo" (+ puntuación o emoji opcional) → ME_ENCAJA.
+- NO_ME_ENCAJA: "no", "paso", críticas de precio/tamaño/tipo, criterios nuevos que implican desajuste, o mensaje ambivalente con parte negativa fuerte. Si dudas entre positivo y negativo, NO_ME_ENCAJA, salvo el caso de acuerdo mínimo de una sola línea anterior.
 - BUSCO_DIFERENTE: cambio de búsqueda totalmente distinto; no uses solo por ajustar presupuesto, zona, metros, habitaciones o extras.
 
 Reglas de extracción:
 
 UBICACIÓN:
 - "ciudad": solo el nombre de la ciudad (ej: "Córdoba"). NUNCA incluir barrios.
+- No infieras ciudad ni zonas desde el catálogo: solo si el comprador las dice en el mensaje.
 - "zonas": barrios/zonas DENTRO de la ciudad (ej: ["Centro", "Norte"]). NO incluir la ciudad.
 
 PRECIOS (siempre en euros):
@@ -233,7 +245,8 @@ EXTRAS:
 - RECHAZADOS: "sin garaje"→extrasNoDeseados=["garaje"]; "sin terraza"→extrasNoDeseados.
 
 RESPUESTAS CORTAS:
-- "ok"/"sí"/"vale" solo si no hay rechazo ni lista de requisitos en el mismo mensaje; si los hay → NO_ME_ENCAJA + variables.
+- Solo "ok"/"ok."/"vale"/"sí"/"si"/"perfecto"/"genial"/"de acuerdo" (+ emoji opcional) → ME_ENCAJA, variables vacías.
+- Si el mismo mensaje mezcla sí con rechazo o requisitos → NO_ME_ENCAJA + variables.
 - "no"/"paso"/"nada" sin contexto → NO_ME_ENCAJA, variables vacías.
 
 REGLAS GENERALES:
@@ -241,6 +254,24 @@ REGLAS GENERALES:
 - NUNCA inventar valores numéricos que el comprador no haya dicho.`;
 
 // ── Nodo de clasificación contextual ────────────────────────────────────────
+
+/** Solo confirmación (p. ej. "ok", "vale"): sin cifras ni texto sustantivo tras quitar emoji. */
+function isMinimalAffirmation(raw: string): boolean {
+  let collapsed = raw
+    .normalize("NFKC")
+    .replace(/\p{Extended_Pictographic}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  collapsed = collapsed.replace(/\s*,\s*(gracias|thanks|thx|mil gracias|muchas gracias)\.?$/iu, "").trim();
+  collapsed = collapsed.replace(/\s+(gracias|thanks|thx|mil gracias|muchas gracias)\.?$/iu, "").trim();
+  const core = collapsed
+    .replace(/^[.,!?…\s]+/gu, "")
+    .replace(/[.,!?…\s]+$/gu, "")
+    .trim()
+    .toLowerCase();
+  if (!core || /\d/u.test(core)) return false;
+  return /^(ok|okey|okay|vale|sí|si|perfecto|genial|de acuerdo)$/u.test(core);
+}
 
 function stripNullVars(vars: z.infer<typeof VariablesSchema>) {
   return {
@@ -268,17 +299,19 @@ async function clasificarContextual(state: NLUStateType): Promise<Partial<NLUSta
 
   try {
     const systemPrompt = buildContextualSystemPrompt(properties, history);
-    const result = await llmContextual.invoke([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: messageText },
-    ]);
+    const result = await withRetry(() =>
+      llmContextual.invoke([
+        { role: "system", content: systemPrompt },
+        { role: "user", content: messageText },
+      ]),
+    );
 
     const validPropertyIds = new Set(properties.map((p) => p.propertyId));
     const feedback = result.propertyFeedback.filter((f) =>
       validPropertyIds.has(f.propertyId),
     );
 
-    const nluResult: NLUResult = {
+    let nluResult: NLUResult = {
       intention: result.intention,
       confidence: result.confidence,
       propertyFeedback: feedback,
@@ -287,6 +320,17 @@ async function clasificarContextual(state: NLUStateType): Promise<Partial<NLUSta
       reasoning: result.reasoning,
       wantsMoreOptions: result.wantsMoreOptions,
     };
+
+    if (isMinimalAffirmation(messageText)) {
+      nluResult = {
+        ...nluResult,
+        intention: "ME_ENCAJA",
+        confidence: Math.max(nluResult.confidence, 0.95),
+        propertyFeedback: [],
+        variables: {},
+        wantsMoreOptions: false,
+      };
+    }
 
     return { nluResult };
   } catch (err) {
@@ -299,12 +343,14 @@ async function clasificarSimple(state: NLUStateType): Promise<Partial<NLUStateTy
   const { messageText } = state.input;
 
   try {
-    const result = await llmSimple.invoke([
-      { role: "system", content: SIMPLE_SYSTEM_PROMPT },
-      { role: "user", content: `Analiza esta respuesta del comprador:\n\n"${messageText}"` },
-    ]);
+    const result = await withRetry(() =>
+      llmSimple.invoke([
+        { role: "system", content: SIMPLE_SYSTEM_PROMPT },
+        { role: "user", content: `Analiza esta respuesta del comprador:\n\n"${messageText}"` },
+      ]),
+    );
 
-    const nluResult: NLUResult = {
+    let nluResult: NLUResult = {
       intention: result.intention,
       confidence: result.confidence,
       propertyFeedback: [],
@@ -313,6 +359,15 @@ async function clasificarSimple(state: NLUStateType): Promise<Partial<NLUStateTy
       reasoning: result.reasoning,
       wantsMoreOptions: false,
     };
+
+    if (isMinimalAffirmation(messageText)) {
+      nluResult = {
+        ...nluResult,
+        intention: "ME_ENCAJA",
+        confidence: Math.max(nluResult.confidence, 0.95),
+        variables: {},
+      };
+    }
 
     return { nluResult };
   } catch (err) {

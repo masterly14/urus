@@ -7,6 +7,8 @@ import {
   persistWorkerExecutionMetric,
   runWithWorkerObservability,
 } from "@/lib/observability";
+import { emitNotification } from "@/lib/notifications/emit";
+import { resolveComercialByProperty, resolveComercialByDemand } from "@/lib/routing/resolve-comercial";
 import { getHandler } from "./handlers";
 import { getJobHandler, type JobHandler } from "./job-handlers";
 import type {
@@ -17,6 +19,47 @@ import type {
 
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
 const DEFAULT_BATCH_SIZE = 10;
+
+const PROPERTY_AGGREGATES = new Set(["PROPERTY"]);
+const DEMAND_AGGREGATES = new Set(["DEMAND", "LEAD", "MATCH"]);
+
+async function resolveComercialIdFromEvent(event: {
+  aggregateType: string;
+  aggregateId: string;
+  payload: unknown;
+}): Promise<string | null> {
+  try {
+    const payload = (event.payload ?? {}) as Record<string, unknown>;
+
+    if (typeof payload.comercialId === "string") return payload.comercialId;
+
+    if (PROPERTY_AGGREGATES.has(event.aggregateType)) {
+      const c = await resolveComercialByProperty(event.aggregateId);
+      return c?.id ?? null;
+    }
+
+    if (DEMAND_AGGREGATES.has(event.aggregateType)) {
+      const demandId =
+        typeof payload.demandId === "string"
+          ? payload.demandId
+          : event.aggregateId;
+      const c = await resolveComercialByDemand(demandId);
+      return c?.id ?? null;
+    }
+
+    if (typeof payload.operationId === "string") {
+      const op = await prisma.operacion.findUnique({
+        where: { id: payload.operationId },
+        select: { comercialId: true },
+      });
+      return op?.comercialId ?? null;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -151,7 +194,7 @@ export async function runConsumerCycle(
 
           if (!handler) {
             console.warn(
-              `[consumer] Sin handler para ${event.type} — marcando COMPLETED (no-op)`,
+              `[consumer] Sin handler registrado para EventType="${event.type}" (eventId=${event.id}, aggregateId=${event.aggregateId}) — marcando COMPLETED (no-op). Si este tipo debería tener handler, registrarlo en handlers.ts.`,
             );
             await markCompleted({ jobId: job.id, workerId: config.workerId });
             await persistConsumerMetric({
@@ -211,6 +254,38 @@ export async function runConsumerCycle(
             console.log(
               `[consumer] Job ${job.id} completado — ${event.type} aggregateId=${event.aggregateId}`,
             );
+
+            try {
+              const comercialId = await resolveComercialIdFromEvent(event);
+              if (!comercialId && event.type === "WHATSAPP_RECIBIDO") {
+                const p = (event.payload ?? {}) as Record<string, unknown>;
+                const from = typeof p.from === "string" ? p.from : "unknown";
+                console.warn(
+                  `[consumer] WHATSAPP_RECIBIDO sin comercialId para notificación — waId=${event.aggregateId} eventId=${event.id} from=${from}`,
+                );
+                try {
+                  const { emitManagementAlert } = await import(
+                    "@/lib/notifications/emit"
+                  );
+                  await emitManagementAlert({
+                    source: "consumer:whatsapp",
+                    severity: "warning",
+                    title: "WhatsApp recibido sin comercialId asignado",
+                    description: `Mensaje entrante sin comercial responsable: waId=${event.aggregateId} eventId=${event.id} from=${from}. Asignar comercial manualmente o revisar mapping.`,
+                  });
+                } catch (alertErr) {
+                  console.error(
+                    `[consumer] Error emitiendo management alert para WHATSAPP_RECIBIDO sin comercialId: ${alertErr instanceof Error ? alertErr.message : alertErr}`,
+                  );
+                }
+              }
+              await emitNotification({ event, comercialId });
+            } catch (notifErr) {
+              console.error(
+                `[consumer] Error emitiendo notificación para ${event.type}: ${notifErr instanceof Error ? notifErr.message : notifErr}`,
+              );
+            }
+
             await persistConsumerMetric({
               workerId: config.workerId,
               jobId: job.id,
@@ -398,6 +473,13 @@ export async function runConsumerLoop(
             console.warn(
               `[consumer] Dead-letter queue: ${dlqStats.total} job(s) — ${JSON.stringify(dlqStats.byType)}`,
             );
+            const { emitManagementAlert } = await import("@/lib/notifications/emit");
+            await emitManagementAlert({
+              source: "bi",
+              severity: "critical",
+              title: "Jobs en Dead-Letter Queue",
+              description: `${dlqStats.total} job(s) fallidos: ${JSON.stringify(dlqStats.byType)}`,
+            }).catch(() => {});
           }
         } catch {
           // No bloquear el loop por un fallo leyendo stats DLQ

@@ -11,6 +11,7 @@
 
 import { Annotation, StateGraph, START, END } from "@langchain/langgraph";
 import { llmMentalHealthClassifier, llmMentalHealth } from "./llm";
+import { withRetry } from "./utils/retry";
 import {
   MentalHealthClassificationSchema,
   type MentalHealthClassification,
@@ -54,10 +55,12 @@ async function classifyNode(state: MHStateType): Promise<Partial<MHStateType>> {
 
   try {
     const systemPrompt = buildClassifierPrompt(sessionContext, crmContext, conversationHistory);
-    const classification = await classifierLLM.invoke([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: messageText },
-    ]);
+    const classification = await withRetry(() =>
+      classifierLLM.invoke([
+        { role: "system", content: systemPrompt },
+        { role: "user", content: messageText },
+      ]),
+    );
 
     return { classification };
   } catch (err) {
@@ -89,10 +92,12 @@ function createResponseNode(flujoName: MentalHealthFlujo) {
         sessionContext.flujoStep,
       );
 
-      const result = await llmMentalHealth.invoke([
-        { role: "system", content: systemPrompt },
-        { role: "user", content: state.input.messageText },
-      ]);
+      const result = await withRetry(() =>
+        llmMentalHealth.invoke([
+          { role: "system", content: systemPrompt },
+          { role: "user", content: state.input.messageText },
+        ]),
+      );
 
       const responseText = typeof result.content === "string"
         ? result.content
@@ -126,10 +131,12 @@ for (const flujo of FLUJO_NODES) {
 
 graphBuilder
   .addEdge(START, "classify")
-  .addConditionalEdges("classify", routeByFlujo, [...FLUJO_NODES, END]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  .addConditionalEdges("classify", routeByFlujo, [...FLUJO_NODES, END] as any);
 
 for (const flujo of FLUJO_NODES) {
-  graphBuilder.addEdge(flujo, END);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  graphBuilder.addEdge(flujo as any, END);
 }
 
 export const mentalHealthGraph = graphBuilder.compile();

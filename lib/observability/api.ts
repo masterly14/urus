@@ -107,7 +107,7 @@ export function withObservedRoute(
         durationMs,
       });
 
-      await persistRouteMetric(routeContext, {
+      void persistRouteMetric(routeContext, {
         source: routeContext.source,
         operation: routeContext.operation,
         name: `${config.method} ${config.route}`,
@@ -120,7 +120,7 @@ export function withObservedRoute(
         context: {
           url: request.url,
         },
-      });
+      }).catch(console.error);
 
       return withResponseHeaders(response, routeContext);
     } catch (err) {
@@ -132,7 +132,7 @@ export function withObservedRoute(
         durationMs,
       });
 
-      await persistRouteMetric(routeContext, {
+      void persistRouteMetric(routeContext, {
         source: routeContext.source,
         operation: routeContext.operation,
         name: `${config.method} ${config.route}`,
@@ -145,7 +145,7 @@ export function withObservedRoute(
         context: {
           url: request.url,
         },
-      });
+      }).catch(console.error);
 
       return NextResponse.json(
         { error: "Error interno del servidor", requestId: routeContext.requestId },

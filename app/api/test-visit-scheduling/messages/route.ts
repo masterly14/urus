@@ -6,6 +6,9 @@
  */
 
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getSessionFromRequest } from "@/lib/auth/session";
+import { canAccessTestVisitSession } from "@/lib/visit-scheduling/test-visit-session";
 import {
   getMessagesForSession,
   getSessionMeta,
@@ -20,6 +23,22 @@ export async function GET(request: Request) {
       { error: "Se requiere sessionId" },
       { status: 400 },
     );
+  }
+
+  const appSession = await getSessionFromRequest(request);
+  if (!appSession) {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
+  const visitSession = await prisma.visitSchedulingSession.findUnique({
+    where: { id: sessionId },
+    select: { comercialId: true },
+  });
+  if (!visitSession) {
+    return NextResponse.json({ error: "Sesión no encontrada" }, { status: 404 });
+  }
+  if (!canAccessTestVisitSession(appSession, visitSession.comercialId)) {
+    return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
   }
 
   const messages = getMessagesForSession(sessionId);

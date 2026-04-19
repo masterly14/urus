@@ -108,13 +108,6 @@ export async function stampSignaturePage(
     });
     y -= sigHeight + 15;
 
-    page.drawLine({
-      start: { x: margin, y },
-      end: { x: margin + Math.max(sigWidth, 200), y },
-      thickness: 0.5,
-      color: gray,
-    });
-    y -= 4;
     page.drawText(params.signerName, {
       x: margin,
       y,

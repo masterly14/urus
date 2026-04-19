@@ -105,6 +105,7 @@ function buildDiffForIntegration(): PropertyDiffResult {
         otherChangedFields: ["fechaActualizacion"],
       },
     ],
+    removed: [],
     unchanged: 0,
   };
 }

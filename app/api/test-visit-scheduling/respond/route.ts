@@ -6,6 +6,8 @@
  */
 
 import { NextResponse } from "next/server";
+import { getSessionFromRequest } from "@/lib/auth/session";
+import { canAccessTestVisitSession } from "@/lib/visit-scheduling/test-visit-session";
 import { setTestSendInterceptor } from "@/lib/whatsapp/send";
 import {
   captureOutboundRaw,
@@ -22,6 +24,8 @@ import {
   classifyVisitIntent,
 } from "@/lib/agents/visit-intent-classifier";
 import type { VisitIntentClassification } from "@/lib/visit-scheduling/types";
+import { InvalidStateTransitionError } from "@/lib/visit-scheduling/types";
+import { VALID_TRANSITIONS } from "@/lib/visit-scheduling/constants";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -51,6 +55,11 @@ export async function POST(request: Request) {
     );
   }
 
+  const appSession = await getSessionFromRequest(request);
+  if (!appSession) {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   let session;
   try {
     session = await getSessionById(sessionId);
@@ -59,6 +68,10 @@ export async function POST(request: Request) {
       { error: "Sesión no encontrada" },
       { status: 404 },
     );
+  }
+
+  if (!canAccessTestVisitSession(appSession, session.comercialId)) {
+    return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
   }
 
   const senderWaId =
@@ -127,6 +140,22 @@ export async function POST(request: Request) {
       updatedSession = await getSessionById(sessionId);
     } catch {
       updatedSession = session;
+    }
+
+    if (err instanceof InvalidStateTransitionError) {
+      const currentState = updatedSession.state;
+      return NextResponse.json(
+        {
+          handled: false,
+          error: msg,
+          intent: intent.intent,
+          currentState,
+          allowedTransitions: VALID_TRANSITIONS[currentState] ?? [],
+          session: serializeSession(updatedSession),
+          messages: getMessagesForSession(sessionId),
+        },
+        { status: 409 },
+      );
     }
 
     return NextResponse.json({

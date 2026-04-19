@@ -8,6 +8,7 @@ import {
   type DemandCreatedChange,
   type DemandModifiedChange,
   type DemandStatusChangedChange,
+  type DemandRemovedChange,
 } from "./types";
 
 function getChangedFields(
@@ -27,6 +28,8 @@ function pickDiffFields(
   snapshot: DemandSnapshotData,
 ): Pick<InmovillaDemand, DemandDiffField> {
   return {
+    nombre: snapshot.nombre,
+    ref: snapshot.ref,
     estadoId: snapshot.estadoId,
     estadoNombre: snapshot.estadoNombre,
     presupuestoMin: snapshot.presupuestoMin,
@@ -35,6 +38,9 @@ function pickDiffFields(
     tipos: snapshot.tipos,
     zonas: snapshot.zonas,
     fechaActualizacion: snapshot.fechaActualizacion,
+    agente: snapshot.agente,
+    refConsultada: snapshot.refConsultada,
+    telefono: snapshot.telefono as string | undefined,
   };
 }
 
@@ -45,7 +51,21 @@ export function computeDemandDiff(
   const created: DemandCreatedChange[] = [];
   const modified: DemandModifiedChange[] = [];
   const statusChanged: DemandStatusChangedChange[] = [];
+  const removed: DemandRemovedChange[] = [];
   let unchanged = 0;
+
+  const currentCodigos = new Set(currentDemands.map((d) => d.codigo));
+
+  for (const [codigo, prev] of previousSnapshot) {
+    if (!currentCodigos.has(codigo)) {
+      removed.push({
+        type: "removed",
+        codigo,
+        previousEstadoId: prev.estadoId,
+        previousEstadoNombre: prev.estadoNombre,
+      });
+    }
+  }
 
   for (const demand of currentDemands) {
     const prev = previousSnapshot.get(demand.codigo);
@@ -83,5 +103,5 @@ export function computeDemandDiff(
     }
   }
 
-  return { created, modified, statusChanged, unchanged };
+  return { created, modified, statusChanged, removed, unchanged };
 }

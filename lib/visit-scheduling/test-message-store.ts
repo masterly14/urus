@@ -1,14 +1,4 @@
-/**
- * Store en memoria para mensajes capturados durante tests interactivos
- * del flujo de agendamiento de visitas.
- *
- * No persiste entre reinicios del servidor — eso es intencional.
- * Solo se usa cuando el test interceptor está activo.
- */
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface CapturedButton {
   id: string;
@@ -20,9 +10,7 @@ export interface CapturedMessage {
   sessionId: string;
   timestamp: number;
   to: string;
-  /** waId del remitente (solo para inbound). */
   from?: string;
-  /** 'outbound' = sistema → usuario, 'inbound' = usuario → sistema */
   direction: "outbound" | "inbound";
   type: "text" | "template" | "interactive";
   text: string;
@@ -143,14 +131,7 @@ function convertToMessage(raw: RawCapture, sessionId: string): CapturedMessage {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Capture API — usado por el interceptor en send.ts
-// ---------------------------------------------------------------------------
 
-/**
- * El interceptor de send.ts llama esta función.
- * Almacena en buffer temporal hasta que se asigne a una sesión.
- */
 export function captureOutboundRaw(msg: RawCapture) {
   if (isCapturing) {
     captureBuffer.push(msg);

@@ -3,17 +3,12 @@ import type { InmovillaDemand } from "@/lib/inmovilla/api/types-demands";
 import type { DemandDiffResult } from "../types";
 import { publishDemandEventsForDiff } from "../event-publisher";
 
-const { appendEventMock, enqueueJobMock } = vi.hoisted(() => ({
-  appendEventMock: vi.fn(),
-  enqueueJobMock: vi.fn(),
+const { appendEventAndEnqueueJobMock } = vi.hoisted(() => ({
+  appendEventAndEnqueueJobMock: vi.fn(),
 }));
 
 vi.mock("@/lib/event-store", () => ({
-  appendEvent: appendEventMock,
-}));
-
-vi.mock("@/lib/job-queue", () => ({
-  enqueueJob: enqueueJobMock,
+  appendEventAndEnqueueJob: appendEventAndEnqueueJobMock,
 }));
 
 function makeDemand(
@@ -33,6 +28,8 @@ function makeDemand(
     zonas: "Centro",
     fechaActualizacion: "2026-03-11 10:00:00",
     agente: "Agente",
+    siglas: "MA",
+    inmovillaAgentId: 177892,
     raw: {},
     ...overrides,
   };
@@ -40,10 +37,8 @@ function makeDemand(
 
 describe("publishDemandEventsForDiff", () => {
   beforeEach(() => {
-    appendEventMock.mockReset();
-    enqueueJobMock.mockReset();
-    appendEventMock.mockResolvedValue({ id: "evt", type: "DEMANDA_CREADA" });
-    enqueueJobMock.mockResolvedValue({ id: "job-1" });
+    appendEventAndEnqueueJobMock.mockReset();
+    appendEventAndEnqueueJobMock.mockResolvedValue({ id: "evt", type: "DEMANDA_CREADA" });
   });
 
   it("publica eventos de demanda con correlationId y metadata", async () => {
@@ -62,6 +57,8 @@ describe("publishDemandEventsForDiff", () => {
             tipos: "Piso",
             zonas: "Centro",
             fechaActualizacion: "2026-03-10 10:00:00",
+            agente: "Agente",
+            refConsultada: undefined,
           },
           changedFields: ["presupuestoMax"],
         },
@@ -84,9 +81,9 @@ describe("publishDemandEventsForDiff", () => {
     const result = await publishDemandEventsForDiff(diff, cycleId);
 
     expect(result.emitted).toBe(3);
-    expect(appendEventMock).toHaveBeenCalledTimes(3);
+    expect(appendEventAndEnqueueJobMock).toHaveBeenCalledTimes(3);
 
-    const calls = appendEventMock.mock.calls.map((c) => c[0]);
+    const calls = appendEventAndEnqueueJobMock.mock.calls.map((c) => c[0].event);
     const types = calls.map((c) => c.type).sort();
     expect(types).toEqual([
       "DEMANDA_CREADA",

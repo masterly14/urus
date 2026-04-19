@@ -30,6 +30,7 @@ enum EventType {
   DEMANDA_CREADA
   DEMANDA_MODIFICADA
   DEMANDA_ESTADO_CAMBIADO
+  DEMANDA_ELIMINADA
   LEAD_INGESTADO
   LEAD_SCORED
   LEAD_CONTACTADO
@@ -43,6 +44,7 @@ enum EventType {
   SELECCION_COMPRADOR
   SELECCION_VALIDADA
   SELECCION_RECHAZADA
+  SELECCION_MICROSITE_DESCRIPCIONES_EDITADAS
   DATOS_INCOMPLETOS
   CONTRATO_BORRADOR_GENERADO
   CONTRATO_VERSIONADO
@@ -57,6 +59,8 @@ enum EventType {
   PRICING_RECOMENDACION_GENERADA
   INCIDENCIA_POSTVENTA_ABIERTA
   INCIDENCIA_POSTVENTA_RESUELTA
+  POSTVENTA_FORMULARIO_ENVIADO
+  POSTVENTA_FORMULARIO_COMPLETADO
   OPERACION_CERRADA
   RESENA_SOLICITADA
   RESENA_RECIBIDA
@@ -82,6 +86,11 @@ enum EventType {
   VISITA_CANCELADA
   VISITA_REPROGRAMADA
   COMPOSIO_CALENDAR_CONNECTED
+  NOTA_ENCARGO_DETECTADA
+  NOTA_ENCARGO_CONFIRMADA
+  NOTA_ENCARGO_NO_CONFIRMADA
+  NOTA_ENCARGO_FORMULARIO_COMPLETADO
+  PARTE_VISITA_FORMULARIO_COMPLETADO
 }
 
 enum JobType {
@@ -103,6 +112,9 @@ enum JobType {
   NOTIFY_PRICING_WHATSAPP
   START_POSTVENTA_CADENCE
   SEND_POSTVENTA_MESSAGE
+  SEND_POSTVENTA_FORM
+  SCHEDULE_POSTVENTA_BIRTHDAY
+  SCHEDULE_POSTVENTA_NAVIDAD
   SEND_POST_SALE_MESSAGE
   SEND_REVIEW_REQUEST
   SEND_REFERRAL_REQUEST
@@ -117,6 +129,13 @@ enum JobType {
   VISIT_CANCEL_CALENDAR_EVENT
   VISIT_CLEANUP_EXPIRED_LOCKS
   VISIT_CHECK_COMPOSIO_HEALTH
+  NOTA_ENCARGO_RECORDATORIO
+  NOTA_ENCARGO_CHECK_CONFIRMACION
+  NOTA_ENCARGO_ENVIAR_FORMULARIO
+  CREAR_PROSPECTO_INMOVILLA
+  PARTE_VISITA_ENVIAR_FORMULARIO
+  AUTO_VALIDATE_MICROSITE
+  SEND_WHATSAPP_MATCH
 }
 
 enum JobStatus {
@@ -173,6 +192,7 @@ model Event {
   @@index([aggregateType, aggregateId, position])
   @@index([type, position])
   @@index([occurredAt])
+  @@index([type, aggregateType, aggregateId])
   @@map("events")
 }
 
@@ -214,6 +234,16 @@ model ProjectionCheckpoint {
   @@map("projections_checkpoint")
 }
 
+/// H6: key-value genérico para checkpoints de ingestion y otros estados
+/// operacionales que no merecen tabla dedicada.
+model KvStore {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("kv_store")
+}
+
 model PropertySnapshot {
   codigo             String   @id
   ref                String
@@ -253,6 +283,7 @@ model DemandSnapshot {
   zonas              String   @default("")
   fechaActualizacion String   @default("")
   agente             String   @default("")
+  telefono           String   @default("")
   raw                Json     @default("{}")
   firstSeenAt        DateTime @default(now())
   lastSeenAt         DateTime @default(now())
@@ -340,12 +371,26 @@ model DemandCurrent {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   /// * Teléfono del contacto/comprador si la ingesta lo expone (E.164 o dígitos).
-  telefono           String   @default("")
+  telefono           String     @default("")
+  /// Estado del pipeline interno. Independiente de Inmovilla; se actualiza
+  /// a través de los eventos del event-store (ver docs/lead-status-pipeline.md).
+  leadStatus         LeadStatus @default(NUEVO)
+  /// Superficie mínima solicitada (m²). Materializado vía DEMANDA_ACTUALIZADA
+  /// con variables extraídas por NLU. Nullable porque la API de Inmovilla
+  /// no lo devuelve en el snapshot de demandas.
+  metrosMin          Int?
+  /// Superficie máxima solicitada (m²). Materializado vía DEMANDA_ACTUALIZADA
+  /// con variables extraídas por NLU.
+  metrosMax          Int?
+  /// Tipo de operación ("venta" | "alquiler"). Reservado para extracción NLU futura.
+  /// Hoy siempre null hasta que el grafo NLU lo incluya en variables.
+  tipoOperacion      String?
 
   @@index([estadoId])
   @@index([zonas])
   @@index([comercialId])
   @@index([lastEventPosition])
+  @@index([leadStatus])
   @@map("demands_current")
 }
 
@@ -458,6 +503,23 @@ model ExecutionMetric {
 // ---------------------------------------------------------------------------
 // Visit Scheduling (M4 — rediseño)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Lead Status — pipeline interno (no depende de Inmovilla)
+// ---------------------------------------------------------------------------
+
+enum LeadStatus {
+  NUEVO              // Demanda recibida de Inmovilla; sin contacto aún
+  CONTACTADO         // Primer contacto realizado vía WhatsApp
+  EN_SELECCION       // Comprador interactuando con microsites o propiedades
+  VISITA_PENDIENTE   // Comprador expresó ME_INTERESA; coordinando visita
+  VISITA_CONFIRMADA  // Visita agendada en calendario (comprador aceptó slot)
+  VISITA_REALIZADA   // Visita completada; datos recopilados
+  EN_NEGOCIACION     // Post-visita: contrato o propuesta en proceso
+  EN_FIRMA           // Firma digital enviada / en trámite
+  CERRADO            // Operación cerrada exitosamente
+  PERDIDO            // Lead perdido (escalado sin resolución / cancelado)
+}
 
 enum VisitSessionState {
   INITIATED
@@ -626,9 +688,15 @@ model Invitation {
   used        Boolean    @default(false)
   invitedBy   String
   createdAt   DateTime   @default(now())
+  /// Nombre que el CEO/admin asigna al invitado; se usa al aceptar (sin pedirlo de nuevo en el registro).
+  invitedName  String    @default("")
+  /// Teléfono normalizado (E.164 sin +, ej. 34612345678). Obligatorio para comercial; opcional para admin.
+  invitedPhone String    @default("")
   /// Ficha Comercial a vincular al aceptar (rol comercial). Evita depender de Comercial.email, que suele ir vacío.
   comercialId String?
   comercial   Comercial? @relation(fields: [comercialId], references: [id], onDelete: SetNull)
+  /// Iniciales del comercial en la ref de Inmovilla (ej. "MA", "FEDE"). Se copia a Comercial.inmovillaRefCode al aceptar.
+  refCode     String?
 
   @@index([comercialId])
   @@map("invitation")
@@ -657,6 +725,11 @@ model Comercial {
   calendarProvider     String?   @default("google")
   /// ID numérico del agente en Inmovilla (campo `keyagente` de la ficha de propiedad)
   inmovillaAgentId     Int?      @unique
+  /// Iniciales del comercial en las refs de Inmovilla (ej. "MA" → URUS111VMA). Patrón: URUS{num}{V|A}{refCode}
+  inmovillaRefCode     String?
+  /// Si true, los microsites de este comercial se validan automáticamente con IA
+  /// (descripciones generadas + rebranding) y se envían al comprador sin validación manual.
+  autoValidateMicrosite Boolean @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -946,6 +1019,10 @@ model CommercialLeadFact {
 
   ingestedEventId String? @unique
 
+  // Código de demanda Inmovilla (si el lead se originó con un demandId conocido).
+  // Permite joinear CommercialLeadFact ↔ CommercialOperationFact.demandId en scoring.
+  inmovillaDemandId String?
+
   tipo   String @default("")
   ciudad String @default("")
   source String @default("")
@@ -974,6 +1051,7 @@ model CommercialLeadFact {
   @@index([createdAt])
   @@index([ciudad])
   @@index([source])
+  @@index([inmovillaDemandId])
   @@map("commercial_lead_facts")
 }
 
@@ -1035,6 +1113,7 @@ model CommercialOperationFact {
   operacionId  String?
   propertyCode String
   propertyRef  String  @default("")
+  demandId     String?
 
   ciudad String @default("")
   zona   String @default("")
@@ -1058,6 +1137,7 @@ model CommercialOperationFact {
   @@index([propertyCode])
   @@index([closedAt])
   @@index([operacionId])
+  @@index([demandId])
   @@map("commercial_operation_facts")
 }
 
@@ -1152,6 +1232,23 @@ model Operacion {
   @@index([ciudad, estado])
   @@index([estado, closedAt])
   @@map("operaciones")
+}
+
+/// H27: secuencia atómica por año para generar `Operacion.codigo`
+/// (OP-{YYYY}-{NNNN}) sin race conditions.
+///
+/// El viejo patrón `SELECT MAX(codigo) ... + 1` generaba códigos duplicados
+/// bajo concurrencia (dos requests leían el mismo máximo y creaban operaciones
+/// con el mismo código → violación del UNIQUE en `operaciones.codigo`).
+///
+/// Ahora `generarCodigoOperacion()` hace un `INSERT ... ON CONFLICT DO UPDATE
+/// RETURNING lastValue` atómico sobre esta tabla.
+model OperacionSequence {
+  year      Int      @id
+  lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@map("operacion_sequences")
 }
 
 // ---------------------------------------------------------------------------
@@ -1349,16 +1446,18 @@ model CeoTarget {
 }
 
 model WhatsAppBuyerSession {
-  id             String    @id @default(cuid())
-  waId           String    @unique
-  demandId       String
-  selectionId    String?
-  selectionToken String?
-  lastMessageAt  DateTime?
-  turnCount      Int       @default(0)
-  summary        String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  waId              String    @unique
+  demandId          String
+  selectionId       String?
+  selectionToken    String?
+  lastMessageAt     DateTime?
+  turnCount         Int       @default(0)
+  summary           String?
+  conversationPhase String?
+  buyerDigest       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([demandId])
   @@map("whatsapp_buyer_sessions")
@@ -1468,6 +1567,152 @@ model DevProgramExercise {
   @@map("dev_program_exercises")
 }
 
+// --- Nota de Encargo ---
+
+enum NotaEncargoState {
+  PENDING
+  RECORDATORIO_ENVIADO
+  CONFIRMADA
+  NO_CONFIRMADA
+  FORMULARIO_ENVIADO
+  FORMULARIO_COMPLETADO
+  FIRMA_ENVIADA
+  FIRMADA
+  DOCUMENTO_ENVIADO
+  PROSPECTO_CREADO
+  CANCELADA
+}
+
+model TaskSnapshot {
+  id              String   @id @default(cuid())
+  inmovillaTaskId String   @unique
+  tipo            String
+  asunto          String   @default("")
+  observaciones   String   @default("")
+  agenteId        String
+  fechaAgendar    DateTime
+  fechaCreacion   DateTime
+  etiqueta        String   @default("")
+  estado          String   @default("activa")
+  raw             Json     @default("{}")
+  firstSeenAt     DateTime @default(now())
+  lastSeenAt      DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tipo])
+  @@index([agenteId])
+  @@map("task_snapshots")
+}
+
+model NotaEncargoSession {
+  id                  String           @id @default(cuid())
+  taskSnapshotId      String           @unique
+  propertyCode        String
+  propertyRef         String
+  comercialId         String
+  propietarioPhone    String
+  visitDateTime       DateTime
+  state               NotaEncargoState @default(PENDING)
+  direccion           String           @default("")
+  tipoOperacion       String           @default("")
+  precio              Float            @default(0)
+  propietarioNombre   String?
+  propietarioDni      String?
+  propietarioTelefono String?
+  domicilioFiscal     String?
+  duracionMeses       Int?
+  tipoNotaEncargo     String?
+  aceptaLopd          Boolean?
+  legalDocumentId     String?
+  signatureRequestId  String?
+  documentUrl         String?
+  signedDocumentUrl   String?
+  inmovillaCodOfer    Int?
+  refCatastral        String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@index([state])
+  @@index([propertyCode])
+  @@index([propietarioPhone, state])
+  @@map("nota_encargo_sessions")
+}
+
+// --- Parte de Visita ---
+
+enum ParteVisitaState {
+  PENDING
+  FORMULARIO_ENVIADO
+  FORMULARIO_COMPLETADO
+  FIRMA_ENVIADA
+  FIRMADA
+  DOCUMENTO_ENVIADO
+  CANCELADA
+}
+
+// --- Post-venta — formulario WhatsApp Flow (M9) ---
+
+enum PostventaSurveyStatus {
+  PENDING
+  SENT
+  COMPLETED
+  EXPIRED
+}
+
+model PostventaSurveySession {
+  id             String                @id @default(cuid())
+  operacionId    String                @unique
+  propertyCode   String
+  buyerPhone     String
+  status         PostventaSurveyStatus @default(PENDING)
+  buyerName      String?
+  buyerEmail     String?
+  /// Fecha de nacimiento normalizada a DATE UTC (sin hora). Nullable hasta que el comprador complete el formulario.
+  birthDate      DateTime?
+  /// Valor original tal y como lo introdujo el comprador (fallback si el DatePicker no está disponible en el Flow).
+  birthDateRaw   String?
+  /// Reservado para opt-out futuro. Hoy no se expone en UI ni se consulta; no bloquea envíos.
+  unsubscribedAt DateTime?
+  sentAt         DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([buyerPhone, status])
+  @@index([propertyCode])
+  @@index([status])
+  @@map("postventa_survey_sessions")
+}
+
+model ParteVisitaSession {
+  id                 String           @id @default(cuid())
+  visitSessionId     String           @unique
+  propertyCode       String
+  propertyRef        String
+  comercialId        String
+  buyerPhone         String
+  visitDateTime      DateTime
+  state              ParteVisitaState @default(PENDING)
+  direccion          String           @default("")
+  tipoOperacion      String           @default("")
+  precio             Float            @default(0)
+  buyerNombre        String?
+  buyerDni           String?
+  buyerTelefono      String?
+  aceptaLopd         Boolean?
+  legalDocumentId    String?
+  signatureRequestId String?
+  documentUrl        String?
+  signedDocumentUrl  String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([state])
+  @@index([propertyCode])
+  @@index([buyerPhone, state])
+  @@map("parte_visita_sessions")
+}
+
 model CircuitBreaker {
   id           String               @id
   status       CircuitBreakerStatus @default(CLOSED)
@@ -1479,4 +1724,22 @@ model CircuitBreaker {
   updatedAt    DateTime             @updatedAt
 
   @@map("circuit_breaker")
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String?
+  channel     String
+  source      String
+  severity    String
+  title       String
+  description String
+  eventId     String?
+  eventType   String?
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([userId, read, createdAt])
+  @@index([channel, createdAt])
+  @@map("notification")
 }

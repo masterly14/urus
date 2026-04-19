@@ -5,15 +5,28 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { sendInvitationEmail } from "@/lib/email/resend";
+import { normalizeSpainPhoneLocalInput } from "@/lib/phone/es";
+import { checkRateLimit, rateLimitResponse } from "@/lib/api/rate-limit";
 
 const PostBodySchema = z.object({
   email: z.string().email(),
   role: z.enum(["admin", "comercial"]),
+  /** Nombre del invitado (lo define quien envía la invitación). */
+  invitedName: z.string().min(1).max(200),
+  /** Número tras +34 (España). Obligatorio para comercial; opcional para admin. */
+  invitedPhoneLocal: z.string().optional(),
+  /** Iniciales del comercial en las refs de Inmovilla (ej. "MA", "FEDE"). Obligatorio para rol comercial. */
+  refCode: z.string().max(10).optional(),
 });
 
 const INVITATION_EXPIRY_DAYS = 7;
 
+const INVITATION_RATE_LIMIT = { windowMs: 60_000, maxRequests: 5 } as const;
+
 export async function POST(request: NextRequest) {
+  const rl = checkRateLimit(request, "invitations:post", INVITATION_RATE_LIMIT);
+  if (!rl.allowed) return rateLimitResponse(rl.resetAt);
+
   const session = await auth.api.getSession({ headers: await headers() });
 
   if (!session?.user) {
@@ -38,7 +51,42 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { email, role } = parsed.data;
+  const { email, role, refCode, invitedName, invitedPhoneLocal } = parsed.data;
+  const normalizedRefCode = refCode?.trim().toUpperCase() || null;
+
+  if (role === "comercial" && !normalizedRefCode) {
+    return NextResponse.json(
+      { ok: false, error: "Las iniciales en Inmovilla son obligatorias para comerciales." },
+      { status: 400 },
+    );
+  }
+
+  let invitedPhoneStored = "";
+  if (role === "comercial") {
+    if (!invitedPhoneLocal?.trim()) {
+      return NextResponse.json(
+        { ok: false, error: "El teléfono del comercial es obligatorio." },
+        { status: 400 },
+      );
+    }
+    const normalizedPhone = normalizeSpainPhoneLocalInput(invitedPhoneLocal);
+    if (!normalizedPhone) {
+      return NextResponse.json(
+        { ok: false, error: "Teléfono no válido. Introduce 9 dígitos (España, +34)." },
+        { status: 400 },
+      );
+    }
+    invitedPhoneStored = normalizedPhone;
+  } else if (invitedPhoneLocal?.trim()) {
+    const normalizedPhone = normalizeSpainPhoneLocalInput(invitedPhoneLocal);
+    if (!normalizedPhone) {
+      return NextResponse.json(
+        { ok: false, error: "Teléfono no válido. Introduce 9 dígitos (España, +34)." },
+        { status: 400 },
+      );
+    }
+    invitedPhoneStored = normalizedPhone;
+  }
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
@@ -68,6 +116,9 @@ export async function POST(request: NextRequest) {
       token,
       expiresAt,
       invitedBy: session.user.id,
+      invitedName: invitedName.trim(),
+      invitedPhone: invitedPhoneStored,
+      ...(normalizedRefCode ? { refCode: normalizedRefCode } : {}),
     },
   });
 

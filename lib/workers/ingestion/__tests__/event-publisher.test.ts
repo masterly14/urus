@@ -3,17 +3,12 @@ import type { InmovillaProperty } from "@/lib/inmovilla/api/types";
 import type { PropertyDiffResult } from "../types";
 import { publishEventsForDiff } from "../event-publisher";
 
-const { appendEventMock, enqueueJobMock } = vi.hoisted(() => ({
-  appendEventMock: vi.fn(),
-  enqueueJobMock: vi.fn(),
+const { appendEventAndEnqueueJobMock } = vi.hoisted(() => ({
+  appendEventAndEnqueueJobMock: vi.fn(),
 }));
 
 vi.mock("@/lib/event-store", () => ({
-  appendEvent: appendEventMock,
-}));
-
-vi.mock("@/lib/job-queue", () => ({
-  enqueueJob: enqueueJobMock,
+  appendEventAndEnqueueJob: appendEventAndEnqueueJobMock,
 }));
 
 function makeProperty(
@@ -45,10 +40,8 @@ function makeProperty(
 
 describe("publishEventsForDiff", () => {
   beforeEach(() => {
-    appendEventMock.mockReset();
-    enqueueJobMock.mockReset();
-    appendEventMock.mockResolvedValue({ id: "evt-1", type: "PROPIEDAD_CREADA" });
-    enqueueJobMock.mockResolvedValue({ id: "job-1" });
+    appendEventAndEnqueueJobMock.mockReset();
+    appendEventAndEnqueueJobMock.mockResolvedValue({ id: "evt-1", type: "PROPIEDAD_CREADA" });
   });
 
   it("debe publicar los 3 tipos de evento con correlationId y metadata", async () => {
@@ -80,6 +73,7 @@ describe("publishEventsForDiff", () => {
           otherChangedFields: [],
         },
       ],
+      removed: [],
       unchanged: 0,
     };
 
@@ -87,9 +81,9 @@ describe("publishEventsForDiff", () => {
     const result = await publishEventsForDiff(diff, cycleId);
 
     expect(result.emitted).toBe(3);
-    expect(appendEventMock).toHaveBeenCalledTimes(3);
+    expect(appendEventAndEnqueueJobMock).toHaveBeenCalledTimes(3);
 
-    const calls = appendEventMock.mock.calls.map((call) => call[0]);
+    const calls = appendEventAndEnqueueJobMock.mock.calls.map((call) => call[0].event);
     const types = calls.map((c) => c.type).sort();
     expect(types).toEqual([
       "ESTADO_CAMBIADO",
@@ -130,13 +124,14 @@ describe("publishEventsForDiff", () => {
         },
       ],
       statusChanged: [],
+      removed: [],
       unchanged: 0,
     };
 
     await publishEventsForDiff(diff, "cycle-test-002");
 
-    const aggregateOrder = appendEventMock.mock.calls.map(
-      (call) => call[0].aggregateId,
+    const aggregateOrder = appendEventAndEnqueueJobMock.mock.calls.map(
+      (call) => call[0].event.aggregateId,
     );
     expect(aggregateOrder).toEqual(["A-1", "B-2"]);
   });

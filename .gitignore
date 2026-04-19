@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# Inmovilla sesión RPA (cookies sensibles)
+.inmovilla-session.json
+
 # debug
 npm-debug.log*
 yarn-debug.log*
@@ -42,3 +45,12 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+
+# Diagnósticos y scripts temporales
+scripts/_*
+
+# Archivos HAR (capturas de red sensibles)
+*.har
+
+# Archivo de migraciones archivadas (historial local, no versionable)
+/prisma/migrations_archive_*/

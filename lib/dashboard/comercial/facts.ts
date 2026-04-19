@@ -36,6 +36,10 @@ export async function upsertCommercialLeadFactFromLeadIngestedEvent(input: {
   const tipo = typeof payload.tipo === "string" ? payload.tipo : "";
   const ciudad = typeof payload.ciudad === "string" ? payload.ciudad : "";
   const source = typeof payload.source === "string" ? payload.source : "";
+  const inmovillaDemandId =
+    typeof payload.demandId === "string" && payload.demandId.trim()
+      ? payload.demandId.trim()
+      : null;
 
   const createdAt = event.occurredAt ?? new Date();
 
@@ -52,6 +56,7 @@ export async function upsertCommercialLeadFactFromLeadIngestedEvent(input: {
     create: {
       leadId: event.aggregateId,
       ingestedEventId: event.id,
+      inmovillaDemandId,
       tipo,
       ciudad,
       source,
@@ -67,6 +72,7 @@ export async function upsertCommercialLeadFactFromLeadIngestedEvent(input: {
     },
     update: {
       ingestedEventId: event.id,
+      inmovillaDemandId,
       tipo,
       ciudad,
       source,
@@ -253,6 +259,10 @@ export async function upsertCommercialOperationFactFromOperacionCerradaEvent(
       : null;
 
   const newEstado = typeof payload.newEstado === "string" ? payload.newEstado : "";
+  const demandId =
+    typeof payload.demandId === "string" && payload.demandId.trim()
+      ? payload.demandId.trim()
+      : null;
   const closedAt =
     toDateOrNull(payload.closedAt) ??
     event.occurredAt ??
@@ -287,6 +297,7 @@ export async function upsertCommercialOperationFactFromOperacionCerradaEvent(
       operacionId,
       propertyCode,
       propertyRef: property?.ref ?? "",
+      demandId,
       ciudad: property?.ciudad ?? "",
       zona: property?.zona ?? "",
       newEstado,
@@ -302,6 +313,7 @@ export async function upsertCommercialOperationFactFromOperacionCerradaEvent(
       operacionId,
       propertyCode,
       propertyRef: property?.ref ?? "",
+      demandId,
       ciudad: property?.ciudad ?? "",
       zona: property?.zona ?? "",
       newEstado,

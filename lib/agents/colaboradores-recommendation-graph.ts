@@ -8,6 +8,7 @@
 
 import { Annotation, StateGraph, START, END } from "@langchain/langgraph";
 import { llm } from "./llm";
+import { withRetry } from "./utils/retry";
 import {
   ColaboradoresRecommendationSchema,
   type ColaboradoresRecommendation,
@@ -158,13 +159,15 @@ async function recommendNode(
   try {
     const userContent = serializePayloadForPrompt(payload);
 
-    const raw = await llmStructured.invoke([
-      { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: `Analiza la siguiente flota de colaboradores externos y genera tus recomendaciones estratégicas:\n\n${userContent}`,
-      },
-    ]);
+    const raw = await withRetry(() =>
+      llmStructured.invoke([
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `Analiza la siguiente flota de colaboradores externos y genera tus recomendaciones estratégicas:\n\n${userContent}`,
+        },
+      ]),
+    );
 
     const recommendation: ColaboradoresRecommendation = {
       diagnostico: raw.diagnostico,

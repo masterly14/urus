@@ -4,6 +4,8 @@ const MS_MIN = 60_000;
 const MS_HOUR = 3_600_000;
 const MS_DAY = 86_400_000;
 
+export const MAX_RESPONSE_INFINITE = Number.MAX_SAFE_INTEGER;
+
 const SLA_TIERS: { minScore: number; assignment: SlaAssignment }[] = [
   {
     minScore: 80,
@@ -33,7 +35,7 @@ const SLA_TIERS: { minScore: number; assignment: SlaAssignment }[] = [
     minScore: 0,
     assignment: {
       level: "LOW",
-      maxResponseMs: Infinity,
+      maxResponseMs: MAX_RESPONSE_INFINITE,
       description: "Score <40 — cadencia automática",
     },
   },
