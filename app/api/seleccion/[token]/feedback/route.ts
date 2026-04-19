@@ -3,7 +3,7 @@ import {
   EventType,
   type MicrositeSelectionDecision,
   type Prisma,
-} from "@/app/generated/prisma/client";
+} from "@prisma/client";
 import { appendEvent } from "@/lib/event-store";
 import { enqueueJob } from "@/lib/job-queue";
 import { coerceMicrositeCuratedProperties } from "@/lib/microsite/selection";

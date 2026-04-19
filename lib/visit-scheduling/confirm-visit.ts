@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { MAX_CONCURRENT_VISITS_PER_PROPERTY, VALID_TRANSITIONS } from "./constants";
-import type { VisitSessionState } from "@/app/generated/prisma/client";
+import type { VisitSessionState } from "@prisma/client";
 import {
   SlotNoLongerAvailableError,
   PropertyFullError,

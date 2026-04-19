@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { appendEvent } from "@/lib/event-store/event-store";
-import { AggregateType, EventType } from "@/app/generated/prisma/client";
+import { AggregateType, EventType } from "@prisma/client";
 import { enqueueJob } from "@/lib/job-queue";
 import { emitManagementAlert } from "@/lib/notifications/emit";
 import { withObservedRoute } from "@/lib/observability";

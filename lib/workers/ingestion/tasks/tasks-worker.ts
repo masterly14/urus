@@ -149,7 +149,7 @@ async function runTasksIngestion(): Promise<TasksIngestionResult> {
           agenteId: String(detail.keyagente),
           fechaAgendar: visitDateTime,
           fechaCreacion: new Date(detail.fechaalta),
-          raw: detail as unknown as import("@/app/generated/prisma/client").Prisma.InputJsonValue,
+          raw: detail as unknown as import("@prisma/client").Prisma.InputJsonValue,
         },
       });
 

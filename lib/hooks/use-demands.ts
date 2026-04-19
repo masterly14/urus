@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { LeadStatus } from "@/app/generated/prisma/client";
+import type { LeadStatus } from "@prisma/client";
 
 export interface DemandRow {
   codigo: string;

@@ -1,4 +1,4 @@
-import type { JobType } from "@/app/generated/prisma/client";
+import type { JobType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { JobRecord } from "./types";
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { AggregateType, EventType } from "@/app/generated/prisma/client";
+import { AggregateType, EventType } from "@prisma/client";
 import { appendEvent } from "@/lib/event-store";
 import { enqueueJob } from "@/lib/job-queue";
 import type { JsonValue } from "@/lib/event-store/types";

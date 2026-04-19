@@ -10,7 +10,7 @@ import { generateContractDocx } from "@/lib/contracts/docx";
 import { uploadContractDocument } from "@/lib/cloudinary";
 import { buildContractVersionStem } from "@/lib/contracts/naming";
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@/app/generated/prisma/client";
+import type { Prisma } from "@prisma/client";
 
 interface GenerateContractDraftPayload {
   propertyCode: string;

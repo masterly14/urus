@@ -1,4 +1,4 @@
-import type { EventType } from "@/app/generated/prisma/client";
+import type { EventType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { dequeueJob, enqueueJob, markCompleted, markFailed } from "@/lib/job-queue";
 import { getDeadLetterStats } from "@/lib/job-queue/dead-letter";

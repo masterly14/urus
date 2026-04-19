@@ -1,4 +1,4 @@
-import type { Prisma } from "@/app/generated/prisma/client";
+import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { isQstashAuthorized } from "@/lib/api/cron-auth";
 import { prisma } from "@/lib/prisma";

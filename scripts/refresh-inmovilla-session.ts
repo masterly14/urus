@@ -15,7 +15,7 @@
 import "dotenv/config";
 import { loginToInmovilla } from "@/lib/inmovilla/auth/login";
 import { saveSessionToDb, loadSessionFromDb } from "@/lib/inmovilla/auth/session-store";
-import { PrismaClient } from "@/app/generated/prisma/client";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 

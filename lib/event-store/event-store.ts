@@ -1,4 +1,4 @@
-import type { AggregateType, JobType, Prisma } from "@/app/generated/prisma/client";
+import type { AggregateType, JobType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type {
   AppendEventInput,

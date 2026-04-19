@@ -1,4 +1,4 @@
-import type { JobType } from "@/app/generated/prisma/client";
+import type { JobType } from "@prisma/client";
 
 export interface ProjectionWorkerConfig {
   workerId: string;

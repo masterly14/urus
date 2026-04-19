@@ -261,7 +261,7 @@ async function processEvents(label: string, extraTypes: string[] = []) {
     "PARTE_VISITA_ENVIAR_FORMULARIO",
     "SEND_SIGNATURE_REQUEST",
     ...extraTypes,
-  ] as import("@/app/generated/prisma/client").JobType[];
+  ] as import("@prisma/client").JobType[];
 
   for (let i = 0; i < PROCESS_EVENT_MAX_CYCLES; i++) {
     const cycle = await runConsumerCycle({

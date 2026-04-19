@@ -2,7 +2,7 @@ import type {
   EventType,
   AggregateType,
   Prisma,
-} from "@/app/generated/prisma/client";
+} from "@prisma/client";
 
 export type JsonValue = Prisma.JsonValue;
 

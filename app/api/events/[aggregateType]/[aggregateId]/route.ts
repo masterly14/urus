@@ -1,5 +1,5 @@
-import type { AggregateType, EventType } from "@/app/generated/prisma/client";
-import { AggregateType as AggregateTypeEnum } from "@/app/generated/prisma/client";
+import type { AggregateType, EventType } from "@prisma/client";
+import { AggregateType as AggregateTypeEnum } from "@prisma/client";
 import { getEventsByAggregate } from "@/lib/event-store";
 import { isAuthorized } from "@/lib/api/cron-auth";
 import { NextResponse } from "next/server";

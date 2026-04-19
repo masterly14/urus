@@ -1,4 +1,4 @@
-import { VisitSessionState } from "@/app/generated/prisma/client";
+import { VisitSessionState } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
 // Horario laboral (España — L-S con jornada partida)

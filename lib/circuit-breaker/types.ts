@@ -1,4 +1,4 @@
-import type { CircuitBreakerStatus } from "@/app/generated/prisma/client";
+import type { CircuitBreakerStatus } from "@prisma/client";
 
 export type CircuitState = {
   id: string;

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store";
 import { isAuthorized } from "@/lib/api/cron-auth";
-import type { ReferralStatus } from "@/app/generated/prisma/client";
+import type { ReferralStatus } from "@prisma/client";
 import { withObservedRoute } from "@/lib/observability";
 
 

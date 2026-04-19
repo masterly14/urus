@@ -1,4 +1,4 @@
-import type { OperacionEstado } from "@/app/generated/prisma/client";
+import type { OperacionEstado } from "@prisma/client";
 
 /**
  * Mapea el texto de `estadoficha` de Inmovilla al enum `OperacionEstado` de Prisma.

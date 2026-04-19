@@ -3,7 +3,7 @@ import { enqueueJob } from "@/lib/job-queue";
 import { POSTVENTA_CADENCE } from "./start-cadence-handler";
 import { isOperacionCerrada } from "@/lib/workers/consumer/smart-closing-handler";
 import { hasOpenIncidencia } from "./send-message-handler";
-import type { OperacionEstado } from "@/app/generated/prisma/client";
+import type { OperacionEstado } from "@prisma/client";
 
 const MAX_OPERATIONS_PER_SCAN = 100;
 const EVENT_PAGE_SIZE = 500;

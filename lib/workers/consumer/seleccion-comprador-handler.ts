@@ -15,7 +15,7 @@
 
 import type { Event } from "@/types/domain";
 import type { HandlerResult } from "./types";
-import type { MicrositeSelectionDecision } from "@/app/generated/prisma/client";
+import type { MicrositeSelectionDecision } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { updateDemandLeadStatus } from "@/lib/projections/update-lead-status";
 import { initiateVisitScheduling } from "@/lib/visit-scheduling/orchestrator";
@@ -67,11 +67,11 @@ export async function handleSeleccionComprador(event: Event): Promise<HandlerRes
       selectionId,
       propertyId,
       decision,
-      payload: (p as unknown as import("@/app/generated/prisma/client").Prisma.InputJsonValue) ?? {},
+      payload: (p as unknown as import("@prisma/client").Prisma.InputJsonValue) ?? {},
     },
     update: {
       decision,
-      payload: (p as unknown as import("@/app/generated/prisma/client").Prisma.InputJsonValue) ?? {},
+      payload: (p as unknown as import("@prisma/client").Prisma.InputJsonValue) ?? {},
     },
   });
 

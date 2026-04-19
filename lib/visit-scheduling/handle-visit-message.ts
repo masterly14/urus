@@ -5,7 +5,7 @@
  * la sesión activa y despacha al paso correspondiente del orquestador.
  */
 
-import type { VisitSchedulingSession } from "@/app/generated/prisma/client";
+import type { VisitSchedulingSession } from "@prisma/client";
 import type { VisitIntentClassification } from "./types";
 import { fromZonedTime } from "date-fns-tz";
 import { WORKING_HOURS } from "./constants";

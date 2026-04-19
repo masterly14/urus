@@ -1,4 +1,4 @@
-import type { OperacionEstado } from "@/app/generated/prisma/client";
+import type { OperacionEstado } from "@prisma/client";
 import type { Event } from "@/types/domain";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import { appendEvent } from "@/lib/event-store";

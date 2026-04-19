@@ -1,4 +1,4 @@
-import type { OperacionEstado } from "@/app/generated/prisma/client";
+import type { OperacionEstado } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hasOpenIncidencia } from "@/lib/postventa/send-message-handler";
 import type {

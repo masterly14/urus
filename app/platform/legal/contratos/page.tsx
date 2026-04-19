@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { contratos as mockContratos } from "@/lib/mock-data/contratos";
 import type { Contrato, EstadoContrato } from "@/lib/mock-data/types";
-import type { LegalDocumentStatus } from "@/app/generated/prisma/client";
+import type { LegalDocumentStatus } from "@prisma/client";
 import { ContratosListClient } from "./contratos-list-client";
 
 /**

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 import { getSessionFromRequest, unauthorized, isCeoOrAdmin } from "@/lib/auth/session";
-import type { LeadStatus, Prisma } from "@/app/generated/prisma/client";
+import type { LeadStatus, Prisma } from "@prisma/client";
 
 const LEAD_STATUS_VALUES = new Set<LeadStatus>([
   "NUEVO",

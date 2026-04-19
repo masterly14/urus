@@ -1,4 +1,4 @@
-import type { SignatureRequestStatus } from "@/app/generated/prisma/client";
+import type { SignatureRequestStatus } from "@prisma/client";
 
 export const SIGNATURE_PENDING_STATUSES: SignatureRequestStatus[] = [
   "SENT",

@@ -1,5 +1,5 @@
-import { JobStatus, JobType } from "@/app/generated/prisma/client";
-import type { CircuitBreakerStatus } from "@/app/generated/prisma/client";
+import { JobStatus, JobType } from "@prisma/client";
+import type { CircuitBreakerStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 // Tiempo máximo (en minutos) sin poll exitoso antes de marcar un worker como "degraded".

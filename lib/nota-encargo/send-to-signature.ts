@@ -7,7 +7,7 @@
  * 5. Emit FIRMA_ENVIADA → existing handler sends signing link via WhatsApp
  */
 
-import type { NotaEncargoSession } from "@/app/generated/prisma/client";
+import type { NotaEncargoSession } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store";
 import { enqueueJob } from "@/lib/job-queue";

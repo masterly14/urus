@@ -7,7 +7,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import type { LeadStatus } from "@/app/generated/prisma/client";
+import type { LeadStatus } from "@prisma/client";
 
 /**
  * Actualiza el LeadStatus de una demanda identificada por su código (demandId).

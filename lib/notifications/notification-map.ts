@@ -1,4 +1,4 @@
-import type { EventType } from "@/app/generated/prisma/client";
+import type { EventType } from "@prisma/client";
 import type { NotificationSource, NotificationSeverity } from "@/lib/mock-data/types";
 
 export type NotificationChannel = "org" | "management" | "user";

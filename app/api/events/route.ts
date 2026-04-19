@@ -1,8 +1,8 @@
-import type { AggregateType, EventType } from "@/app/generated/prisma/client";
+import type { AggregateType, EventType } from "@prisma/client";
 import {
   AggregateType as AggregateTypeEnum,
   EventType as EventTypeEnum,
-} from "@/app/generated/prisma/client";
+} from "@prisma/client";
 import { appendEvent } from "@/lib/event-store";
 import type { JsonValue } from "@/lib/event-store/types";
 import { isAuthorized } from "@/lib/api/cron-auth";

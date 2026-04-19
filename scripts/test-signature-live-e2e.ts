@@ -21,7 +21,7 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { Buffer } from "node:buffer";
 
-import { Prisma } from "@/app/generated/prisma/client";
+import { Prisma } from "@prisma/client";
 import { POST as approveContract } from "@/app/api/contracts/approve/route";
 import { POST as renderContract } from "@/app/api/contracts/render/route";
 import { POST as sendToSignature } from "@/app/api/contracts/sign/route";

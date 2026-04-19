@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthorized } from "@/lib/api/cron-auth";
-import type { JobType } from "@/app/generated/prisma/client";
+import type { JobType } from "@prisma/client";
 import {
   listDeadLetterJobs,
   getDeadLetterStats,

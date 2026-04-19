@@ -9,7 +9,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@/app/generated/prisma/client";
+import type { Prisma } from "@prisma/client";
 import type { InmovillaSession } from "./types";
 
 const SINGLETON_ID = "singleton";

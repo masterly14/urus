@@ -1,4 +1,4 @@
-import type { JobStatus, JobType, Prisma } from "@/app/generated/prisma/client";
+import type { JobStatus, JobType, Prisma } from "@prisma/client";
 
 export type JsonValue = Prisma.JsonValue;
 

@@ -13,7 +13,7 @@
  * En Vercel: como postbuild command o invocado via API route protegida.
  */
 import "dotenv/config";
-import { PrismaClient } from "@/app/generated/prisma/client";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 

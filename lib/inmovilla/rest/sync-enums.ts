@@ -4,7 +4,7 @@
  * Uso: invocado por scripts/sync-inmovilla-enums.ts o por cron (QStash).
  */
 
-import type { PrismaClient } from "@/app/generated/prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import type { InmovillaRestClient } from "./client";
 import {
   getCalidades,

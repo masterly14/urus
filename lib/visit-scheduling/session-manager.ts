@@ -1,4 +1,4 @@
-import type { VisitSessionState, Prisma } from "@/app/generated/prisma/client";
+import type { VisitSessionState, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   VALID_TRANSITIONS,

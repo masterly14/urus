@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { useDemands, type DemandsFilters, type DemandRow } from "@/lib/hooks/use-demands";
-import type { LeadStatus } from "@/app/generated/prisma/client";
+import type { LeadStatus } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
 // LeadStatus metadata

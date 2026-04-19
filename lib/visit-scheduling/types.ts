@@ -1,4 +1,4 @@
-import type { VisitSessionState } from "@/app/generated/prisma/client";
+import type { VisitSessionState } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
 // Slots y disponibilidad

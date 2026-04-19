@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type {
   AsignacionEstado,
   HitoEstado,
-} from "@/app/generated/prisma/client";
+} from "@prisma/client";
 
 // ---------------------------------------------------------------------------
 // Types

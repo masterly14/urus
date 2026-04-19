@@ -4,7 +4,7 @@
  * Uso: Egestion Worker (key_loca, key_tipo, key_zona al crear propiedades/demandas), lib/geo (key_zona -> polígonos).
  */
 
-import type { PrismaClient } from "@/app/generated/prisma/client";
+import type { PrismaClient } from "@prisma/client";
 
 export type CatalogSearchParams = {
   ciudadNombre?: string;

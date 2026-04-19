@@ -9,7 +9,7 @@
  * Ejecución: npx tsx scripts/seed-ceo.ts
  */
 import "dotenv/config";
-import { PrismaClient } from "@/app/generated/prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { auth } from "@/lib/auth";
 
 const prisma = new PrismaClient();

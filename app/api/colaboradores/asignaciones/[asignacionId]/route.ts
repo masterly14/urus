@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
-import type { AsignacionEstado } from "@/app/generated/prisma/client";
+import type { AsignacionEstado } from "@prisma/client";
 import { withObservedRoute } from "@/lib/observability";
 
 

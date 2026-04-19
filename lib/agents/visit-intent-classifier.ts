@@ -12,7 +12,7 @@
 
 import { z } from "zod";
 import { ChatOpenAI } from "@langchain/openai";
-import type { VisitSessionState } from "@/app/generated/prisma/client";
+import type { VisitSessionState } from "@prisma/client";
 import type { VisitIntentClassification, VisitIntent } from "@/lib/visit-scheduling/types";
 
 // ---------------------------------------------------------------------------

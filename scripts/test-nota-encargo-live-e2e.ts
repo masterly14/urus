@@ -317,7 +317,7 @@ async function processEvents(label: string, extraTypes: string[] = []) {
     "SEND_SIGNATURE_REQUEST",
     "CREAR_PROSPECTO_INMOVILLA",
     ...extraTypes,
-  ] as import("@/app/generated/prisma/client").JobType[];
+  ] as import("@prisma/client").JobType[];
   for (let i = 0; i < PROCESS_EVENT_MAX_CYCLES; i++) {
     const cycle = await runConsumerCycle({
       workerId: WORKER_ID,

@@ -1,4 +1,4 @@
-import type { EventType } from "@/app/generated/prisma/client";
+import type { EventType } from "@prisma/client";
 import type { Event } from "@/types/domain";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import type { EventHandler, HandlerResult } from "./types";

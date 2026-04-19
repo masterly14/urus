@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { EventType } from "@/app/generated/prisma/client";
+import type { EventType } from "@prisma/client";
 import type { EventRecord } from "@/lib/event-store/types";
 import type { JobRecord } from "@/lib/job-queue/types";
 

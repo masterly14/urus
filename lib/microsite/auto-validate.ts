@@ -18,7 +18,7 @@
 
 import OpenAI from "openai";
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@/app/generated/prisma/client";
+import type { Prisma } from "@prisma/client";
 import { appendEvent } from "@/lib/event-store";
 import { enqueueJob } from "@/lib/job-queue";
 import {

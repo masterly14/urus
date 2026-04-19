@@ -1,4 +1,4 @@
-import type { JobType } from "@/app/generated/prisma/client";
+import type { JobType } from "@prisma/client";
 import type { JobRecord } from "@/lib/job-queue/types";
 import type { HandlerResult } from "./types";
 import { appendEvent } from "@/lib/event-store";

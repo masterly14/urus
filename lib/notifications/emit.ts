@@ -1,4 +1,4 @@
-import type { EventType } from "@/app/generated/prisma/client";
+import type { EventType } from "@prisma/client";
 import type { Event } from "@/types/domain";
 import { prisma } from "@/lib/prisma";
 import { NOTIFICATION_MAP, type NotificationChannel } from "./notification-map";

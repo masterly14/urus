@@ -11,7 +11,7 @@
  * Ejecución: npx tsx scripts/backfill-operaciones.ts
  * Idempotente: omite documentos cuyo operationId ya existe como Operacion.codigo.
  */
-import { PrismaClient } from "@/app/generated/prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { resolveDemandIdForProperty } from "../lib/operacion/resolve-demand";
 
 const prisma = new PrismaClient();

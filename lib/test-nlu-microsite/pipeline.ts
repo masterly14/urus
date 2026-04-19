@@ -18,7 +18,7 @@
  */
 
 import { randomBytes } from "crypto";
-import type { Prisma } from "@/app/generated/prisma/client";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { JsonValue } from "@/lib/event-store/types";
 import { appendEvent } from "@/lib/event-store";

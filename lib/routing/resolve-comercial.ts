@@ -12,7 +12,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import type { Comercial } from "@/app/generated/prisma/client";
+import type { Comercial } from "@prisma/client";
 import { extractRefCode } from "./parse-ref-code";
 
 export interface ResolveComercialInput {

@@ -1,4 +1,4 @@
-import type { JobType } from "@/app/generated/prisma/client";
+import type { JobType } from "@prisma/client";
 
 const MS_DAY = 86_400_000;
 

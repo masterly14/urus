@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { EventRecord } from "@/lib/event-store/types";
-import type { EventType } from "@/app/generated/prisma/client";
+import type { EventType } from "@prisma/client";
 import { getHandler, getRegisteredTypes } from "../handlers";
 
 function makeEvent(

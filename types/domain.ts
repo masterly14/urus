@@ -6,7 +6,7 @@
 
 import type { EventRecord, AppendEventInput } from "@/lib/event-store/types";
 import type { JobRecord, EnqueueJobInput } from "@/lib/job-queue/types";
-import type { EventType, AggregateType, JobType, JobStatus } from "@/app/generated/prisma/client";
+import type { EventType, AggregateType, JobType, JobStatus } from "@prisma/client";
 import type { StatefoxProperty as StatefoxPropertyIntegration } from "@/lib/statefox/types";
 
 // --- Property (inmueble interno / Inmovilla) ---

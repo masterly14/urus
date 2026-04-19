@@ -1,4 +1,4 @@
-import type { Prisma } from "@/app/generated/prisma/client";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { EventRecord } from "@/lib/event-store/types";
 import type { ProjectionApplyResult } from "./types";
