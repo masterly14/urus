@@ -390,10 +390,10 @@ export default function DashboardColaboradoresPage() {
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Sparkles className="h-8 w-8 text-muted-foreground/20 mb-2" />
               <p className="text-sm text-muted-foreground">
-                Las recomendaciones se generan automáticamente vía cron
+                Las recomendaciones se generan automáticamente por el sistema 
               </p>
               <p className="text-xs text-muted-foreground/60 mt-1">
-                POST /api/cron/colaboradores-recomendaciones
+                Vuelve pronto
               </p>
             </div>
           )}

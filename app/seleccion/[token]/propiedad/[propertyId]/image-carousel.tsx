@@ -22,7 +22,7 @@ export function ImageCarousel({ images, alt }: ImageCarouselProps) {
 
   if (count === 0) {
     return (
-      <div className="flex aspect-[16/9] w-full items-center justify-center rounded-2xl bg-neutral-900 text-sm text-neutral-500">
+      <div className="flex aspect-[16/9] w-full items-center justify-center bg-slate-100 text-sm font-medium text-slate-400">
         Sin imágenes disponibles
       </div>
     );
@@ -34,7 +34,7 @@ export function ImageCarousel({ images, alt }: ImageCarouselProps) {
         className={
           fullscreen
             ? "flex h-[80vh] items-center justify-center bg-black"
-            : "aspect-[16/9] w-full overflow-hidden rounded-2xl bg-neutral-900"
+            : "aspect-[16/9] w-full overflow-hidden bg-slate-100"
         }
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -91,15 +91,15 @@ export function ImageCarousel({ images, alt }: ImageCarouselProps) {
       <div>
         {carousel}
         {count > 1 ? (
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
+          <div className="mt-4 flex gap-3 overflow-x-auto pb-2 px-4 sm:px-6">
             {images.map((src, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => setCurrent(i)}
-                className={`h-16 w-20 flex-shrink-0 overflow-hidden rounded-lg border-2 transition ${
+                className={`h-16 w-24 flex-shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
                   i === current
-                    ? "border-white"
+                    ? "border-blue-600 shadow-md scale-[1.02]"
                     : "border-transparent opacity-60 hover:opacity-100"
                 }`}
               >
@@ -135,15 +135,15 @@ export function ImageCarousel({ images, alt }: ImageCarouselProps) {
         </button>
       </div>
       <div className="flex-1">{carousel}</div>
-      <div className="flex gap-2 overflow-x-auto p-4">
+      <div className="flex gap-2 overflow-x-auto p-4 sm:p-6 justify-center">
         {images.map((src, i) => (
           <button
             key={i}
             type="button"
             onClick={() => setCurrent(i)}
-            className={`h-14 w-[72px] flex-shrink-0 overflow-hidden rounded-md border-2 transition ${
+            className={`h-16 w-24 flex-shrink-0 overflow-hidden rounded-md border-2 transition-all ${
               i === current
-                ? "border-white"
+                ? "border-blue-500 scale-105"
                 : "border-transparent opacity-50 hover:opacity-100"
             }`}
           >

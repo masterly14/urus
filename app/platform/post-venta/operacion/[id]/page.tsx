@@ -1,10 +1,10 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
     ArrowLeft,
-    MapPin,
     DollarSign,
     Calendar,
     User,
@@ -12,9 +12,7 @@ import {
     FileText,
     CheckCircle2,
     Circle,
-    Clock,
     Download,
-    ExternalLink,
     Tag,
     Send,
     MessageSquare,
@@ -24,27 +22,17 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { StepperProgress } from "@/components/post-venta/stepper-progress";
 import { TimelineEvent } from "@/components/post-venta/pipeline-kanban";
 import { operaciones } from "@/lib/mock-data/operaciones";
 import { comerciales } from "@/lib/mock-data/comerciales";
-import type { EtapaPostVenta } from "@/lib/mock-data/types";
+import type { OperacionPostVenta } from "@/lib/postventa/pipeline-types";
 
 const tipoClienteConfig = {
     comprador: { label: "Comprador", color: "var(--urus-info)", emoji: "🏠", icon: Home },
     inversor: { label: "Inversor", color: "var(--urus-gold)", emoji: "💰", icon: Building2 },
     vendedor: { label: "Vendedor", color: "var(--urus-success)", emoji: "📤", icon: Briefcase },
 };
-
-// ── Simulated document list ──────────────────────────────────
-
-const sampleDocuments = [
-    { name: "Contrato de Reserva.pdf", size: "2.4 MB", date: "2026-02-10" },
-    { name: "Nota Simple Registral.pdf", size: "1.1 MB", date: "2026-02-08" },
-    { name: "Certificado Energético.pdf", size: "890 KB", date: "2026-02-05" },
-    { name: "Resumen Operación.pdf", size: "345 KB", date: "2026-02-10" },
-];
 
 // ── Checklist items ──────────────────────────────────────────
 
@@ -67,21 +55,94 @@ function formatDate(isoDate: string): string {
     });
 }
 
-export default function OperacionDetallePage({ params }: { params: Promise<{ id: string }> }) {
+function OperacionDetalleContent({ params }: { params: Promise<{ id: string }> }) {
     const resolvedParams = use(params);
-    const operation = operaciones.find((op) => op.id === resolvedParams.id);
+    const searchParams = useSearchParams();
+    // Modo visual demo para revisión de UI sin backend real.
+    const mockMode = searchParams.get("mock") === "1";
+    const [operation, setOperation] = useState<OperacionPostVenta | null>(() =>
+        mockMode ? operaciones.find((op) => op.id === resolvedParams.id) ?? null : null
+    );
+    const [loading, setLoading] = useState<boolean>(!mockMode);
+    const [loadError, setLoadError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (mockMode) {
+            setOperation(operaciones.find((op) => op.id === resolvedParams.id) ?? null);
+            setLoading(false);
+            setLoadError(null);
+            return;
+        }
+
+        let cancelled = false;
+
+        const load = async () => {
+            setLoading(true);
+            setLoadError(null);
+            try {
+                const response = await fetch(`/api/postventa/pipeline/${resolvedParams.id}`, {
+                    method: "GET",
+                    credentials: "same-origin",
+                });
+                if (!response.ok) {
+                    const body = await response.json().catch(() => null);
+                    const message = typeof body?.error === "string" ? body.error : "No se pudo cargar la operación";
+                    throw new Error(message);
+                }
+                const body = await response.json() as OperacionPostVenta;
+                if (!cancelled) setOperation(body);
+            } catch (error) {
+                if (!cancelled) {
+                    const message = error instanceof Error ? error.message : "Error inesperado";
+                    setLoadError(message);
+                }
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+
+        load();
+        return () => {
+            cancelled = true;
+        };
+    }, [mockMode, resolvedParams.id]);
+
+    const backHref = mockMode
+        ? "/platform/post-venta/pipeline?mock=1"
+        : "/platform/post-venta/pipeline";
+
+    const documents = useMemo(() => {
+        if (!operation?.documentos) return [];
+        return operation.documentos;
+    }, [operation]);
+
+    if (loading) {
+        return (
+            <div className="space-y-6">
+                <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                    <ArrowLeft className="h-4 w-4" />
+                    Volver al Pipeline
+                </Link>
+                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                    <CardContent className="py-12 text-sm text-muted-foreground">
+                        Cargando operación post-venta...
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
 
     if (!operation) {
         return (
             <div className="space-y-6">
-                <Link href="/platform/post-venta/pipeline" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                     <ArrowLeft className="h-4 w-4" />
                     Volver al Pipeline
                 </Link>
                 <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
                     <CardContent className="flex flex-col items-center justify-center py-20 text-center">
                         <p className="text-lg font-semibold mb-2">Operación no encontrada</p>
-                        <p className="text-sm text-muted-foreground">La operación solicitada no existe en el sistema.</p>
+                        <p className="text-sm text-muted-foreground">{loadError ?? "La operación solicitada no existe en el sistema."}</p>
                     </CardContent>
                 </Card>
             </div>
@@ -89,6 +150,24 @@ export default function OperacionDetallePage({ params }: { params: Promise<{ id:
     }
 
     const comercial = comerciales.find((c) => c.id === operation.comercial);
+    const comercialDisplay = comercial
+        ? {
+            nombre: comercial.nombre,
+            ciudad: comercial.ciudad,
+            avatar: comercial.avatar,
+        }
+        : operation.comercialNombre
+            ? {
+                nombre: operation.comercialNombre,
+                ciudad: operation.comercialCiudad ?? "N/A",
+                avatar: operation.comercialNombre
+                    .split(" ")
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((chunk) => chunk[0]?.toUpperCase() ?? "")
+                    .join(""),
+            }
+            : null;
     const tipoConfig = tipoClienteConfig[operation.tipoCliente];
     const TipoIcon = tipoConfig.icon;
     const checklistItems = getChecklistItems(operation.checklistCompleto);
@@ -101,7 +180,7 @@ export default function OperacionDetallePage({ params }: { params: Promise<{ id:
         <div className="space-y-6">
             {/* Back link */}
             <Link
-                href="/platform/post-venta/pipeline"
+                href={backHref}
                 className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
             >
                 <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
@@ -169,13 +248,13 @@ export default function OperacionDetallePage({ params }: { params: Promise<{ id:
                                 </div>
                             </div>
 
-                            {comercial && (
+                            {comercialDisplay && (
                                 <div className="flex items-center gap-2 pt-1">
                                     <div className="h-7 w-7 rounded-full bg-accent/50 flex items-center justify-center text-[10px] font-semibold text-secondary">
-                                        {comercial.avatar}
+                                        {comercialDisplay.avatar || "NA"}
                                     </div>
                                     <span className="text-xs text-muted-foreground">
-                                        Comercial: <span className="text-foreground font-medium">{comercial.nombre}</span> · {comercial.ciudad}
+                                        Comercial: <span className="text-foreground font-medium">{comercialDisplay.nombre}</span> · {comercialDisplay.ciudad}
                                     </span>
                                 </div>
                             )}
@@ -360,26 +439,51 @@ export default function OperacionDetallePage({ params }: { params: Promise<{ id:
                         </CardHeader>
                         <CardContent className="pt-0">
                             <div className="space-y-2">
-                                {sampleDocuments.map((doc, i) => (
+                                {documents.length === 0 ? (
+                                    <div className="text-xs text-muted-foreground">
+                                        Sin documentos asociados a esta operación.
+                                    </div>
+                                ) : (
+                                    documents.map((doc) => (
                                     <div
-                                        key={i}
+                                        key={doc.id}
                                         className="flex items-center justify-between rounded-lg px-3 py-2 bg-accent/20 hover:bg-accent/40 transition-colors cursor-pointer group"
                                     >
                                         <div className="flex items-center gap-2.5 min-w-0">
                                             <FileText className="h-4 w-4 text-[var(--urus-danger)] shrink-0" />
                                             <div className="min-w-0">
-                                                <p className="text-xs font-medium truncate">{doc.name}</p>
-                                                <p className="text-[10px] text-muted-foreground">{doc.size}</p>
+                                                <p className="text-xs font-medium truncate">{doc.nombre}</p>
+                                                <p className="text-[10px] text-muted-foreground">{formatDate(doc.fecha)}</p>
                                             </div>
                                         </div>
-                                        <Download className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                                        {doc.url ? (
+                                            <a
+                                                href={doc.url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex"
+                                            >
+                                                <Download className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                                            </a>
+                                        ) : (
+                                            <Download className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+                                        )}
                                     </div>
-                                ))}
+                                ))
+                                )}
                             </div>
                         </CardContent>
                     </Card>
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function OperacionDetallePage({ params }: { params: Promise<{ id: string }> }) {
+    return (
+        <Suspense fallback={null}>
+            <OperacionDetalleContent params={params} />
+        </Suspense>
     );
 }

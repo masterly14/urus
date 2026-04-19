@@ -5,5 +5,5 @@ export default function PlatformLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return <AppShell>{children}</AppShell>;
+  return <AppShell logoSrc="/image.png">{children}</AppShell>;
 }

@@ -10,6 +10,9 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  User,
+  Phone,
+  Trash2,
 } from "lucide-react";
 import {
   Card,
@@ -37,12 +40,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useAppSession } from "@/lib/hooks/use-session";
 
 interface UserRow {
   id: string;
   name: string;
   email: string;
   role: string;
+  comercialId?: string | null;
   createdAt: string;
 }
 
@@ -53,12 +67,23 @@ interface InvitationRow {
   used: boolean;
   expiresAt: string;
   createdAt: string;
+  invitedName?: string;
+  invitedPhone?: string;
+}
+
+function formatInvitedPhoneDisplay(digits?: string): string {
+  const d = digits?.trim() ?? "";
+  if (d.length === 11 && d.startsWith("34")) {
+    return `+34 ${d.slice(2)}`;
+  }
+  return d || "—";
 }
 
 interface ComercialOption {
   id: string;
   nombre: string;
   ciudad: string;
+  email: string;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -74,19 +99,32 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export function UserManagement() {
+  const { user: sessionUser, isCeo } = useAppSession();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [invitations, setInvitations] = useState<InvitationRow[]>([]);
   const [comerciales, setComerciales] = useState<ComercialOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteInvitedName, setInviteInvitedName] = useState("");
+  const [invitePhoneLocal, setInvitePhoneLocal] = useState("");
   const [inviteRole, setInviteRole] = useState("comercial");
+  const [inviteRefCode, setInviteRefCode] = useState("");
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState(false);
 
   const [linkingUserId, setLinkingUserId] = useState<string | null>(null);
   const [linkComercialId, setLinkComercialId] = useState("");
+  const [roleDrafts, setRoleDrafts] = useState<Record<string, string>>({});
+  const [updatingRoleUserId, setUpdatingRoleUserId] = useState<string | null>(null);
+  const [roleError, setRoleError] = useState<string | null>(null);
+
+  const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const userTableColSpan = isCeo ? 6 : 5;
 
   const fetchData = useCallback(async () => {
     try {
@@ -100,7 +138,11 @@ export function UserManagement() {
       const invitationsData = await invitationsRes.json();
       const comercialesData = await comercialesRes.json();
 
-      if (usersData.ok) setUsers(usersData.users);
+      if (usersData.ok) {
+        const apiUsers = usersData.users as UserRow[];
+        setUsers(apiUsers);
+        setRoleDrafts(Object.fromEntries(apiUsers.map((user) => [user.id, user.role])));
+      }
       if (invitationsData.ok) setInvitations(invitationsData.invitations);
       if (comercialesData.ok) setComerciales(comercialesData.comerciales);
     } catch {
@@ -123,7 +165,15 @@ export function UserManagement() {
     const res = await fetch("/api/invitations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+      body: JSON.stringify({
+        email: inviteEmail,
+        invitedName: inviteInvitedName.trim(),
+        invitedPhoneLocal: invitePhoneLocal,
+        role: inviteRole,
+        ...(inviteRole === "comercial" && inviteRefCode.trim()
+          ? { refCode: inviteRefCode.trim() }
+          : {}),
+      }),
     });
 
     const data = await res.json();
@@ -133,6 +183,9 @@ export function UserManagement() {
     } else {
       setInviteSuccess(true);
       setInviteEmail("");
+      setInviteInvitedName("");
+      setInvitePhoneLocal("");
+      setInviteRefCode("");
       void fetchData();
       setTimeout(() => setInviteSuccess(false), 3000);
     }
@@ -154,6 +207,52 @@ export function UserManagement() {
     }
   }
 
+  async function handleChangeRole(userId: string, currentRole: string) {
+    const nextRole = roleDrafts[userId];
+    if (!nextRole || nextRole === currentRole) return;
+
+    setUpdatingRoleUserId(userId);
+    setRoleError(null);
+
+    const res = await fetch("/api/users/role", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, role: nextRole }),
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.ok) {
+      setRoleError(data.error ?? "No se pudo actualizar el rol");
+      setRoleDrafts((prev) => ({ ...prev, [userId]: currentRole }));
+    } else {
+      void fetchData();
+    }
+
+    setUpdatingRoleUserId(null);
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteTarget) return;
+    setDeletingUserId(deleteTarget.id);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/users/${encodeURIComponent(deleteTarget.id)}`, {
+        method: "DELETE",
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setDeleteError(data.error ?? "No se pudo eliminar el usuario");
+        return;
+      }
+      setDeleteTarget(null);
+      void fetchData();
+    } catch {
+      setDeleteError("Error de red al eliminar el usuario");
+    } finally {
+      setDeletingUserId(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex h-32 items-center justify-center">
@@ -164,8 +263,8 @@ export function UserManagement() {
 
   const linkedComercialIds = new Set(
     users
-      .filter((u) => (u as Record<string, unknown>).comercialId)
-      .map((u) => (u as Record<string, unknown>).comercialId as string)
+      .map((u) => u.comercialId)
+      .filter((id): id is string => Boolean(id))
   );
   const availableComerciales = comerciales.filter((c) => !linkedComercialIds.has(c.id));
 
@@ -178,57 +277,130 @@ export function UserManagement() {
             <UserPlus className="h-5 w-5" />
             Invitar usuario
           </CardTitle>
-          <CardDescription>
-            Envía una invitación por correo electrónico. El invitado recibirá un enlace para crear su cuenta.
-          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleInvite} className="flex flex-col gap-4 sm:flex-row sm:items-end">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="inviteEmail">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="inviteEmail"
-                  type="email"
-                  placeholder="nombre@ejemplo.com"
-                  className="pl-9"
-                  required
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  disabled={inviting}
-                />
+          <form onSubmit={handleInvite} className="space-y-4">
+            {/* Fila 1: Nombre + Email */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="inviteInvitedName">Nombre del invitado</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="inviteInvitedName"
+                    type="text"
+                    placeholder="Nombre completo"
+                    className="pl-9"
+                    required
+                    value={inviteInvitedName}
+                    onChange={(e) => setInviteInvitedName(e.target.value)}
+                    disabled={inviting}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Debe coincidir <strong>exactamente</strong> con el nombre en Inmovilla (tildes, mayúsculas y espacios).
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="inviteEmail">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="inviteEmail"
+                    type="email"
+                    placeholder="nombre@ejemplo.com"
+                    className="pl-9"
+                    required
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    disabled={inviting}
+                  />
+                </div>
               </div>
             </div>
-            <div className="w-48 space-y-2">
-              <Label>Rol</Label>
-              <Select value={inviteRole} onValueChange={setInviteRole} disabled={inviting}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="comercial">Comercial</SelectItem>
-                  <SelectItem value="admin">Administrador</SelectItem>
-                </SelectContent>
-              </Select>
+
+            {/* Fila 2: Teléfono + Rol + Iniciales (si comercial) */}
+            <div className={`grid gap-4 ${inviteRole === "comercial" ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+              <div className="space-y-1.5">
+                <Label htmlFor="invitePhone">
+                  Teléfono
+                  {inviteRole !== "comercial" && (
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">(opcional)</span>
+                  )}
+                </Label>
+                <div className="flex gap-2">
+                  <div
+                    className="flex h-10 shrink-0 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
+                    aria-hidden
+                  >
+                    +34
+                  </div>
+                  <div className="relative flex-1">
+                    <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="invitePhone"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel-national"
+                      placeholder="612 345 678"
+                      className="pl-9"
+                      required={inviteRole === "comercial"}
+                      value={invitePhoneLocal}
+                      onChange={(e) => setInvitePhoneLocal(e.target.value)}
+                      disabled={inviting}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Rol</Label>
+                <Select value={inviteRole} onValueChange={setInviteRole} disabled={inviting}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="comercial">Comercial</SelectItem>
+                    <SelectItem value="admin">Administrador</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {inviteRole === "comercial" && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="inviteRefCode">Iniciales Inmovilla</Label>
+                  <Input
+                    id="inviteRefCode"
+                    type="text"
+                    placeholder="MA"
+                    maxLength={10}
+                    required
+                    value={inviteRefCode}
+                    onChange={(e) => setInviteRefCode(e.target.value.toUpperCase())}
+                    disabled={inviting}
+                  />
+                </div>
+              )}
             </div>
-            <Button type="submit" disabled={inviting} className="gap-2">
-              {inviting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-              Invitar
-            </Button>
+
+            {/* Botón + feedback inline */}
+            <div className="flex items-center gap-3 pt-1">
+              <Button type="submit" disabled={inviting} className="gap-2">
+                {inviting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                Invitar
+              </Button>
+              {inviteError && (
+                <span className="flex items-center gap-1.5 text-sm text-destructive">
+                  <XCircle className="h-4 w-4 shrink-0" />
+                  {inviteError}
+                </span>
+              )}
+              {inviteSuccess && (
+                <span className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  Invitación enviada correctamente
+                </span>
+              )}
+            </div>
           </form>
-          {inviteError && (
-            <div className="mt-3 flex items-center gap-2 text-sm text-destructive">
-              <XCircle className="h-4 w-4" />
-              {inviteError}
-            </div>
-          )}
-          {inviteSuccess && (
-            <div className="mt-3 flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-              <CheckCircle2 className="h-4 w-4" />
-              Invitación enviada correctamente
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -244,6 +416,12 @@ export function UserManagement() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {roleError && (
+            <div className="mb-4 flex items-center gap-2 text-sm text-destructive">
+              <XCircle className="h-4 w-4" />
+              {roleError}
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
@@ -252,27 +430,67 @@ export function UserManagement() {
                 <TableHead>Rol</TableHead>
                 <TableHead>Comercial vinculado</TableHead>
                 <TableHead>Registro</TableHead>
+                {isCeo && (
+                  <TableHead className="w-[72px] text-right text-muted-foreground">Acciones</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
               {users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                  <TableCell
+                    colSpan={userTableColSpan}
+                    className="py-8 text-center text-muted-foreground"
+                  >
                     No hay usuarios registrados.
                   </TableCell>
                 </TableRow>
               ) : (
                 users.map((user) => {
-                  const comercialId = (user as Record<string, unknown>).comercialId as string | null;
-                  const linked = comerciales.find((c) => c.id === comercialId);
+                  const userComercialId = user.comercialId ?? null;
+                  const linked = comerciales.find((c) => c.id === userComercialId);
                   return (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">{user.name}</TableCell>
                       <TableCell>{user.email}</TableCell>
                       <TableCell>
-                        <Badge className={ROLE_COLORS[user.role] ?? ""}>
-                          {ROLE_LABELS[user.role] ?? user.role}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={roleDrafts[user.id] ?? user.role}
+                            onValueChange={(value) =>
+                              setRoleDrafts((prev) => ({ ...prev, [user.id]: value }))
+                            }
+                            disabled={updatingRoleUserId === user.id}
+                          >
+                            <SelectTrigger className="h-8 w-[150px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ceo">CEO</SelectItem>
+                              <SelectItem value="admin">Administrador</SelectItem>
+                              <SelectItem value="comercial">Comercial</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8"
+                            disabled={
+                              updatingRoleUserId === user.id ||
+                              (roleDrafts[user.id] ?? user.role) === user.role
+                            }
+                            onClick={() => handleChangeRole(user.id, user.role)}
+                          >
+                            {updatingRoleUserId === user.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              "Guardar"
+                            )}
+                          </Button>
+                          <Badge className={ROLE_COLORS[user.role] ?? ""}>
+                            {ROLE_LABELS[user.role] ?? user.role}
+                          </Badge>
+                        </div>
                       </TableCell>
                       <TableCell>
                         {user.role === "comercial" ? (
@@ -327,6 +545,26 @@ export function UserManagement() {
                       <TableCell className="text-xs text-muted-foreground">
                         {new Date(user.createdAt).toLocaleDateString("es-ES")}
                       </TableCell>
+                      {isCeo && (
+                        <TableCell className="text-right">
+                          {sessionUser && user.id !== sessionUser.id ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              title="Eliminar usuario"
+                              aria-label={`Eliminar usuario ${user.name}`}
+                              onClick={() => {
+                                setDeleteError(null);
+                                setDeleteTarget(user);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          ) : null}
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })
@@ -335,6 +573,45 @@ export function UserManagement() {
           </Table>
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar usuario?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminará la cuenta de {deleteTarget?.name} ({deleteTarget?.email}). Esta acción no
+              se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError ? (
+            <p className="text-sm text-destructive" role="alert">
+              {deleteError}
+            </p>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingUserId !== null}>Cancelar</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={deletingUserId !== null}
+              onClick={() => void handleConfirmDelete()}
+            >
+              {deletingUserId ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Eliminar"
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Pending Invitations */}
       <Card>
@@ -351,7 +628,9 @@ export function UserManagement() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Nombre</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Teléfono</TableHead>
                 <TableHead>Rol</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Expira</TableHead>
@@ -361,7 +640,7 @@ export function UserManagement() {
             <TableBody>
               {invitations.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                     No hay invitaciones.
                   </TableCell>
                 </TableRow>
@@ -370,7 +649,13 @@ export function UserManagement() {
                   const expired = new Date(inv.expiresAt) < new Date();
                   return (
                     <TableRow key={inv.id}>
+                      <TableCell className="font-medium">
+                        {inv.invitedName?.trim() || "—"}
+                      </TableCell>
                       <TableCell>{inv.email}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {formatInvitedPhoneDisplay(inv.invitedPhone)}
+                      </TableCell>
                       <TableCell>
                         <Badge className={ROLE_COLORS[inv.role] ?? ""}>
                           {ROLE_LABELS[inv.role] ?? inv.role}

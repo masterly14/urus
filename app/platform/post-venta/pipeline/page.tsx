@@ -1,63 +1,130 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
     PackageCheck,
     Filter,
-    LayoutGrid,
-    List,
     TrendingUp,
-    Clock,
     CheckCircle2,
-    Users,
-    ArrowUpRight,
     Briefcase,
     MessageSquare,
+    GitBranch,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-    PipelineKanban,
-    KanbanColumn,
-} from "@/components/post-venta/pipeline-kanban";
-import { OperationCard, etapaLabels, tipoClienteConfig } from "@/components/post-venta/operation-card";
-import { StepperProgress, PIPELINE_STEPS } from "@/components/post-venta/stepper-progress";
+import { OperationCard, tipoClienteConfig } from "@/components/post-venta/operation-card";
 import { operaciones } from "@/lib/mock-data/operaciones";
 import { comerciales } from "@/lib/mock-data/comerciales";
-import type { EtapaPostVenta, TipoCliente } from "@/lib/mock-data/types";
+import type {
+    LeadStatusPipeline,
+    OperacionPostVenta,
+    PipelineComercialFilter,
+    TipoCliente,
+} from "@/lib/postventa/pipeline-types";
+import {
+    DEMAND_STATUS_NA,
+    PIPELINE_LEAD_STATUS_VALUES,
+    PIPELINE_OPERACION_ESTADO_VALUES,
+    operacionEstadoFilterLabels,
+} from "@/lib/postventa/pipeline-filter-options";
 
-// ── Pipeline stages definition ────────────────────────────────
+const leadStatusFilterLabels: Record<LeadStatusPipeline, string> = {
+    NUEVO: "Nuevo",
+    CONTACTADO: "Contactado",
+    EN_SELECCION: "En selección",
+    VISITA_PENDIENTE: "Visita pendiente",
+    VISITA_CONFIRMADA: "Visita confirmada",
+    VISITA_REALIZADA: "Visita realizada",
+    EN_NEGOCIACION: "En negociación",
+    EN_FIRMA: "En firma",
+    CERRADO: "Cerrado",
+    PERDIDO: "Perdido",
+};
 
-const pipelineStages: { id: EtapaPostVenta; label: string; description: string; emoji: string }[] = [
-    { id: 1, label: "Cierre Inmediato", description: "Agradecimiento + Email resumen + Checklist", emoji: "🤝" },
-    { id: 2, label: "Soporte Temprano", description: "Validación + Mini guía", emoji: "📋" },
-    { id: 3, label: "Reputación", description: "Petición de reseña + Recordatorio", emoji: "⭐" },
-    { id: 4, label: "Referidos", description: "Invitación + Enlace directo", emoji: "🔗" },
-    { id: 5, label: "Recaptación", description: "Segmentación (Comprador/Inversor/Vendedor)", emoji: "🔄" },
-];
-
-export default function PipelinePage() {
+function PipelineContent() {
+    const searchParams = useSearchParams();
+    // Modo visual demo para revisión de UI sin backend real.
+    const mockMode = searchParams.get("mock") === "1";
     const [filterComercial, setFilterComercial] = useState<string>("all");
     const [filterTipo, setFilterTipo] = useState<string>("all");
+    const [filterDemandStatus, setFilterDemandStatus] = useState<string>("all");
+    const [filterOperationStatus, setFilterOperationStatus] = useState<string>("all");
+    const [viewMode, setViewMode] = useState<"mensajes" | "estado">("estado");
+    const [operations, setOperations] = useState<OperacionPostVenta[]>(mockMode ? operaciones : []);
+    const [commercialFilters, setCommercialFilters] = useState<PipelineComercialFilter[]>(
+        mockMode
+            ? [
+                  { id: "system", nombre: "Sin comercial asignado" },
+                  ...comerciales.map((c) => ({ id: c.id, nombre: c.nombre })),
+              ]
+            : []
+    );
+    const [loading, setLoading] = useState<boolean>(!mockMode);
+    const [loadError, setLoadError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (mockMode) {
+            setOperations(operaciones);
+            setCommercialFilters([
+                { id: "system", nombre: "Sin comercial asignado" },
+                ...comerciales.map((c) => ({ id: c.id, nombre: c.nombre })),
+            ]);
+            setLoading(false);
+            setLoadError(null);
+            return;
+        }
+
+        let cancelled = false;
+
+        const load = async () => {
+            setLoading(true);
+            setLoadError(null);
+            try {
+                const response = await fetch("/api/postventa/pipeline", {
+                    method: "GET",
+                    credentials: "same-origin",
+                });
+                if (!response.ok) {
+                    const body = await response.json().catch(() => null);
+                    const message = typeof body?.error === "string" ? body.error : "No se pudo cargar el pipeline";
+                    throw new Error(message);
+                }
+                const body = await response.json() as {
+                    operaciones: OperacionPostVenta[];
+                    comerciales: PipelineComercialFilter[];
+                };
+                if (!cancelled) {
+                    setOperations(body.operaciones ?? []);
+                    setCommercialFilters(body.comerciales ?? []);
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    const message =
+                        error instanceof Error ? error.message : "Error inesperado al cargar pipeline";
+                    setLoadError(message);
+                }
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+
+        load();
+        return () => {
+            cancelled = true;
+        };
+    }, [mockMode]);
 
     // Filter operations
     const filteredOps = useMemo(() => {
-        return operaciones.filter((op) => {
+        return operations.filter((op) => {
             if (filterComercial !== "all" && op.comercial !== filterComercial) return false;
             if (filterTipo !== "all" && op.tipoCliente !== filterTipo) return false;
+            if (filterDemandStatus !== "all" && (op.demandLeadStatus ?? "N/A") !== filterDemandStatus) return false;
+            if (filterOperationStatus !== "all" && (op.operacionEstado ?? "N/A") !== filterOperationStatus) return false;
             return true;
         });
-    }, [filterComercial, filterTipo]);
-
-    // Group by stage
-    const opsByStage = useMemo(() => {
-        const grouped: Record<number, typeof filteredOps> = { 1: [], 2: [], 3: [], 4: [], 5: [] };
-        filteredOps.forEach((op) => {
-            grouped[op.etapaActual].push(op);
-        });
-        return grouped;
-    }, [filteredOps]);
+    }, [operations, filterComercial, filterTipo, filterDemandStatus, filterOperationStatus]);
 
     // KPIs
     const totalOps = filteredOps.length;
@@ -163,7 +230,7 @@ export default function PipelinePage() {
                                 className="bg-accent/30 border border-border/50 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-secondary/30"
                             >
                                 <option value="all">Todos</option>
-                                {comerciales.map((c) => (
+                                {commercialFilters.map((c) => (
                                     <option key={c.id} value={c.id}>
                                         {c.nombre}
                                     </option>
@@ -206,32 +273,120 @@ export default function PipelinePage() {
                             {filteredOps.length} operaciones
                         </Badge>
                     </div>
+
+                    <div className="mt-3 flex items-center gap-3 flex-wrap">
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-muted-foreground">Estado demanda:</span>
+                            <select
+                                value={filterDemandStatus}
+                                onChange={(e) => setFilterDemandStatus(e.target.value)}
+                                className="bg-accent/30 border border-border/50 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-secondary/30"
+                            >
+                                <option value="all">Todos</option>
+                                {PIPELINE_LEAD_STATUS_VALUES.map((status) => (
+                                    <option key={status} value={status}>
+                                        {leadStatusFilterLabels[status as LeadStatusPipeline]}
+                                    </option>
+                                ))}
+                                <option value={DEMAND_STATUS_NA}>Sin demanda / N/A</option>
+                            </select>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-muted-foreground">Estado operación:</span>
+                            <select
+                                value={filterOperationStatus}
+                                onChange={(e) => setFilterOperationStatus(e.target.value)}
+                                className="bg-accent/30 border border-border/50 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-secondary/30"
+                            >
+                                <option value="all">Todos</option>
+                                {PIPELINE_OPERACION_ESTADO_VALUES.map((status) => (
+                                    <option key={status} value={status}>
+                                        {operacionEstadoFilterLabels[status]}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
                 </CardContent>
             </Card>
 
-            {/* Kanban Board */}
-            <PipelineKanban>
-                {pipelineStages.map((stage) => (
-                    <KanbanColumn
-                        key={stage.id}
-                        etapa={stage.id}
-                        label={stage.label}
-                        description={stage.description}
-                        emoji={stage.emoji}
-                        count={opsByStage[stage.id].length}
-                    >
-                        {opsByStage[stage.id].length === 0 ? (
-                            <div className="flex items-center justify-center py-8 text-xs text-muted-foreground/50 border border-dashed border-border/30 rounded-xl">
-                                Sin operaciones
-                            </div>
-                        ) : (
-                            opsByStage[stage.id].map((op) => (
-                                <OperationCard key={op.id} operation={op} />
-                            ))
-                        )}
-                    </KanbanColumn>
-                ))}
-            </PipelineKanban>
+            <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <CardContent className="p-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs text-muted-foreground">Vista del pipeline:</span>
+                        <button
+                            onClick={() => setViewMode("mensajes")}
+                            className={`inline-flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg border transition-all ${
+                                viewMode === "mensajes"
+                                    ? "bg-card border-secondary/30 text-foreground font-medium"
+                                    : "border-border/30 text-muted-foreground hover:bg-accent/30"
+                            }`}
+                        >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            Mensajes
+                        </button>
+                        <button
+                            onClick={() => setViewMode("estado")}
+                            className={`inline-flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg border transition-all ${
+                                viewMode === "estado"
+                                    ? "bg-card border-secondary/30 text-foreground font-medium"
+                                    : "border-border/30 text-muted-foreground hover:bg-accent/30"
+                            }`}
+                        >
+                            <GitBranch className="h-3.5 w-3.5" />
+                            Estado demanda + operación
+                        </button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {loadError && (
+                <Card className="border-[var(--urus-danger)]/30 bg-[var(--urus-danger)]/5">
+                    <CardContent className="p-4 text-sm text-[var(--urus-danger)]">
+                        {loadError}
+                    </CardContent>
+                </Card>
+            )}
+
+            {loading ? (
+                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                    <CardContent className="p-6 text-sm text-muted-foreground">
+                        Cargando pipeline post-venta...
+                    </CardContent>
+                </Card>
+            ) : (
+            <div className="flex flex-col gap-8">
+                {filteredOps.length === 0 ? (
+                    <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                        <CardContent className="p-6 text-sm text-muted-foreground">
+                            No hay operaciones para los filtros actuales.
+                        </CardContent>
+                    </Card>
+                ) : (
+                    filteredOps.map((op) => (
+                        <OperationCard
+                            key={op.id}
+                            operation={op}
+                            viewMode={viewMode}
+                            detailHref={
+                                mockMode
+                                    ? `/platform/post-venta/operacion/${op.id}?mock=1`
+                                    : undefined
+                            }
+                        />
+                    ))
+                )}
+            </div>
+            )}
         </div>
+    );
+}
+
+export default function PipelinePage() {
+    return (
+        <Suspense fallback={null}>
+            <PipelineContent />
+        </Suspense>
     );
 }

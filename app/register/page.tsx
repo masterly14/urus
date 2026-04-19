@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Lock, User, Mail, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, Lock, Mail, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,14 +14,15 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
-import { signUp } from "@/lib/auth/client";
+import { signIn } from "@/lib/auth/client";
 
 interface InvitationInfo {
     email: string;
     role: string;
+    invitedName: string | null;
 }
 
-export default function RegisterPage() {
+function RegisterContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const token = searchParams.get("token");
@@ -30,7 +31,6 @@ export default function RegisterPage() {
     const [validating, setValidating] = useState(true);
     const [tokenError, setTokenError] = useState<string | null>(null);
 
-    const [name, setName] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -48,7 +48,11 @@ export default function RegisterPage() {
             .then((r) => r.json())
             .then((data) => {
                 if (data.ok) {
-                    setInvitation({ email: data.email, role: data.role });
+                    setInvitation({
+                        email: data.email,
+                        role: data.role,
+                        invitedName: data.invitedName ?? null,
+                    });
                 } else {
                     setTokenError(data.error ?? "Invitación inválida o expirada.");
                 }
@@ -75,7 +79,7 @@ export default function RegisterPage() {
         const res = await fetch("/api/invitations/accept", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token, name, password }),
+            body: JSON.stringify({ token: token!, password }),
         });
 
         const data = await res.json();
@@ -86,9 +90,24 @@ export default function RegisterPage() {
             return;
         }
 
-        setSuccess(true);
+        const signInResult = await signIn.email({
+            email: invitation!.email,
+            password,
+        });
 
-        setTimeout(() => router.push("/login"), 2000);
+        if (signInResult.error) {
+            setSuccess(true);
+            setIsLoading(false);
+            setTimeout(() => router.push("/login"), 2000);
+            return;
+        }
+
+        setIsLoading(false);
+        if (invitation?.role === "comercial") {
+            router.push("/platform/configuracion?tab=calendar");
+        } else {
+            router.push("/platform");
+        }
     }
 
     if (validating) {
@@ -132,17 +151,35 @@ export default function RegisterPage() {
         );
     }
 
-    const roleLabel = invitation?.role === "admin" ? "Administrador" : "Comercial";
+    const roleLabel =
+        invitation?.role === "admin"
+            ? "Administrador"
+            : invitation?.role === "ceo"
+              ? "CEO"
+              : "Comercial";
+
+    const greetName = invitation?.invitedName?.trim();
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-background p-4">
             <Card className="w-full max-w-md border-border/50 bg-card/50 backdrop-blur-xl">
                 <CardHeader className="space-y-1 text-center">
                     <CardTitle className="text-2xl font-bold tracking-tight text-primary">
-                        URUS Capital
+                        URUS Capital Group
                     </CardTitle>
                     <CardDescription>
-                        Crea tu cuenta como <strong>{roleLabel}</strong>
+                        {greetName ? (
+                            <>
+                                Hola, <strong>{greetName}</strong>. Tu perfil como{" "}
+                                <strong>{roleLabel}</strong> ya está preparado: solo elige una
+                                contraseña para acceder al workspace.
+                            </>
+                        ) : (
+                            <>
+                                Accede como <strong>{roleLabel}</strong>. Elige una contraseña para
+                                unirte al workspace.
+                            </>
+                        )}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -153,7 +190,7 @@ export default function RegisterPage() {
                             </div>
                         )}
                         <div className="space-y-2">
-                            <Label htmlFor="email">Correo Electrónico</Label>
+                            <Label htmlFor="email">Correo electrónico</Label>
                             <div className="relative">
                                 <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                                 <Input
@@ -162,22 +199,6 @@ export default function RegisterPage() {
                                     disabled
                                     className="pl-9"
                                     value={invitation?.email ?? ""}
-                                />
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="name">Nombre completo</Label>
-                            <div className="relative">
-                                <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    id="name"
-                                    type="text"
-                                    placeholder="Tu nombre"
-                                    disabled={isLoading}
-                                    className="pl-9"
-                                    required
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
                                 />
                             </div>
                         </div>
@@ -214,21 +235,21 @@ export default function RegisterPage() {
                                 />
                             </div>
                         </div>
-                        <Button className="w-full" type="submit" disabled={isLoading}>
+                        <Button className="w-full text-balance leading-snug" type="submit" disabled={isLoading}>
                             {isLoading ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Creando cuenta...
+                                    Uniéndote al workspace...
                                 </>
                             ) : (
-                                "Crear cuenta"
+                                "Unirme al Workspace de Urus Capital Group"
                             )}
                         </Button>
                     </form>
                 </CardContent>
                 <CardFooter className="flex flex-col space-y-2 text-center text-sm text-muted-foreground">
                     <p>
-                        Al crear tu cuenta aceptas las políticas internas de URUS Capital.
+                        Al unirte aceptas las políticas internas de URUS Capital Group.
                     </p>
                 </CardFooter>
             </Card>
@@ -236,5 +257,13 @@ export default function RegisterPage() {
             <div className="fixed inset-0 -z-10 h-full w-full bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
             <div className="fixed left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-primary/20 opacity-20 blur-[100px]"></div>
         </div>
+    );
+}
+
+export default function RegisterPage() {
+    return (
+        <Suspense fallback={null}>
+            <RegisterContent />
+        </Suspense>
     );
 }

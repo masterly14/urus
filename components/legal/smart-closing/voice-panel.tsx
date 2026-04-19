@@ -12,7 +12,8 @@ type VoicePanelPhase = "idle" | "recording" | "transcribing";
 export interface SmartClosingVoicePanelProps {
   disabled?: boolean;
   busy?: boolean;
-  onApplyTranscript: (transcript: string) => Promise<void>;
+  /** Devuelve true si el contrato se actualizó correctamente (vista previa lista). */
+  onApplyTranscript: (transcript: string) => Promise<boolean>;
 }
 
 export function SmartClosingVoicePanel({
@@ -100,7 +101,10 @@ export function SmartClosingVoicePanel({
       return;
     }
     setLocalError(null);
-    await onApplyTranscript(t);
+    const ok = await onApplyTranscript(t);
+    if (ok) {
+      setTranscript("");
+    }
   }, [onApplyTranscript, transcript]);
 
   const isRecording = phase === "recording";

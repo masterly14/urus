@@ -7,13 +7,19 @@ import { BreadcrumbNav } from "./breadcrumb-nav";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+    children,
+    logoSrc,
+}: {
+    children: React.ReactNode;
+    logoSrc?: string;
+}) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     return (
         <TooltipProvider delayDuration={200}>
             <div className="min-h-screen bg-background text-foreground">
-                <TopBar />
+                <TopBar logoSrc={logoSrc} />
                 <Sidebar
                     collapsed={sidebarCollapsed}
                     onToggle={() => setSidebarCollapsed((prev) => !prev)}

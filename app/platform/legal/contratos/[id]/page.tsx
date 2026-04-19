@@ -131,13 +131,6 @@ function SmartClosingContractDetail({
     sendToSignature,
   } = useSmartClosingSession(initialTemplate, { versioningContext });
 
-  const handleApplyTranscript = useCallback(
-    async (transcript: string) => {
-      await applyVoiceTranscript(transcript);
-    },
-    [applyVoiceTranscript],
-  );
-
   const handleConfirmApproveAndSign = useCallback(async () => {
     const buyerN = signerName.trim();
     const buyerE = signerEmail.trim();
@@ -411,7 +404,7 @@ function SmartClosingContractDetail({
           <SmartClosingVoicePanel
             disabled={approved}
             busy={voiceBusy}
-            onApplyTranscript={handleApplyTranscript}
+            onApplyTranscript={applyVoiceTranscript}
           />
 
           {(appliedSummaries.length > 0 || validationIssues.length > 0) && (

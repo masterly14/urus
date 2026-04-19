@@ -1,27 +1,35 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Check, CheckCheck, MessageCircle, Phone, Video } from "lucide-react";
-import type { Match } from "@/lib/mock-data/types";
+import { CheckCheck, MessageCircle, Phone, Video } from "lucide-react";
+import type { CruceMatch } from "@/components/matching/match-card";
 
 interface WhatsAppPreviewProps {
-    match: Match;
+    match: CruceMatch;
     className?: string;
 }
 
 export function WhatsAppPreview({ match, className }: WhatsAppPreviewProps) {
     const buyerFirst = match.comprador.nombre.split(" ")[0];
     const time = new Date(match.fechaMatch).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+    const zonaLabel = [match.propiedad.zona, match.propiedad.ciudad].filter(Boolean).join(", ");
 
     const messages = [
         {
             sender: "agent",
-            text: `¡Hola ${buyerFirst}! 👋 Soy tu asesor en URUS Capital. Hemos encontrado una propiedad que encaja perfectamente con lo que buscas.`,
+            text: `¡Hola ${buyerFirst}! 👋 Soy tu asesor en URUS Capital. Hemos encontrado una propiedad que encaja con lo que buscas.`,
             time,
         },
         {
             sender: "agent",
-            text: `📍 *${match.propiedad.direccion}*\n💰 ${match.propiedad.precio.toLocaleString("es-ES")} €\n📐 ${match.propiedad.metros} m² · ${match.propiedad.habitaciones} hab\n📌 Zona: ${match.propiedad.zona}\n\n✅ Coincidencia: ${match.porcentajeMatch}%`,
+            text: [
+                `📍 *${match.propiedad.titulo || match.propiedad.ref}*`,
+                `💰 ${match.propiedad.precio.toLocaleString("es-ES")} €`,
+                `📐 ${match.propiedad.metros} m² · ${match.propiedad.habitaciones} hab`,
+                zonaLabel ? `📌 ${zonaLabel}` : null,
+                match.propiedad.tipoOfer ? `🏠 ${match.propiedad.tipoOfer}` : null,
+                `\n✅ Coincidencia: ${match.porcentajeMatch}%`,
+            ].filter(Boolean).join("\n"),
             time,
         },
         {
@@ -31,19 +39,8 @@ export function WhatsAppPreview({ match, className }: WhatsAppPreviewProps) {
         },
     ];
 
-    // Add buyer response based on message status
-    const responseMap: Record<string, { text: string; time: string } | null> = {
-        me_encaja: { text: "¡Me encanta! ¿Podemos verla el jueves? 🙌", time: `${parseInt(time) + 1}:15` },
-        no_encaja: { text: "No es lo que busco, necesito algo más grande. Gracias.", time: `${parseInt(time) + 1}:22` },
-        busco_diferente: { text: "Interesante, pero busco algo con terraza y en otra zona. ¿Tienen?", time: `${parseInt(time) + 2}:05` },
-        enviado: null,
-    };
-
-    const buyerResponse = responseMap[match.estadoMensaje];
-
     return (
         <div className={cn("rounded-xl overflow-hidden border border-border/30", className)}>
-            {/* WhatsApp header */}
             <div className="bg-[#075e54] dark:bg-[#1f2c34] px-4 py-2.5 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                     <div className="h-8 w-8 rounded-full bg-[#25D366]/30 flex items-center justify-center text-[10px] font-bold text-white">
@@ -51,9 +48,7 @@ export function WhatsAppPreview({ match, className }: WhatsAppPreviewProps) {
                     </div>
                     <div>
                         <p className="text-white text-xs font-medium">{match.comprador.nombre}</p>
-                        <p className="text-white/50 text-[10px]">
-                            {match.estadoMensaje === "enviado" ? "en línea" : "visto por última vez hoy"}
-                        </p>
+                        <p className="text-white/50 text-[10px]">en línea</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -62,7 +57,6 @@ export function WhatsAppPreview({ match, className }: WhatsAppPreviewProps) {
                 </div>
             </div>
 
-            {/* Chat body */}
             <div
                 className="p-3 space-y-2 min-h-[200px] max-h-[280px] overflow-y-auto"
                 style={{
@@ -81,20 +75,8 @@ export function WhatsAppPreview({ match, className }: WhatsAppPreviewProps) {
                         </div>
                     </div>
                 ))}
-
-                {buyerResponse && (
-                    <div className="flex justify-start">
-                        <div className="bg-card border border-border/30 rounded-lg rounded-tl-sm px-3 py-1.5 max-w-[85%] shadow-sm">
-                            <p className="text-[11px] text-foreground leading-relaxed">{buyerResponse.text}</p>
-                            <div className="flex items-center justify-end mt-0.5">
-                                <span className="text-[9px] text-muted-foreground">{buyerResponse.time}</span>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
 
-            {/* WhatsApp input bar */}
             <div className="bg-[#f0f0f0] dark:bg-[#1f2c34] px-3 py-2 flex items-center gap-2">
                 <div className="flex-1 bg-card/80 rounded-full px-3 py-1.5 border border-border/30">
                     <span className="text-[10px] text-muted-foreground">Escribe un mensaje...</span>

@@ -1,9 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Activity,
   AlertTriangle,
+  Bot,
+  Calendar,
   Clock3,
   Database,
   Loader2,
@@ -33,7 +36,10 @@ import {
 import { Semaforo } from "@/components/dashboard/semaforo";
 import { useHealthPanel } from "@/lib/hooks/use-health-panel";
 import { UserManagement } from "@/components/configuracion/user-management";
+import { CalendarConnection } from "@/components/configuracion/calendar-connection";
+import { MicrositeAutoValidation } from "@/components/configuracion/microsite-auto-validation";
 import { cn } from "@/lib/utils";
+import { useAppSession } from "@/lib/hooks/use-session";
 
 function toSemaforoStatus(status: "ok" | "degraded" | "error" | "never_run") {
   if (status === "ok") return "verde";
@@ -62,16 +68,54 @@ function formatSource(source: string): string {
   return "Snapshot";
 }
 
-type Tab = "users" | "health";
+type Tab = "users" | "calendar" | "microsites" | "health";
 
-const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
-  { id: "users", label: "Usuarios", icon: Users },
-  { id: "health", label: "Health", icon: HeartPulse },
+const ALL_TABS: { id: Tab; label: string; icon: React.ElementType; roles?: string[] }[] = [
+  { id: "users", label: "Usuarios", icon: Users, roles: ["ceo", "admin"] },
+  { id: "calendar", label: "Calendario", icon: Calendar },
+  { id: "microsites", label: "Microsites", icon: Bot, roles: ["ceo", "admin"] },
+  { id: "health", label: "Health", icon: HeartPulse, roles: ["ceo", "admin"] },
 ];
 
-export default function ConfiguracionPage() {
+function ConfiguracionContent() {
+  const { user, isComercial, isPending: sessionPending } = useAppSession();
+  const searchParams = useSearchParams();
+  const appliedInitialTab = useRef(false);
   const [activeTab, setActiveTab] = useState<Tab>("users");
   const { data, loading, error, refetch } = useHealthPanel();
+
+  const tabs = ALL_TABS.filter(
+    (t) => !t.roles || (user?.role && t.roles.includes(user.role)),
+  );
+
+  const allowedTabIds = useMemo(
+    () => tabs.map((t) => t.id),
+    [tabs],
+  );
+
+  useEffect(() => {
+    if (sessionPending) return;
+    if (!allowedTabIds.includes(activeTab)) {
+      setActiveTab((allowedTabIds[0] as Tab) ?? "calendar");
+    }
+  }, [sessionPending, allowedTabIds, activeTab]);
+
+  useEffect(() => {
+    if (sessionPending) return;
+    const param = searchParams.get("tab");
+    if (
+      (param === "calendar" || param === "users" || param === "health") &&
+      allowedTabIds.includes(param as Tab)
+    ) {
+      setActiveTab(param as Tab);
+      appliedInitialTab.current = true;
+      return;
+    }
+    if (!appliedInitialTab.current && isComercial) {
+      setActiveTab("calendar");
+      appliedInitialTab.current = true;
+    }
+  }, [sessionPending, isComercial, searchParams, allowedTabIds]);
 
   const totals = useMemo(() => {
     const workers = data?.workers ?? [];
@@ -118,6 +162,10 @@ export default function ConfiguracionPage() {
       </div>
 
       {activeTab === "users" && <UserManagement />}
+
+      {activeTab === "calendar" && <CalendarConnection />}
+
+      {activeTab === "microsites" && <MicrositeAutoValidation />}
 
       {activeTab === "health" && (
         <>
@@ -437,5 +485,13 @@ export default function ConfiguracionPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function ConfiguracionPage() {
+  return (
+    <Suspense fallback={null}>
+      <ConfiguracionContent />
+    </Suspense>
   );
 }

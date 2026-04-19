@@ -1,8 +1,8 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Check, Clock, ArrowRight } from "lucide-react";
-import type { EtapaPostVenta } from "@/lib/mock-data/types";
+import { Check } from "lucide-react";
+import type { EtapaPostVenta } from "@/lib/postventa/pipeline-types";
 
 interface StepperProgressProps {
     currentStep: EtapaPostVenta;

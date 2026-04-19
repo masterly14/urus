@@ -10,58 +10,77 @@ import {
     TrendingUp,
     Clock,
     ShieldCheck,
+    Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StressGauge } from "@/components/coach/stress-gauge";
 import { CoachMetricsTable } from "@/components/coach/coach-metrics";
-import { SparklineChart } from "@/components/dashboard/sparkline-chart";
-import { useRealTime, randomFluctuation } from "@/lib/hooks/use-real-time";
-import { comerciales } from "@/lib/mock-data/comerciales";
-import type { Comercial } from "@/lib/mock-data/types";
+import type {
+    CoachDashboardData,
+    ComercialCoachStats,
+} from "@/lib/dashboard/mental-health/queries";
 
-// ── Calculate aggregated stress ───────────────────────────────
-function calculateTeamStress(team: Comercial[]): number {
-    const stressMap = { bajo: 20, medio: 55, alto: 85 };
-    const total = team.reduce((sum, c) => sum + stressMap[c.nivelEstres], 0);
-    return Math.round(total / team.length);
+function energiaToStressPercent(energia: number | null): number {
+    if (energia === null) return 50;
+    return Math.round(((5 - energia) / 5) * 100);
 }
 
-// ── Weekly usage data (simulated) ─────────────────────────────
-const weeklyUsageData = [
-    { day: "Lun", sessions: 12 },
-    { day: "Mar", sessions: 18 },
-    { day: "Mié", sessions: 15 },
-    { day: "Jue", sessions: 22 },
-    { day: "Vie", sessions: 20 },
-    { day: "Sáb", sessions: 5 },
-    { day: "Dom", sessions: 2 },
-];
-
-const maxSessions = Math.max(...weeklyUsageData.map((d) => d.sessions));
-
-// ── KPI summaries ─────────────────────────────────────────────
-function getCoachKPIs(team: Comercial[]) {
-    const totalSessions = team.reduce((s, c) => s + c.sesionesCoach, 0);
-    const avgSessions = Math.round(totalSessions / team.length);
-    const needsSupport = team.filter((c) => c.nivelEstres === "alto").length;
-    const activeUsers = team.filter((c) => c.sesionesCoach >= 8).length;
-    return { totalSessions, avgSessions, needsSupport, activeUsers };
+function countByEstres(
+    comerciales: ComercialCoachStats[],
+    nivel: "bajo" | "medio" | "alto",
+): number {
+    return comerciales.filter((c) => c.nivelEstres === nivel).length;
 }
 
 export default function CoachPage() {
-    const teamStress = useRealTime(
-        calculateTeamStress(comerciales),
-        (current) => {
-            const delta = Math.random() > 0.5 ? 1 : -1;
-            return Math.max(10, Math.min(90, current + delta));
-        },
-        8000
-    );
+    const [data, setData] = useState<CoachDashboardData | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    const kpis = getCoachKPIs(comerciales);
+    useEffect(() => {
+        fetch("/api/coach/dashboard")
+            .then((res) => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json() as Promise<{ ok: boolean; data: CoachDashboardData }>;
+            })
+            .then((body) => setData(body.data))
+            .catch((err) => setError(err.message))
+            .finally(() => setLoading(false));
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span className="text-sm">Cargando métricas del Coach…</span>
+            </div>
+        );
+    }
+
+    if (error || !data) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <p className="text-sm text-destructive">Error: {error ?? "Sin datos"}</p>
+            </div>
+        );
+    }
+
+    const { overview, comerciales, weeklyUsage } = data;
+
+    const teamStress = energiaToStressPercent(overview.energiaMediaEquipo);
+    const totalSessions = overview.sesionesUltimos30d;
+    const activeUsers = overview.comercialesActivos;
+    const avgSessions = activeUsers > 0 ? Math.round(totalSessions / activeUsers) : 0;
+    const totalAlerts =
+        overview.alertasActivas.energy_drop +
+        overview.alertasActivas.recurrent_block +
+        overview.alertasActivas.overload;
+
     const needsSupportList = comerciales.filter((c) => c.nivelEstres === "alto");
-    const sortedByUsage = [...comerciales].sort((a, b) => b.sesionesCoach - a.sesionesCoach);
+    const sortedByUsage = [...comerciales].sort((a, b) => b.sesiones30d - a.sesiones30d);
+
+    const maxWeeklySessions = Math.max(...weeklyUsage.map((d) => d.sessions), 1);
 
     return (
         <div className="space-y-6">
@@ -95,8 +114,8 @@ export default function CoachPage() {
                                 <MessageCircle className="h-4 w-4 text-[var(--urus-info)]" />
                             </div>
                             <div>
-                                <p className="text-xs text-muted-foreground uppercase tracking-wider">Sesiones Totales</p>
-                                <p className="text-2xl font-bold font-mono">{kpis.totalSessions}</p>
+                                <p className="text-xs text-muted-foreground uppercase tracking-wider">Sesiones (30d)</p>
+                                <p className="text-2xl font-bold font-mono">{totalSessions}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -110,7 +129,7 @@ export default function CoachPage() {
                             </div>
                             <div>
                                 <p className="text-xs text-muted-foreground uppercase tracking-wider">Promedio/persona</p>
-                                <p className="text-2xl font-bold font-mono">{kpis.avgSessions}</p>
+                                <p className="text-2xl font-bold font-mono">{avgSessions}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -123,8 +142,8 @@ export default function CoachPage() {
                                 <AlertTriangle className="h-4 w-4 text-[var(--urus-danger)]" />
                             </div>
                             <div>
-                                <p className="text-xs text-muted-foreground uppercase tracking-wider">Necesitan Apoyo</p>
-                                <p className="text-2xl font-bold font-mono">{kpis.needsSupport}</p>
+                                <p className="text-xs text-muted-foreground uppercase tracking-wider">Alertas Activas</p>
+                                <p className="text-2xl font-bold font-mono">{totalAlerts}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -138,7 +157,7 @@ export default function CoachPage() {
                             </div>
                             <div>
                                 <p className="text-xs text-muted-foreground uppercase tracking-wider">Usuarios Activos</p>
-                                <p className="text-2xl font-bold font-mono">{kpis.activeUsers}</p>
+                                <p className="text-2xl font-bold font-mono">{activeUsers}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -157,9 +176,12 @@ export default function CoachPage() {
                     </CardHeader>
                     <CardContent className="flex flex-col items-center pt-2 pb-6">
                         <StressGauge level={teamStress} size={200} />
-                        <div className="grid grid-cols-3 gap-4 mt-6 w-full">
+                        <p className="text-xs text-muted-foreground mt-2">
+                            Energía media: {overview.energiaMediaEquipo?.toFixed(1) ?? "—"}/5
+                        </p>
+                        <div className="grid grid-cols-3 gap-4 mt-4 w-full">
                             {(["bajo", "medio", "alto"] as const).map((nivel) => {
-                                const count = comerciales.filter((c) => c.nivelEstres === nivel).length;
+                                const count = countByEstres(comerciales, nivel);
                                 const colors = {
                                     bajo: "var(--urus-success)",
                                     medio: "var(--urus-warning)",
@@ -206,7 +228,7 @@ export default function CoachPage() {
                             <div className="space-y-3">
                                 {needsSupportList.map((c) => (
                                     <div
-                                        key={c.id}
+                                        key={c.comercialId}
                                         className="flex items-center gap-3 rounded-xl p-3 bg-[var(--urus-danger)]/5 border border-[var(--urus-danger)]/15 hover:bg-[var(--urus-danger)]/10 transition-colors"
                                     >
                                         <div className="h-10 w-10 rounded-full bg-[var(--urus-danger)]/15 flex items-center justify-center text-sm font-bold text-[var(--urus-danger)]">
@@ -218,7 +240,7 @@ export default function CoachPage() {
                                                 <span className="text-[10px] text-muted-foreground">{c.ciudad}</span>
                                                 <span className="text-[10px] text-muted-foreground">·</span>
                                                 <span className="text-[10px] text-muted-foreground">
-                                                    {c.sesionesCoach} sesiones
+                                                    {c.sesiones30d} sesiones
                                                 </span>
                                             </div>
                                         </div>
@@ -256,9 +278,9 @@ export default function CoachPage() {
                     </CardHeader>
                     <CardContent className="pt-0">
                         <div className="flex items-end gap-2 h-[180px] pt-4">
-                            {weeklyUsageData.map((d) => {
-                                const heightPct = (d.sessions / maxSessions) * 100;
-                                const isHighest = d.sessions === maxSessions;
+                            {weeklyUsage.map((d) => {
+                                const heightPct = (d.sessions / maxWeeklySessions) * 100;
+                                const isHighest = d.sessions === maxWeeklySessions;
                                 return (
                                     <div key={d.day} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group">
                                         <span className="text-[10px] font-mono text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
@@ -282,7 +304,7 @@ export default function CoachPage() {
                         <div className="flex justify-between items-center mt-4 pt-3 border-t border-border/30">
                             <span className="text-xs text-muted-foreground">Total semanal</span>
                             <span className="text-sm font-bold font-mono text-secondary">
-                                {weeklyUsageData.reduce((s, d) => s + d.sessions, 0)} sesiones
+                                {weeklyUsage.reduce((s, d) => s + d.sessions, 0)} sesiones
                             </span>
                         </div>
                     </CardContent>

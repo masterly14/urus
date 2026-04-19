@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Lock, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,27 @@ import {
 } from "@/components/ui/card";
 import { signIn } from "@/lib/auth/client";
 
+function sanitizeCallbackUrl(raw: string | null): string {
+    const fallback = "/platform";
+    if (!raw) return fallback;
+    if (!raw.startsWith("/") || raw.includes("://") || raw.startsWith("//")) {
+        return fallback;
+    }
+    return raw;
+}
+
 export default function LoginPage() {
+    return (
+        <Suspense fallback={null}>
+            <LoginForm />
+        </Suspense>
+    );
+}
+
+function LoginForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const callbackUrl = searchParams.get("callbackUrl") ?? "/platform";
+    const callbackUrl = sanitizeCallbackUrl(searchParams.get("callbackUrl"));
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");

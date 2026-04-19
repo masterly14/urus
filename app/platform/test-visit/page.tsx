@@ -125,8 +125,10 @@ export default function TestVisitPage() {
   // --- Fetch setup data ---
   useEffect(() => {
     fetch("/api/test-visit-scheduling")
-      .then((r) => r.json())
-      .then(setSetup)
+      .then(async (r) => {
+        const data = (await r.json()) as SetupData;
+        setSetup(data);
+      })
       .catch((e) => setError(e.message));
   }, []);
 
@@ -357,10 +359,11 @@ export default function TestVisitPage() {
             fontSize: 16,
           }}
         >
-          No hay comercial con conexión Composio activa.
+          {setup.error ??
+            "No se pudo cargar tu ficha de comercial para este test."}
           <br />
-          Configura un comercial en{" "}
-          <code>/api/composio/connect</code> primero.
+          Si falta Composio o WhatsApp, configúralo en{" "}
+          <code>/platform/configuracion</code>.
         </div>
       )}
 

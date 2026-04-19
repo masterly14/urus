@@ -210,13 +210,13 @@ export function useSmartClosingSession(
   }, [initialInput, loadInitialRender]);
 
   const applyVoiceTranscript = useCallback(
-    async (transcript: string) => {
-      if (approved) return;
+    async (transcript: string): Promise<boolean> => {
+      if (approved) return false;
       const trimmed = transcript.trim();
       if (!trimmed) {
         setErrorMessage("La transcripción está vacía.");
         setPhase("error");
-        return;
+        return false;
       }
 
       setPhase("applying_voice");
@@ -250,13 +250,13 @@ export function useSmartClosingSession(
           const err = data as { error?: string };
           setErrorMessage(err.error ?? `Error HTTP ${res.status}`);
           setPhase("error");
-          return;
+          return false;
         }
 
         if (!isVoiceApplyResponse(data)) {
           setErrorMessage("Respuesta de voice-apply inválida");
           setPhase("error");
-          return;
+          return false;
         }
 
         const merged = mergeVoiceApplyIntoSession(docStateRef.current, data);
@@ -267,13 +267,14 @@ export function useSmartClosingSession(
         setClarificationQuestions(merged.clarificationQuestions);
 
         if (data.ok && merged.doc.docxBase64) {
-          await refreshPreviewFromBase64(merged.doc.docxBase64);
-        } else {
-          setPhase("idle");
+          return await refreshPreviewFromBase64(merged.doc.docxBase64);
         }
+        setPhase("idle");
+        return false;
       } catch (e) {
         setErrorMessage(e instanceof Error ? e.message : "Error de red");
         setPhase("error");
+        return false;
       }
     },
     [approved, refreshPreviewFromBase64],

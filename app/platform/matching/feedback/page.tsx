@@ -1,6 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+// UI conmutable por query param `?mock=1` (convención del equipo, ver AGENTS.md).
+// Sin `?mock=1` se muestra un empty-state; no hay fuente de datos real todavía.
+// Cuando la tabla real exista: sustituir el bloque bajo `isMock` por fetch/SWR/etc.
+
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
     ArrowLeft,
@@ -153,11 +158,69 @@ const learningMetrics = [
 ];
 
 export default function FeedbackPage() {
+    return (
+        <Suspense fallback={null}>
+            <FeedbackContent />
+        </Suspense>
+    );
+}
+
+function FeedbackContent() {
+    const searchParams = useSearchParams();
+    const isMock = searchParams?.get("mock") === "1";
     const [validatedItems, setValidatedItems] = useState<Record<string, "si" | "no">>({});
 
     const handleValidation = (id: string, decision: "si" | "no") => {
         setValidatedItems((prev) => ({ ...prev, [id]: decision }));
     };
+
+    if (!isMock) {
+        return (
+            <div className="space-y-6">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[var(--urus-gold)]/20 to-[var(--urus-gold)]/5 flex items-center justify-center">
+                            <Sparkles className="h-5 w-5 text-[var(--urus-gold)]" />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-bold tracking-tight">Feedback Loop</h1>
+                            <p className="text-sm text-muted-foreground">
+                                Retroalimentación inteligente y aprendizaje del motor de matching
+                            </p>
+                        </div>
+                    </div>
+                    <Link href="/platform/matching/cruces">
+                        <Button variant="outline" size="sm" className="text-xs h-8 gap-1.5">
+                            <ArrowLeft className="h-3 w-3" />
+                            Volver a Cruces
+                        </Button>
+                    </Link>
+                </div>
+
+                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                    <CardContent className="p-8 text-center space-y-3">
+                        <div className="mx-auto h-12 w-12 rounded-xl bg-secondary/10 flex items-center justify-center">
+                            <HelpCircle className="h-6 w-6 text-secondary" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold">Sin datos reales conectados</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Esta vista no dispone todavía de una fuente de datos real.
+                                Añade <span className="font-mono bg-accent/20 px-1.5 py-0.5 rounded">?mock=1</span> a la URL para visualizar el prototipo con datos de ejemplo.
+                            </p>
+                        </div>
+                        <Link
+                            href="/platform/matching/feedback?mock=1"
+                            className="inline-flex items-center gap-1.5 text-xs text-secondary hover:underline"
+                        >
+                            Abrir con datos mock
+                            <ArrowRight className="h-3 w-3" />
+                        </Link>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
 
     // Stats
     const positiveCount = feedbackTimeline.filter((f) => f.tipo === "positivo").length;

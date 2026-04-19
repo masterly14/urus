@@ -33,9 +33,14 @@ import {
     ChevronLeft,
     ChevronRight,
     ChevronDown,
+    Users2,
+    Folder,
+    FlaskConical,
+    CalendarCheck,
+    Sparkles,
+    MessagesSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState } from "react";
 import { Button } from "@base-ui/react";
@@ -44,7 +49,6 @@ interface NavItem {
     label: string;
     href: string;
     icon: React.ElementType;
-    badge?: number;
     ceoOnly?: boolean;
     children?: {
         label: string;
@@ -62,7 +66,6 @@ const navItems: NavItem[] = [
         icon: Brain,
         children: [
             { label: "Dashboard", href: "/platform/coach", icon: BarChart3 },
-            { label: "Chat", href: "/platform/coach/chat", icon: MessageCircle },
             { label: "Métricas", href: "/platform/coach/metricas", icon: BarChart3 },
         ],
     },
@@ -78,11 +81,15 @@ const navItems: NavItem[] = [
         label: "Colaboradores",
         href: "/platform/colaboradores",
         icon: Users,
-        badge: 2,
         children: [
             { label: "Vista General", href: "/platform/colaboradores", icon: Users },
             { label: "Rankings", href: "/platform/colaboradores/ranking", icon: Trophy },
         ],
+    },
+    {
+        label: "Demandas",
+        href: "/platform/demandas",
+        icon: Users2,
     },
     {
         label: "Matching",
@@ -97,7 +104,6 @@ const navItems: NavItem[] = [
         label: "Smart Pricing",
         href: "/platform/pricing",
         icon: DollarSign,
-        badge: 1,
         children: [
             { label: "Semáforo General", href: "/platform/pricing", icon: TrendingUp },
             { label: "Mercado", href: "/platform/pricing/mercado", icon: ShoppingBag },
@@ -110,6 +116,7 @@ const navItems: NavItem[] = [
         children: [
             { label: "Contratos", href: "/platform/legal/contratos", icon: FileSignature },
             { label: "Plantillas", href: "/platform/legal/plantillas", icon: LayoutTemplate },
+            { label: "Documentos", href: "/platform/legal/documentos", icon: Folder },
         ],
     },
     {
@@ -118,7 +125,7 @@ const navItems: NavItem[] = [
         icon: PieChart,
         ceoOnly: true,
         children: [
-            { label: "Financiero", href: "/platform/bi/financiero", icon: Wallet },
+            { label: "Financiero", href: "/platform/bi/reinversion", icon: Wallet },
             { label: "Operativo", href: "/platform/bi/operativo", icon: UserCheck },
             { label: "Capital Humano", href: "/platform/bi/capital-humano", icon: Users },
             { label: "Prescriptivo", href: "/platform/bi/prescriptivo", icon: Target },
@@ -134,6 +141,17 @@ const navItems: NavItem[] = [
             { label: "Equipo", href: "/platform/rendimiento/equipo", icon: UsersRound },
             { label: "Comerciales", href: "/platform/rendimiento/comerciales", icon: TrendingUp },
             { label: "Alertas", href: "/platform/rendimiento/alertas", icon: AlertTriangle, ceoOnly: true },
+        ],
+    },
+    {
+        label: "Test bench",
+        href: "/platform/test-nlu-microsite",
+        icon: FlaskConical,
+        ceoOnly: true,
+        children: [
+            { label: "NLU Micrositio", href: "/platform/test-nlu-microsite", icon: Sparkles },
+            { label: "Chat Agente", href: "/platform/chat-agente", icon: MessagesSquare },
+            { label: "Agendado Visita", href: "/platform/test-visit", icon: CalendarCheck },
         ],
     },
     { label: "Configuración", href: "/platform/configuracion", icon: Settings },
@@ -195,9 +213,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                                         )}
                                     >
                                         <Icon className="h-5 w-5" />
-                                        {item.badge && (
-                                            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-[var(--urus-danger)]" />
-                                        )}
                                     </Link>
                                 </TooltipTrigger>
                                 <TooltipContent side="right">{item.label}</TooltipContent>
@@ -217,11 +232,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                                 >
                                     <Icon className="h-5 w-5 shrink-0" />
                                     <span className="flex-1 text-left truncate">{item.label}</span>
-                                    {item.badge && (
-                                        <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-xs">
-                                            {item.badge}
-                                        </Badge>
-                                    )}
                                     <ChevronDown
                                         className={cn(
                                             "h-4 w-4 shrink-0 transition-transform duration-200",

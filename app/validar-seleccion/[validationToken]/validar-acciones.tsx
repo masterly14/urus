@@ -56,7 +56,7 @@ export function ValidarAcciones({ validationToken, demoMode = false }: Props) {
           type="button"
           disabled={Boolean(loading) || Boolean(message)}
           onClick={() => submit("APPROVE")}
-          className="rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+          className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700 shadow-md shadow-blue-600/20 disabled:opacity-50 transition-all"
         >
           {loading === "APPROVE" ? "Guardando…" : "Aprobar y enviar al comprador"}
         </button>
@@ -64,13 +64,13 @@ export function ValidarAcciones({ validationToken, demoMode = false }: Props) {
           type="button"
           disabled={Boolean(loading) || Boolean(message)}
           onClick={() => submit("REJECT")}
-          className="rounded-xl border border-neutral-600 px-6 py-3 text-sm font-semibold text-neutral-200 hover:bg-neutral-800 disabled:opacity-50"
+          className="rounded-xl border border-slate-200 px-6 py-3 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 transition-all shadow-sm"
         >
-          {loading === "REJECT" ? "Guardando…" : "Rechazar"}
+          {loading === "REJECT" ? "Guardando…" : "Rechazar selección"}
         </button>
       </div>
-      {message ? <p className="text-sm text-emerald-300">{message}</p> : null}
-      {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+      {message ? <p className="text-sm font-medium text-emerald-600 bg-emerald-50 border border-emerald-100 px-4 py-3 rounded-lg mt-4">{message}</p> : null}
+      {error ? <p className="text-sm font-medium text-red-600 bg-red-50 border border-red-100 px-4 py-3 rounded-lg mt-4">{error}</p> : null}
     </div>
   );
 }
