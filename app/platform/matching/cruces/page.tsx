@@ -16,7 +16,6 @@ import {
     AlertTriangle,
     RefreshCw,
     BarChart3,
-    ChevronDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +24,7 @@ import type { CruceMatch } from "@/components/matching/match-card";
 import { WhatsAppPreview } from "@/components/matching/whatsapp-preview";
 
 const POLL_INTERVAL_MS = 10_000;
+const ITEMS_PER_PAGE = 10;
 
 interface ApiResponse {
     cruces: CruceMatch[];
@@ -47,9 +47,19 @@ export default function CrucesPage() {
     const [zonas, setZonas] = useState<string[]>([]);
     const [hasMore, setHasMore] = useState(false);
     const [nextCursor, setNextCursor] = useState<string | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
 
     const latestPosition = useRef<string | null>(null);
     const knownIds = useRef<Set<string>>(new Set());
+
+    const handleMatchSent = useCallback((matchId: string) => {
+        setAllMatches((prev) =>
+            prev.map((m) => m.id === matchId ? { ...m, whatsappEnviado: true } : m),
+        );
+        setSelectedMatch((prev) =>
+            prev?.id === matchId ? { ...prev, whatsappEnviado: true } : prev,
+        );
+    }, []);
 
     const fetchCruces = useCallback(async (isPolling = false) => {
         try {
@@ -126,8 +136,8 @@ export default function CrucesPage() {
         }
     }, [allMatches]);
 
-    const loadMore = useCallback(async () => {
-        if (!nextCursor || loadingMore) return;
+    const loadMore = useCallback(async (): Promise<number> => {
+        if (!nextCursor || loadingMore) return 0;
         setLoadingMore(true);
         try {
             const params = new URLSearchParams({ limit: "30", cursor: nextCursor });
@@ -148,8 +158,11 @@ export default function CrucesPage() {
                     return [...all].sort();
                 });
             }
+
+            return newOnes.length;
         } catch (err) {
             console.error("[cruces] loadMore error:", err);
+            return 0;
         } finally {
             setLoadingMore(false);
         }
@@ -172,6 +185,54 @@ export default function CrucesPage() {
             return true;
         });
     }, [allMatches, filterZona, filterMinScore]);
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+    const paginatedMatches = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filtered.slice(start, start + ITEMS_PER_PAGE);
+    }, [filtered, currentPage]);
+
+    const goToNextPage = useCallback(async () => {
+        if (currentPage < totalPages) {
+            setCurrentPage((prev) => prev + 1);
+            return;
+        }
+
+        if (!hasMore || loadingMore) return;
+
+        const loaded = await loadMore();
+        if (loaded > 0) {
+            setCurrentPage((prev) => prev + 1);
+        }
+    }, [currentPage, totalPages, hasMore, loadingMore, loadMore]);
+
+    const goToPrevPage = useCallback(() => {
+        setCurrentPage((prev) => Math.max(1, prev - 1));
+    }, []);
+
+    const visiblePages = useMemo(() => {
+        const pages: number[] = [];
+        const windowSize = 5;
+        const start = Math.max(1, currentPage - Math.floor(windowSize / 2));
+        const end = Math.min(totalPages, start + windowSize - 1);
+        const normalizedStart = Math.max(1, end - windowSize + 1);
+
+        for (let p = normalizedStart; p <= end; p++) {
+            pages.push(p);
+        }
+
+        return pages;
+    }, [currentPage, totalPages]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filterZona, filterMinScore]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
 
     const totalMatches = allMatches.length;
     const avgMatch = totalMatches > 0
@@ -449,6 +510,7 @@ export default function CrucesPage() {
                             <p className="text-xs text-muted-foreground">
                                 Mostrando <span className="font-semibold text-foreground">{filtered.length}</span> de {totalMatches} cargados
                                 {hasMore && <span className="text-muted-foreground/60"> · hay más</span>}
+                                <span className="text-muted-foreground/60"> · página {currentPage}/{totalPages}</span>
                             </p>
                         </div>
                     </CardContent>
@@ -483,7 +545,7 @@ export default function CrucesPage() {
                         </Card>
                     ) : (
                         <div className="space-y-3">
-                            {filtered.map((m) => (
+                            {paginatedMatches.map((m) => (
                                 <div
                                     key={m.id}
                                     onClick={() => setSelectedMatch(m)}
@@ -497,24 +559,50 @@ export default function CrucesPage() {
                                 </div>
                             ))}
 
-                            {hasMore && (
+                            <div className="flex items-center justify-between gap-3 pt-2">
                                 <button
-                                    onClick={loadMore}
-                                    disabled={loadingMore}
-                                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border/40 text-xs font-medium text-muted-foreground hover:bg-accent/30 hover:text-foreground transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    onClick={goToPrevPage}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-2 rounded-lg border border-border/40 text-xs font-medium text-muted-foreground hover:bg-accent/30 hover:text-foreground transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Anterior
+                                </button>
+
+                                <div className="flex items-center gap-1.5">
+                                    {visiblePages.map((page) => (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`min-w-8 h-8 px-2 rounded-lg text-xs border transition-all ${page === currentPage
+                                                ? "bg-card border-secondary/30 text-foreground font-semibold"
+                                                : "border-border/30 text-muted-foreground hover:bg-accent/30"
+                                                }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <button
+                                    onClick={goToNextPage}
+                                    disabled={loadingMore || (!hasMore && currentPage >= totalPages)}
+                                    className="px-3 py-2 rounded-lg border border-border/40 text-xs font-medium text-muted-foreground hover:bg-accent/30 hover:text-foreground transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {loadingMore ? (
-                                        <>
+                                        <span className="inline-flex items-center gap-1.5">
                                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                            Cargando más cruces…
-                                        </>
+                                            Cargando…
+                                        </span>
                                     ) : (
-                                        <>
-                                            <ChevronDown className="h-3.5 w-3.5" />
-                                            Cargar más cruces
-                                        </>
+                                        "Siguiente"
                                     )}
                                 </button>
+                            </div>
+
+                            {hasMore && currentPage >= totalPages && !loadingMore && (
+                                <p className="text-[11px] text-center text-muted-foreground/70">
+                                    Hay más cruces en histórico; avanza a la siguiente página para cargarlos.
+                                </p>
                             )}
                         </div>
                     )}
@@ -524,12 +612,12 @@ export default function CrucesPage() {
                 <div className="space-y-4">
                     <h2 className="text-sm font-semibold flex items-center gap-2">
                         <Eye className="h-4 w-4 text-[#25D366]" />
-                        Preview WhatsApp
+                        Validar y Enviar WhatsApp
                     </h2>
 
                     {selectedMatch ? (
                         <div className="space-y-3 sticky top-4">
-                            <WhatsAppPreview match={selectedMatch} />
+                            <WhatsAppPreview match={selectedMatch} onSent={handleMatchSent} />
                             <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
                                 <CardContent className="p-3 space-y-2">
                                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Detalles del Cruce</p>
@@ -585,7 +673,7 @@ export default function CrucesPage() {
                                 <MessageCircle className="h-10 w-10 text-muted-foreground/30 mb-3" />
                                 <p className="text-sm font-medium text-muted-foreground">Selecciona un cruce</p>
                                 <p className="text-xs text-muted-foreground/60 mt-1">
-                                    Haz click en un match para ver la preview del mensaje WhatsApp y el scoring detallado
+                                    Haz click en un match para revisar el mensaje y decidir si enviarlo al comprador
                                 </p>
                             </CardContent>
                         </Card>

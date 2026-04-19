@@ -74,8 +74,12 @@ const getHandler = async (request: Request) => {
             precio: true,
             metrosConstruidos: true,
             habitaciones: true,
+            banyos: true,
             ciudad: true,
             zona: true,
+            estado: true,
+            numFotos: true,
+            fechaAlta: true,
           },
         })
       : Promise.resolve([]),
@@ -91,6 +95,10 @@ const getHandler = async (request: Request) => {
             tipos: true,
             zonas: true,
             telefono: true,
+            leadStatus: true,
+            metrosMin: true,
+            metrosMax: true,
+            estadoNombre: true,
           },
         })
       : Promise.resolve([]),
@@ -98,6 +106,19 @@ const getHandler = async (request: Request) => {
 
   const propMap = new Map(properties.map((p) => [p.codigo, p]));
   const demMap = new Map(demands.map((d) => [d.codigo, d]));
+
+  const eventIds = pageEvents.map((ev) => ev.id);
+  const sentJobs = eventIds.length > 0
+    ? await prisma.jobQueue.findMany({
+        where: {
+          type: "SEND_WHATSAPP_MATCH",
+          sourceEventId: { in: eventIds },
+          status: { in: ["COMPLETED", "PROCESSING"] },
+        },
+        select: { sourceEventId: true },
+      })
+    : [];
+  const sentEventIds = new Set(sentJobs.map((j) => j.sourceEventId).filter(Boolean));
 
   type CruceItem = {
     id: string;
@@ -111,8 +132,12 @@ const getHandler = async (request: Request) => {
       precio: number;
       metros: number;
       habitaciones: number;
+      banyos: number;
       zona: string;
       ciudad: string;
+      estado: string;
+      numFotos: number;
+      fechaAlta: string;
     };
     comprador: {
       id: string;
@@ -122,9 +147,15 @@ const getHandler = async (request: Request) => {
       habitacionesMin: number;
       tipos: string;
       zonasInteres: string[];
+      telefono: string;
+      leadStatus: string;
+      metrosMin: number | null;
+      metrosMax: number | null;
+      estadoNombre: string;
     };
     porcentajeMatch: number;
     matchScore: Record<string, unknown> | null;
+    whatsappEnviado: boolean;
   };
 
   const cruces: CruceItem[] = [];
@@ -144,8 +175,12 @@ const getHandler = async (request: Request) => {
       precio: prop?.precio ?? 0,
       metros: prop?.metrosConstruidos ?? 0,
       habitaciones: prop?.habitaciones ?? 0,
+      banyos: prop?.banyos ?? 0,
       zona: prop?.zona ?? "",
       ciudad: prop?.ciudad ?? "",
+      estado: prop?.estado ?? "",
+      numFotos: prop?.numFotos ?? 0,
+      fechaAlta: prop?.fechaAlta ?? "",
     };
 
     if (zona && zona !== "all" && propData.zona !== zona) continue;
@@ -163,6 +198,11 @@ const getHandler = async (request: Request) => {
       habitacionesMin: dem?.habitacionesMin ?? 0,
       tipos: dem?.tipos ?? "",
       zonasInteres: demZonas,
+      telefono: dem?.telefono ?? "",
+      leadStatus: dem?.leadStatus ?? "NUEVO",
+      metrosMin: dem?.metrosMin ?? null,
+      metrosMax: dem?.metrosMax ?? null,
+      estadoNombre: dem?.estadoNombre ?? "",
     };
 
     cruces.push({
@@ -173,6 +213,7 @@ const getHandler = async (request: Request) => {
       comprador: demData,
       porcentajeMatch: p.totalScore ?? 0,
       matchScore: p.matchScore ?? null,
+      whatsappEnviado: sentEventIds.has(ev.id),
     });
   }
 

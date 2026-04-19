@@ -109,25 +109,12 @@ export async function handleMatchGenerado(
 
   const buyerPhone = demand?.telefono;
   if (buyerPhone) {
-    const appUrl = getPublicAppUrl();
-    const enlace = `${appUrl}/matching/cruces`;
-    const nombre = demand?.nombre ?? "comprador";
-
-    // H21: encolar el envío en vez de ejecutarlo síncronamente para desacoplar
-    // del handler y aprovechar el retry/backoff de la infraestructura de jobs.
-    followUpJobs.push({
-      type: "SEND_WHATSAPP_MATCH",
-      payload: {
-        buyerPhone,
-        nombre,
-        enlacePropiedad: enlace,
-        demandId,
-        propertyId,
-      },
-      priority: 20,
-      idempotencyKey: `send_wa_match:${event.id}`,
-      sourceEventId: event.id,
-    });
+    // El envío al comprador ya NO es automático. El comercial lo dispara
+    // manualmente desde la UI de cruces (/platform/matching/cruces)
+    // a través de POST /api/matching/cruces/:id/send.
+    console.log(
+      `[consumer:match] demanda=${demandId} tiene teléfono — WhatsApp pendiente de validación del comercial`,
+    );
   } else {
     console.log(
       `[consumer:match] Sin teléfono de comprador para demanda=${demandId} — solo notificación al comercial`,

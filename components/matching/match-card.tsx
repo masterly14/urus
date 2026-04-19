@@ -12,6 +12,11 @@ import {
     X,
     MessageCircle,
     ArrowLeftRight,
+    Bath,
+    Camera,
+    Calendar,
+    Phone,
+    Tag,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,8 +33,12 @@ export interface CruceMatch {
         precio: number;
         metros: number;
         habitaciones: number;
+        banyos: number;
         zona: string;
         ciudad: string;
+        estado: string;
+        numFotos: number;
+        fechaAlta: string;
     };
     comprador: {
         id: string;
@@ -39,6 +48,11 @@ export interface CruceMatch {
         habitacionesMin: number;
         tipos: string;
         zonasInteres: string[];
+        telefono: string;
+        leadStatus: string;
+        metrosMin: number | null;
+        metrosMax: number | null;
+        estadoNombre: string;
     };
     porcentajeMatch: number;
     matchScore: {
@@ -48,6 +62,7 @@ export interface CruceMatch {
         size?: { score: number; reason: string };
         rooms?: { score: number; reason: string };
     } | null;
+    whatsappEnviado: boolean;
 }
 
 interface MatchCardProps {
@@ -97,6 +112,18 @@ function MatchCard({ match, isNew = false, className }: MatchCardProps) {
     const matchDate = new Date(match.fechaMatch);
     const scores = match.matchScore;
 
+    const leadStatusLabel: Record<string, { label: string; color: string }> = {
+        NUEVO: { label: "Nuevo", color: "var(--urus-info)" },
+        CONTACTADO: { label: "Contactado", color: "var(--urus-gold)" },
+        EN_SELECCION: { label: "En selección", color: "var(--urus-warning)" },
+        VISITA_PENDIENTE: { label: "Visita pendiente", color: "var(--urus-warning)" },
+        OFERTA: { label: "Oferta", color: "var(--urus-success)" },
+        CERRADO: { label: "Cerrado", color: "var(--urus-success)" },
+        DESCARTADO: { label: "Descartado", color: "var(--urus-danger)" },
+    };
+
+    const statusInfo = leadStatusLabel[match.comprador.leadStatus] ?? { label: match.comprador.leadStatus, color: "var(--urus-info)" };
+
     return (
         <Card
             className={cn(
@@ -119,6 +146,12 @@ function MatchCard({ match, isNew = false, className }: MatchCardProps) {
                                 Nuevo
                             </Badge>
                         )}
+                        {match.whatsappEnviado && (
+                            <Badge className="text-[9px] px-1.5 bg-[#25D366]/15 text-[#25D366] border-[#25D366]/30">
+                                <Check className="h-2.5 w-2.5 mr-0.5" />
+                                WA Enviado
+                            </Badge>
+                        )}
                     </div>
                     <span className="text-[10px] text-muted-foreground">
                         {matchDate.toLocaleDateString("es-ES", { day: "numeric", month: "short" })} · {matchDate.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
@@ -127,24 +160,43 @@ function MatchCard({ match, isNew = false, className }: MatchCardProps) {
 
                 <div className="grid grid-cols-1 md:grid-cols-[1fr,auto,1fr] gap-3 items-center">
                     {/* Property */}
-                    <div className="rounded-xl p-3 bg-accent/20 border border-border/30 space-y-1.5">
+                    <div className="rounded-xl p-3 bg-accent/20 border border-border/30 space-y-2">
                         <div className="flex items-center gap-1.5">
                             <Home className="h-3.5 w-3.5 text-secondary" />
                             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Propiedad</span>
-                        </div>
-                        <p className="text-sm font-medium truncate">{match.propiedad.titulo || match.propiedad.ref}</p>
-                        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                            <span className="font-mono font-semibold text-foreground">{match.propiedad.precio.toLocaleString("es-ES")} €</span>
-                            <span>{match.propiedad.metros} m²</span>
-                            <span>{match.propiedad.habitaciones} hab</span>
-                            {match.propiedad.tipoOfer && (
-                                <Badge variant="outline" className="text-[9px] px-1">{match.propiedad.tipoOfer}</Badge>
+                            {match.propiedad.estado && (
+                                <Badge variant="outline" className="text-[9px] px-1 ml-auto">{match.propiedad.estado}</Badge>
                             )}
                         </div>
-                        <Badge variant="outline" className="text-[9px]">
-                            <MapPin className="h-2.5 w-2.5 mr-0.5" />
-                            {match.propiedad.zona}{match.propiedad.ciudad ? `, ${match.propiedad.ciudad}` : ""}
-                        </Badge>
+                        <p className="text-sm font-medium truncate">{match.propiedad.titulo || match.propiedad.ref}</p>
+                        <p className="text-[10px] text-muted-foreground/60 font-mono">Ref: {match.propiedad.ref || match.propiedad.id}</p>
+                        <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
+                            <span className="font-mono font-semibold text-foreground">{match.propiedad.precio.toLocaleString("es-ES")} €</span>
+                            <span className="flex items-center gap-0.5"><Ruler className="h-2.5 w-2.5" />{match.propiedad.metros} m²</span>
+                            <span className="flex items-center gap-0.5"><BedDouble className="h-2.5 w-2.5" />{match.propiedad.habitaciones} hab</span>
+                            <span className="flex items-center gap-0.5"><Bath className="h-2.5 w-2.5" />{match.propiedad.banyos} baños</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            {match.propiedad.tipoOfer && (
+                                <Badge variant="outline" className="text-[9px] px-1">
+                                    <Tag className="h-2.5 w-2.5 mr-0.5" />{match.propiedad.tipoOfer}
+                                </Badge>
+                            )}
+                            <Badge variant="outline" className="text-[9px]">
+                                <MapPin className="h-2.5 w-2.5 mr-0.5" />
+                                {match.propiedad.zona}{match.propiedad.ciudad ? `, ${match.propiedad.ciudad}` : ""}
+                            </Badge>
+                            {match.propiedad.numFotos > 0 && (
+                                <Badge variant="outline" className="text-[9px] px-1">
+                                    <Camera className="h-2.5 w-2.5 mr-0.5" />{match.propiedad.numFotos}
+                                </Badge>
+                            )}
+                            {match.propiedad.fechaAlta && (
+                                <Badge variant="outline" className="text-[9px] px-1">
+                                    <Calendar className="h-2.5 w-2.5 mr-0.5" />{match.propiedad.fechaAlta}
+                                </Badge>
+                            )}
+                        </div>
                     </div>
 
                     {/* Match gauge */}
@@ -170,13 +222,26 @@ function MatchCard({ match, isNew = false, className }: MatchCardProps) {
                         <span className="text-[9px] text-muted-foreground font-medium">Match</span>
                     </div>
 
-                    {/* Buyer */}
-                    <div className="rounded-xl p-3 bg-accent/20 border border-border/30 space-y-1.5">
+                    {/* Buyer / Demand */}
+                    <div className="rounded-xl p-3 bg-accent/20 border border-border/30 space-y-2">
                         <div className="flex items-center gap-1.5">
                             <User className="h-3.5 w-3.5 text-[var(--urus-gold)]" />
                             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Demanda</span>
+                            <Badge
+                                variant="outline"
+                                className="text-[9px] px-1 ml-auto"
+                                style={{ borderColor: `${statusInfo.color}40`, color: statusInfo.color }}
+                            >
+                                {statusInfo.label}
+                            </Badge>
                         </div>
                         <p className="text-sm font-medium truncate">{match.comprador.nombre}</p>
+                        {match.comprador.telefono && (
+                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                <Phone className="h-2.5 w-2.5" />
+                                <span className="font-mono">{match.comprador.telefono}</span>
+                            </div>
+                        )}
                         <p className="text-[10px] text-muted-foreground">
                             Presupuesto: <span className="font-mono font-semibold text-foreground">
                                 {match.comprador.presupuestoMin > 0
@@ -185,6 +250,28 @@ function MatchCard({ match, isNew = false, className }: MatchCardProps) {
                                 }
                             </span>
                         </p>
+                        {(match.comprador.metrosMin || match.comprador.metrosMax) && (
+                            <p className="text-[10px] text-muted-foreground">
+                                Superficie: <span className="font-mono font-semibold text-foreground">
+                                    {match.comprador.metrosMin && match.comprador.metrosMax
+                                        ? `${match.comprador.metrosMin} – ${match.comprador.metrosMax} m²`
+                                        : match.comprador.metrosMin
+                                            ? `Desde ${match.comprador.metrosMin} m²`
+                                            : `Hasta ${match.comprador.metrosMax} m²`
+                                    }
+                                </span>
+                            </p>
+                        )}
+                        {match.comprador.tipos && (
+                            <p className="text-[10px] text-muted-foreground">
+                                Busca: <span className="font-semibold text-foreground">{match.comprador.tipos}</span>
+                            </p>
+                        )}
+                        {match.comprador.habitacionesMin > 0 && (
+                            <p className="text-[10px] text-muted-foreground">
+                                Mín. habitaciones: <span className="font-mono font-semibold text-foreground">{match.comprador.habitacionesMin}</span>
+                            </p>
+                        )}
                         <div className="flex items-center gap-1 flex-wrap">
                             {match.comprador.zonasInteres.slice(0, 3).map((z) => (
                                 <Badge key={z} variant="outline" className="text-[9px] px-1.5">{z}</Badge>
