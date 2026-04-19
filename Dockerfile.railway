@@ -31,7 +31,6 @@ RUN npx prisma generate
 
 COPY tsconfig.json ./
 COPY lib ./lib/
-COPY app/generated ./app/generated/
 COPY scripts/refresh-inmovilla-session.ts ./scripts/
 COPY railway-entrypoint.sh ./
 
