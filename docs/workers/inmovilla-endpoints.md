@@ -474,12 +474,19 @@ Basado en el análisis, los campos realmente necesarios para una creación exito
 **Demanda:**
 - `demandas-cod_dempriclave` = `-_NEW_-`
 - `demandas-keyagente` (agente asignado)
-- `demandas-keysitu` (estado: 20=Buscando)
+- `demandas-keysitu` = `20` (Buscando — **valor fijo al crear**; ver nota abajo)
 - `demandas-fecha` = `.auto_1.`
 - `demandas-numdemanda` = `.auto_3.`
 - `demandas-contienecli` = `keycli`
 - `demandas-keycliclaveext` = `clientes.cod_cli`
 - `nbclave` = `demandas.cod_dem`
+
+> **⚠️ Sobre `demandas-keysitu` (estado de la demanda en Inmovilla):**
+> El sistema **no actualiza `keysitu` programáticamente** cuando el lead avanza por el pipeline.
+> El estado de pipeline del lead se gestiona internamente en `DemandCurrent.leadStatus` (ver [`docs/lead-status-pipeline.md`](../lead-status-pipeline.md)).
+> `keysitu=20` (Buscando) se establece al crear la demanda y **permanece fijo** en Inmovilla;
+> los agentes pueden cambiarlo manualmente en el CRM si lo necesitan, pero el sistema no lo modifica.
+> Esto evita conflictos con el uso manual del CRM y elimina la dependencia de RPA frágil para cambios de estado.
 
 **Cliente:**
 - `clientes-cod_clipriclave` = `-_NEW_-` (o ID existente si ya existe)

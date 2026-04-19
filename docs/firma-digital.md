@@ -4,6 +4,8 @@
 
 El sistema implementa **firma electrónica simple in-house**: el firmante accede a una página pública, visualiza el PDF, dibuja la firma y, si hay teléfono del firmante, completa un **OTP por SMS** antes de sellar el documento. Se captura evidencia (hash, IP, timestamp, consentimiento, imagen de firma) y se generan PDF sellado + pista de auditoría. No se utiliza ningún SaaS de firma electrónica de terceros para el acto de firmar ni para el archivo final.
 
+> Nota operativa: existe un bypass temporal por entorno (`FIRMA_OTP_BYPASS=true`) para omitir el paso OTP sin eliminar su implementación. En operación normal debe permanecer desactivado.
+
 ## API de envío a firma (`POST /api/contracts/sign`)
 
 1. Verifica autorización (`SIGNATURIT_SIGN_API_TOKEN` o fallback `CRON_SECRET`). El nombre de la variable es histórico; es un token server-to-server para el endpoint de envío.
@@ -78,6 +80,7 @@ Campos relevantes en `SignatureRequest`:
 Ver `.env.example`:
 
 - `FIRMA_TOKEN_SECRET` — Clave HMAC para generación/verificación de tokens de enlace.
+- `FIRMA_OTP_BYPASS` — Si vale `true`/`1`/`si`, omite temporalmente la verificación OTP y permite firma directa.
 - `VONAGE_API_KEY`, `VONAGE_API_SECRET`, `VONAGE_SMS_FROM` — Envío de SMS para OTP (si se usa el integrador actual).
 - `SIGNATURIT_SLA_DAYS` — Días hasta escalado SLA (default: 5); nombre histórico.
 - `SIGNATURIT_SIGN_API_TOKEN` — Token de auth server-to-server para `POST /api/contracts/sign` (nombre histórico).

@@ -10,6 +10,8 @@ Infraestructura base, workers de Inmovilla y autenticación/autorización implem
 
 - **Auth y Autorización**: Better Auth con Prisma adapter, 3 roles (`ceo`, `admin`, `comercial`), invitaciones por email (Resend), protección de rutas con `proxy.ts` (Next.js 16). Ver `docs/auth-autorizacion.md`.
 
+- **Pipeline interno del lead (`LeadStatus`)**: el estado de cada demanda/lead a lo largo del pipeline comercial se gestiona en `DemandCurrent.leadStatus` (enum propio en Neon), **no en Inmovilla**. Los estados (`NUEVO` → `CONTACTADO` → `EN_SELECCION` → `VISITA_PENDIENTE` → `VISITA_CONFIRMADA` → `VISITA_REALIZADA` → `EN_NEGOCIACION` → `EN_FIRMA` → `CERRADO` / `PERDIDO`) se avanzan automáticamente desde los event handlers del consumer. Inmovilla mantiene `keysitu=20` (Buscando) como valor fijo; no se actualiza programáticamente. Ver `docs/lead-status-pipeline.md`.
+
 
 - **Event Store (Neon/PostgreSQL)**: tabla `events` (Prisma `Event`) + API en `lib/event-store/` (`appendEvent`, `getEventsByAggregate`, `getEventsSince`) con tests en `lib/event-store/__tests__/`.
 - **Job Queue (Neon/PostgreSQL)**: tabla `job_queue` (Prisma `JobQueue`) + API en `lib/job-queue/` (`enqueueJob`, `dequeueJob`, `markCompleted`, `markFailed`) con reintentos, idempotencia y tests de ciclo completo en `lib/job-queue/__tests__/`.
@@ -23,6 +25,7 @@ Documentación de decisiones:
 - `docs/adr/002-neon-como-job-queue.md`
 - **Dashboard Comercial (métricas / KPIs)**: `docs/dashboard-comercial-metricas.md`
 - **Dashboard Comercial (UI / rutas / hooks)**: `docs/dashboard-comercial-ui.md`
+- **Pipeline interno del lead (LeadStatus)**: `docs/lead-status-pipeline.md` — estados del lead gestionados en Neon, no en Inmovilla.
 
 Escenario de migración a API REST (contactos, propiedades, propietarios) documentado en `docs/plan.md` — estrategia de transición sin romper el flujo actual.
 
@@ -51,6 +54,7 @@ Escenario de migración a API REST (contactos, propiedades, propietarios) docume
 - **Feedback loop E2E (Vitest)**: `npm test -- feedback-loop-e2e` — test de integración determinista del pipeline completo (WA → eventos → jobs → proyección). Usa BD real + NLU stub.
 - **Feedback loop live-RPA**: `npx tsx scripts/test-feedback-loop-live-rpa.ts` — pipeline completo con NLU real y escritura en Inmovilla (RPA). Requiere `FEEDBACK_LOOP_DEMAND_ID` y `FEEDBACK_LOOP_LIVE=true` para escritura real. Sin ese flag ejecuta dry-run. Ver `docs/microsite-feedback-loop.md`.
 - **Firma live E2E (Neon + Cloudinary + WhatsApp + OTP real)**: `npm run firma:live-e2e -- --check-env` para validar prerequisitos y `npm run firma:live-e2e -- --confirm-live` para ejecutar el flujo completo con firma humana. Detalle en `docs/firma-live-e2e.md`.
+- **Post-venta (M9) — plantillas Meta + Flow + anuales**: la cadencia post-venta se envía 100% con plantillas Meta (`postventa_agradecimiento`, `postventa_soporte`, `postventa_resena`, `postventa_referidos`, `postventa_recaptacion`, `postventa_cumpleanos`, `postventa_navidad`, `postventa_formulario`). En D0 se envía un WhatsApp Flow (`postventa_survey`) que recoge nombre, fecha de nacimiento y email; con eso el sistema programa mensajes anuales indefinidos (cumpleaños 12:00 Europe/Madrid, Navidad 24-dic 12:00). Ver `docs/postventa-plantillas-whatsapp.md` (plantillas, Flow JSON, variables). Cron complementario: `POST /api/cron/postventa-rearm` (mensual, `CRON_SECRET`).
 
 **Contribuir:** ramas, commits, PRs y releases siguen la [Guía de contribución (CONTRIBUTING.md)](CONTRIBUTING.md).
 
@@ -103,6 +107,8 @@ Es la **fuente de verdad inamovible**. Su única función es almacenar los datos
 
 **Ningún dato estructurado vive de forma definitiva fuera de Inmovilla** cuando existe cobertura en su API. Sin embargo, la API REST no expone gestión documental (adjuntar PDFs/DOCXs a propiedades, clientes ni propietarios), por lo que **los documentos legales (contratos, audit trails) se almacenan en Cloudinary/S3 con metadatos en Neon** — mismo patrón que colaboradores externos y microsites. Expone API REST v1 (`procesos.inmovilla.com/api/v1`) para clientes, propiedades y propietarios. No cubre demandas (que requieren polígonos geoespaciales), no mide tiempos y no dispara automatizaciones.
 
+**El estado del pipeline (en qué fase está cada lead) vive exclusivamente en Neon** (`DemandCurrent.leadStatus`), no en Inmovilla. El campo `keysitu` de Inmovilla permanece fijo en `20` (Buscando) y solo lo modifican los agentes manualmente desde el CRM. Ver `docs/lead-status-pipeline.md`.
+
 > **Nota terminológica:** En Inmovilla no existe una entidad "Lead". Lo que el sector llama "lead" se materializa como un **Contacto** (persona) + una **Demanda** (búsqueda activa con polígono geoespacial). Los contactos son accesibles vía API REST; las demandas solo vía RPA legacy.
 
 ---
@@ -116,9 +122,10 @@ Se construye una red de **workers server-side** que conectan con Inmovilla y Sta
 - CRUD directo, respuestas JSON tipadas, sin necesidad de Playwright ni sesiones.
 - Rate limits Inmovilla: 10 propiedades/min, 20 clientes/min, 20 propietarios/min.
 
-**Vía RPA Legacy** (demandas, cambios de estado, polígonos geoespaciales en Inmovilla):
+**Vía RPA Legacy** (creación/actualización de demandas y polígonos geoespaciales en Inmovilla):
 - Login silente con Playwright → código 2FA vía **Composio + Gmail** → captura cookies de sesión → token CSRF → XHR clonado a `guardar.php`.
-- Necesario porque la API REST no cubre demandas (que requieren polígonos geoespaciales dibujados en mapa) ni cambios de estado operativo.
+- Necesario porque la API REST no cubre demandas (que requieren polígonos geoespaciales dibujados en mapa).
+- **Nota:** los cambios de estado del pipeline **no** se envían a Inmovilla vía RPA. El estado del lead se gestiona en `DemandCurrent.leadStatus` (Neon). Solo se escriben en Inmovilla los criterios de la demanda (precio, zona, habitaciones, tipos) cuando el NLU los actualiza.
 
 #### Ingestion Worker (Lectura)
 
@@ -268,11 +275,13 @@ Automáticamente:
 
 1. LangGraph extrae las variables modificadas (precio, zona, características).
 2. Se emite un evento `DEMANDA_ACTUALIZADA` en Neon.
-3. El `Egestion Worker` escribe los cambios en Inmovilla mediante network interception (login silente → CSRF → XHR clonado).
+3. El `Egestion Worker` escribe los **criterios** de la demanda en Inmovilla mediante network interception (login silente → CSRF → XHR clonado).
 4. Se guarda histórico del cambio como evento inmutable.
 5. La demanda queda **más afinada**.
 
 El CRM aprende. El comercial no reescribe nada.
+
+> **Sobre el estado del lead:** el avance por las etapas del pipeline (`CONTACTADO`, `EN_SELECCION`, `VISITA_PENDIENTE`, etc.) **no se refleja en Inmovilla** (`keysitu` permanece fijo). El estado del pipeline vive en `DemandCurrent.leadStatus` en Neon y se actualiza automáticamente desde los event handlers del consumer. Ver `docs/lead-status-pipeline.md`.
 
 ---
 
@@ -527,7 +536,8 @@ Al guardar, el `Ingestion Worker` detecta el alta y la Capa 3 dispara el cruce +
 
 - **SYS:**
   - Recoge selección (clics/guardados/descartes) vía eventos del microsite propio (persistidos en Neon).
-  - Actualiza demanda en Inmovilla vía RPA legacy.
+  - Si el NLU detecta cambios de criterios (precio, zona, habitaciones), actualiza la demanda en Inmovilla vía RPA legacy.
+  - Avanza `DemandCurrent.leadStatus` automáticamente según las decisiones del comprador (→ `EN_SELECCION`, → `VISITA_PENDIENTE`). El estado de pipeline **no** se escribe en Inmovilla.
 - **AD** solo actúa si:
   - "Elige inmuebles" → agenda visitas.
   - "Pide cambios" → valida 1 ajuste si es necesario.
@@ -1777,8 +1787,8 @@ El sistema ofrece lectura **estratégica**, no psicológica:
 | **Event Sourcing** | Todos los cambios se registran como eventos inmutables en Neon |
 | **Job Queue** | Tabla `job_queue` en Neon con reintentos y idempotencia |
 | **API REST Integration** | Clientes REST tipados para Inmovilla y Statefox con auth por token, rate limiting y reintentos |
-| **Server-Side RPA (legacy)** | Workers con Playwright que simulan interacción humana — solo para demandas y estados en Inmovilla |
-| **Network Interception** | Cookies + CSRF + clonación de XHR — solo para operaciones no cubiertas por las APIs REST (demandas) |
+| **Server-Side RPA (legacy)** | Workers con Playwright que simulan interacción humana — solo para **crear/actualizar criterios** de demandas en Inmovilla; los estados del pipeline no se escriben en Inmovilla |
+| **Network Interception** | Cookies + CSRF + clonación de XHR — solo para operaciones no cubiertas por las APIs REST (creación/edición de demandas) |
 | **CQRS** | Lectura (queries analíticas) separada de escritura (eventos) |
 | **Ports & Adapters** | `InmovillaWritePort` / `InmovillaReadPort` con adaptadores REST y legacy intercambiables por feature flag |
 

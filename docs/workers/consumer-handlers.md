@@ -20,6 +20,28 @@ Tipos: `lib/workers/consumer/types.ts` (`EventHandler`, `HandlerResult`)
 
 ---
 
+## LeadStatus — Pipeline interno del lead
+
+Varios handlers actualizan `DemandCurrent.leadStatus` como side effect al procesar su evento. Este campo representa el estado del lead en el pipeline comercial de Urus, **independientemente de Inmovilla** (ver [`docs/lead-status-pipeline.md`](../lead-status-pipeline.md)).
+
+| Handler | Evento | `leadStatus` resultante |
+|---------|--------|------------------------|
+| `whatsapp-nlu-handler` | `WHATSAPP_RECIBIDO` | `CONTACTADO` (solo si era `NUEVO`) |
+| `seleccion-comprador-handler` | `SELECCION_COMPRADOR` (ME_INTERESA) | `EN_SELECCION` |
+| `visit-scheduling-event-handlers` | `VISITA_SOLICITADA` | `VISITA_PENDIENTE` |
+| `visit-scheduling-event-handlers` | `VISITA_COMPRADOR_ACEPTO` | `VISITA_CONFIRMADA` |
+| `visit-scheduling-event-handlers` | `VISITA_DATOS_RECOPILADOS` | `VISITA_REALIZADA` |
+| `visit-scheduling-event-handlers` | `VISITA_ESCALADA_MANUAL` | `PERDIDO` |
+| `visit-scheduling-event-handlers` | `VISITA_CANCELADA` | `EN_SELECCION` |
+| `contrato-borrador-handler` | `CONTRATO_BORRADOR_GENERADO` | `EN_NEGOCIACION` |
+| `firma-enviada-handler` | `FIRMA_ENVIADA` | `EN_FIRMA` |
+| `firma-completada-handler` | `FIRMA_COMPLETADA` | `CERRADO` |
+| `post-sale-handler` | `OPERACION_CERRADA` | `CERRADO` |
+
+Helper: `lib/projections/update-lead-status.ts`
+
+---
+
 ## Handlers con lógica real
 
 ### PROPIEDAD_CREADA — Smart Matching + Proyección

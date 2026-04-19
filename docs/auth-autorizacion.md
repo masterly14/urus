@@ -22,12 +22,19 @@ CEO y Admin son **equivalentes** en permisos. La distinción es nominal.
 ## Flujo de invitación
 
 1. CEO/Admin accede a `/platform/configuracion` (pestaña "Usuarios")
-2. Introduce email + rol del invitado
-3. `POST /api/invitations` crea un registro `Invitation` con token único (expira en 7 días)
-4. Resend envía email con enlace a `/register?token=xxx`
-5. El invitado abre el enlace, ve su email pre-rellenado, introduce nombre y contraseña
-6. `POST /api/invitations/accept` crea el User via Better Auth y marca la invitación como usada
-7. El invitado puede hacer login con email + contraseña
+2. Introduce **email** (será el login del invitado) y **rol**
+3. Si el rol es **Comercial**, debe elegir además la **ficha comercial** en el desplegable (comerciales activos sin usuario vinculado).  
+   **Importante:** el email de la invitación no tiene por qué coincidir con el campo `email` de la tabla `Comercial` (en datos reales suele ir **vacío**); la vinculación `User.comercialId` se guarda en la invitación y se aplica al aceptar.  
+   Como respaldo, si una invitación antigua no tenía ficha, `accept` intenta emparejar por email solo cuando `Comercial.email` está relleno y coincide.
+4. `POST /api/invitations` crea un registro `Invitation` con token único (expira en 7 días) y, si aplica, `comercialId`
+5. Resend envía email con enlace a `/register?token=xxx`
+6. El invitado abre el enlace, ve su email pre-rellenado, introduce nombre y contraseña
+7. `POST /api/invitations/accept` crea el User via Better Auth, asigna `comercialId` si la invitación lo trae (o por email en el caso residual), y marca la invitación como usada
+8. El invitado puede hacer login con email + contraseña
+
+### Usuario comercial sin `comercialId` (cuentas antiguas)
+
+Un administrador puede corregirlo en la misma pestaña **Usuarios** con la acción de **vincular comercial** (`POST /api/users/link-comercial`).
 
 ## Flujo de login
 
@@ -95,7 +102,7 @@ Los layouts usan `useSession()` de `@/lib/hooks/use-session`:
 - `Session` — sesiones activas (gestionadas por Better Auth)
 - `Account` — métodos de autenticación (email/password)
 - `Verification` — tokens de verificación
-- `Invitation` — invitaciones pendientes
+- `Invitation` — invitaciones pendientes (opcional `comercialId` para rol comercial)
 
 ## Rate Limiting
 
