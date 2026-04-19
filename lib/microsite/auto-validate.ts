@@ -18,6 +18,7 @@
 
 import OpenAI from "openai";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { appendEvent } from "@/lib/event-store";
 import { enqueueJob } from "@/lib/job-queue";
 import {
@@ -216,7 +217,7 @@ export async function autoValidateMicrosite(selectionId: string): Promise<AutoVa
   await prisma.micrositeSelection.update({
     where: { id: selectionId },
     data: {
-      properties: updatedProperties as unknown as JsonValue,
+      properties: updatedProperties as unknown as Prisma.InputJsonValue,
       status: "APPROVED",
       validatedAt: now,
       validatedByComercialId: "auto_validation",
