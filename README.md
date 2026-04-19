@@ -55,6 +55,16 @@ Escenario de migración a API REST (contactos, propiedades, propietarios) docume
 - **Feedback loop live-RPA**: `npx tsx scripts/test-feedback-loop-live-rpa.ts` — pipeline completo con NLU real y escritura en Inmovilla (RPA). Requiere `FEEDBACK_LOOP_DEMAND_ID` y `FEEDBACK_LOOP_LIVE=true` para escritura real. Sin ese flag ejecuta dry-run. Ver `docs/microsite-feedback-loop.md`.
 - **Firma live E2E (Neon + Cloudinary + WhatsApp + OTP real)**: `npm run firma:live-e2e -- --check-env` para validar prerequisitos y `npm run firma:live-e2e -- --confirm-live` para ejecutar el flujo completo con firma humana. Detalle en `docs/firma-live-e2e.md`.
 - **Post-venta (M9) — plantillas Meta + Flow + anuales**: la cadencia post-venta se envía 100% con plantillas Meta (`postventa_agradecimiento`, `postventa_soporte`, `postventa_resena`, `postventa_referidos`, `postventa_recaptacion`, `postventa_cumpleanos`, `postventa_navidad`, `postventa_formulario`). En D0 se envía un WhatsApp Flow (`postventa_survey`) que recoge nombre, fecha de nacimiento y email; con eso el sistema programa mensajes anuales indefinidos (cumpleaños 12:00 Europe/Madrid, Navidad 24-dic 12:00). Ver `docs/postventa-plantillas-whatsapp.md` (plantillas, Flow JSON, variables). Cron complementario: `POST /api/cron/postventa-rearm` (mensual, `CRON_SECRET`).
+- **Bootstrap post-deploy**: `npm run bootstrap` — script idempotente para inicialización tras despliegue. Controlado por `BOOTSTRAP_ON_DEPLOY=true` y `BOOTSTRAP_MODE=safe|full`. Modo `safe`: seed CEO + check DB. Modo `full`: además sync catálogos Inmovilla y backfill operaciones. El `build` de Vercel solo ejecuta compilación (`next build`); las sincronizaciones pesadas nunca se ejecutan dentro del build.
+
+### Despliegue en Vercel (estrategia DB)
+
+La base de datos operativa es la **rama `develop` de Neon** (no `production`). Esto es intencional: la rama `production` de Neon contiene datos corruptos de testing mezclados con datos reales. Al desplegar en Vercel:
+
+1. `DATABASE_URL` debe apuntar a la rama `develop` de Neon.
+2. Tras el primer deploy, ejecutar `npm run bootstrap` manualmente o configurar como post-deploy hook.
+3. Los cron endpoints (`/api/cron/*`) autenticados con `CRON_SECRET` mantienen la sincronización en tiempo real.
+4. **Migración a `production` de Neon**: solo tras limpiar datos de testing en la rama production y verificar integridad.
 
 **Contribuir:** ramas, commits, PRs y releases siguen la [Guía de contribución (CONTRIBUTING.md)](CONTRIBUTING.md).
 

@@ -44,7 +44,8 @@
     "list:properties-by-comercial": "tsx scripts/list-properties-by-comercial.ts",
     "raw:nonempty": "tsx scripts/analyze-nonempty-raw.ts",
     "microsite:from-db": "tsx scripts/create-microsite-from-db-property.ts",
-    "visit:test": "echo Abre http://localhost:3000/platform/test-visit en el navegador"
+    "visit:test": "echo Abre http://localhost:3000/platform/test-visit en el navegador",
+    "bootstrap": "tsx scripts/post-deploy-bootstrap.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
