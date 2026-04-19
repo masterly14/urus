@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+.env
+.env.local
+.inmovilla-session.json
+*.har
+scripts/_*
+prisma/migrations_archive_*

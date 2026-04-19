@@ -1,0 +1,37 @@
+# Railway Session Proxy — Playwright + Chromium para login Inmovilla CRM v2
+#
+# Este servicio se despliega en Railway como worker. Cada 4 horas ejecuta
+# el login a Inmovilla, obtiene la sesión CRM v2 (cookies + tokens) y la
+# persiste en Neon para que los workers serverless de Vercel puedan leerla.
+
+FROM node:22-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 \
+    libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 \
+    libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 \
+    libcairo2 libasound2t64 libatspi2.0-0t64 \
+    fonts-liberation fonts-noto-color-emoji \
+    ca-certificates wget \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY package.json package-lock.json .npmrc ./
+RUN npm ci --legacy-peer-deps
+
+RUN npx playwright install chromium --with-deps
+
+COPY prisma ./prisma/
+COPY prisma.config.ts ./
+RUN npx prisma generate
+
+COPY tsconfig.json ./
+COPY lib ./lib/
+COPY app/generated ./app/generated/
+COPY scripts/refresh-inmovilla-session.ts ./scripts/
+COPY railway-entrypoint.sh ./
+
+RUN chmod +x railway-entrypoint.sh
+
+CMD ["./railway-entrypoint.sh"]
