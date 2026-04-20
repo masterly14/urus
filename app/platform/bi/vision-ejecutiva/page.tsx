@@ -157,7 +157,7 @@ function VisionEjecutivaPageInner() {
                     historico={historico.map((h) => h.ebitdaEur)}
                 />
                 <KpiCard
-                    title="Cash Disponible"
+                    title="Efectivo Disponible"
                     value={kpis.cashDisponible.value}
                     change={kpis.cashDisponible.changePercent ?? 0}
                     trend={trendOf(kpis.cashDisponible)}

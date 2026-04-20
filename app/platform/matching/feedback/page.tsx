@@ -92,7 +92,7 @@ const feedbackTimeline: FeedbackEntry[] = [
         estadoOriginal: "enviado",
         respuesta: "(Sin respuesta tras 48h)",
         interpretacionIA: "Sin interacción. Posible desinterés o mensaje no leído. Programar follow-up.",
-        accionCRM: "Follow-up automático programado: 48h",
+        accionCRM: "Seguimiento automático programado: 48h",
         fecha: "2026-02-12T20:00:00Z",
         tipo: "negativo",
     },
@@ -144,7 +144,7 @@ const validationQueue: ValidationItem[] = [
 const tipoConfig = {
     positivo: { color: "var(--urus-success)", icon: ThumbsUp, label: "Positivo" },
     negativo: { color: "var(--urus-danger)", icon: ThumbsDown, label: "Sin respuesta" },
-    ajuste: { color: "var(--urus-gold)", icon: RefreshCw, label: "Ajuste CRM" },
+    ajuste: { color: "var(--urus-gold)", icon: RefreshCw, label: "Ajuste en Demanda" },
 };
 
 // Simulated learning metrics
@@ -183,9 +183,9 @@ function FeedbackContent() {
                             <Sparkles className="h-5 w-5 text-[var(--urus-gold)]" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold tracking-tight">Feedback Loop</h1>
+                            <h1 className="text-2xl font-bold tracking-tight">Ciclo de Mejora</h1>
                             <p className="text-sm text-muted-foreground">
-                                Retroalimentación inteligente y aprendizaje del motor de matching
+                                Retroalimentación inteligente y aprendizaje del motor de búsqueda
                             </p>
                         </div>
                     </div>
@@ -213,7 +213,7 @@ function FeedbackContent() {
                             href="/platform/matching/feedback?mock=1"
                             className="inline-flex items-center gap-1.5 text-xs text-secondary hover:underline"
                         >
-                            Abrir con datos mock
+                            Ver con datos de ejemplo
                             <ArrowRight className="h-3 w-3" />
                         </Link>
                     </CardContent>
@@ -238,9 +238,9 @@ function FeedbackContent() {
                         <Sparkles className="h-5 w-5 text-[var(--urus-gold)]" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight">Feedback Loop</h1>
+                        <h1 className="text-2xl font-bold tracking-tight">Ciclo de Mejora</h1>
                         <p className="text-sm text-muted-foreground">
-                            Retroalimentación inteligente y aprendizaje del motor de matching
+                            Retroalimentación inteligente y aprendizaje del motor de búsqueda
                         </p>
                     </div>
                 </div>
@@ -275,7 +275,7 @@ function FeedbackContent() {
                                 <RefreshCw className="h-4 w-4 text-[var(--urus-gold)]" />
                             </div>
                             <div>
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Ajustes CRM</p>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Ajustes en Demandas</p>
                                 <p className="text-xl font-bold font-mono text-[var(--urus-gold)]">{adjustCount}</p>
                             </div>
                         </div>
@@ -303,7 +303,7 @@ function FeedbackContent() {
                                 <Target className="h-4 w-4 text-secondary" />
                             </div>
                             <div>
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Precisión IA</p>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Precisión del sistema</p>
                                 <p className="text-xl font-bold font-mono text-secondary">{currentPrecision}%</p>
                             </div>
                         </div>
@@ -319,7 +319,7 @@ function FeedbackContent() {
                         <CardHeader className="pb-3">
                             <div className="flex items-center gap-2">
                                 <MessageSquare className="h-4 w-4 text-secondary" />
-                                <CardTitle className="text-sm font-semibold">Historial de Feedback</CardTitle>
+                                            <CardTitle className="text-sm font-semibold">Historial de Respuestas</CardTitle>
                             </div>
                         </CardHeader>
                         <CardContent className="pt-0">
@@ -377,7 +377,7 @@ function FeedbackContent() {
                                                 <div className="flex items-start gap-2 mb-2">
                                                     <BrainCircuit className="h-3.5 w-3.5 text-secondary shrink-0 mt-0.5" />
                                                     <div>
-                                                        <p className="text-[10px] text-secondary font-semibold uppercase tracking-wider mb-0.5">Interpretación IA</p>
+                                                        <p className="text-[10px] text-secondary font-semibold uppercase tracking-wider mb-0.5">Interpretación del sistema</p>
                                                         <p className="text-xs text-muted-foreground">{entry.interpretacionIA}</p>
                                                     </div>
                                                 </div>
@@ -393,7 +393,7 @@ function FeedbackContent() {
                                                     >
                                                         <RefreshCw className="h-3 w-3 text-[var(--urus-gold)] shrink-0 mt-0.5" />
                                                         <div>
-                                                            <p className="text-[9px] text-[var(--urus-gold)] font-semibold uppercase tracking-wider">Actualización automática CRM</p>
+                                                            <p className="text-[9px] text-[var(--urus-gold)] font-semibold uppercase tracking-wider">Actualización automática de la demanda</p>
                                                             <p className="text-xs font-mono mt-0.5">{entry.accionCRM}</p>
                                                         </div>
                                                     </div>
@@ -470,7 +470,7 @@ function FeedbackContent() {
 
                             {/* Total matches processed */}
                             <div className="space-y-2 pt-2 border-t border-border/20">
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Matches Procesados</p>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Cruces Procesados</p>
                                 {learningMetrics.map((m) => (
                                     <div key={m.month} className="flex items-center gap-2">
                                         <span className="text-[10px] text-muted-foreground w-7">{m.month}</span>
@@ -517,7 +517,7 @@ function FeedbackContent() {
                             </Badge>
                         </div>
                         <p className="text-[10px] text-muted-foreground">
-                            Propiedades pre-filtradas por la IA para validación manual del agente
+                            Propiedades pre-filtradas por el sistema para validación manual del comercial
                         </p>
                     </div>
                 </CardHeader>
@@ -588,7 +588,7 @@ function FeedbackContent() {
                                                         </text>
                                                     </svg>
                                                 </div>
-                                                <p className="text-[8px] text-muted-foreground mt-0.5">Confianza IA</p>
+                                                <p className="text-[8px] text-muted-foreground mt-0.5">Confianza del sistema</p>
                                             </div>
 
                                             {/* Action buttons */}

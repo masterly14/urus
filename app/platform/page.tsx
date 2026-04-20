@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 const quickLinks = [
   {
-    title: "Business Intelligence",
+    title: "Inteligencia de Negocio",
     description: "Visión ejecutiva, financiero y operativo",
     href: "/platform/bi/vision-ejecutiva",
     icon: PieChart,

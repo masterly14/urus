@@ -115,6 +115,14 @@ const CLASIFICACIONES: ColaboradorClasificacion[] = [
   "sin_datos",
 ];
 
+const CLASIFICACION_LABELS: Record<ColaboradorClasificacion, string> = {
+  partner_estrategico: "Socio Estratégico",
+  funcional: "Funcional",
+  lento: "Lento",
+  critico: "Crítico",
+  sin_datos: "Sin datos",
+};
+
 const SEMAFORO_CLASIFICACION: Record<ColaboradorClasificacion, "verde" | "amarillo" | "rojo"> = {
   partner_estrategico: "verde",
   funcional: "verde",
@@ -257,9 +265,9 @@ export default function DashboardColaboradoresPage() {
           <Trophy className="h-5 w-5 text-[var(--urus-gold)]" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard Colaboradores</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Clasificación de Colaboradores</h1>
           <p className="text-sm text-muted-foreground">
-            Ranking por facturación vinculada, tiempos medios y semáforos
+            Clasificación por facturación vinculada, tiempos medios y semáforos
           </p>
         </div>
       </div>
@@ -275,7 +283,7 @@ export default function DashboardColaboradoresPage() {
           format="number"
         />
         <KpiCard
-          title="SLA cumplimiento"
+          title="Plazos cumplidos"
           value={resumen.slaCumplimientoGlobal}
           change={0}
           trend={resumen.slaCumplimientoGlobal >= 80 ? "up" : "down"}
@@ -305,7 +313,7 @@ export default function DashboardColaboradoresPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-[#8b5cf6]" />
-            Recomendaciones IA
+            Recomendaciones del sistema
             {data.recomendacionGeneradaAt && (
               <span className="text-[10px] text-muted-foreground font-normal ml-auto">
                 {timeAgo(data.recomendacionGeneradaAt)}
@@ -487,8 +495,8 @@ export default function DashboardColaboradoresPage() {
                     <th className="text-left py-2 font-medium">Tipo</th>
                     <th className="text-center py-2 font-medium">Estado</th>
                     <th className="text-center py-2 font-medium">Colaboradores</th>
-                    <th className="text-center py-2 font-medium">SLA %</th>
-                    <th className="text-center py-2 font-medium">Avg días/hito</th>
+                    <th className="text-center py-2 font-medium">Plazo %</th>
+                    <th className="text-center py-2 font-medium">Días/hito</th>
                     <th className="text-center py-2 font-medium">Hitos vencidos</th>
                     <th className="text-right py-2 font-medium">Facturación</th>
                   </tr>
@@ -571,7 +579,7 @@ export default function DashboardColaboradoresPage() {
             >
               <option value="all">Todas las clasificaciones</option>
               {CLASIFICACIONES.map((cls) => (
-                <option key={cls} value={cls}>{cls.replace("_", " ")}</option>
+                <option key={cls} value={cls}>{CLASIFICACION_LABELS[cls]}</option>
               ))}
             </select>
 
@@ -606,9 +614,9 @@ export default function DashboardColaboradoresPage() {
                     <th className="text-left py-2 font-medium">Tipo</th>
                     <th className="text-left py-2 font-medium">Ciudad</th>
                     <th className="text-center py-2 font-medium">Clasificación</th>
-                    <th className="text-center py-2 font-medium">SLA %</th>
+                    <th className="text-center py-2 font-medium">Plazo %</th>
                     <th className="text-right py-2 font-medium">Facturación</th>
-                    <th className="text-center py-2 font-medium">Ops</th>
+                    <th className="text-center py-2 font-medium">Asign.</th>
                     <th className="text-center py-2 font-medium">Hitos</th>
                   </tr>
                 </thead>

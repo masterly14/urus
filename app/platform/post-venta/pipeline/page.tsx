@@ -183,7 +183,7 @@ function PipelineContent() {
                         <PackageCheck className="h-5 w-5 text-secondary" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight">Pipeline Post-Venta</h1>
+                <h1 className="text-2xl font-bold tracking-tight">Seguimiento Post-Venta</h1>
                         <p className="text-sm text-muted-foreground">
                             Seguimiento automatizado de operaciones cerradas por 4 etapas
                         </p>

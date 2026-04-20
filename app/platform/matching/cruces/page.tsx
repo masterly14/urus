@@ -22,7 +22,6 @@ import { Badge } from "@/components/ui/badge";
 import { MatchCard, getMatchColor } from "@/components/matching/match-card";
 import type { CruceMatch } from "@/components/matching/match-card";
 import { WhatsAppPreview } from "@/components/matching/whatsapp-preview";
-import { RematchPanel } from "@/components/matching/rematch-panel";
 
 const POLL_INTERVAL_MS = 10_000;
 const ITEMS_PER_PAGE = 10;
@@ -287,12 +286,11 @@ export default function CrucesPage() {
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight">Cruces Automáticos</h1>
                         <p className="text-sm text-muted-foreground">
-                            Matches reales del motor de scoring — Propiedad ↔ Demanda
+                            Resultados automáticos del motor de búsqueda — Propiedad ↔ Demanda
                         </p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <RematchPanel />
                     <button
                         onClick={() => setIsLiveActive(!isLiveActive)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${isLiveActive
@@ -301,7 +299,7 @@ export default function CrucesPage() {
                             }`}
                     >
                         <span className={`h-2 w-2 rounded-full ${isLiveActive ? "bg-[var(--urus-success)] animate-pulse" : "bg-muted-foreground"}`} />
-                        {isLiveActive ? "LIVE" : "Pausado"}
+                        {isLiveActive ? "En directo" : "Pausado"}
                     </button>
                     <button
                         onClick={() => fetchCruces(false)}
@@ -316,7 +314,7 @@ export default function CrucesPage() {
                             className="gap-1.5 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors"
                         >
                             <Sparkles className="h-3 w-3 text-[var(--urus-gold)]" />
-                            Feedback Loop
+                            Ciclo de Mejora
                             <ArrowUpRight className="h-3 w-3" />
                         </Badge>
                     </Link>
@@ -355,7 +353,7 @@ export default function CrucesPage() {
                                 <Zap className="h-4 w-4 text-[var(--urus-gold)]" />
                             </div>
                             <div>
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Match Medio</p>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Compatibilidad Media</p>
                                 <p className="text-xl font-bold font-mono" style={{ color: getMatchColor(avgMatch) }}>{avgMatch}%</p>
                             </div>
                         </div>
@@ -398,7 +396,7 @@ export default function CrucesPage() {
                     <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
                             <BarChart3 className="h-4 w-4 text-secondary" />
-                            <CardTitle className="text-sm font-semibold">Distribución de Score</CardTitle>
+                            <CardTitle className="text-sm font-semibold">Distribución de Compatibilidad</CardTitle>
                         </div>
                     </CardHeader>
                     <CardContent className="pt-0 space-y-3">
@@ -491,7 +489,7 @@ export default function CrucesPage() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Score mínimo</span>
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Compatibilidad mínima</span>
                             <div className="flex flex-wrap gap-1.5">
                                 {[0, 50, 60, 75, 90].map((s) => (
                                     <button
@@ -529,7 +527,7 @@ export default function CrucesPage() {
                             {isLiveActive && (
                                 <span className="text-[9px] text-[var(--urus-success)] flex items-center gap-1">
                                     <span className="h-1.5 w-1.5 rounded-full bg-[var(--urus-success)] animate-pulse" />
-                                    Polling cada {POLL_INTERVAL_MS / 1000}s
+                                    Actualización cada {POLL_INTERVAL_MS / 1000}s
                                 </span>
                             )}
                         </h2>
@@ -541,15 +539,9 @@ export default function CrucesPage() {
                                 <ArrowLeftRight className="h-10 w-10 text-muted-foreground/30 mb-3" />
                                 <p className="text-sm font-medium text-muted-foreground">Sin cruces registrados</p>
                                 <p className="text-xs text-muted-foreground/60 mt-1 max-w-sm">
-                                    Los cruces se generan automáticamente por el sistema. Si acabas
-                                    de cargar demandas o datos, puedes recalcular los matches ahora.
+                                    Los cruces se generan automáticamente por el sistema. Cuando haya
+                                    nuevos resultados, aparecerán aquí.
                                 </p>
-                                <div className="mt-5 flex flex-col items-center gap-2">
-                                    <RematchPanel className="px-4 py-2 h-auto text-xs font-semibold" />
-                                    <span className="text-[10px] text-muted-foreground/80 text-center max-w-xs">
-                                        Procesa hasta 10 demandas activas por ejecución (prioridad por código).
-                                    </span>
-                                </div>
                             </CardContent>
                         </Card>
                     ) : (
@@ -632,7 +624,7 @@ export default function CrucesPage() {
                                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Detalles del Cruce</p>
                                     <div className="grid grid-cols-2 gap-2 text-xs">
                                         <div>
-                                            <span className="text-muted-foreground">Match:</span>
+                                            <span className="text-muted-foreground">Compatibilidad:</span>
                                             <span className="ml-1 font-bold" style={{ color: getMatchColor(selectedMatch.porcentajeMatch) }}>
                                                 {selectedMatch.porcentajeMatch}%
                                             </span>
@@ -647,12 +639,12 @@ export default function CrucesPage() {
                                         </div>
                                         <div>
                                             <span className="text-muted-foreground">Demanda:</span>
-                                            <span className="ml-1 font-mono">{selectedMatch.comprador.id.slice(0, 12)}</span>
+                                            <span className="ml-1 font-mono">{selectedMatch.comprador.nombre || selectedMatch.comprador.id.slice(0, 8)}</span>
                                         </div>
                                     </div>
                                     {selectedMatch.matchScore && (
                                         <div className="pt-2 border-t border-border/20 space-y-1">
-                                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Scoring detallado</p>
+                                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Detalle de Compatibilidad</p>
                                             {(["zone", "price", "type", "size", "rooms"] as const).map((key) => {
                                                 const s = selectedMatch.matchScore?.[key];
                                                 if (!s) return null;
@@ -681,7 +673,7 @@ export default function CrucesPage() {
                                                 rel="noreferrer"
                                                 className="inline-flex items-center gap-1.5 text-[11px] font-medium text-secondary hover:text-secondary/80 transition-colors"
                                             >
-                                                Validar selección del microsite
+                                                Validar selección del comprador
                                                 <ArrowUpRight className="h-3.5 w-3.5" />
                                             </Link>
                                         ) : (
@@ -699,7 +691,7 @@ export default function CrucesPage() {
                                 <MessageCircle className="h-10 w-10 text-muted-foreground/30 mb-3" />
                                 <p className="text-sm font-medium text-muted-foreground">Selecciona un cruce</p>
                                 <p className="text-xs text-muted-foreground/60 mt-1">
-                                    Haz click en un match para revisar el mensaje y decidir si enviarlo al comprador
+                                    Haz clic en un cruce para revisar el mensaje y decidir si enviarlo al comprador
                                 </p>
                             </CardContent>
                         </Card>

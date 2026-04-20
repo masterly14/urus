@@ -28,9 +28,15 @@ function StatusBadge({ status }: { status: string }) {
     completed_with_errors: "text-amber-400 border-amber-800 bg-amber-500/10",
     failed: "text-rose-400 border-rose-800 bg-rose-500/10",
   };
+  const statusLabels: Record<string, string> = {
+    running: "En ejecución",
+    completed: "Completado",
+    completed_with_errors: "Completado con errores",
+    failed: "Fallido",
+  };
   return (
     <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${map[status] ?? "text-neutral-400 border-neutral-700"}`}>
-      {status}
+      {statusLabels[status] ?? status}
     </span>
   );
 }
@@ -50,10 +56,10 @@ export default function EvalDashboardPage() {
     <main className="min-h-screen bg-neutral-950 text-neutral-50">
       <header className="border-b border-neutral-800">
         <div className="mx-auto max-w-6xl px-4 py-8">
-          <div className="text-sm text-neutral-400">Urus Capital — Eval Suite</div>
-          <h1 className="mt-1 text-2xl font-bold">Evaluaciones NLU</h1>
+          <div className="text-sm text-neutral-400">Urus Capital — Evaluaciones</div>
+          <h1 className="mt-1 text-2xl font-bold">Evaluaciones del Asistente</h1>
           <p className="mt-1 text-sm text-neutral-500">
-            Suite AI-to-AI: comprador sintético, NLU y juez con gpt-5.4-mini
+            Evaluaciones IA entre agentes: comprador sintético, asistente y juez automático
           </p>
         </div>
       </header>
@@ -76,7 +82,7 @@ export default function EvalDashboardPage() {
                   <th className="px-4 py-3">Nombre</th>
                   <th className="px-4 py-3">Modelo</th>
                   <th className="px-4 py-3 text-right">Escenarios</th>
-                  <th className="px-4 py-3 text-right">Avg Score</th>
+                  <th className="px-4 py-3 text-right">Puntuación media</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Fecha</th>
                 </tr>

@@ -128,8 +128,8 @@ export default function ComercialesDashboardPage() {
                 .filter((r) => r.leadsAssigned > 0)
                 .map((r) => ({
                     nombre: r.comercialNombre.split(" ")[0],
-                    "Conv. L→V": Math.round(r.conversionLeadToVisit * 100),
-                    "Conv. V→C": Math.round(r.conversionVisitToClose * 100),
+                    "C→V %": Math.round(r.conversionLeadToVisit * 100),
+                    "V→C %": Math.round(r.conversionVisitToClose * 100),
                 })),
         [rows],
     );
@@ -232,7 +232,7 @@ export default function ComercialesDashboardPage() {
                         format="currency"
                     />
                     <KpiCard
-                        title="Conversión Lead → Visita"
+                        title="Conversión Cliente → Visita"
                         value={Math.round(kpis.avgConversionLV * 100 * 10) / 10}
                         change={0}
                         trend="stable"
@@ -248,7 +248,7 @@ export default function ComercialesDashboardPage() {
                         format="number"
                     />
                     <KpiCard
-                        title="Tasa Media Pérdida"
+                        title="Tasa Media de Pérdida"
                         value={Math.round(kpis.avgLostRate * 100 * 10) / 10}
                         change={0}
                         trend={kpis.avgLostRate > 0.3 ? "down" : "stable"}
@@ -264,12 +264,12 @@ export default function ComercialesDashboardPage() {
                     <Card>
                         <CardHeader>
                             <CardTitle className="text-base">Conversión por Comercial</CardTitle>
-                            <CardDescription>Lead → Visita y Visita → Cierre (%)</CardDescription>
+                            <CardDescription>Cliente → Visita y Visita → Cierre (%)</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <SimpleBarChart
                                 data={conversionChartData}
-                                categories={["Conv. L→V", "Conv. V→C"]}
+                                categories={["C→V %", "V→C %"]}
                                 index="nombre"
                                 colors={["#10b981", "#3b82f6"]}
                                 height={Math.max(200, conversionChartData.length * 40)}
@@ -299,7 +299,7 @@ export default function ComercialesDashboardPage() {
             {/* Ranking Table */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Ranking Comerciales</CardTitle>
+                    <CardTitle>Clasificación de Comerciales</CardTitle>
                     <CardDescription>
                         Ordenado por facturación estimada. Click en una fila para ver el detalle.
                     </CardDescription>
@@ -324,12 +324,12 @@ export default function ComercialesDashboardPage() {
                                     <TableHead>Comercial</TableHead>
                                     <TableHead>Perfil</TableHead>
                                     <TableHead>Ciudad</TableHead>
-                                    <TableHead className="text-right">Leads</TableHead>
+                                    <TableHead className="text-right">Clientes</TableHead>
                                     <TableHead className="text-right">Visitas</TableHead>
                                     <TableHead className="text-right">Cierres</TableHead>
                                     <TableHead className="text-right">Facturación</TableHead>
-                                    <TableHead className="text-right">Conv. L→V</TableHead>
-                                    <TableHead className="text-right">Conv. V→C</TableHead>
+                                    <TableHead className="text-right">C→V %</TableHead>
+                                    <TableHead className="text-right">V→C %</TableHead>
                                     <TableHead className="text-right">Días Cierre</TableHead>
                                 </TableRow>
                             </TableHeader>

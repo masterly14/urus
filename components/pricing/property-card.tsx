@@ -51,7 +51,7 @@ function getPortalLabel(portalName?: string | null): string {
 function getPortalOverlayClass(portalName?: string | null): string {
   const n = (portalName ?? "").toLowerCase();
   if (n.includes("idealista"))
-    return "absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-[#D44431]/70 bg-[#D44431]/15 px-2.5 py-1 text-xs font-semibold text-[#D44431] backdrop-blur transition-colors hover:bg-[#D44431]/30";
+    return "absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-white/35 bg-zinc-950 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-zinc-900 hover:border-white/50";
   if (n.includes("fotocasa"))
     return "absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-[#0065EB]/60 bg-[#0065EB]/15 px-2.5 py-1 text-xs font-semibold text-[#0065EB] backdrop-blur transition-colors hover:bg-[#0065EB]/25";
   return "absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground backdrop-blur transition-colors hover:bg-secondary/20 hover:text-secondary";
@@ -114,7 +114,10 @@ function PropertyImage({ property }: { property: PropertyListItem }) {
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className={getPortalOverlayClass(property.portalName)}
+          className={cn(
+            getPortalOverlayClass(property.portalName),
+            "pointer-events-auto",
+          )}
           title={getPortalLabel(property.portalName)}
         >
           <ExternalLink className="h-3.5 w-3.5" />
@@ -137,7 +140,7 @@ export function PropertyCard({ property, className }: PropertyCardProps) {
       className={cn(
         "overflow-hidden rounded-xl border-border/50 bg-card/80 py-0 backdrop-blur-sm transition-all duration-300",
         isEligible
-          ? "group cursor-pointer hover:border-border/80 hover:bg-card hover:-translate-y-0.5 hover:shadow-lg hover:shadow-background/20"
+          ? "pointer-events-none cursor-pointer group-hover:border-border/80 group-hover:bg-card group-hover:-translate-y-0.5 group-hover:shadow-lg group-hover:shadow-background/20"
           : "cursor-not-allowed opacity-70",
         className,
       )}
@@ -226,5 +229,17 @@ export function PropertyCard({ property, className }: PropertyCardProps) {
 
   if (!isEligible) return content;
 
-  return <Link href={`/platform/pricing/informe/${property.codigo}`}>{content}</Link>;
+  const informeHref = `/platform/pricing/informe/${property.codigo}`;
+  const informeLabel = `Ver informe: ${property.titulo || property.ref || property.codigo}`;
+
+  return (
+    <div className="group relative">
+      <Link
+        href={informeHref}
+        className="absolute inset-0 z-[1] rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        aria-label={informeLabel}
+      />
+      <div className="relative z-[2] pointer-events-none">{content}</div>
+    </div>
+  );
 }

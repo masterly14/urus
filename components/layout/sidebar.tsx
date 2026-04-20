@@ -59,7 +59,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-    { label: "Dashboard", href: "/platform", icon: LayoutDashboard },
+    { label: "Panel", href: "/platform", icon: LayoutDashboard },
     {
         label: "Captación",
         href: "/platform/captacion",
@@ -71,7 +71,7 @@ const navItems: NavItem[] = [
         icon: Users,
         children: [
             { label: "Vista General", href: "/platform/colaboradores", icon: Users },
-            { label: "Rankings", href: "/platform/colaboradores/ranking", icon: Trophy },
+            { label: "Clasificación", href: "/platform/colaboradores/ranking", icon: Trophy },
         ],
     },
     {
@@ -80,12 +80,12 @@ const navItems: NavItem[] = [
         icon: Users2,
     },
     {
-        label: "Matching",
+        label: "Cruces",
         href: "/platform/matching",
         icon: Shuffle,
         children: [
             { label: "Cruces Automáticos", href: "/platform/matching/cruces", icon: Shuffle },
-            { label: "Feedback Loop", href: "/platform/matching/feedback", icon: MessageSquare },
+            { label: "Ciclo de Mejora", href: "/platform/matching/feedback", icon: MessageSquare },
         ],
     },
     {
@@ -93,7 +93,7 @@ const navItems: NavItem[] = [
         href: "/platform/post-venta",
         icon: Package,
         children: [
-            { label: "Pipeline", href: "/platform/post-venta/pipeline", icon: GitBranch },
+            { label: "Seguimiento", href: "/platform/post-venta/pipeline", icon: GitBranch },
         ],
     },
     {
@@ -101,7 +101,7 @@ const navItems: NavItem[] = [
         href: "/platform/coach",
         icon: Brain,
         children: [
-            { label: "Dashboard", href: "/platform/coach", icon: BarChart3 },
+            { label: "Panel", href: "/platform/coach", icon: BarChart3 },
             { label: "Métricas", href: "/platform/coach/metricas", icon: BarChart3 },
         ],
     },
@@ -124,7 +124,7 @@ const navItems: NavItem[] = [
         ],
     },
     {
-        label: "Business Intelligence",
+        label: "Inteligencia de Negocio",
         href: "/platform/bi",
         icon: PieChart,
         ceoOnly: true,
@@ -132,7 +132,7 @@ const navItems: NavItem[] = [
             { label: "Financiero", href: "/platform/bi/reinversion", icon: Wallet },
             { label: "Operativo", href: "/platform/bi/operativo", icon: UserCheck },
             { label: "Capital Humano", href: "/platform/bi/capital-humano", icon: Users },
-            { label: "Prescriptivo", href: "/platform/bi/prescriptivo", icon: Target },
+            { label: "Diagnóstico Estratégico", href: "/platform/bi/prescriptivo", icon: Target },
             { label: "Expansión", href: "/platform/bi/expansion", icon: Rocket },
             { label: "Reinversión", href: "/platform/bi/reinversion", icon: Banknote },
         ],
@@ -148,14 +148,14 @@ const navItems: NavItem[] = [
         ],
     },
     {
-        label: "Test bench",
+        label: "Banco de Pruebas",
         href: "/platform/test-nlu-microsite",
         icon: FlaskConical,
         ceoOnly: true,
         children: [
-            { label: "NLU Micrositio", href: "/platform/test-nlu-microsite", icon: Sparkles },
-            { label: "Chat Agente", href: "/platform/chat-agente", icon: MessagesSquare },
-            { label: "Agendado Visita", href: "/platform/test-visit", icon: CalendarCheck },
+            { label: "Prueba de Asistente", href: "/platform/test-nlu-microsite", icon: Sparkles },
+            { label: "Chat con Agente", href: "/platform/chat-agente", icon: MessagesSquare },
+            { label: "Visita Agendada", href: "/platform/test-visit", icon: CalendarCheck },
         ],
     },
     { label: "Configuración", href: "/platform/configuracion", icon: Settings },

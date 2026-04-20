@@ -251,7 +251,7 @@ function OperationalDashboardInner() {
       <Tabs defaultValue="cities" className="space-y-4">
         <TabsList>
           <TabsTrigger value="cities">Desglose por Ciudad</TabsTrigger>
-          <TabsTrigger value="agents">Rendimiento Agentes</TabsTrigger>
+          <TabsTrigger value="agents">Rendimiento Comerciales</TabsTrigger>
         </TabsList>
 
         {/* Tab: Ciudades */}
@@ -360,25 +360,25 @@ function OperationalDashboardInner() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Leads perdidos</span>
-                    <span className="font-medium">{city.leadsPerdidos} leads</span>
+                    <span className="text-muted-foreground">Clientes perdidos</span>
+                    <span className="font-medium">{city.leadsPerdidos} clientes</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Ticket medio</span>
                     <span className="font-medium">{formatEur(city.ticketMedio)}</span>
                   </div>
                   <div className="flex justify-between text-sm border-t pt-2">
-                    <span className="text-muted-foreground">Coste por leads</span>
+                    <span className="text-muted-foreground">Coste por clientes perdidos</span>
                     <span className="font-medium text-amber-600 dark:text-amber-400">
                       {formatEur(city.costeOportunidadLeadsPerdidos)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Capacidad ociosa</span>
-                    <span className="font-medium">{formatNum(city.capacidadOciosa)} leads libres</span>
+                    <span className="font-medium">{formatNum(city.capacidadOciosa)} clientes sin asignar</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Revenue/lead</span>
+                    <span className="text-muted-foreground">Ingreso por cliente</span>
                     <span className="font-medium">{formatEur(city.revenuePerLead)}</span>
                   </div>
                   <div className="flex justify-between text-sm border-t pt-2">
@@ -403,9 +403,9 @@ function OperationalDashboardInner() {
         <TabsContent value="agents" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Ranking de Eficiencia por Agente</CardTitle>
+              <CardTitle>Rendimiento por Comercial</CardTitle>
               <CardDescription>
-                Ordenados por tasa de conversión lead→cierre. Datos del período actual.
+                Ordenados por tasa de conversión cliente→cierre. Datos del período actual.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -413,7 +413,7 @@ function OperationalDashboardInner() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Agente</TableHead>
+                    <TableHead>Comercial</TableHead>
                     <TableHead>Ciudad</TableHead>
                     <TableHead>Eficiencia</TableHead>
                     <TableHead className="text-right">Ingresos</TableHead>
@@ -477,7 +477,7 @@ function OperationalDashboardInner() {
                     <CardContent>
                       <p className="text-sm text-red-800 dark:text-red-300">
                         <span className="font-bold">{agent.agentName}</span> ({agent.city})
-                        — eficiencia del {agent.efficiency}% con {agent.leads} leads asignados.
+                        — eficiencia del {agent.efficiency}% con {agent.leads} clientes asignados.
                       </p>
                     </CardContent>
                   </Card>

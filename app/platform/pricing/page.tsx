@@ -288,7 +288,7 @@ export default function PricingPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Smart Pricing</h1>
             <p className="text-sm text-muted-foreground">
-              Selecciona un inmueble para generar su informe de pricing
+              Selecciona un inmueble para generar su informe de precio
             </p>
           </div>
         </div>

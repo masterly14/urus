@@ -13,6 +13,10 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  ArrowLeftRight,
+  Loader2,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import { useSession } from "@/lib/hooks/use-session";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -183,6 +187,91 @@ function formatRelativeDate(isoStr: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Force-match per demand
+// ---------------------------------------------------------------------------
+
+type RematchState = "idle" | "loading" | "success" | "error";
+
+interface RematchResult {
+  matchesEmitted: number;
+  matchesSkipped: number;
+  executionMs: number;
+}
+
+function ForceMatchButton({
+  demandCodigo,
+  state,
+  result,
+  errorMsg,
+  onTrigger,
+}: {
+  demandCodigo: string;
+  state: RematchState;
+  result: RematchResult | null;
+  errorMsg: string | null;
+  onTrigger: (codigo: string) => void;
+}) {
+  if (state === "loading") {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-secondary" />
+        <span className="hidden sm:inline">Cruzando...</span>
+      </div>
+    );
+  }
+
+  if (state === "success" && result) {
+    return (
+      <div className="flex flex-col items-end gap-0.5">
+        <div className="flex items-center gap-1.5 text-xs text-[var(--urus-success)] font-medium">
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          {result.matchesEmitted} cruce{result.matchesEmitted !== 1 ? "s" : ""}
+        </div>
+        {result.matchesSkipped > 0 && (
+          <span className="text-[10px] text-muted-foreground">
+            {result.matchesSkipped} sin cambio
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  if (state === "error") {
+    return (
+      <div className="flex flex-col items-end gap-1">
+        <div className="flex items-center gap-1 text-xs text-[var(--urus-danger)]">
+          <AlertTriangle className="h-3 w-3" />
+          <span className="max-w-[120px] truncate">{errorMsg ?? "Error"}</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => onTrigger(demandCodigo)}
+          className="text-[10px] text-muted-foreground hover:text-foreground underline"
+        >
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <Button
+      variant="secondary"
+      size="sm"
+      onClick={(e) => {
+        e.stopPropagation();
+        onTrigger(demandCodigo);
+      }}
+      className="gap-1.5 text-xs h-8 border border-secondary/25 shadow-sm whitespace-nowrap"
+    >
+      <ArrowLeftRight className="h-3.5 w-3.5" />
+      <span className="hidden sm:inline">Forzar cruce</span>
+      <span className="sm:hidden">Cruce</span>
+    </Button>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
@@ -306,9 +395,19 @@ function FilterChips({
 function DemandTableRow({
   demand,
   showComercial,
+  showForceMatch,
+  rematchState,
+  rematchResult,
+  rematchError,
+  onForceMatch,
 }: {
   demand: DemandRow;
   showComercial: boolean;
+  showForceMatch: boolean;
+  rematchState: RematchState;
+  rematchResult: RematchResult | null;
+  rematchError: string | null;
+  onForceMatch: (codigo: string) => void;
 }) {
   const budgetLabel = formatBudget(demand.presupuestoMin, demand.presupuestoMax);
   const hasBudgetRange =
@@ -379,17 +478,29 @@ function DemandTableRow({
         </TableCell>
       )}
 
-      <TableCell className="text-xs text-muted-foreground whitespace-nowrap py-3 pr-4 align-top">
+      <TableCell className="text-xs text-muted-foreground whitespace-nowrap py-3 align-top">
         <div className="flex items-center gap-1.5 pt-0.5">
           <Calendar className="h-3.5 w-3.5 shrink-0 opacity-80" />
           <span>{formatRelativeDate(demand.updatedAt)}</span>
         </div>
       </TableCell>
+
+      {showForceMatch && (
+        <TableCell className="py-3 pr-4 align-middle text-right">
+          <ForceMatchButton
+            demandCodigo={demand.codigo}
+            state={rematchState}
+            result={rematchResult}
+            errorMsg={rematchError}
+            onTrigger={onForceMatch}
+          />
+        </TableCell>
+      )}
     </TableRow>
   );
 }
 
-function TableSkeleton({ rows = 8, showComercial }: { rows?: number; showComercial: boolean }) {
+function TableSkeleton({ rows = 8, showComercial, showForceMatch }: { rows?: number; showComercial: boolean; showForceMatch: boolean }) {
   return (
     <>
       {Array.from({ length: rows }).map((_, i) => (
@@ -400,6 +511,7 @@ function TableSkeleton({ rows = 8, showComercial }: { rows?: number; showComerci
           <TableCell><Skeleton className="h-5 w-24 rounded-full" /></TableCell>
           {showComercial && <TableCell><Skeleton className="h-4 w-20" /></TableCell>}
           <TableCell><Skeleton className="h-4 w-14" /></TableCell>
+          {showForceMatch && <TableCell><Skeleton className="h-8 w-24 rounded-md" /></TableCell>}
         </TableRow>
       ))}
     </>
@@ -419,6 +531,11 @@ export default function DemandasPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [page, setPage] = useState(1);
+
+  // Per-demand rematch state
+  const [rematchStates, setRematchStates] = useState<Record<string, RematchState>>({});
+  const [rematchResults, setRematchResults] = useState<Record<string, RematchResult>>({});
+  const [rematchErrors, setRematchErrors] = useState<Record<string, string>>({});
 
   // Debounce search input
   const [searchTimer, setSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
@@ -471,6 +588,53 @@ export default function DemandasPage() {
   const clearFilters = useCallback(() => {
     setSelectedStatuses([]);
     setPage(1);
+  }, []);
+
+  const handleForceMatch = useCallback(async (codigo: string) => {
+    setRematchStates((prev) => ({ ...prev, [codigo]: "loading" }));
+    setRematchErrors((prev) => {
+      const next = { ...prev };
+      delete next[codigo];
+      return next;
+    });
+
+    try {
+      const res = await fetch(`/api/demands/${encodeURIComponent(codigo)}/rematch`, {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setRematchStates((prev) => ({ ...prev, [codigo]: "error" }));
+        setRematchErrors((prev) => ({ ...prev, [codigo]: data.error ?? `Error ${res.status}` }));
+        return;
+      }
+
+      setRematchStates((prev) => ({ ...prev, [codigo]: "success" }));
+      setRematchResults((prev) => ({
+        ...prev,
+        [codigo]: {
+          matchesEmitted: data.matchesEmitted,
+          matchesSkipped: data.matchesSkipped,
+          executionMs: data.executionMs,
+        },
+      }));
+
+      setTimeout(() => {
+        setRematchStates((prev) => {
+          if (prev[codigo] !== "success") return prev;
+          const next = { ...prev };
+          delete next[codigo];
+          return next;
+        });
+      }, 8_000);
+    } catch (err) {
+      setRematchStates((prev) => ({ ...prev, [codigo]: "error" }));
+      setRematchErrors((prev) => ({
+        ...prev,
+        [codigo]: err instanceof Error ? err.message : "Error de red",
+      }));
+    }
   }, []);
 
   return (
@@ -558,16 +722,17 @@ export default function DemandasPage() {
                   <TableHead>Presupuesto</TableHead>
                   <TableHead>Estado Pipeline</TableHead>
                   {isCeoOrAdmin && <TableHead>Comercial</TableHead>}
-                  <TableHead className="pr-4">Última actividad</TableHead>
+                  <TableHead>Última actividad</TableHead>
+                  {isCeoOrAdmin && <TableHead className="pr-4 text-right">Cruces</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableSkeleton rows={PAGE_LIMIT} showComercial={isCeoOrAdmin} />
+                  <TableSkeleton rows={PAGE_LIMIT} showComercial={isCeoOrAdmin} showForceMatch={isCeoOrAdmin} />
                 ) : error ? (
                   <TableRow>
                     <TableCell
-                      colSpan={isCeoOrAdmin ? 6 : 5}
+                      colSpan={isCeoOrAdmin ? 7 : 5}
                       className="text-center py-10 text-destructive"
                     >
                       Error al cargar demandas: {error}
@@ -576,7 +741,7 @@ export default function DemandasPage() {
                 ) : demands.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={isCeoOrAdmin ? 6 : 5}
+                      colSpan={isCeoOrAdmin ? 7 : 5}
                       className="text-center py-10 text-muted-foreground"
                     >
                       No hay demandas que coincidan con los filtros seleccionados.
@@ -588,6 +753,11 @@ export default function DemandasPage() {
                       key={demand.codigo}
                       demand={demand}
                       showComercial={isCeoOrAdmin}
+                      showForceMatch={isCeoOrAdmin}
+                      rematchState={rematchStates[demand.codigo] ?? "idle"}
+                      rematchResult={rematchResults[demand.codigo] ?? null}
+                      rematchError={rematchErrors[demand.codigo] ?? null}
+                      onForceMatch={handleForceMatch}
                     />
                   ))
                 )}

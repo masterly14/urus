@@ -82,7 +82,7 @@ const MOCK_DIAGNOSTIC: CeoDiagnosticRecommendation = {
       tipo: "formacion",
       ciudad: null,
       mensaje:
-        "2 comerciales clasificados como 'bajo_rendimiento_estructural' muestran conversiones visit→close inferiores al 10% de forma consistente.",
+        "2 comerciales con bajo rendimiento estructural muestran conversiones visita→cierre inferiores al 10% de forma consistente.",
       datos_soporte: [
         "Comerciales afectados: 2/8",
         "Conv. V→C media del equipo: 18%",
@@ -283,9 +283,9 @@ function RulesCard() {
   const rules = [
     { rule: "Si carga media > 85% en una ciudad", action: "Recomendar CONTRATAR" },
     { rule: "Si facturación estable + margen >= 15% + cash >= 50K", action: "Recomendar EXPANDIR" },
-    { rule: "Si conversión baja + alto volumen leads", action: "Recomendar INTERVENIR PROCESO" },
-    { rule: "Si comerciales bajo_rendimiento_estructural", action: "Recomendar FORMACIÓN" },
-    { rule: "Si leads perdidos > umbral", action: "Recomendar REDISTRIBUIR" },
+    { rule: "Si conversión baja + alto volumen de clientes", action: "Recomendar INTERVENIR PROCESO" },
+    { rule: "Si comerciales con bajo rendimiento estructural", action: "Recomendar FORMACIÓN" },
+    { rule: "Si clientes perdidos > umbral", action: "Recomendar REDISTRIBUIR" },
     { rule: "Si coste operativo / revenue > 80%", action: "Recomendar REDUCIR COSTES" },
     { rule: "Si datos insuficientes", action: "Recomendar INVESTIGAR" },
   ];
@@ -295,9 +295,9 @@ function RulesCard() {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <FileBarChart className="h-4 w-4" />
-          Reglas de Decisión IA
+          Criterios del Diagnóstico
         </CardTitle>
-        <CardDescription>Lógica del motor de diagnóstico</CardDescription>
+        <CardDescription>Cómo funciona el diagnóstico automático</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {rules.map((r, i) => (

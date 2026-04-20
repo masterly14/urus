@@ -57,7 +57,7 @@ export default function FinancialDashboard() {
                     format="currency"
                 />
                 <KpiCard
-                    title="Cash Flow Neto"
+                    title="Flujo de Caja Neto"
                     value={currentMonth.cashFlow}
                     change={parseFloat(cashFlowChange.toFixed(1))}
                     trend={cashFlowChange >= 0 ? "up" : "down"}
@@ -95,7 +95,7 @@ export default function FinancialDashboard() {
                 <Card className="md:col-span-3">
                     <CardHeader>
                         <CardTitle>Salud Financiera Global</CardTitle>
-                        <CardDescription>Estado actual basado en KPIs críticos</CardDescription>
+                        <CardDescription>Estado actual basado en indicadores clave</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="flex flex-col items-center justify-center space-y-4 py-6">
@@ -114,7 +114,7 @@ export default function FinancialDashboard() {
                             <div className="text-center space-y-1">
                                 <h3 className="font-semibold text-lg">
                                     {healthStatus === "healthy"
-                                        ? "Salud Optima"
+                                        ? "Salud Óptima"
                                         : healthStatus === "warning"
                                             ? "Precaución"
                                             : "Crítico"}

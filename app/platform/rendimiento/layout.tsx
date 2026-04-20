@@ -43,7 +43,7 @@ export default function PerformanceLayout({ children }: PerformanceLayoutProps) 
     return (
         <div className="flex flex-col h-full space-y-6">
             <div className="flex flex-col space-y-2">
-                <h1 className="text-3xl font-bold tracking-tight">Performance Management</h1>
+                <h1 className="text-3xl font-bold tracking-tight">Gestión del Rendimiento</h1>
                 <p className="text-muted-foreground">
                     {isCeoOrAdmin
                         ? "Sistema de gestión de rendimiento basado en arquetipos."

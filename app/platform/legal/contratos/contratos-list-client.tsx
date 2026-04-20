@@ -244,12 +244,6 @@ export function ContratosListClient({
                       className="px-4 py-8 text-center text-sm text-muted-foreground"
                     >
                       No hay contratos.{" "}
-                      <Link
-                        href="?mock=1"
-                        className="underline text-secondary"
-                      >
-                        Ver datos de ejemplo
-                      </Link>
                     </td>
                   </tr>
                 )}

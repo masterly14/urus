@@ -24,7 +24,7 @@ import {
 
 const TYPE_LABELS: Record<string, string> = {
   drop: "Caída rendimiento",
-  sla_breach: "SLA incumplido",
+  sla_breach: "Plazo incumplido",
   deviation: "Desviación vs media",
 };
 
@@ -109,7 +109,7 @@ export default function PerformanceAlertsPage() {
         <Card className="bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-red-800 dark:text-red-200">
-              Alertas Criticas
+              Alertas Críticas
             </CardTitle>
             <AlertOctagon className="h-4 w-4 text-red-600 dark:text-red-400" />
           </CardHeader>
@@ -126,7 +126,7 @@ export default function PerformanceAlertsPage() {
         <Card className="bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-amber-800 dark:text-amber-200">
-              SLAs Incumplidos
+              Plazos Incumplidos
             </CardTitle>
             <ShieldAlert className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           </CardHeader>
@@ -135,7 +135,7 @@ export default function PerformanceAlertsPage() {
               {loading ? "-" : slaCount}
             </div>
             <p className="text-xs text-amber-600/80 dark:text-amber-400/80">
-              Leads, firma o microsite
+              Clientes, firma o micrositio
             </p>
           </CardContent>
         </Card>
@@ -198,7 +198,7 @@ export default function PerformanceAlertsPage() {
       {/* Alert feed */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold tracking-tight">Feed de Anomalias</h2>
+          <h2 className="text-lg font-semibold tracking-tight">Registro de Alertas</h2>
           <Button size="sm" variant="outline" onClick={() => refetch()} disabled={loading}>
             {loading && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
             Actualizar

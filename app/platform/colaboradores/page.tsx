@@ -130,7 +130,7 @@ export default function ColaboradoresPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Colaboradores Externos</h1>
             <p className="text-sm text-muted-foreground">
-              Gestión de proveedores, SLA y rendimiento
+              Gestión de proveedores, plazos y rendimiento
             </p>
           </div>
         </div>
@@ -141,7 +141,7 @@ export default function ColaboradoresPage() {
               className="gap-1.5 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors"
             >
               <Trophy className="h-3 w-3 text-[var(--urus-gold)]" />
-              Rankings
+              Clasificación
               <ArrowUpRight className="h-3 w-3" />
             </Badge>
           </Link>
@@ -189,7 +189,7 @@ export default function ColaboradoresPage() {
                 <TrendingUp className="h-4 w-4 text-[var(--urus-success)]" />
               </div>
               <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">SLA Cumplimiento</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Plazos Cumplidos</p>
                 <p className="text-xl font-bold font-mono">{avgSla}<span className="text-sm font-normal text-muted-foreground">%</span></p>
               </div>
             </div>
@@ -203,7 +203,7 @@ export default function ColaboradoresPage() {
                 <AlertTriangle className="h-4 w-4 text-[var(--urus-danger)]" />
               </div>
               <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Con SLA Vencido</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Con Plazo Vencido</p>
                 <p className="text-xl font-bold font-mono text-[var(--urus-danger)]">{slaExceeded}</p>
               </div>
             </div>
@@ -217,7 +217,7 @@ export default function ColaboradoresPage() {
                 <Clock className="h-4 w-4 text-[var(--urus-info)]" />
               </div>
               <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Ops Promedio</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Asignaciones Activas</p>
                 <p className="text-xl font-bold font-mono">{avgOps}</p>
               </div>
             </div>
@@ -272,7 +272,7 @@ export default function ColaboradoresPage() {
               className="bg-accent/30 border border-border/50 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-secondary/30"
             >
               <option value="all">Todas las clasificaciones</option>
-              <option value="partner_estrategico">Partner Estratégico</option>
+              <option value="partner_estrategico">Socio Estratégico</option>
               <option value="funcional">Funcional</option>
               <option value="lento">Lento</option>
               <option value="critico">Crítico</option>
@@ -308,8 +308,8 @@ export default function ColaboradoresPage() {
                     <th className="text-left px-4 py-3 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Tipo</th>
                     <th className="text-left px-4 py-3 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Ciudad</th>
                     <th className="text-center px-4 py-3 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Clasificación</th>
-                    <th className="text-center px-4 py-3 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">SLA</th>
-                    <th className="text-center px-4 py-3 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Ops</th>
+                    <th className="text-center px-4 py-3 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Plazo</th>
+                    <th className="text-center px-4 py-3 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Asign.</th>
                     <th className="text-center px-4 py-3 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Hitos</th>
                   </tr>
                 </thead>

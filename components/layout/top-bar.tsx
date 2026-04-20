@@ -1,11 +1,13 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Bell, Search, LogOut, Settings, User } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, ExternalLink, LogOut, Search, Settings, User } from "lucide-react";
 import { useSession } from "@/lib/hooks/use-session";
 import { signOut } from "@/lib/auth/client";
-import { MAX_NOTIFICATIONS, useNotifications } from "@/lib/hooks/use-notifications";
+import { useNotifications } from "@/lib/hooks/use-notifications";
+import type { AppNotification } from "@/lib/mock-data/types";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,14 +69,95 @@ const ROLE_LABELS: Record<string, string> = {
     comercial: "Comercial",
 };
 
+const NOTIFICATIONS_PER_PAGE = 8;
+
+function extractFromDescription(description: string, pattern: RegExp): string | null {
+    const match = description.match(pattern);
+    if (!match?.[1]) return null;
+    return match[1].trim();
+}
+
+function getNotificationHref(notification: AppNotification): string | null {
+    const operationId = extractFromDescription(notification.description, /Operaci[oó]n\s+([A-Za-z0-9_-]+)/i);
+    const propertyCode = extractFromDescription(notification.description, /Propiedad\s+([A-Za-z0-9_-]+)/i);
+
+    switch (notification.eventType) {
+        case "PRICING_ANALISIS_GENERADO":
+            return propertyCode
+                ? `/platform/pricing/informe/${encodeURIComponent(propertyCode)}`
+                : "/platform/pricing";
+        case "CONTRATO_BORRADOR_GENERADO":
+        case "CONTRATO_APROBADO":
+        case "CONTRATO_VERSIONADO":
+        case "FIRMA_ENVIADA":
+        case "FIRMA_COMPLETADA":
+        case "FIRMA_RECHAZADA":
+        case "FIRMA_SLA_ESCALADO":
+            return operationId
+                ? `/platform/legal/contratos/${encodeURIComponent(operationId)}`
+                : "/platform/legal/contratos";
+        case "OPERACION_CERRADA":
+        case "INCIDENCIA_POSTVENTA_ABIERTA":
+            return operationId
+                ? `/platform/post-venta/operacion/${encodeURIComponent(operationId)}`
+                : "/platform/post-venta/pipeline";
+        case "COLABORADOR_SLA_BREACH":
+            return "/platform/colaboradores";
+        case "CEO_DIAGNOSTICO_GENERADO":
+            return "/platform/bi/prescriptivo";
+        case "CEO_FINANZAS_GENERADA":
+            return "/platform/bi/reinversion";
+    }
+
+    if (notification.source === "consumer:whatsapp") {
+        return "/platform/demandas";
+    }
+
+    if (/whatsapp/i.test(`${notification.title} ${notification.description}`)) {
+        return "/platform/demandas";
+    }
+
+    const sourceFallbackMap: Record<string, string> = {
+        "post-venta": "/platform/post-venta/pipeline",
+        colaboradores: "/platform/colaboradores",
+        matching: "/platform/matching/cruces",
+        pricing: "/platform/pricing",
+        legal: "/platform/legal/contratos",
+        bi: "/platform/bi",
+        rendimiento: "/platform/rendimiento/alertas",
+        coach: "/platform/coach",
+    };
+
+    return sourceFallbackMap[notification.source] ?? null;
+}
+
 export function TopBar({ logoSrc }: { logoSrc?: string }) {
     const router = useRouter();
-    const { session, isCeo, isCeoOrAdmin } = useSession();
+    const { session, isCeoOrAdmin } = useSession();
     const { notifications, unreadCount, markAsRead, markAllRead, connected } = useNotifications();
+    const [currentPage, setCurrentPage] = useState(1);
+
+    const totalPages = Math.max(1, Math.ceil(notifications.length / NOTIFICATIONS_PER_PAGE));
+
+    const paginatedNotifications = useMemo(() => {
+        const start = (currentPage - 1) * NOTIFICATIONS_PER_PAGE;
+        const end = start + NOTIFICATIONS_PER_PAGE;
+        return notifications.slice(start, end);
+    }, [currentPage, notifications]);
+
+    useEffect(() => {
+        setCurrentPage((prev) => Math.min(prev, totalPages));
+    }, [totalPages]);
 
     const handleLogout = async () => {
         await signOut();
         router.push("/login");
+    };
+
+    const handleNotificationClick = (notification: AppNotification) => {
+        void markAsRead(notification.id);
+        const href = getNotificationHref(notification);
+        if (href) router.push(href);
     };
 
     return (
@@ -163,12 +246,12 @@ export function TopBar({ logoSrc }: { logoSrc?: string }) {
                                         No hay notificaciones recientes
                                     </p>
                                 ) : (
-                                    notifications.slice(0, MAX_NOTIFICATIONS).map((notif) => (
+                                    paginatedNotifications.map((notif) => (
                                         <Button
                                             key={notif.id}
                                             type="button"
                                             variant="ghost"
-                                            onClick={() => markAsRead(notif.id)}
+                                            onClick={() => handleNotificationClick(notif)}
                                             className={cn(
                                                 "flex h-auto min-h-0 w-full shrink-0 items-start justify-start gap-3 rounded-none px-4 py-3.5 text-left font-normal whitespace-normal transition-colors",
                                                 "hover:bg-accent/50 focus-visible:bg-accent/50",
@@ -197,6 +280,12 @@ export function TopBar({ logoSrc }: { logoSrc?: string }) {
                                                 <p className="line-clamp-2 break-words text-xs leading-relaxed text-muted-foreground">
                                                     {notif.description}
                                                 </p>
+                                                {getNotificationHref(notif) && (
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary">
+                                                        <ExternalLink className="h-3 w-3" />
+                                                        Abrir detalle
+                                                    </span>
+                                                )}
                                                 <p className="text-[11px] tabular-nums text-muted-foreground">
                                                     {timeAgo(notif.timestamp)}
                                                 </p>
@@ -206,6 +295,37 @@ export function TopBar({ logoSrc }: { logoSrc?: string }) {
                                 )}
                             </div>
                         </ScrollArea>
+                        {notifications.length > 0 && (
+                            <div className="flex items-center justify-between border-t border-border/50 px-4 py-2.5">
+                                <p className="text-[11px] text-muted-foreground">
+                                    Página {currentPage} de {totalPages}
+                                </p>
+                                <div className="flex items-center gap-1">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                                        disabled={currentPage === 1}
+                                        className="h-7 px-2"
+                                        aria-label="Página anterior"
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                                        disabled={currentPage === totalPages}
+                                        className="h-7 px-2"
+                                        aria-label="Página siguiente"
+                                    >
+                                        <ChevronRight className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </PopoverContent>
                 </Popover>
 

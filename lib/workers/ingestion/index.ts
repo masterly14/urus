@@ -1,7 +1,6 @@
 export { runPropertiesIngestionCycle } from "./properties-worker";
 export { runExtrainfoIngestionCycle } from "./extrainfo-worker";
 export type { ExtrainfoCycleResult } from "./extrainfo-worker";
-export { runTasksIngestionCycle } from "./tasks";
 export { publishEventsForDiff } from "./event-publisher";
 export { computePropertyDiff } from "./properties-diff";
 export { loadPreviousSnapshot, saveCurrentSnapshot } from "./snapshot-repo";
