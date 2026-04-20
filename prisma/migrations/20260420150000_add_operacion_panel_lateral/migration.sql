@@ -3,7 +3,7 @@
 -- arquitectónica en feat/M11-operacion-panel-lateral.
 
 -- Notas internas ------------------------------------------------------------
-CREATE TABLE "operacion_notas" (
+CREATE TABLE IF NOT EXISTS "operacion_notas" (
   "id"           TEXT        NOT NULL,
   "operacionId"  TEXT        NOT NULL,
   "authorUserId" TEXT        NOT NULL,
@@ -16,19 +16,28 @@ CREATE TABLE "operacion_notas" (
   CONSTRAINT "operacion_notas_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "operacion_notas_operacionId_createdAt_idx"
+CREATE INDEX IF NOT EXISTS "operacion_notas_operacionId_createdAt_idx"
   ON "operacion_notas" ("operacionId", "createdAt");
 
-CREATE INDEX "operacion_notas_authorUserId_idx"
+CREATE INDEX IF NOT EXISTS "operacion_notas_authorUserId_idx"
   ON "operacion_notas" ("authorUserId");
 
-ALTER TABLE "operacion_notas"
-  ADD CONSTRAINT "operacion_notas_operacionId_fkey"
-  FOREIGN KEY ("operacionId") REFERENCES "operaciones"("id")
-  ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'operacion_notas_operacionId_fkey'
+  ) THEN
+    ALTER TABLE "operacion_notas"
+      ADD CONSTRAINT "operacion_notas_operacionId_fkey"
+      FOREIGN KEY ("operacionId") REFERENCES "operaciones"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END
+$$;
 
 -- Checklist ad-hoc ----------------------------------------------------------
-CREATE TABLE "operacion_checklist_items" (
+CREATE TABLE IF NOT EXISTS "operacion_checklist_items" (
   "id"                     TEXT         NOT NULL,
   "operacionId"            TEXT         NOT NULL,
   "texto"                  TEXT         NOT NULL,
@@ -44,19 +53,28 @@ CREATE TABLE "operacion_checklist_items" (
   CONSTRAINT "operacion_checklist_items_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "operacion_checklist_items_operacionId_orden_idx"
+CREATE INDEX IF NOT EXISTS "operacion_checklist_items_operacionId_orden_idx"
   ON "operacion_checklist_items" ("operacionId", "orden");
 
-CREATE INDEX "operacion_checklist_items_responsableComercialId_idx"
+CREATE INDEX IF NOT EXISTS "operacion_checklist_items_responsableComercialId_idx"
   ON "operacion_checklist_items" ("responsableComercialId");
 
-ALTER TABLE "operacion_checklist_items"
-  ADD CONSTRAINT "operacion_checklist_items_operacionId_fkey"
-  FOREIGN KEY ("operacionId") REFERENCES "operaciones"("id")
-  ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'operacion_checklist_items_operacionId_fkey'
+  ) THEN
+    ALTER TABLE "operacion_checklist_items"
+      ADD CONSTRAINT "operacion_checklist_items_operacionId_fkey"
+      FOREIGN KEY ("operacionId") REFERENCES "operaciones"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END
+$$;
 
 -- Adjuntos (Cloudinary) -----------------------------------------------------
-CREATE TABLE "operacion_adjuntos" (
+CREATE TABLE IF NOT EXISTS "operacion_adjuntos" (
   "id"               TEXT         NOT NULL,
   "operacionId"      TEXT         NOT NULL,
   "nombre"           TEXT         NOT NULL,
@@ -72,10 +90,19 @@ CREATE TABLE "operacion_adjuntos" (
   CONSTRAINT "operacion_adjuntos_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "operacion_adjuntos_operacionId_createdAt_idx"
+CREATE INDEX IF NOT EXISTS "operacion_adjuntos_operacionId_createdAt_idx"
   ON "operacion_adjuntos" ("operacionId", "createdAt");
 
-ALTER TABLE "operacion_adjuntos"
-  ADD CONSTRAINT "operacion_adjuntos_operacionId_fkey"
-  FOREIGN KEY ("operacionId") REFERENCES "operaciones"("id")
-  ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'operacion_adjuntos_operacionId_fkey'
+  ) THEN
+    ALTER TABLE "operacion_adjuntos"
+      ADD CONSTRAINT "operacion_adjuntos_operacionId_fkey"
+      FOREIGN KEY ("operacionId") REFERENCES "operaciones"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END
+$$;
