@@ -113,7 +113,7 @@ const getHandler = async (request: Request) => {
         where: {
           type: "SEND_WHATSAPP_MATCH",
           sourceEventId: { in: eventIds },
-          status: { in: ["COMPLETED", "PROCESSING"] },
+          status: { in: ["COMPLETED", "IN_PROGRESS"] },
         },
         select: { sourceEventId: true },
       })

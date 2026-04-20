@@ -50,7 +50,7 @@ const postHandler = async (
     where: {
       type: "SEND_WHATSAPP_MATCH",
       sourceEventId: eventId,
-      status: { in: ["COMPLETED", "PROCESSING", "PENDING"] },
+      status: { in: ["COMPLETED", "IN_PROGRESS", "PENDING"] },
     },
     select: { id: true, status: true },
   });
@@ -92,7 +92,7 @@ const postHandler = async (
   });
 
   console.log(
-    `[api:matching] WhatsApp de match enviado manualmente por ${session.user?.name ?? "comercial"} — event=${eventId} demand=${payload.demandId} property=${payload.propertyId}`,
+    `[api:matching] WhatsApp de match enviado manualmente por ${session.nombre || "comercial"} — event=${eventId} demand=${payload.demandId} property=${payload.propertyId}`,
   );
 
   return NextResponse.json({ ok: true });
