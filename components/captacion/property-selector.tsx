@@ -143,7 +143,7 @@ export function PropertySelector({
 }: PropertySelectorProps) {
   const [options, setOptions] = React.useState<PropertyOption[]>([]);
   const [loading, setLoading] = React.useState(false);
-  const debounceRef = React.useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchOptions = React.useCallback(async (query = "") => {
     setLoading(true);
     try {
@@ -164,6 +164,12 @@ export function PropertySelector({
   React.useEffect(() => {
     void fetchOptions("");
   }, [fetchOptions]);
+
+  React.useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const handleInputChange = React.useCallback((inputValue: unknown) => {
     const q = typeof inputValue === "string" ? inputValue : "";

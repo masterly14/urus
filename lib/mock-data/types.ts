@@ -18,7 +18,8 @@ export type NotificationSource =
   | "legal"
   | "bi"
   | "rendimiento"
-  | "coach";
+  | "coach"
+  | "consumer:whatsapp";
 export type NotificationSeverity = "info" | "warning" | "critical";
 export type Role = "ceo" | "comercial";
 export type Trend = "up" | "down" | "stable";

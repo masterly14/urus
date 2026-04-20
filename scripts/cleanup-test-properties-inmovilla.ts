@@ -126,36 +126,35 @@ async function main(): Promise<void> {
   });
   console.log(`  Eliminadas ${deletedSnapshots.count} filas de property_snapshots.`);
 
-  console.log("Limpiando eventos del event store...");
-  const deletedEvents = await prisma.event.deleteMany({
-    where: {
-      aggregateType: "PROPERTY",
-      aggregateId: { in: testCodes },
-    },
-  });
-  console.log(`  Eliminados ${deletedEvents.count} eventos.`);
+  const propertyEventIds = (
+    await prisma.event.findMany({
+      where: {
+        aggregateType: "PROPERTY",
+        aggregateId: { in: testCodes },
+      },
+      select: { id: true },
+    })
+  ).map((event) => event.id);
 
   console.log("Limpiando jobs vinculados a eventos de test...");
-  if (deletedEvents.count > 0) {
-    const orphanJobs = await prisma.job.deleteMany({
+  if (propertyEventIds.length > 0) {
+    const orphanJobs = await prisma.jobQueue.deleteMany({
       where: {
-        sourceEventId: {
-          in: (
-            await prisma.event.findMany({
-              where: {
-                aggregateType: "PROPERTY",
-                aggregateId: { in: testCodes },
-              },
-              select: { id: true },
-            })
-          ).map((e) => e.id),
-        },
+        sourceEventId: { in: propertyEventIds },
       },
     });
     console.log(`  Eliminados ${orphanJobs.count} jobs.`);
   } else {
-    console.log(`  No había eventos, nada que limpiar.`);
+    console.log("  No había eventos, nada que limpiar.");
   }
+
+  console.log("Limpiando eventos del event store...");
+  const deletedEvents = await prisma.event.deleteMany({
+    where: {
+      id: { in: propertyEventIds },
+    },
+  });
+  console.log(`  Eliminados ${deletedEvents.count} eventos.`);
 
   console.log("\nLimpieza completada.");
   await prisma.$disconnect();
