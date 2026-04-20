@@ -61,23 +61,6 @@ interface NavItem {
 const navItems: NavItem[] = [
     { label: "Dashboard", href: "/platform", icon: LayoutDashboard },
     {
-        label: "Coach Emocional",
-        href: "/platform/coach",
-        icon: Brain,
-        children: [
-            { label: "Dashboard", href: "/platform/coach", icon: BarChart3 },
-            { label: "Métricas", href: "/platform/coach/metricas", icon: BarChart3 },
-        ],
-    },
-    {
-        label: "Post-Venta",
-        href: "/platform/post-venta",
-        icon: Package,
-        children: [
-            { label: "Pipeline", href: "/platform/post-venta/pipeline", icon: GitBranch },
-        ],
-    },
-    {
         label: "Captación",
         href: "/platform/captacion",
         icon: ClipboardList,
@@ -103,6 +86,23 @@ const navItems: NavItem[] = [
         children: [
             { label: "Cruces Automáticos", href: "/platform/matching/cruces", icon: Shuffle },
             { label: "Feedback Loop", href: "/platform/matching/feedback", icon: MessageSquare },
+        ],
+    },
+    {
+        label: "Post-Venta",
+        href: "/platform/post-venta",
+        icon: Package,
+        children: [
+            { label: "Pipeline", href: "/platform/post-venta/pipeline", icon: GitBranch },
+        ],
+    },
+    {
+        label: "Coach Emocional",
+        href: "/platform/coach",
+        icon: Brain,
+        children: [
+            { label: "Dashboard", href: "/platform/coach", icon: BarChart3 },
+            { label: "Métricas", href: "/platform/coach/metricas", icon: BarChart3 },
         ],
     },
     {
