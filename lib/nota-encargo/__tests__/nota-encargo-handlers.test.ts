@@ -90,7 +90,6 @@ import {
 function makeSession(overrides: Record<string, unknown> = {}) {
   return {
     id: "session-1",
-    taskSnapshotId: "snap-1",
     propertyCode: "PROP-001",
     propertyRef: "URUS36VMA",
     comercialId: "comercial-1",

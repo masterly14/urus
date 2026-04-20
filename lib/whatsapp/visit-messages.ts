@@ -27,6 +27,7 @@ import {
   sendTextMessage,
   sendTemplateMessage,
   sendInteractiveMessage,
+  shouldSendWhatsAppToCommercials,
 } from "./send";
 import type {
   TemplateObject,
@@ -81,6 +82,9 @@ export async function sendVisitProposalToCommercial(
   data: VisitProposalToCommercialData,
   options?: BaseOptions,
 ): Promise<SendMessageSuccess> {
+  if (!shouldSendWhatsAppToCommercials()) {
+    return { messages: [{ id: `wamid.skipped_commercial_${Date.now()}` }] } as SendMessageSuccess;
+  }
   const priceFormatted = new Intl.NumberFormat("es-ES", {
     style: "currency",
     currency: "EUR",
@@ -173,6 +177,9 @@ export async function sendBuyerRejectionToCommercial(
   data: BuyerRejectionToCommercialData,
   options?: BaseOptions,
 ): Promise<SendMessageSuccess> {
+  if (!shouldSendWhatsAppToCommercials()) {
+    return { messages: [{ id: `wamid.skipped_commercial_${Date.now()}` }] } as SendMessageSuccess;
+  }
   const template: TemplateObject = {
     name: tpl(
       "WHATSAPP_TEMPLATE_VISITA_RECHAZO_COMPRADOR",
@@ -220,6 +227,9 @@ export async function sendBuyerPreferenceToCommercial(
   data: BuyerPreferenceToCommercialData,
   options?: BaseOptions,
 ): Promise<SendMessageSuccess> {
+  if (!shouldSendWhatsAppToCommercials()) {
+    return { messages: [{ id: `wamid.skipped_commercial_${Date.now()}` }] } as SendMessageSuccess;
+  }
   const template: TemplateObject = {
     name: tpl(
       "WHATSAPP_TEMPLATE_VISITA_CONFIRMAR_FECHA",
@@ -294,6 +304,9 @@ export async function sendEscalationToCommercial(
   data: EscalationToCommercialData,
   options?: BaseOptions,
 ): Promise<SendMessageSuccess> {
+  if (!shouldSendWhatsAppToCommercials()) {
+    return { messages: [{ id: `wamid.skipped_commercial_${Date.now()}` }] } as SendMessageSuccess;
+  }
   const template: TemplateObject = {
     name: tpl(
       "WHATSAPP_TEMPLATE_VISITA_ESCALADO_MANUAL",
@@ -352,6 +365,9 @@ export async function sendVisitConfirmedToCommercial(
   data: VisitConfirmedToCommercialData,
   options?: BaseOptions,
 ): Promise<SendMessageSuccess> {
+  if (!shouldSendWhatsAppToCommercials()) {
+    return { messages: [{ id: `wamid.skipped_commercial_${Date.now()}` }] } as SendMessageSuccess;
+  }
   const template: TemplateObject = {
     name: tpl(
       "WHATSAPP_TEMPLATE_VISITA_CONFIRMADA_COMERCIAL",

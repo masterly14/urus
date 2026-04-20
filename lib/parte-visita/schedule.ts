@@ -9,7 +9,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { enqueueJob } from "@/lib/job-queue";
-import { extractPropertyDataFromRaw } from "@/lib/workers/ingestion/tasks/tasks-parser";
+import { extractPropertyDataFromRaw } from "@/lib/nota-encargo/utils";
 import type { VisitSchedulingSession } from "@prisma/client";
 
 export async function scheduleParteVisita(

@@ -7,6 +7,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { failStaleRematchRunIfNeeded } from "@/lib/matching/rematch-stale";
 import { withObservedRoute } from "@/lib/observability";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 
@@ -24,7 +25,7 @@ const getHandler = async (
 
   const { runId } = await params;
 
-  const run = await prisma.rematchRun.findUnique({
+  let run = await prisma.rematchRun.findUnique({
     where: { id: runId },
     select: {
       id: true,
@@ -43,6 +44,26 @@ const getHandler = async (
 
   if (!run) {
     return NextResponse.json({ error: "Run no encontrado" }, { status: 404 });
+  }
+
+  if (await failStaleRematchRunIfNeeded(run)) {
+    const refreshed = await prisma.rematchRun.findUnique({
+      where: { id: runId },
+      select: {
+        id: true,
+        status: true,
+        totalDemands: true,
+        totalBatches: true,
+        currentBatch: true,
+        demandsProcessed: true,
+        matchesEmitted: true,
+        matchesSkipped: true,
+        errorMessage: true,
+        startedAt: true,
+        updatedAt: true,
+      },
+    });
+    if (refreshed) run = refreshed;
   }
 
   let estimatedEtaMs: number | null = null;

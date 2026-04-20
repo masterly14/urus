@@ -32,7 +32,10 @@ type PublishCandidate = {
 
 function normalizeSnapshot(property: Property): Omit<Property, "raw"> {
   const { raw: _raw, ...snapshot } = property;
-  return snapshot;
+  return {
+    ...snapshot,
+    mainPhotoUrl: property.mainPhotoUrl ?? null,
+  };
 }
 
 function buildFingerprint(candidate: PublishCandidate): string {
@@ -78,6 +81,7 @@ function buildCandidates(
         fechaActualizacion: change.property.fechaActualizacion,
         agente: change.property.agente,
       },
+      mainPhotoUrl: change.property.mainPhotoUrl ?? null,
       changedFields: change.changedFields,
       detectedAt,
     },

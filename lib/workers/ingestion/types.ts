@@ -85,6 +85,13 @@ export type PropertyCreatedEventPayload = {
 export type PropertyModifiedEventPayload = {
   before: Pick<Property, DiffField>;
   after: Pick<Property, DiffField>;
+  /**
+   * URL absoluta de la foto principal en el momento del ciclo. Se propaga
+   * aunque `mainPhotoUrl` no sea un DIFF_FIELD, para que la proyección pueda
+   * refrescar `properties_current.mainPhotoUrl` cuando `fotoletra` haya
+   * cambiado (p.ej. por reordenación de fotos en Inmovilla).
+   */
+  mainPhotoUrl?: string | null;
   changedFields: DiffField[];
   detectedAt: string;
 };
@@ -139,6 +146,8 @@ export type PropertySnapshotData = Pick<
   | "numFotos"
   | "agente"
 > & {
+  /** URL absoluta de la foto principal (thumbnail); `null` si la propiedad no tiene fotos. */
+  mainPhotoUrl?: string | null;
   /**
    * JSON crudo de Inmovilla. Se preserva entre ciclos para que los
    * procesos de backfill y enriquecimiento (p.ej. sync-enums) puedan

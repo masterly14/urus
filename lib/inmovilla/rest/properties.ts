@@ -9,9 +9,13 @@ import type {
   PropiedadCompleta,
   CreatePropertyPayload,
   CreatePropertyResponse,
+  ExtraInfoResponse,
+  ExtraInfoPublishInfo,
+  ExtraInfoPublishEntry,
 } from "./types";
 import type { InmovillaProperty } from "@/lib/inmovilla/api/types";
 import type { EnumLookupMaps } from "./enum-lookup";
+import { buildMainPhotoUrlFromRaw } from "./photo-url";
 
 /**
  * Obtiene el listado de propiedades/prospectos ordenado por fecha de actualización.
@@ -101,8 +105,92 @@ export function normalizePropertyFromRest(
     fechaActualizacion: String(raw.fechaact ?? ""),
     numFotos: Number(raw.numfotos ?? 0),
     agente: String(raw.usernombre ?? raw.keyagente ?? ""),
+    mainPhotoUrl: buildMainPhotoUrlFromRaw(raw as Record<string, unknown>),
     raw: raw as Record<string, unknown>,
   };
+}
+
+/**
+ * Obtiene la información extra (publicación en portales + leads) de una propiedad.
+ * GET /propiedades/?extrainfo&cod_ofer={cod_ofer}
+ *
+ * Cuenta como 1 petición contra el rate limit de propiedades (5/min efectivo).
+ * La doc sugiere que puede venir como array; toleramos ambos formatos.
+ */
+export async function getPropertyExtraInfo(
+  client: InmovillaRestClient,
+  cod_ofer: number | string,
+): Promise<ExtraInfoResponse | null> {
+  const data = await client.get<unknown>("/propiedades/", {
+    extrainfo: true,
+    cod_ofer: String(cod_ofer),
+  });
+
+  if (data == null) return null;
+
+  if (Array.isArray(data)) {
+    const merged: ExtraInfoResponse = {};
+    for (const entry of data) {
+      if (entry && typeof entry === "object") {
+        Object.assign(merged, entry as ExtraInfoResponse);
+      }
+    }
+    return merged;
+  }
+
+  if (typeof data === "object") {
+    return data as ExtraInfoResponse;
+  }
+
+  return null;
+}
+
+/**
+ * Orden canónico de prioridad cuando hay varios portales con URL de anuncio.
+ * Idealista es el portal principal del producto; los demás son fallback.
+ */
+export const PORTAL_PRIORITY: readonly string[] = [
+  "idealista",
+  "fotocasa",
+  "pisoscom",
+  "habitaclia",
+];
+
+export type PrimaryPortalResult = {
+  portalName: string;
+  portalUrl: string;
+  state?: string | number;
+};
+
+/**
+ * De un `publishinfo`, devuelve el portal con `publication_url` válida con la
+ * mayor prioridad (Idealista > Fotocasa > Pisos.com > Habitaclia > otros).
+ * Devuelve `null` si ningún portal tiene URL.
+ */
+export function selectPrimaryPortal(
+  publishinfo: ExtraInfoPublishInfo | undefined | null,
+): PrimaryPortalResult | null {
+  if (!publishinfo || typeof publishinfo !== "object") return null;
+
+  const pickUrl = (entry: ExtraInfoPublishEntry): string | null => {
+    const url = entry?.publication_url;
+    if (typeof url === "string" && url.trim().length > 0) return url.trim();
+    return null;
+  };
+
+  for (const portal of PORTAL_PRIORITY) {
+    const entry = publishinfo[portal];
+    if (!entry) continue;
+    const url = pickUrl(entry);
+    if (url) return { portalName: portal, portalUrl: url, state: entry.state };
+  }
+
+  for (const [portal, entry] of Object.entries(publishinfo)) {
+    const url = pickUrl(entry);
+    if (url) return { portalName: portal, portalUrl: url, state: entry.state };
+  }
+
+  return null;
 }
 
 /**

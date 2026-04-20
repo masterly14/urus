@@ -59,6 +59,7 @@ function toSnapshotData(p: InmovillaProperty): PropertySnapshotData {
     fechaActualizacion: str(p.fechaActualizacion),
     numFotos: Number(p.numFotos) || 0,
     agente: str(p.agente),
+    mainPhotoUrl: p.mainPhotoUrl ?? null,
     raw: p.raw && typeof p.raw === "object" ? p.raw : undefined,
   };
 }
@@ -100,6 +101,7 @@ export async function loadPreviousSnapshot(): Promise<SnapshotMap> {
       fechaActualizacion: row.fechaActualizacion,
       numFotos: row.numFotos,
       agente: row.agente,
+      mainPhotoUrl: row.mainPhotoUrl ?? null,
       raw: hasMeaningfulRaw(row.raw)
         ? (row.raw as Record<string, unknown>)
         : undefined,
@@ -158,6 +160,7 @@ export async function saveCurrentSnapshot(
             fechaActualizacion: data.fechaActualizacion,
             numFotos: data.numFotos,
             agente: data.agente,
+            mainPhotoUrl: data.mainPhotoUrl ?? null,
           };
 
           return prisma.propertySnapshot.upsert({

@@ -44,5 +44,11 @@ export type InmovillaProperty = {
   fechaActualizacion: string;
   numFotos: number;
   agente: string;
+  /**
+   * URL absoluta de la foto principal (thumbnail), derivada de
+   * `numagencia + cod_ofer + fotoletra` del payload REST. `null` si la
+   * propiedad no tiene fotos o falta alguno de esos parámetros.
+   */
+  mainPhotoUrl?: string | null;
   raw: Record<string, unknown>;
 };

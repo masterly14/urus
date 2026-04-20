@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   MapPin,
@@ -9,6 +11,8 @@ import {
   ArrowRight,
   Tag,
   Bath,
+  ImageOff,
+  ExternalLink,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -34,6 +38,93 @@ function isEligibleForSmartPricing(property: PropertyListItem): boolean {
   return normalizeForComparison(ciudad).includes("cordoba");
 }
 
+function getPortalLabel(portalName?: string | null): string {
+  if (!portalName) return "Ver anuncio";
+  const n = portalName.toLowerCase();
+  if (n.includes("idealista")) return "Ver en Idealista";
+  if (n.includes("fotocasa")) return "Ver en Fotocasa";
+  if (n.includes("pisos")) return "Ver en Pisos.com";
+  if (n.includes("habitaclia")) return "Ver en Habitaclia";
+  return `Ver en ${portalName}`;
+}
+
+function getPortalOverlayClass(portalName?: string | null): string {
+  const n = (portalName ?? "").toLowerCase();
+  if (n.includes("idealista"))
+    return "absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-[#D44431]/70 bg-[#D44431]/15 px-2.5 py-1 text-xs font-semibold text-[#D44431] backdrop-blur transition-colors hover:bg-[#D44431]/30";
+  if (n.includes("fotocasa"))
+    return "absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-[#0065EB]/60 bg-[#0065EB]/15 px-2.5 py-1 text-xs font-semibold text-[#0065EB] backdrop-blur transition-colors hover:bg-[#0065EB]/25";
+  return "absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground backdrop-blur transition-colors hover:bg-secondary/20 hover:text-secondary";
+}
+
+function PropertyImage({ property }: { property: PropertyListItem }) {
+  const [errored, setErrored] = useState(false);
+  const showImage = Boolean(property.mainPhotoUrl) && !errored;
+
+  return (
+    <div className="relative aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-muted/60 via-background to-muted/30">
+      {showImage ? (
+        <Image
+          src={property.mainPhotoUrl as string}
+          alt={property.titulo || property.ref || property.codigo}
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+          className="object-contain transition-transform duration-500 group-hover:scale-[1.02]"
+          onError={() => setErrored(true)}
+          unoptimized
+        />
+      ) : (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-muted-foreground/60">
+          <ImageOff className="h-6 w-6" />
+          <span className="text-[10px] uppercase tracking-wider">
+            Sin imagen sincronizada
+          </span>
+          {property.numFotos > 0 && (
+            <span className="text-[9px] text-muted-foreground/50">
+              {property.numFotos} fotos en Inmovilla
+            </span>
+          )}
+        </div>
+      )}
+
+      {property.estado && (
+        <div className="pointer-events-none absolute left-3 top-3">
+          <Badge
+            variant="outline"
+            className="border-border/50 bg-background/90 px-2 py-0.5 text-xs font-medium backdrop-blur"
+            style={{
+              borderColor:
+                property.estado === "Reservado"
+                  ? "var(--urus-success)"
+                  : undefined,
+              color:
+                property.estado === "Reservado"
+                  ? "var(--urus-success)"
+                  : undefined,
+            }}
+          >
+            {property.estado}
+          </Badge>
+        </div>
+      )}
+
+      {property.portalUrl && (
+        <a
+          href={property.portalUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className={getPortalOverlayClass(property.portalName)}
+          title={getPortalLabel(property.portalName)}
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+          {getPortalLabel(property.portalName)}
+        </a>
+      )}
+    </div>
+  );
+}
+
 export function PropertyCard({ property, className }: PropertyCardProps) {
   const priceM2 =
     property.metrosConstruidos > 0
@@ -44,99 +135,90 @@ export function PropertyCard({ property, className }: PropertyCardProps) {
   const content = (
     <Card
       className={cn(
-        "border-border/50 bg-card/80 backdrop-blur-sm transition-all duration-300 overflow-hidden",
+        "overflow-hidden rounded-xl border-border/50 bg-card/80 py-0 backdrop-blur-sm transition-all duration-300",
         isEligible
-          ? "hover:bg-card hover:shadow-lg hover:shadow-background/20 hover:-translate-y-1 cursor-pointer group"
-          : "opacity-70 cursor-not-allowed",
+          ? "group cursor-pointer hover:border-border/80 hover:bg-card hover:-translate-y-0.5 hover:shadow-lg hover:shadow-background/20"
+          : "cursor-not-allowed opacity-70",
         className,
       )}
     >
-      <div className={cn("h-1", isEligible ? "bg-secondary/40" : "bg-muted")} />
+      <PropertyImage property={property} />
 
-      <CardContent className="p-4 space-y-3">
-        {/* Header row */}
-        <div className="flex items-start justify-between gap-2">
+      <CardContent className="space-y-3 p-4">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <Tag className="h-3.5 w-3.5 text-secondary shrink-0" />
-              <p className="text-sm font-semibold truncate">
+            <div className="flex items-center gap-1.5">
+              <Tag className="h-4 w-4 shrink-0 text-secondary" />
+              <p className="truncate text-base font-semibold leading-tight">
                 {property.titulo || property.ref || property.codigo}
               </p>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge variant="outline" className="text-[9px]">
-                <MapPin className="h-2.5 w-2.5 mr-0.5" />
-                {property.zona || property.ciudad}
-              </Badge>
-              <Badge variant="outline" className="text-[9px] font-mono">
-                {property.codigo}
-              </Badge>
-              {!isEligible && (
-                <Badge variant="outline" className="text-[9px] border-[var(--urus-warning)]/40 text-[var(--urus-warning)]">
-                  No elegible Smart Pricing
-                </Badge>
-              )}
-            </div>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">
+              {property.codigo}
+              {property.ref && property.ref !== property.codigo
+                ? ` · ${property.ref}`
+                : ""}
+            </p>
           </div>
-          <div className="text-right shrink-0">
-            <p className="text-lg font-bold font-mono">
+          <div className="shrink-0 text-right">
+            <p className="font-mono text-xl font-bold leading-tight">
               {property.precio.toLocaleString("es-ES")} €
             </p>
             {priceM2 > 0 && (
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {priceM2.toLocaleString("es-ES")} €/m²
               </p>
             )}
           </div>
         </div>
 
-        {/* Property details */}
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-foreground/80">
+          <span className="inline-flex items-center gap-1.5">
+            <MapPin className="h-4 w-4 text-secondary" />
+            <span className="font-medium">
+              {property.zona || property.ciudad}
+            </span>
+          </span>
           {property.metrosConstruidos > 0 && (
-            <span className="flex items-center gap-1">
-              <Ruler className="h-3 w-3" />
-              {property.metrosConstruidos} m²
+            <span className="inline-flex items-center gap-1.5">
+              <Ruler className="h-4 w-4 text-muted-foreground" />
+              <span className="font-medium">
+                {property.metrosConstruidos} m²
+              </span>
             </span>
           )}
           {property.habitaciones > 0 && (
-            <span className="flex items-center gap-1">
-              <BedDouble className="h-3 w-3" />
-              {property.habitaciones} hab
+            <span className="inline-flex items-center gap-1.5">
+              <BedDouble className="h-4 w-4 text-muted-foreground" />
+              <span className="font-medium">{property.habitaciones}</span>
+              <span className="text-xs text-muted-foreground">hab</span>
             </span>
           )}
           {property.banyos > 0 && (
-            <span className="flex items-center gap-1">
-              <Bath className="h-3 w-3" />
-              {property.banyos} baños
+            <span className="inline-flex items-center gap-1.5">
+              <Bath className="h-4 w-4 text-muted-foreground" />
+              <span className="font-medium">{property.banyos}</span>
+              <span className="text-xs text-muted-foreground">baños</span>
             </span>
           )}
-          <Badge
-            variant="outline"
-            className="text-[9px]"
-            style={{
-              borderColor:
-                property.estado === "Reservado"
-                  ? "var(--urus-success)"
-                  : "var(--color-border)",
-              color:
-                property.estado === "Reservado"
-                  ? "var(--urus-success)"
-                  : undefined,
-            }}
-          >
-            {property.estado}
-          </Badge>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-2 border-t border-border/20">
-          <span className="text-[10px] text-muted-foreground">
-            {property.ciudad}
-            {property.agente ? ` · ${property.agente}` : ""}
+        <div className="flex items-center justify-between border-t border-border/30 pt-2.5">
+          <span className="truncate text-xs text-muted-foreground">
+            {property.agente || property.ciudad}
           </span>
-          <span className="text-[10px] text-secondary opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-            Ver informe <ArrowRight className="h-3 w-3" />
-          </span>
+          {isEligible ? (
+            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-secondary opacity-0 transition-opacity group-hover:opacity-100">
+              Ver informe <ArrowRight className="h-3.5 w-3.5" />
+            </span>
+          ) : (
+            <Badge
+              variant="outline"
+              className="shrink-0 border-[var(--urus-warning)]/40 px-2 py-0.5 text-[10px] text-[var(--urus-warning)]"
+            >
+              No elegible
+            </Badge>
+          )}
         </div>
       </CardContent>
     </Card>

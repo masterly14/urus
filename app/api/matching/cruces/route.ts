@@ -156,9 +156,30 @@ const getHandler = async (request: Request) => {
     porcentajeMatch: number;
     matchScore: Record<string, unknown> | null;
     whatsappEnviado: boolean;
+    validationToken: string | null;
   };
 
   const cruces: CruceItem[] = [];
+
+  const micrositeSelections = demandIds.size > 0
+    ? await prisma.micrositeSelection.findMany({
+        where: {
+          demandId: { in: [...demandIds] },
+          status: "PENDING_VALIDATION",
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          demandId: true,
+          validationToken: true,
+        },
+      })
+    : [];
+
+  const validationTokenByDemandId = new Map<string, string>();
+  for (const selection of micrositeSelections) {
+    if (validationTokenByDemandId.has(selection.demandId)) continue;
+    validationTokenByDemandId.set(selection.demandId, selection.validationToken);
+  }
 
   for (const ev of pageEvents) {
     const p = ev.payload as MatchEventPayload | null;
@@ -214,6 +235,7 @@ const getHandler = async (request: Request) => {
       porcentajeMatch: p.totalScore ?? 0,
       matchScore: p.matchScore ?? null,
       whatsappEnviado: sentEventIds.has(ev.id),
+      validationToken: validationTokenByDemandId.get(p.demandId) ?? null,
     });
   }
 

@@ -91,7 +91,7 @@ describe.skipIf(!hasToken)("Inmovilla REST API integration", () => {
     expect(found?.email).toBe(email);
   }, 15000);
 
-  it("createProperty: crea una propiedad mínima (ref única)", async () => {
+  it("createProperty: crea un prospecto de test y lo desactiva", async () => {
     const ref = `TEST-INT-${Date.now()}`;
     const res = await createProperty(client, {
       ref,
@@ -99,7 +99,8 @@ describe.skipIf(!hasToken)("Inmovilla REST API integration", () => {
       key_tipo: 3399,
       key_loca: 368799,
       precioinmo: 100000,
-      nodisponible: false,
+      prospecto: true,
+      nodisponible: true,
     });
     expect(res).toBeDefined();
     expect(res.codigo).toBe(201);

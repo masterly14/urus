@@ -95,17 +95,6 @@ export async function handleFirmaCompletada(
         console.log(
           `[firma-completada] Documento firmado enviado al propietario — session=${notaSession.id}`,
         );
-
-        await enqueueJob({
-          type: "CREAR_PROSPECTO_INMOVILLA",
-          payload: { sessionId: notaSession.id },
-          idempotencyKey: `crear_prospecto:${notaSession.id}`,
-          sourceEventId: event.id,
-        });
-
-        console.log(
-          `[firma-completada] Encolado CREAR_PROSPECTO_INMOVILLA — session=${notaSession.id}`,
-        );
       } catch (err) {
         console.error(
           `[firma-completada] Error enviando documento firmado al propietario: ${err instanceof Error ? err.message : err}`,

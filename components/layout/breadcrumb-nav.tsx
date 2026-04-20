@@ -33,6 +33,7 @@ const labelMap: Record<string, string> = {
     equipo: "Equipo",
     comercial: "Comercial",
     alertas: "Alertas",
+    captacion: "Captación",
     configuracion: "Configuración",
 };
 

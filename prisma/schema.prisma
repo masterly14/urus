@@ -133,7 +133,6 @@ enum JobType {
   NOTA_ENCARGO_RECORDATORIO
   NOTA_ENCARGO_CHECK_CONFIRMACION
   NOTA_ENCARGO_ENVIAR_FORMULARIO
-  CREAR_PROSPECTO_INMOVILLA
   PARTE_VISITA_ENVIAR_FORMULARIO
   AUTO_VALIDATE_MICROSITE
   SEND_WHATSAPP_MATCH
@@ -265,6 +264,8 @@ model PropertySnapshot {
   fechaActualizacion String   @default("")
   numFotos           Int      @default(0)
   agente             String   @default("")
+  /// URL absoluta de la foto principal (thumbnail). Derivada de numagencia+cod_ofer+fotoletra.
+  mainPhotoUrl       String?
   raw                Json     @default("{}")
   firstSeenAt        DateTime @default(now())
   lastSeenAt         DateTime @default(now())
@@ -315,6 +316,18 @@ model PropertyCurrent {
   agente             String   @default("")
   /// ID interno del comercial gestor (resuelto desde keyagente de Inmovilla)
   comercialId        String?
+  /// URL absoluta de la foto principal. Se llenará en FASE 2 desde el worker
+  /// que cachea la foto en Cloudinary (source: `lafoto` de la API legacy o
+  /// URL construida con numagencia+cod_ofer+fotoletra de la REST v1).
+  mainPhotoUrl       String?
+  /// URL pública del anuncio en el portal inmobiliario principal donde está
+  /// publicado (prioridad Idealista). Se llenará en FASE 2 desde el worker
+  /// que consume `GET /propiedades/?extrainfo&cod_ofer=` → `publishinfo[idealista].publication_url`.
+  portalUrl          String?
+  /// Nombre canónico del portal al que apunta `portalUrl` (ej. "idealista", "pisos.com", "fotocasa").
+  portalName         String?
+  /// Última vez que el worker de extrainfo sincronizó portalUrl/portalName (null si nunca).
+  portalSyncedAt     DateTime?
   lastEventId        String
   lastEventPosition  BigInt
   lastEventAt        DateTime
@@ -325,6 +338,7 @@ model PropertyCurrent {
   @@index([ciudad, zona])
   @@index([comercialId])
   @@index([lastEventPosition])
+  @@index([portalSyncedAt])
   @@map("properties_current")
 }
 
@@ -1664,34 +1678,11 @@ enum NotaEncargoState {
   FIRMA_ENVIADA
   FIRMADA
   DOCUMENTO_ENVIADO
-  PROSPECTO_CREADO
   CANCELADA
-}
-
-model TaskSnapshot {
-  id              String   @id @default(cuid())
-  inmovillaTaskId String   @unique
-  tipo            String
-  asunto          String   @default("")
-  observaciones   String   @default("")
-  agenteId        String
-  fechaAgendar    DateTime
-  fechaCreacion   DateTime
-  etiqueta        String   @default("")
-  estado          String   @default("activa")
-  raw             Json     @default("{}")
-  firstSeenAt     DateTime @default(now())
-  lastSeenAt      DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([tipo])
-  @@index([agenteId])
-  @@map("task_snapshots")
 }
 
 model NotaEncargoSession {
   id                  String           @id @default(cuid())
-  taskSnapshotId      String           @unique
   propertyCode        String
   propertyRef         String
   comercialId         String
@@ -1712,7 +1703,6 @@ model NotaEncargoSession {
   signatureRequestId  String?
   documentUrl         String?
   signedDocumentUrl   String?
-  inmovillaCodOfer    Int?
   refCatastral        String?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt

@@ -2,6 +2,15 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["undici"],
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "res.cloudinary.com" },
+      { protocol: "https", hostname: "**.inmovilla.com" },
+      { protocol: "https", hostname: "**.apinmo.com" },
+      { protocol: "https", hostname: "img3.idealista.com" },
+      { protocol: "https", hostname: "images.unsplash.com" },
+    ],
+  },
   async redirects() {
     const postventaGuia = [
       {

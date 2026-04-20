@@ -2,7 +2,9 @@
 
 ## Resumen
 
-Sistema que automatiza la "Nota de Encargo Inmobiliaria": desde que el comercial registra una visita de captación en Inmovilla, hasta que el propietario firma digitalmente el documento — todo por WhatsApp.
+Sistema que automatiza la "Nota de Encargo Inmobiliaria": desde que el comercial agenda una visita de captación en la plataforma (`/platform/captacion/nueva`), hasta que el propietario firma digitalmente el documento — todo por WhatsApp.
+
+> **Nota (abril 2026):** El trigger original era un cron que detectaba tareas en Inmovilla (tasks ingestion worker). Se refactorizó a un formulario local en la plataforma para eliminar la dependencia de Inmovilla como punto de entrada, reducir la latencia de 20 min a inmediata, y simplificar la superficie de mantenimiento. La creación de prospecto en Inmovilla al final del flujo también se eliminó.
 
 ---
 
@@ -10,29 +12,21 @@ Sistema que automatiza la "Nota de Encargo Inmobiliaria": desde que el comercial
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  INMOVILLA (Comercial)                                       │
+│  PLATAFORMA URUS (/platform/captacion/nueva)                 │
 │                                                              │
-│  Crea Tarea:                                                 │
-│    Tipo: "Visita → Reportaje Fotográfico" (u otro de capt.)  │
-│    Asunto: (libre)                                           │
-│    Observaciones:  URUS36VMA                                 │
-│                    666777888                                  │
-│    Agendar: 15/04/2026 16:00                                 │
-└──────────────────┬──────────────────────────────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────────────────────────────┐
-│  TASKS INGESTION WORKER (cada 20 min)                        │
+│  Comercial:                                                  │
+│    1. Busca y selecciona la propiedad (Combobox)             │
+│    2. Introduce teléfono del propietario                     │
+│    3. Selecciona fecha + hora de visita                      │
+│    4. Clic en "Agendar Nota de Encargo"                      │
 │                                                              │
-│  1. Login Inmovilla (Playwright, sesión reutilizada)          │
-│  2. POST tareasresul.php con DSL de filtros                   │
-│  3. Compara con TaskSnapshot → detecta nuevas                 │
-│  4. Parsea observaciones: ref + teléfono                      │
-│  5. Resuelve PropertyCurrent por ref (URUS36VMA)              │
-│  6. Emite NOTA_ENCARGO_DETECTADA                              │
-│  7. Programa job NOTA_ENCARGO_RECORDATORIO                    │
-│     con availableAt = visitDateTime - 2h                      │
-│     (si faltan < 2h → inmediato)                              │
+│  → POST /api/captacion/nota-encargo                          │
+│    1. Crea NotaEncargoSession (state: PENDING)               │
+│    2. Prellenar dirección, precio, tipo desde PropertySnapshot│
+│    3. Emite NOTA_ENCARGO_DETECTADA                           │
+│    4. Programa job NOTA_ENCARGO_RECORDATORIO                 │
+│       con availableAt = visitDateTime - 2h                   │
+│       (si faltan < 2h → inmediato)                           │
 └──────────────────┬──────────────────────────────────────────┘
                    │
                    ▼
@@ -131,32 +125,10 @@ Sistema que automatiza la "Nota de Encargo Inmobiliaria": desde que el comercial
 
 ## 2. Modelos de datos (Prisma)
 
-### 2.1 TaskSnapshot (nueva tabla)
+> **Nota:** La tabla `TaskSnapshot` fue eliminada en el refactor de abril 2026.
+> El campo `taskSnapshotId` y `inmovillaCodOfer` también se eliminaron de `NotaEncargoSession`.
 
-```prisma
-model TaskSnapshot {
-  id                 String   @id @default(cuid())
-  inmovillaTaskId    String   @unique
-  tipo               String
-  asunto             String   @default("")
-  observaciones      String   @default("")
-  agenteId           String
-  fechaAgendar       DateTime
-  fechaCreacion      DateTime
-  etiqueta           String   @default("")
-  estado             String   @default("activa")
-  raw                Json     @default("{}")
-  firstSeenAt        DateTime @default(now())
-  lastSeenAt         DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  @@index([tipo])
-  @@index([agenteId])
-  @@map("task_snapshots")
-}
-```
-
-### 2.2 NotaEncargoSession (nueva tabla)
+### 2.1 NotaEncargoSession
 
 ```prisma
 enum NotaEncargoState {
@@ -174,7 +146,6 @@ enum NotaEncargoState {
 
 model NotaEncargoSession {
   id                  String            @id @default(cuid())
-  taskSnapshotId      String            @unique
   propertyCode        String
   propertyRef         String
   comercialId         String
@@ -183,9 +154,8 @@ model NotaEncargoSession {
 
   state               NotaEncargoState  @default(PENDING)
 
-  // Datos prellenados desde PropertySnapshot.raw
+  // Datos prellenados desde PropertySnapshot.raw (API route los extrae)
   direccion           String            @default("")
-  referenciaCatastral String            @default("")   // RC catastral (si consta en ficha)
   tipoOperacion       String            @default("")   // VENTA | ALQUILER
   precio              Float             @default(0)
 
@@ -203,6 +173,7 @@ model NotaEncargoSession {
   signatureRequestId  String?
   documentUrl         String?
   signedDocumentUrl   String?
+  refCatastral        String?
 
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
@@ -214,29 +185,32 @@ model NotaEncargoSession {
 }
 ```
 
-### 2.3 Enums a agregar en schema.prisma
+### 2.2 Enums relevantes en schema.prisma
 
 ```prisma
-// Agregar a EventType:
+// EventType:
   NOTA_ENCARGO_DETECTADA
   NOTA_ENCARGO_CONFIRMADA
   NOTA_ENCARGO_NO_CONFIRMADA
   NOTA_ENCARGO_FORMULARIO_COMPLETADO
 
-// Agregar a JobType:
+// JobType:
   NOTA_ENCARGO_RECORDATORIO
   NOTA_ENCARGO_CHECK_CONFIRMACION
   NOTA_ENCARGO_ENVIAR_FORMULARIO
-
-// Agregar a AggregateType (si se decide usar uno nuevo):
-  NOTA_ENCARGO   // O reutilizar PROPERTY
 ```
 
 ---
 
 ## 3. Bloques de implementación
 
-### Bloque 1: Análisis del HAR de Tareas (COMPLETADO)
+> **Abril 2026 — Bloques eliminados por el refactor:**
+> - **Bloque 1 (HAR)**: ya no aplica — no se consume la API de tareas de Inmovilla.
+> - **Bloque 2 (Tasks Ingestion Worker)**: eliminado completamente. El trigger ahora es `POST /api/captacion/nota-encargo` desde `/platform/captacion/nueva`.
+> - La creación de prospecto (`CREAR_PROSPECTO_INMOVILLA`) se eliminó del Bloque 3.
+> - Bloques 3-8 se mantienen vigentes (handlers, WhatsApp Flow, PDF, firma, plantillas).
+
+### Bloque 1: Análisis del HAR de Tareas (ELIMINADO)
 
 > **Status:** Completado. HAR capturado en `docs/crm.inmovilla.com.har`. Análisis completo en `docs/tareas.md`.
 
@@ -363,7 +337,7 @@ codigoPropiedad, codigoDemanda, codigoContacto
 
 ---
 
-### Bloque 2: Tasks Ingestion Worker
+### Bloque 2: Tasks Ingestion Worker (ELIMINADO)
 
 **Archivos a crear:**
 

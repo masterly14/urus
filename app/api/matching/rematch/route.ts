@@ -19,6 +19,7 @@ import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { ACTIVE_DEMAND_STATES } from "@/lib/matching";
 
 const BATCH_SIZE = 10;
+const MAX_DEMANDS_PER_RUN = 10;
 
 const postHandler = async (request: Request) => {
   const session = await getSessionFromRequest(request);
@@ -49,14 +50,17 @@ const postHandler = async (request: Request) => {
     const demands = await prisma.demandCurrent.findMany({
       where: {
         estadoId: { in: ACTIVE_DEMAND_STATES },
-        tipoOperacion: { not: "" },
+        // No filtrar por tipoOperacion:
+        // en datos legacy suele venir null y el motor de matching ya soporta
+        // demandas sin tipoOperacion (usa filtros hard + scoring sin penalizar).
       },
       select: { codigo: true },
       orderBy: { codigo: "asc" },
+      take: MAX_DEMANDS_PER_RUN,
     });
     demandIds = demands.map((d) => d.codigo);
   } else if (Array.isArray(body.demandIds)) {
-    demandIds = body.demandIds;
+    demandIds = body.demandIds.slice(0, MAX_DEMANDS_PER_RUN);
   } else {
     return NextResponse.json(
       { error: "demandIds debe ser 'all' o un array de IDs" },
@@ -103,7 +107,7 @@ const postHandler = async (request: Request) => {
     runId: run.id,
     totalDemands: demandIds.length,
     totalBatches,
-    message: `Rematch iniciado: ${demandIds.length} demandas en ${totalBatches} lotes de ${BATCH_SIZE}`,
+    message: `Rematch iniciado: ${demandIds.length} demandas (máximo ${MAX_DEMANDS_PER_RUN}) en ${totalBatches} lote(s) de ${BATCH_SIZE}`,
   });
 };
 

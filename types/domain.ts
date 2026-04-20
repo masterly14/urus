@@ -29,6 +29,8 @@ export interface Property {
   fechaActualizacion: string;
   numFotos: number;
   agente: string;
+  /** URL absoluta de la foto principal (thumbnail); `null` si no hay fotos. */
+  mainPhotoUrl?: string | null;
   raw?: Record<string, unknown>;
 }
 

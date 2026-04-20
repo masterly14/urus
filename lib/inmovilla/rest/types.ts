@@ -71,6 +71,56 @@ export type CreatePropertyResponse = {
   cod_ofer?: number;
 };
 
+// --- Extrainfo ---
+
+/**
+ * Estado de publicación en un portal externo.
+ * - `10`: publicada correctamente.
+ * - `7`: publicada con alerta.
+ * - `9`: no publicada por error.
+ * - `11`: publicada en el microsite.
+ * - `12`: no publicada (desactivada).
+ */
+export type ExtraInfoPublishEntry = {
+  state?: string | number;
+  message?: string;
+  alerts_number?: string | number;
+  quality_percentage?: string | number;
+  /** URL pública del anuncio en el portal (no disponible para todos los portales). */
+  publication_url?: string | null;
+};
+
+/**
+ * `publishinfo` suele venir como objeto con clave = nombre canónico del portal
+ * (`idealista`, `fotocasa`, `pisoscom`, `habitaclia`...). Verificado contra
+ * producción (cod_ofer=26178808 → `pisoscom`, `idealista`, `fotocasa`).
+ */
+export type ExtraInfoPublishInfo = Record<string, ExtraInfoPublishEntry>;
+
+/** Lead recibido por un portal. */
+export type ExtraInfoLead = {
+  date?: string;
+  language?: string;
+  source?: string;
+  contact_firstname?: string;
+  contact_lastname?: string;
+  contact_phone?: string;
+  contact_mobile?: string;
+  contact_email?: string;
+  message?: string;
+};
+
+/**
+ * Respuesta de GET /propiedades/?extrainfo&cod_ofer=.
+ * Observado en producción como objeto `{ publishinfo, leads }`. La doc
+ * oficial sugiere un array, pero la API real devuelve objeto; aceptamos
+ * ambos para ser tolerantes.
+ */
+export type ExtraInfoResponse = {
+  publishinfo?: ExtraInfoPublishInfo;
+  leads?: ExtraInfoLead[];
+};
+
 // --- Clientes ---
 
 /** Payload para POST /clientes/ (crear cliente). Alineado con documentación y create-lead-via-api. */

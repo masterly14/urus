@@ -8,6 +8,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { failStaleRematchRunIfNeeded } from "@/lib/matching/rematch-stale";
 import { withObservedRoute } from "@/lib/observability";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 
@@ -20,11 +21,24 @@ const getHandler = async (request: Request) => {
 
   const running = await prisma.rematchRun.findFirst({
     where: { status: "RUNNING" },
-    select: { id: true },
+    select: {
+      id: true,
+      status: true,
+      demandsProcessed: true,
+      startedAt: true,
+    },
     orderBy: { startedAt: "desc" },
   });
 
-  return NextResponse.json({ runId: running?.id ?? null });
+  if (!running) {
+    return NextResponse.json({ runId: null });
+  }
+
+  if (await failStaleRematchRunIfNeeded(running)) {
+    return NextResponse.json({ runId: null });
+  }
+
+  return NextResponse.json({ runId: running.id });
 };
 
 export const GET = withObservedRoute(

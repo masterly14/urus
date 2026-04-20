@@ -23,6 +23,7 @@ type PropertyPayloadSnapshot = {
   fechaActualizacion: string;
   numFotos: number;
   agente: string;
+  mainPhotoUrl?: string | null;
 };
 
 type PropertyModifiedAfter = {
@@ -65,6 +66,7 @@ async function snapshotToUpsertData(
     numFotos: int(snapshot.numFotos),
     agente: comercial?.nombre ?? str(snapshot.agente),
     comercialId: comercial?.id ?? null,
+    mainPhotoUrl: snapshot.mainPhotoUrl ?? null,
     lastEventId: event.id,
     lastEventPosition: event.position,
     lastEventAt: event.occurredAt,
@@ -127,8 +129,12 @@ export async function applyPropertyProjection(
       const validation = handlePropertyModified(event);
       if (!validation.success) return validation;
 
-      const payload = event.payload as { after: PropertyModifiedAfter };
+      const payload = event.payload as {
+        after: PropertyModifiedAfter;
+        mainPhotoUrl?: string | null;
+      };
       const after = payload.after;
+      const mainPhotoUrl = payload.mainPhotoUrl ?? null;
 
       await prisma.propertyCurrent.upsert({
         where: { codigo },
@@ -144,6 +150,7 @@ export async function applyPropertyProjection(
           nodisponible: Boolean(after.nodisponible),
           prospecto: Boolean(after.prospecto),
           fechaActualizacion: str(after.fechaActualizacion),
+          mainPhotoUrl,
           lastEventId: event.id,
           lastEventPosition: event.position,
           lastEventAt: event.occurredAt,
@@ -159,6 +166,7 @@ export async function applyPropertyProjection(
           nodisponible: Boolean(after.nodisponible),
           prospecto: Boolean(after.prospecto),
           fechaActualizacion: str(after.fechaActualizacion),
+          mainPhotoUrl,
           lastEventId: event.id,
           lastEventPosition: event.position,
           lastEventAt: event.occurredAt,

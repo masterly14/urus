@@ -21,6 +21,25 @@ type SendOptions = Partial<WhatsAppClientConfig> & {
 const WHATSAPP_TEMPLATE_LANGUAGE_CODE =
   process.env.WHATSAPP_TEMPLATE_LANGUAGE?.trim() || "es";
 
+function isEnvDisabled(value: string | undefined): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "0" || normalized === "false" || normalized === "no";
+}
+
+export function shouldSendWhatsAppToCommercials(): boolean {
+  return !isEnvDisabled(process.env.WHATSAPP_COMMERCIAL_NOTIFICATIONS_ENABLED);
+}
+
+function skippedCommercialSend(to: string, context: string): SendMessageSuccess {
+  console.log(
+    `[whatsapp] envío a comercial desactivado por WHATSAPP_COMMERCIAL_NOTIFICATIONS_ENABLED (${context}) → to=${to}`,
+  );
+  return {
+    messages: [{ id: `wamid.skipped_commercial_${Date.now()}` }],
+  } as SendMessageSuccess;
+}
+
 /**
  * Registry of all WhatsApp template names used in this codebase.
  * Each must exist in Meta Business Manager with the exact number of variables
@@ -212,6 +231,9 @@ export async function sendLeadAssignedToCommercial(
   params: LeadAssignedParams,
   options?: SendOptions,
 ): Promise<SendMessageSuccess> {
+  if (!shouldSendWhatsAppToCommercials()) {
+    return skippedCommercialSend(to, "sendLeadAssignedToCommercial");
+  }
   const template: TemplateObject = {
     name: LEAD_ASSIGNED_TEMPLATE,
     language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
@@ -251,6 +273,9 @@ export async function sendFollowUpToCommercial(
   params: FollowUpParams,
   options?: SendOptions & { useTemplate?: boolean },
 ): Promise<SendMessageSuccess> {
+  if (!shouldSendWhatsAppToCommercials()) {
+    return skippedCommercialSend(to, "sendFollowUpToCommercial");
+  }
   if (options?.useTemplate) {
     const template: TemplateObject = {
       name: "lead_follow_up",
@@ -310,6 +335,9 @@ export async function sendMicrositePendingValidationToCommercial(
   params: MicrositeValidationNotifyParams,
   options?: SendOptions,
 ): Promise<SendMessageSuccess> {
+  if (!shouldSendWhatsAppToCommercials()) {
+    return skippedCommercialSend(to, "sendMicrositePendingValidationToCommercial");
+  }
   const due = new Date(params.validationDueAtIso);
   const dueStr = due.toLocaleString("es-ES", {
     dateStyle: "short",
@@ -414,6 +442,9 @@ export async function sendContractDataIncompleteToCommercial(
   params: ContractDataIncompleteNotifyParams,
   options?: SendOptions,
 ): Promise<SendMessageSuccess> {
+  if (!shouldSendWhatsAppToCommercials()) {
+    return skippedCommercialSend(to, "sendContractDataIncompleteToCommercial");
+  }
   const categoriesLabel = params.missingCategories.length > 0
     ? params.missingCategories.join(", ")
     : "campos obligatorios";
@@ -930,6 +961,9 @@ export async function sendPricingReportToCommercial(
   params: PricingReportParams,
   options?: SendOptions & { useTemplate?: boolean },
 ): Promise<SendMessageSuccess> {
+  if (!shouldSendWhatsAppToCommercials()) {
+    return skippedCommercialSend(to, "sendPricingReportToCommercial");
+  }
   if (options?.useTemplate) {
     const template: TemplateObject = {
       name: PRICING_INFORME_TEMPLATE,
@@ -1153,6 +1187,9 @@ export async function sendDevExerciseNudge(
   params: DevExerciseNudgeParams,
   options?: SendOptions,
 ): Promise<SendMessageSuccess> {
+  if (!shouldSendWhatsAppToCommercials()) {
+    return skippedCommercialSend(to, "sendDevExerciseNudge");
+  }
   const template: TemplateObject = {
     name: DEV_EXERCISE_NUDGE_TEMPLATE,
     language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },

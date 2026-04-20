@@ -38,6 +38,7 @@ import {
     CalendarCheck,
     Sparkles,
     MessagesSquare,
+    ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -75,6 +76,11 @@ const navItems: NavItem[] = [
         children: [
             { label: "Pipeline", href: "/platform/post-venta/pipeline", icon: GitBranch },
         ],
+    },
+    {
+        label: "Captación",
+        href: "/platform/captacion",
+        icon: ClipboardList,
     },
     {
         label: "Colaboradores",
