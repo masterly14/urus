@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { PricingDataIncompleteError } from "@/lib/pricing/types";
+import {
+  PricingDataIncompleteError,
+  PricingNotEligibleError,
+} from "@/lib/pricing/types";
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -35,7 +38,7 @@ const BASE_PROPERTY = {
   metrosConstruidos: 85,
   habitaciones: 3,
   banyos: 1,
-  ciudad: "Murcia",
+  ciudad: "Córdoba",
   zona: "Centro",
   estado: "Disponible",
   fechaAlta: "2026-01-01",
@@ -63,7 +66,7 @@ describe("extractPropertyForPricing", () => {
     expect(result.precio).toBe(150000);
     expect(result.precioM2).toBe(Math.round(150000 / 85));
     expect(result.metrosConstruidos).toBe(85);
-    expect(result.ciudad).toBe("Murcia");
+    expect(result.ciudad).toBe("Córdoba");
     expect(result.tipologiaNombre).toBe("Piso");
     expect(result.keyTipo).toBe(3);
     expect(result.tipoOperacion).toBe("sale");
@@ -99,6 +102,23 @@ describe("extractPropertyForPricing", () => {
     mockPropertyCurrent.mockResolvedValue({ ...BASE_PROPERTY, ciudad: "" });
 
     await expect(extractPropertyForPricing("12345")).rejects.toThrow(PricingDataIncompleteError);
+  });
+
+  it("lanza PricingDataIncompleteError si falta zona", async () => {
+    mockPropertyCurrent.mockResolvedValue({ ...BASE_PROPERTY, zona: "" });
+
+    await expect(extractPropertyForPricing("12345")).rejects.toThrow(PricingDataIncompleteError);
+    try {
+      await extractPropertyForPricing("12345");
+    } catch (err) {
+      expect((err as PricingDataIncompleteError).missingFields).toContain("zona");
+    }
+  });
+
+  it("lanza PricingNotEligibleError si la ciudad no es Córdoba", async () => {
+    mockPropertyCurrent.mockResolvedValue({ ...BASE_PROPERTY, ciudad: "Sevilla" });
+
+    await expect(extractPropertyForPricing("12345")).rejects.toThrow(PricingNotEligibleError);
   });
 
   it("resuelve tipoOperacion rent si keyacci = 2", async () => {

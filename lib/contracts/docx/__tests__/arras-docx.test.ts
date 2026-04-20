@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
+import JSZip from "jszip";
 import type { ArrasContractPayload, ContractTemplateInput } from "@/types/contracts";
 import { buildArrasRenderModel } from "../builders/arras";
 import { generateContractDocx } from "../index";
 
 type ArrasInput = Extract<ContractTemplateInput, { kind: "arras" }>;
+
+async function extractDocumentXml(buffer: Buffer): Promise<string> {
+  const zip = await JSZip.loadAsync(buffer);
+  const entry = zip.file("word/document.xml");
+  if (!entry) throw new Error("word/document.xml no encontrado en el docx");
+  return await entry.async("string");
+}
 
 function buildArrasInput(overrides?: Partial<ArrasContractPayload>): ArrasInput {
   const basePayload: ArrasContractPayload = {
@@ -98,6 +106,38 @@ describe("contracts/docx arras generator", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected ok");
     expect(result.fileName).toBe("OP-2026-0001_Arras_v1.docx");
+  });
+
+  it("inyecta la sección 'CLAUSULAS ADICIONALES' cuando se pasa additionalClausesDoc", async () => {
+    const result = await generateContractDocx(buildArrasInput(), {
+      additionalClausesDoc: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "La parte vendedora se compromete a dejar el inmueble limpio." }],
+          },
+        ],
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    const xml = await extractDocumentXml(result.buffer);
+    expect(xml).toContain("CLAUSULAS ADICIONALES");
+    expect(xml).toContain("dejar el inmueble limpio");
+  });
+
+  it("no modifica el DOCX cuando additionalClausesDoc está vacío", async () => {
+    const base = await generateContractDocx(buildArrasInput());
+    const withEmpty = await generateContractDocx(buildArrasInput(), {
+      additionalClausesDoc: { type: "doc", content: [{ type: "paragraph" }] },
+    });
+    expect(base.ok && withEmpty.ok).toBe(true);
+    if (!base.ok || !withEmpty.ok) throw new Error("expected ok");
+    const baseXml = await extractDocumentXml(base.buffer);
+    const emptyXml = await extractDocumentXml(withEmpty.buffer);
+    expect(baseXml).not.toContain("CLAUSULAS ADICIONALES");
+    expect(emptyXml).not.toContain("CLAUSULAS ADICIONALES");
   });
 
   it("renderiza clausula penitencial o confirmatoria segun flags.arrasRegime", () => {

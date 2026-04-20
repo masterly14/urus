@@ -1,6 +1,7 @@
 import type { OperacionEstado } from "@prisma/client";
 import type { Event } from "@/types/domain";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
+import type { JsonValue } from "@/lib/event-store/types";
 import { appendEvent } from "@/lib/event-store";
 import { isClosedOperation } from "@/lib/post-sale/closed-operation";
 import { prisma } from "@/lib/prisma";
@@ -320,6 +321,49 @@ export async function handleEstadoCambiado(event: Event): Promise<HandlerResult>
     console.log(
       `[consumer] ESTADO_CAMBIADO aggregateId=${event.aggregateId} → UPDATE_PROPERTY_PROJECTION`,
     );
+  }
+
+  // Si la propiedad dejó de estar "Libre", las demandas que tenían match
+  // pierden cobertura. Re-evaluar para buscar alternativas en Statefox.
+  const prevNorm = payload.previousEstado.toLowerCase().trim();
+  const newNorm = payload.newEstado.toLowerCase().trim();
+  if (prevNorm === "libre" && newNorm !== "libre") {
+    try {
+      const matchEvents = await prisma.event.findMany({
+        where: {
+          type: "MATCH_GENERADO",
+          payload: { path: ["propertyId"], equals: propertyCode },
+        },
+        select: { payload: true },
+        take: 50,
+      });
+
+      const demandIds = new Set<string>();
+      for (const ev of matchEvents) {
+        const p = ev.payload as Record<string, unknown> | null;
+        if (typeof p?.demandId === "string") demandIds.add(p.demandId);
+      }
+
+      for (const demandId of demandIds) {
+        followUpJobs.push({
+          type: "EVALUATE_DEMAND_COVERAGE",
+          payload: { demandId, sourceEventId: event.id } as unknown as JsonValue,
+          idempotencyKey: `evaluate_coverage:estado_changed:${event.id}:${demandId}`,
+          sourceEventId: event.id,
+        });
+      }
+
+      if (demandIds.size > 0) {
+        console.log(
+          `[consumer] ESTADO_CAMBIADO ${propertyCode} Libre→${payload.newEstado} → re-evaluando cobertura de ${demandIds.size} demandas`,
+        );
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[consumer] ESTADO_CAMBIADO ${propertyCode} — error buscando demandas afectadas: ${msg}`,
+      );
+    }
   }
 
   return { success: true, followUpJobs };

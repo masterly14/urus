@@ -29,7 +29,6 @@ function isOperacionCerradaPayload(p: unknown): p is OperacionCerradaPayload {
  *
  * Encola toda la cadencia post-venta (M9):
  *   D0  → Agradecimiento
- *   D+5 → Soporte
  *   D+12 → Reseña (Google Review)
  *   D+25 → Referidos
  *   D+120 → Re-captación

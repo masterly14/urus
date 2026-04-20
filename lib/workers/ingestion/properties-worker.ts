@@ -104,7 +104,10 @@ function delay(ms: number): Promise<void> {
 }
 
 function snapshotToProperty(s: PropertySnapshotData): InmovillaProperty {
-  return { ...s, raw: {} };
+  // Importante: preservar `raw` tal cual lo trajo la DB. Sobrescribirlo con `{}`
+  // rompe el paso de enriquecimiento de sync-enums (necesita `raw.key_loca`)
+  // y cualquier backfill offline de ciudad/zona/estado.
+  return { ...s, raw: s.raw ?? {} };
 }
 
 function listadoDiff(

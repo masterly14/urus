@@ -67,6 +67,9 @@ function curate(propertyId: string, p: StatefoxProperty): MicrositeCuratedProper
     propertyId,
     title: [p.pHousing, p.pZone?.name, p.pCity?.cityName].filter(Boolean).join(" · ") || "Propiedad",
     description: typeof p.pDesc === "string" && p.pDesc.trim() ? p.pDesc.trim() : null,
+    contactPhones: Array.isArray(p.pPhones)
+      ? p.pPhones.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter(Boolean)
+      : [],
     link: typeof p.pLink === "string" ? p.pLink : null,
     price: typeof p.pPrice === "number" ? p.pPrice : null,
     pricePerMeter: typeof p.pPricePerMeter === "number" ? p.pPricePerMeter : null,

@@ -6,6 +6,13 @@
 export { createInmovillaRestClient } from "./client";
 export type { InmovillaRestClient, InmovillaRestClientConfig } from "./client";
 export { getProperty, createProperty } from "./properties";
+export {
+  safeUpdateProperty,
+  resolveCodOferByRef,
+  READONLY_PROPERTY_FIELDS,
+  OPTIONAL_FK_FIELDS,
+} from "./safe-update";
+export type { SafeUpdateOptions, SafeUpdateResult } from "./safe-update";
 export { getClient, createClient, searchClient } from "./clients";
 export {
   getCalidades,

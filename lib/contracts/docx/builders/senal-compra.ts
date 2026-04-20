@@ -24,6 +24,15 @@ import {
   formatPersonLegalLine,
   toUpperLegal,
 } from "../formatters";
+import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
+import {
+  additionalClausesNumberingConfig,
+  buildAdditionalClausesParagraphs,
+} from "@/lib/contracts/additional-clauses/docx-serializer";
+
+export interface BuildSenalCompraDocumentOptions {
+  additionalClausesDoc?: AdditionalClausesDoc | null;
+}
 
 const FONT = "Calibri";
 
@@ -51,7 +60,10 @@ function formatAgencyFees(payload: SenalCompraContractPayload): string {
   return `${fees.percentOfFinalPrice}% del precio final de venta + ${fees.vatRatePercent}% de IVA`;
 }
 
-export async function buildSenalCompraDocument(payload: SenalCompraContractPayload): Promise<Document> {
+export async function buildSenalCompraDocument(
+  payload: SenalCompraContractPayload,
+  options: BuildSenalCompraDocumentOptions = {},
+): Promise<Document> {
   const dateEs = formatDateEsFromIso(payload.documentDateIso);
   const maxEscrituraEs = `${payload.timelines.maxNaturalDaysToEscrituraFromSenalSignature} dias naturales desde la firma del presente contrato`;
 
@@ -196,6 +208,11 @@ export async function buildSenalCompraDocument(payload: SenalCompraContractPaylo
 
   bodyChildren.push(body(paragraphs[idx]));
 
+  const additionalClausesParagraphs = buildAdditionalClausesParagraphs(
+    options.additionalClausesDoc ?? null,
+  );
+  bodyChildren.push(...additionalClausesParagraphs);
+
   bodyChildren.push(
     new Paragraph({
       spacing: { before: 320, after: 140 },
@@ -218,6 +235,7 @@ export async function buildSenalCompraDocument(payload: SenalCompraContractPaylo
         },
       },
     },
+    numbering: additionalClausesNumberingConfig,
     sections: [{ properties: {}, children: bodyChildren }],
   });
 }

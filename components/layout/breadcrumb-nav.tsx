@@ -22,7 +22,6 @@ const labelMap: Record<string, string> = {
     mercado: "Mercado",
     legal: "Legal",
     contratos: "Contratos",
-    plantillas: "Plantillas",
     bi: "Business Intelligence",
     financiero: "Financiero",
     operativo: "Operativo",

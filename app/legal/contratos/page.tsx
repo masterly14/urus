@@ -8,7 +8,6 @@ import {
     Eye,
     Mic,
     Send,
-    ArrowUpRight,
     Search,
     Calendar,
     User,
@@ -17,7 +16,6 @@ import {
     Clock,
     AlertCircle,
     FileSignature,
-    Layers,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -80,13 +78,6 @@ export default function ContratosPage() {
                         </p>
                     </div>
                 </div>
-                <Link href="/legal/plantillas">
-                    <Badge variant="outline" className="gap-1.5 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors">
-                        <Layers className="h-3 w-3 text-secondary" />
-                        Gestión de Plantillas
-                        <ArrowUpRight className="h-3 w-3" />
-                    </Badge>
-                </Link>
             </div>
 
             {/* Status cards */}

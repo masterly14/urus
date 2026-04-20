@@ -5,7 +5,6 @@ import { resolveBuyerPhoneForDemand } from "@/lib/microsite/buyer-phone";
 import {
   searchSnapshotForDemand,
   type DemandFilterInput,
-  type SnapshotMatchedProperty,
 } from "@/lib/statefox";
 import type { StatefoxSnapshotProperty, StatefoxPropertyZone } from "@/lib/statefox";
 
@@ -13,6 +12,7 @@ export type MicrositeCuratedProperty = {
   propertyId: string;
   title: string;
   description: string | null;
+  contactPhones: string[];
   link: string | null;
   price: number | null;
   pricePerMeter: number | null;
@@ -46,6 +46,7 @@ export type GenerateMicrositeSelectionInput = {
   comercialId: string;
   demand: DemandFilterInput;
   sourceEventId?: string;
+  source?: string;
 };
 
 export type GenerateMicrositeSelectionResult =
@@ -69,6 +70,15 @@ function extractImages(p: StatefoxSnapshotProperty): string[] {
   return imgs
     .filter((src): src is string => typeof src === "string" && src.trim() !== "")
     .slice(0, 30);
+}
+
+function extractPhones(p: StatefoxSnapshotProperty): string[] {
+  if (!Array.isArray(p.pPhones)) return [];
+  return p.pPhones
+    .filter((phone): phone is string => typeof phone === "string")
+    .map((phone) => phone.trim())
+    .filter((phone) => phone.length > 0)
+    .slice(0, 10);
 }
 
 function extractExtras(p: StatefoxSnapshotProperty): string[] {
@@ -133,6 +143,7 @@ function curate(propertyId: string, p: StatefoxSnapshotProperty): MicrositeCurat
     propertyId,
     title: makeTitle(p),
     description: typeof p.pDescription === "string" && p.pDescription.trim() ? p.pDescription.trim() : null,
+    contactPhones: extractPhones(p),
     link: typeof p.pLink === "string" ? p.pLink : null,
     price: typeof p.pPrice === "number" ? p.pPrice : null,
     pricePerMeter: computePricePerMeter(p),
@@ -191,6 +202,9 @@ export function coerceMicrositeCuratedProperties(value: unknown): MicrositeCurat
         propertyId,
         title,
         description: coerceNullableString(o.description),
+        contactPhones: Array.isArray(o.contactPhones)
+          ? (o.contactPhones.filter((x) => typeof x === "string") as string[]).map((x) => x.trim()).filter(Boolean).slice(0, 10)
+          : [],
         link: coerceNullableString(o.link),
         price: coerceNullableNumber(o.price),
         pricePerMeter: coerceNullableNumber(o.pricePerMeter),
@@ -349,7 +363,7 @@ export async function generateMicrositeSelection(
   ];
 
   const seen = new Set<string>();
-  let allRanked: Array<{ propertyId: string; property: StatefoxSnapshotProperty; score: number }> = [];
+  const allRanked: Array<{ propertyId: string; property: StatefoxSnapshotProperty; score: number }> = [];
   let totalStock = 0;
   let lastSearchMeta = { pagesScanned: 0, totalScanned: 0, earlyExit: false };
 
@@ -434,6 +448,7 @@ export async function generateMicrositeSelection(
       stockCount: totalStock,
       sourceEventId: input.sourceEventId,
       validationDueAt,
+      source: input.source ?? null,
     },
     select: { id: true },
   });

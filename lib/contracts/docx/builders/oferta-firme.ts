@@ -20,6 +20,15 @@ import {
   formatPeopleList,
   toUpperLegal,
 } from "../formatters";
+import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
+import {
+  additionalClausesNumberingConfig,
+  buildAdditionalClausesParagraphs,
+} from "@/lib/contracts/additional-clauses/docx-serializer";
+
+export interface BuildOfertaFirmeDocumentOptions {
+  additionalClausesDoc?: AdditionalClausesDoc | null;
+}
 
 const FONT = "Calibri";
 
@@ -63,7 +72,10 @@ function formatPropertyRegistryBlock(payload: OfertaFirmeContractPayload): strin
   return parts.join(". ") + ".";
 }
 
-export async function buildOfertaFirmeDocument(payload: OfertaFirmeContractPayload): Promise<Document> {
+export async function buildOfertaFirmeDocument(
+  payload: OfertaFirmeContractPayload,
+  options: BuildOfertaFirmeDocumentOptions = {},
+): Promise<Document> {
   const dateEs = formatDateEsFromIso(payload.documentDateIso);
 
   const paragraphs: string[] = [];
@@ -158,6 +170,11 @@ export async function buildOfertaFirmeDocument(payload: OfertaFirmeContractPaylo
   bodyChildren.push(heading("Septimo."));
   bodyChildren.push(body(paragraphs[10]));
 
+  const additionalClausesParagraphs = buildAdditionalClausesParagraphs(
+    options.additionalClausesDoc ?? null,
+  );
+  bodyChildren.push(...additionalClausesParagraphs);
+
   bodyChildren.push(body(paragraphs[11]));
 
   const signLine = payload.flags.includePropertyAcceptanceSection
@@ -186,6 +203,7 @@ export async function buildOfertaFirmeDocument(payload: OfertaFirmeContractPaylo
         },
       },
     },
+    numbering: additionalClausesNumberingConfig,
     sections: [{ properties: {}, children: bodyChildren }],
   });
 }

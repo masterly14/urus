@@ -15,6 +15,7 @@ import {
   type VoiceApplyClientResponse,
 } from "@/lib/legal/smart-closing/voice-apply-session";
 import type { ContractFieldIssue, ContractTemplateInput } from "@/types/contracts";
+import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 
 /** Contexto para persistir CONTRATO_VERSIONADO tras voice-apply (Neon). */
@@ -74,10 +75,17 @@ function isVoiceApplyResponse(data: unknown): data is VoiceApplyClientResponse {
 
 export function useSmartClosingSession(
   initialInput: ContractTemplateInput,
-  options?: { versioningContext?: SmartClosingVersioningContext },
+  options?: {
+    versioningContext?: SmartClosingVersioningContext;
+    initialAdditionalClausesDoc?: AdditionalClausesDoc | null;
+  },
 ) {
   const versioningContextRef = useRef(options?.versioningContext);
   versioningContextRef.current = options?.versioningContext;
+
+  const additionalClausesDocRef = useRef<AdditionalClausesDoc | null>(
+    options?.initialAdditionalClausesDoc ?? null,
+  );
 
   const [phase, setPhase] = useState<SmartClosingPhase>("loading_initial");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -126,7 +134,10 @@ export function useSmartClosingSession(
         const res = await fetch("/api/contracts/render", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contractTemplateInput: input }),
+          body: JSON.stringify({
+            contractTemplateInput: input,
+            additionalClausesDoc: additionalClausesDocRef.current,
+          }),
         });
         const data: unknown = await res.json();
         if (!res.ok) {
@@ -233,6 +244,7 @@ export function useSmartClosingSession(
           body: JSON.stringify({
             transcript: trimmed,
             contractTemplateInput: current.contractTemplateInput,
+            additionalClausesDoc: additionalClausesDocRef.current,
             ...(vc
               ? {
                   versioningContext: {
@@ -375,6 +387,20 @@ export function useSmartClosingSession(
     setPhase(docStateRef.current.docxBase64 ? "idle" : "loading_initial");
   }, []);
 
+  /**
+   * Actualiza las cláusulas adicionales en memoria y re-renderiza el DOCX
+   * para que la vista previa refleje inmediatamente los cambios del editor.
+   * La persistencia en BD se hace en paralelo desde el propio componente
+   * editor (PATCH /api/contracts/[id]).
+   */
+  const applyAdditionalClausesDoc = useCallback(
+    async (doc: AdditionalClausesDoc | null) => {
+      additionalClausesDocRef.current = doc;
+      await loadInitialRender(docStateRef.current.contractTemplateInput);
+    },
+    [loadInitialRender],
+  );
+
   return {
     phase,
     errorMessage,
@@ -399,5 +425,6 @@ export function useSmartClosingSession(
     signatureResult,
     signatureError,
     sendToSignature,
+    applyAdditionalClausesDoc,
   };
 }

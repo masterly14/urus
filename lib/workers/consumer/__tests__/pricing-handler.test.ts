@@ -10,6 +10,14 @@ vi.mock("@/lib/pricing", () => ({
       this.missingFields = fields;
     }
   },
+  PricingNotEligibleError: class extends Error {
+    reasons: string[];
+    constructor(code: string, reasons: string[]) {
+      super(`No elegible: ${code} (${reasons.join(", ")})`);
+      this.name = "PricingNotEligibleError";
+      this.reasons = reasons;
+    }
+  },
 }));
 
 vi.mock("@/lib/job-queue", () => ({
@@ -32,7 +40,11 @@ vi.mock("@/lib/microsite/app-url", () => ({
 
 import { handlePricingAnalysis } from "../pricing-handler";
 import { handleNotifyPricingWhatsApp } from "../pricing-notify-handler";
-import { runPricingAnalysis, PricingDataIncompleteError } from "@/lib/pricing";
+import {
+  runPricingAnalysis,
+  PricingDataIncompleteError,
+  PricingNotEligibleError,
+} from "@/lib/pricing";
 import { enqueueJob } from "@/lib/job-queue";
 import { sendPricingReportToCommercial } from "@/lib/whatsapp/send";
 import { resolveAgentPhoneByProperty } from "@/lib/routing/resolve-property-agent";
@@ -126,6 +138,18 @@ describe("handlePricingAnalysis (RUN_PRICING_ANALYSIS)", () => {
   it("maneja PricingDataIncompleteError como completado sin notificación", async () => {
     mockRunPricing.mockRejectedValue(
       new PricingDataIncompleteError("PROP-002", ["precio", "ciudad"]),
+    );
+
+    const job = makeJob("RUN_PRICING_ANALYSIS", { propertyCode: "PROP-002" });
+    const result = await handlePricingAnalysis(job);
+
+    expect(result.success).toBe(true);
+    expect(mockEnqueue).not.toHaveBeenCalled();
+  });
+
+  it("maneja PricingNotEligibleError como completado sin notificación", async () => {
+    mockRunPricing.mockRejectedValue(
+      new PricingNotEligibleError("PROP-002", ["ciudad fuera de cobertura"]),
     );
 
     const job = makeJob("RUN_PRICING_ANALYSIS", { propertyCode: "PROP-002" });

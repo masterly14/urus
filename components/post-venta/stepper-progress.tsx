@@ -12,10 +12,9 @@ interface StepperProgressProps {
 
 const steps = [
     { id: 1 as EtapaPostVenta, label: "Cierre Inmediato", description: "Agradecimiento + Email resumen", emoji: "🤝" },
-    { id: 2 as EtapaPostVenta, label: "Soporte Temprano", description: "Validación + Mini guía", emoji: "📋" },
-    { id: 3 as EtapaPostVenta, label: "Reputación", description: "Petición de reseña", emoji: "⭐" },
-    { id: 4 as EtapaPostVenta, label: "Referidos", description: "Invitación + Enlace", emoji: "🔗" },
-    { id: 5 as EtapaPostVenta, label: "Recaptación", description: "Segmentación", emoji: "🔄" },
+    { id: 2 as EtapaPostVenta, label: "Reputación", description: "Petición de reseña", emoji: "⭐" },
+    { id: 3 as EtapaPostVenta, label: "Referidos", description: "Invitación + Enlace", emoji: "🔗" },
+    { id: 4 as EtapaPostVenta, label: "Recaptación", description: "Segmentación", emoji: "🔄" },
 ];
 
 export function StepperProgress({ currentStep, className, compact = false }: StepperProgressProps) {

@@ -104,6 +104,7 @@ function curatedFromSummary(
     propertyId: p.propertyId,
     title: p.title,
     description: null,
+    contactPhones: [],
     link: null,
     price: p.price,
     pricePerMeter: null,

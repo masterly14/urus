@@ -80,7 +80,7 @@ async function resolveRecipient(propertyCode: string): Promise<{
 }
 
 /**
- * Procesa SEND_POST_SALE_MESSAGE (fases: agradecimiento, soporte, recaptación).
+ * Procesa SEND_POST_SALE_MESSAGE (fases: agradecimiento, recaptación).
  */
 export async function handleSendPostSaleMessage(
   job: JobRecord,
@@ -88,6 +88,13 @@ export async function handleSendPostSaleMessage(
   const payload = parsePayload(job.payload);
   if (!payload) {
     return { success: false, error: "SEND_POST_SALE_MESSAGE sin payload válido", permanent: true };
+  }
+
+  if (String(payload.phase) === "soporte") {
+    console.warn(
+      `[post-sale] SEND_POST_SALE_MESSAGE job ${job.id} phase=soporte deprecado — omitiendo`,
+    );
+    return { success: true };
   }
 
   const { phone, clientName, comercialName } = await resolveRecipient(payload.propertyCode);
@@ -99,18 +106,12 @@ export async function handleSendPostSaleMessage(
     return { success: true };
   }
 
-  const base = getPublicAppUrl();
-  const postVentaUrl = payload.phase === "soporte"
-    ? `${base}/post-venta/operacion/${payload.propertyCode}`
-    : undefined;
-
   const params: PostSaleMessageParams = {
     propertyCode: payload.propertyCode,
     phase: payload.phase,
     newEstado: payload.newEstado,
     clientName: clientName ?? undefined,
     comercialName: comercialName ?? undefined,
-    postVentaUrl,
   };
 
   await sendPostSaleMessage(phone, params);

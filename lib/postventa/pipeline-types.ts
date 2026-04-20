@@ -1,4 +1,4 @@
-export type EtapaPostVenta = 1 | 2 | 3 | 4 | 5;
+export type EtapaPostVenta = 1 | 2 | 3 | 4;
 export type TipoCliente = "comprador" | "inversor" | "vendedor";
 export type LeadStatusPipeline =
   | "NUEVO"

@@ -40,7 +40,6 @@ vi.mock("@/lib/job-queue", () => ({
 }));
 
 const mockSendAgradecimiento = vi.fn();
-const mockSendSoporte = vi.fn();
 const mockSendResena = vi.fn();
 const mockSendReferidos = vi.fn();
 const mockSendRecaptacion = vi.fn();
@@ -49,7 +48,6 @@ const mockSendNavidad = vi.fn();
 
 vi.mock("@/lib/whatsapp/send", () => ({
   sendPostventaAgradecimiento: (...args: unknown[]) => mockSendAgradecimiento(...args),
-  sendPostventaSoporte: (...args: unknown[]) => mockSendSoporte(...args),
   sendPostventaResena: (...args: unknown[]) => mockSendResena(...args),
   sendPostventaReferidos: (...args: unknown[]) => mockSendReferidos(...args),
   sendPostventaRecaptacion: (...args: unknown[]) => mockSendRecaptacion(...args),
@@ -145,7 +143,7 @@ describe("handleSendPostventaMessage", () => {
     );
   });
 
-  it("envía soporte D3 con URL de guía", async () => {
+  it("omite envío de plantilla soporte antigua (jobs legacy en cola)", async () => {
     setupBuyerFromLegalDoc("34600111222", "Juan García");
     setupComercial("María López");
 
@@ -160,15 +158,8 @@ describe("handleSendPostventaMessage", () => {
     const result = await handleSendPostventaMessage(job);
 
     expect(result.success).toBe(true);
-    expect(mockSendSoporte).toHaveBeenCalledWith(
-      "34600111222",
-      expect.objectContaining({
-        buyerName: "Juan García",
-        guideUrl: "https://app.test/postventa/guia",
-        propertyCode: "P-1",
-      }),
-      expect.objectContaining({ useTemplate: true }),
-    );
+    expect(mockSendAgradecimiento).not.toHaveBeenCalled();
+    expect(mockSendResena).not.toHaveBeenCalled();
   });
 
   it("omite envío D10 si hay incidencia abierta", async () => {
@@ -259,7 +250,7 @@ describe("handleSendPostventaMessage", () => {
     expect(result.permanent).toBe(true);
   });
 
-  it("D0 y D3 no verifican incidencias (requiresNoIncidencia=false)", async () => {
+  it("D0 no verifica incidencias (requiresNoIncidencia=false)", async () => {
     setupBuyerFromLegalDoc("34600111222", "Juan García");
     setupComercial("María López");
 

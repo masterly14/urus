@@ -31,6 +31,7 @@ import { DocxPreviewPanel } from "@/components/legal/smart-closing/docx-preview-
 import { PayloadSummaryFields } from "@/components/legal/smart-closing/payload-summary-fields";
 import { SmartClosingVoicePanel } from "@/components/legal/smart-closing/voice-panel";
 import { VersionHistoryPanel } from "@/components/legal/smart-closing/version-history-panel";
+import { AdditionalClausesEditor } from "@/components/legal/smart-closing/additional-clauses-editor";
 import {
   useSmartClosingSession,
   type SmartClosingVersioningContext,
@@ -38,6 +39,7 @@ import {
 } from "@/components/legal/smart-closing/use-smart-closing-session";
 import type { SmartClosingContractDetailDto } from "@/lib/legal/smart-closing/contracts-api";
 import type { ContractTemplateInput } from "@/types/contracts";
+import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
 
 function extractPrimarySignerName(input: ContractTemplateInput): string {
   switch (input.kind) {
@@ -129,7 +131,28 @@ function SmartClosingContractDetail({
     signatureResult,
     signatureError,
     sendToSignature,
-  } = useSmartClosingSession(initialTemplate, { versioningContext });
+    applyAdditionalClausesDoc,
+  } = useSmartClosingSession(initialTemplate, {
+    versioningContext,
+    initialAdditionalClausesDoc: contract.additionalClausesDoc,
+  });
+
+  // Una edición en el editor WYSIWYG:
+  // 1. Persiste el JSON en BD (lo hace el propio componente, debounced).
+  // 2. Re-renderiza el DOCX para que la preview y el PDF final de firma
+  //    incluyan las cláusulas con el último contenido.
+  const clausesRerenderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleClausesPersisted = useCallback(
+    (_updatedAt: string | null, doc: AdditionalClausesDoc | null) => {
+      if (clausesRerenderTimerRef.current) {
+        clearTimeout(clausesRerenderTimerRef.current);
+      }
+      clausesRerenderTimerRef.current = setTimeout(() => {
+        void applyAdditionalClausesDoc(doc);
+      }, 300);
+    },
+    [applyAdditionalClausesDoc],
+  );
 
   const handleConfirmApproveAndSign = useCallback(async () => {
     const buyerN = signerName.trim();
@@ -391,14 +414,23 @@ function SmartClosingContractDetail({
       )}
 
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,400px)] lg:gap-6">
-        <DocxPreviewPanel
-          contractTemplateInput={docState.contractTemplateInput}
-          docxBase64={docState.docxBase64}
-          docxFileName={docState.docxFileName}
-          previewHtml={previewHtml}
-          loading={phase === "loading_initial"}
-          converting={phase === "converting_preview"}
-        />
+        <div className="flex min-w-0 flex-col gap-4">
+          <DocxPreviewPanel
+            contractTemplateInput={docState.contractTemplateInput}
+            docxBase64={docState.docxBase64}
+            docxFileName={docState.docxFileName}
+            previewHtml={previewHtml}
+            loading={phase === "loading_initial"}
+            converting={phase === "converting_preview"}
+          />
+
+          <AdditionalClausesEditor
+            contractId={contract.id}
+            initialDoc={contract.additionalClausesDoc}
+            readOnly={approved || contract.status !== "DRAFT"}
+            onPersisted={handleClausesPersisted}
+          />
+        </div>
 
         <aside className="flex min-w-0 flex-col gap-4">
           <SmartClosingVoicePanel

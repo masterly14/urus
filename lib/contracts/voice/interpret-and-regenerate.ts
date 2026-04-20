@@ -6,6 +6,7 @@
 import { interpretContractVoiceInstructions } from "@/lib/agents/contract-instruction-graph";
 import type { ContractVoiceStructuredPatch } from "@/lib/agents/contract-instruction-types";
 import type { ContractFieldIssue, ContractTemplateInput } from "@/types/contracts";
+import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
 import { generateContractDocx } from "../docx";
 import { bumpVoiceRevisionTemplateVersion } from "./bump-template-version";
 import { applyArrasVoicePatches } from "./apply-arras-instructions";
@@ -26,6 +27,11 @@ export interface InterpretVoiceAndRegenerateParams {
    * @default true
    */
   bumpTemplateRevision?: boolean;
+  /**
+   * Cláusulas adicionales libres a incluir al regenerar el DOCX. Se
+   * propagan tal cual a `generateContractDocx` — la voz no las modifica.
+   */
+  additionalClausesDoc?: AdditionalClausesDoc | null;
 }
 
 export type InterpretVoiceAndRegenerateResult =
@@ -118,7 +124,13 @@ function applyVoicePatchOnce(
 export async function interpretVoiceAndRegenerateDocx(
   params: InterpretVoiceAndRegenerateParams,
 ): Promise<InterpretVoiceAndRegenerateResult> {
-  const { transcript, input, outputTemplateVersion, bumpTemplateRevision = true } = params;
+  const {
+    transcript,
+    input,
+    outputTemplateVersion,
+    bumpTemplateRevision = true,
+    additionalClausesDoc = null,
+  } = params;
 
   if (input.kind !== "arras" && input.kind !== "senal_compra" && input.kind !== "oferta_firme") {
     throw new Error(`Regeneración por voz no soportada para kind="${input.kind}".`);
@@ -173,7 +185,7 @@ export async function interpretVoiceAndRegenerateDocx(
   const nextTemplateVersion = updatedInput.templateVersion;
 
   const regenerationStartedAt = Date.now();
-  const docxResult = await generateContractDocx(updatedInput);
+  const docxResult = await generateContractDocx(updatedInput, { additionalClausesDoc });
   const regenerationMs = Date.now() - regenerationStartedAt;
 
   if (!docxResult.ok) {

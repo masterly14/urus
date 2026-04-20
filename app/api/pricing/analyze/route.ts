@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
-import { runPricingAnalysis, PricingDataIncompleteError } from "@/lib/pricing";
+import {
+  runPricingAnalysis,
+  PricingDataIncompleteError,
+  PricingNotEligibleError,
+} from "@/lib/pricing";
 import { withObservedRoute } from "@/lib/observability";
 
 
@@ -56,6 +60,17 @@ const postHandler = async (request: Request) => {
 
     return NextResponse.json(result);
   } catch (err) {
+    if (err instanceof PricingNotEligibleError) {
+      return NextResponse.json(
+        {
+          error: "Propiedad no elegible para Smart Pricing",
+          reasons: err.reasons,
+          message: err.message,
+        },
+        { status: 422 },
+      );
+    }
+
     if (err instanceof PricingDataIncompleteError) {
       return NextResponse.json(
         {

@@ -24,7 +24,7 @@ export type { PricingAnalysisResult, PricingOptions } from "./types";
 export type { PricingPropertyInput, PricingComparable, PricingClusterStats, SemaforoStatus } from "./types";
 export type { PricingRecommendation, PricingAction } from "./recommendation-types";
 export { PricingRecommendationSchema } from "./recommendation-types";
-export { PricingDataIncompleteError } from "./types";
+export { PricingDataIncompleteError, PricingNotEligibleError } from "./types";
 export { extractPropertyForPricing } from "./extract-property";
 export { fetchPricingComparables } from "./fetch-comparables";
 export { analyzeCluster } from "./analyze-cluster";

@@ -153,3 +153,18 @@ export class PricingDataIncompleteError extends Error {
     this.missingFields = missingFields;
   }
 }
+
+/**
+ * Error de elegibilidad: la propiedad existe y tiene datos, pero no cumple
+ * la política de negocio para ejecutar Smart Pricing.
+ */
+export class PricingNotEligibleError extends Error {
+  public readonly reasons: string[];
+  constructor(propertyCode: string, reasons: string[]) {
+    super(
+      `Análisis de pricing no permitido para inmueble ${propertyCode}: ${reasons.join(", ")}`,
+    );
+    this.name = "PricingNotEligibleError";
+    this.reasons = reasons;
+  }
+}

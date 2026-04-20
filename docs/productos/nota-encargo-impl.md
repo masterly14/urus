@@ -83,6 +83,7 @@ Sistema que automatiza la "Nota de Encargo Inmobiliaria": desde que el comercial
 │                                                              │
 │  Pantalla 2 — Datos del Encargo:                              │
 │    - Dirección inmueble (prellenado, TextInput readonly)      │
+│    - Referencia catastral (prellenado, solo lectura)          │
 │    - Operación: Venta/Alquiler (prellenado, RadioButtons)     │
 │    - Precio (prellenado, TextInput readonly)                  │
 │    - Duración encargo en meses (TextInput number)             │
@@ -94,7 +95,8 @@ Sistema que automatiza la "Nota de Encargo Inmobiliaria": desde que el comercial
 │    - [Enviar] (Footer complete)                               │
 │                                                              │
 │  flow_action_data inicial (prellenado):                       │
-│    { direccion, tipoOperacion, precio, propertyRef }          │
+│    { direccion, tipoOperacion, precio, propertyRef,         │
+│      referenciaCatastral }                                    │
 └──────────────────┬──────────────────────────────────────────┘
                    │
                    ▼
@@ -183,6 +185,7 @@ model NotaEncargoSession {
 
   // Datos prellenados desde PropertySnapshot.raw
   direccion           String            @default("")
+  referenciaCatastral String            @default("")   // RC catastral (si consta en ficha)
   tipoOperacion       String            @default("")   // VENTA | ALQUILER
   precio              Float             @default(0)
 
@@ -396,7 +399,7 @@ runTasksIngestionCycle()
        c. Si parseo falla → skip (no es tarea de captación válida)
        d. Busca PropertyCurrent + PropertySnapshot por ref
        e. Si propiedad no encontrada → skip con log warning
-       f. Extrae datos de propiedad (dirección, precio, tipo)
+       f. Extrae datos de propiedad (dirección, precio, tipo, referencia catastral desde `raw.rcatastral` si consta)
        g. Guarda TaskSnapshot
        h. Crea NotaEncargoSession con datos prellenados
        i. appendEvent(NOTA_ENCARGO_DETECTADA)
@@ -880,6 +883,7 @@ async function handleNotaEncargoEnviarFormulario(job: Job): Promise<HandlerResul
     tipoOperacion: session.tipoOperacion,
     precio: session.precio,
     propertyRef: session.propertyRef,
+    referenciaCatastral: session.referenciaCatastral,
   });
   
   await prisma.notaEncargoSession.update({
@@ -970,6 +974,7 @@ DATOS_PERSONALES → DATOS_ENCARGO (terminal)
       "data": {
         "flow_token": { "type": "string", "__example__": "session_abc123" },
         "direccion_inmueble": { "type": "string", "__example__": "Calle de los Flamencos, 8, La Carlota, Córdoba" },
+        "referencia_catastral": { "type": "string", "__example__": "9872023VH5797S0006XS" },
         "tipo_operacion": { "type": "string", "__example__": "VENTA" },
         "precio_inmueble": { "type": "string", "__example__": "275.000 €" }
       },
@@ -994,6 +999,7 @@ DATOS_PERSONALES → DATOS_ENCARGO (terminal)
                 "telefono": "${form.telefono}",
                 "domicilio_fiscal": "${form.domicilio_fiscal}",
                 "direccion_inmueble": "${data.direccion_inmueble}",
+                "referencia_catastral": "${data.referencia_catastral}",
                 "tipo_operacion": "${data.tipo_operacion}",
                 "precio_inmueble": "${data.precio_inmueble}"
               }
@@ -1014,6 +1020,7 @@ DATOS_PERSONALES → DATOS_ENCARGO (terminal)
         "telefono": { "type": "string", "__example__": "666777888" },
         "domicilio_fiscal": { "type": "string", "__example__": "Calle Mayor 1, Córdoba" },
         "direccion_inmueble": { "type": "string", "__example__": "Calle de los Flamencos, 8" },
+        "referencia_catastral": { "type": "string", "__example__": "9872023VH5797S0006XS" },
         "tipo_operacion": { "type": "string", "__example__": "VENTA" },
         "precio_inmueble": { "type": "string", "__example__": "275.000 €" }
       },
@@ -1022,6 +1029,7 @@ DATOS_PERSONALES → DATOS_ENCARGO (terminal)
         "children": [
           { "type": "TextSubheading", "text": "Datos del inmueble" },
           { "type": "TextBody", "text": "${data.direccion_inmueble}" },
+          { "type": "TextCaption", "text": "Referencia catastral: ${data.referencia_catastral}" },
           { "type": "TextBody", "text": "${data.tipo_operacion}" },
           { "type": "TextCaption", "text": "${data.precio_inmueble}" },
           { "type": "TextInput", "name": "duracion_meses", "label": "Duración (meses)", "input-type": "number", "required": true, "helper-text": "Número de meses" },
@@ -1049,6 +1057,7 @@ DATOS_PERSONALES → DATOS_ENCARGO (terminal)
                 "dni": "${data.dni}",
                 "telefono": "${data.telefono}",
                 "domicilio_fiscal": "${data.domicilio_fiscal}",
+                "referencia_catastral": "${data.referencia_catastral}",
                 "duracion_meses": "${form.duracion_meses}",
                 "tipo_nota": "${form.tipo_nota}",
                 "acepta_lopd": "${form.acepta_lopd}"
@@ -1085,6 +1094,8 @@ export async function sendNotaEncargoFlow(
     tipoOperacion: string;
     precio: number;
     propertyRef: string;
+    /** Desde PropertySnapshot / ficha Inmovilla; cadena vacía si no consta */
+    referenciaCatastral?: string;
     propietarioNombre?: string;
   },
   options?: SendOptions,
@@ -1114,6 +1125,7 @@ export async function sendNotaEncargoFlow(
               flow_action_data: {
                 property_ref: params.propertyRef,
                 direccion_inmueble: params.direccion,
+                referencia_catastral: params.referenciaCatastral ?? "",
                 tipo_operacion: params.tipoOperacion,
                 precio_inmueble: precioFmt,
                 flow_token: params.sessionId,
@@ -1157,6 +1169,7 @@ export async function sendNotaEncargoFlowInteractive(
           data: JSON.stringify({
             property_ref: params.propertyRef,
             direccion_inmueble: params.direccion,
+            referencia_catastral: params.referenciaCatastral ?? "",
             tipo_operacion: params.tipoOperacion,
             precio_inmueble: precioFmt,
             flow_token: params.sessionId,
@@ -1186,7 +1199,7 @@ Cuando el propietario completa el formulario, llega un webhook de tipo `interact
       "nfm_reply": {
         "name": "flow",
         "body": "Sent",
-        "response_json": "{\"flow_token\":\"<sessionId>\",\"nombre_completo\":\"...\",\"dni\":\"...\",\"telefono\":\"...\",\"domicilio_fiscal\":\"...\",\"duracion_meses\":\"6\",\"tipo_nota\":\"N2\",\"acepta_lopd\":true}"
+        "response_json": "{\"flow_token\":\"<sessionId>\",\"nombre_completo\":\"...\",\"dni\":\"...\",\"telefono\":\"...\",\"domicilio_fiscal\":\"...\",\"referencia_catastral\":\"9872023VH5797S0006XS\",\"duracion_meses\":\"6\",\"tipo_nota\":\"N2\",\"acepta_lopd\":true}"
       }
     }
   }]
@@ -1230,6 +1243,7 @@ export interface NotaEncargoData {
   domicilioFiscal: string;
   // Inmueble
   direccion: string;
+  referenciaCatastral: string;
   tipoOperacion: "VENTA" | "ALQUILER";
   precio: number;
   duracionMeses: number;
@@ -1294,6 +1308,9 @@ export async function generateNotaEncargoPdf(data: NotaEncargoData): Promise<Buf
   // ------------------------------------------------------------------
   y = drawSectionHeader(page, "DATOS DEL INMUEBLE A LA VENTA", margin, y, width, helveticaBold, gold);
   y = drawField(page, "Dirección", data.direccion, margin, y, helvetica, helveticaBold, bodySize, dark);
+  if (data.referenciaCatastral.trim()) {
+    y = drawField(page, "Referencia catastral", data.referenciaCatastral, margin, y, helvetica, helveticaBold, bodySize, dark);
+  }
   y = drawField(page, "Operación", data.tipoOperacion, margin, y, helvetica, helveticaBold, bodySize, dark);
   y = drawField(page, "Precio", `${new Intl.NumberFormat("es-ES").format(data.precio)} €`, margin, y, helvetica, helveticaBold, bodySize, dark);
   y = drawField(page, "Duración", `${data.duracionMeses} meses`, margin, y, helvetica, helveticaBold, bodySize, dark);
@@ -1427,6 +1444,7 @@ export async function handleNotaEncargoFlowResponse(
     telefono: formData.telefono as string,
     domicilioFiscal: formData.domicilio_fiscal as string,
     direccion: session.direccion,
+    referenciaCatastral: String(formData.referencia_catastral ?? session.referenciaCatastral ?? ""),
     tipoOperacion: session.tipoOperacion as "VENTA" | "ALQUILER",
     precio: session.precio,
     duracionMeses: parseInt(formData.duracion_meses as string, 10),

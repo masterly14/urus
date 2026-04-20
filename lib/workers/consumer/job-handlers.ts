@@ -294,6 +294,7 @@ async function handleGenerateMicrosite(job: JobRecord): Promise<HandlerResult> {
     comercialId,
     demand,
     sourceEventId,
+    source: typeof payload.source === "string" ? payload.source : undefined,
   });
 
   if (!result.ok) {
@@ -301,10 +302,10 @@ async function handleGenerateMicrosite(job: JobRecord): Promise<HandlerResult> {
       `[consumer] GENERATE_MICROSITE job ${job.id} demandId=${demandId} — omitido: ${result.reason}`,
     );
 
-    // Sólo se avisa al comprador cuando el motivo es "no hay stock que encaje".
-    // Los errores de infraestructura (token/API Statefox) NO deben llegarle: son
-    // transitorios y se gestionan por otro canal (logs + alertas internas).
-    if (result.reason === "NO_MATCHING_PROPERTIES") {
+    // Sólo se avisa al comprador cuando el motivo es "no hay stock que encaje"
+    // y el caller no desactivó la notificación (coverage_scan no notifica).
+    const notifyOnEmpty = payload.notifyOnEmpty !== false;
+    if (result.reason === "NO_MATCHING_PROPERTIES" && notifyOnEmpty) {
       await notifyBuyerNoStockAvailable({
         job,
         demandId,
@@ -922,3 +923,8 @@ registerJobHandler("PARTE_VISITA_ENVIAR_FORMULARIO", handleParteVisitaEnviarForm
 import { handleSendWhatsAppMatch } from "./match-generado-handler";
 
 registerJobHandler("SEND_WHATSAPP_MATCH", handleSendWhatsAppMatch);
+
+// --- Coverage (M5): evaluación de cobertura de demanda por cartera interna ---
+import { handleEvaluateDemandCoverage } from "./coverage-handler";
+
+registerJobHandler("EVALUATE_DEMAND_COVERAGE", handleEvaluateDemandCoverage);

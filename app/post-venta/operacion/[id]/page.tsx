@@ -113,7 +113,7 @@ export default function OperacionDetallePage({ params }: { params: Promise<{ id:
                 <div
                     className="h-1.5"
                     style={{
-                        background: `linear-gradient(90deg, var(--urus-success) ${(operation.etapaActual / 5) * 100}%, oklch(0.3 0 0 / 20%) ${(operation.etapaActual / 5) * 100}%)`,
+                        background: `linear-gradient(90deg, var(--urus-success) ${(operation.etapaActual / 4) * 100}%, oklch(0.3 0 0 / 20%) ${(operation.etapaActual / 4) * 100}%)`,
                     }}
                 />
                 <CardContent className="p-6">
@@ -322,7 +322,7 @@ export default function OperacionDetallePage({ params }: { params: Promise<{ id:
                             </div>
 
                             {/* Recaptation suggestions */}
-                            {operation.etapaActual >= 5 && (
+                            {operation.etapaActual >= 4 && (
                                 <div className="mt-3 p-3 rounded-lg bg-accent/20 border border-border/30">
                                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Acciones de Recaptación</p>
                                     <div className="space-y-1.5">

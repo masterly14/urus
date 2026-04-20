@@ -88,12 +88,14 @@ function InformeSkeleton() {
 
 function InformeError({
   status,
+  title,
   message,
   missingFields,
   onRetry,
   actionLabel,
 }: {
   status: number;
+  title?: string;
   message: string;
   missingFields?: string[];
   onRetry: () => void;
@@ -111,7 +113,7 @@ function InformeError({
         <CardContent className="p-8 text-center space-y-4">
           <AlertTriangle className="h-12 w-12 text-[var(--urus-danger)] mx-auto" />
           <h2 className="text-lg font-semibold">
-            {status === 422 ? "Datos incompletos para pricing" : "Error al generar informe"}
+            {title ?? (status === 422 ? "Datos incompletos para pricing" : "Error al generar informe")}
           </h2>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">{message}</p>
           {missingFields && missingFields.length > 0 && (
@@ -860,9 +862,14 @@ export default function InformePricingPage({
   }
 
   if (state.kind === "error") {
+    const inferredTitle =
+      state.status === 422 && !state.missingFields?.length
+        ? "Análisis no permitido para esta propiedad"
+        : undefined;
     return (
       <InformeError
         status={state.status}
+        title={inferredTitle}
         message={state.message}
         missingFields={state.missingFields}
         actionLabel={state.actionLabel}

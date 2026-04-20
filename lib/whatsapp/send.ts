@@ -28,7 +28,7 @@ const WHATSAPP_TEMPLATE_LANGUAGE_CODE =
  * before sending business-initiated messages.
  */
 export const WHATSAPP_TEMPLATES = {
-  PROPIEDAD_MATCH: "propiedad_match",                               // body: 2 vars (nombre, enlace)
+  MATCH: process.env.WHATSAPP_TEMPLATE_MATCH ?? "match", // body: 2 vars (nombre, enlace)
   LEAD_ASIGNADO: process.env.WHATSAPP_TEMPLATE_LEAD_ASIGNADO ?? "lead_asignado",     // body: 3 vars (leadId, score, slaLevel)
   LEAD_FOLLOW_UP: "lead_follow_up",                                  // body: 3 vars (leadId, step, score)
   CONTRATO_FIRMA_ENVIADA: process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_ENVIADA ?? "contrato_firma_enviada",     // body: 4 vars
@@ -38,7 +38,6 @@ export const WHATSAPP_TEMPLATES = {
   CONTRATO_FIRMA_SLA_ESCALADO: process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_SLA_ESCALADO ?? "contrato_firma_sla_escalado", // body: 3 vars
   PRICING_INFORME: process.env.WHATSAPP_TEMPLATE_PRICING_INFORME ?? "pricing_informe_listo",           // body: 5 vars
   POSTVENTA_AGRADECIMIENTO: process.env.WHATSAPP_TEMPLATE_POSTVENTA_AGRADECIMIENTO ?? "postventa_agradecimiento", // body: 3 vars
-  POSTVENTA_SOPORTE: process.env.WHATSAPP_TEMPLATE_POSTVENTA_SOPORTE ?? "postventa_soporte",           // body: 2 vars + 2 buttons
   POSTVENTA_RESENA: process.env.WHATSAPP_TEMPLATE_POSTVENTA_RESENA ?? "postventa_resena",             // body: 2 vars
   POSTVENTA_REFERIDOS: process.env.WHATSAPP_TEMPLATE_POSTVENTA_REFERIDOS ?? "postventa_referidos",       // body: 2 vars
   POSTVENTA_RECAPTACION: process.env.WHATSAPP_TEMPLATE_POSTVENTA_RECAPTACION ?? "postventa_recaptacion",   // body: 3 vars
@@ -166,7 +165,7 @@ export async function sendInteractiveMessage(  to: string,
 
 /**
  * Helper: envía la plantilla de match de propiedad estándar del sistema.
- * Template esperado: "propiedad_match" con variables {{1}}=nombre, {{2}}=enlace.
+ * Template esperado: "match" (override: WHATSAPP_TEMPLATE_MATCH) con variables {{1}}=nombre, {{2}}=enlace.
  * Requiere que la plantilla esté aprobada en Meta Business Manager.
  */
 export async function sendMatchNotification(
@@ -175,7 +174,7 @@ export async function sendMatchNotification(
   options?: SendOptions,
 ): Promise<SendMessageSuccess> {
   const template: TemplateObject = {
-    name: "propiedad_match",
+    name: WHATSAPP_TEMPLATES.MATCH,
     language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
     components: [
       {
@@ -466,7 +465,6 @@ export async function sendMicrositeValidationEscalation(
 
 export type PostSalePhase =
   | "agradecimiento"
-  | "soporte"
   | "resena"
   | "referidos"
   | "recaptacion";
@@ -507,22 +505,6 @@ function buildAgradecimientoMessage(params: PostSaleMessageParams): string {
       ? `Su comercial de referencia es *${params.comercialName}*. No dude en contactarle para cualquier consulta.`
       : `Nuestro equipo queda a su disposición para lo que necesite.`,
   ].join("\n");
-}
-
-function buildSoporteMessage(params: PostSaleMessageParams): string {
-  const name = params.clientName ? ` ${params.clientName}` : "";
-  const lines = [
-    `👋 *Hola${name}*`,
-    ``,
-    `Queremos asegurarnos de que todo va bien tras la entrega.`,
-    `¿Necesita ayuda con algo?`,
-  ];
-  if (params.postVentaUrl) {
-    lines.push(``, `Puede indicarnos aquí:`, params.postVentaUrl);
-  } else {
-    lines.push(``, `Responda a este mensaje y le atenderemos encantados.`);
-  }
-  return lines.join("\n");
 }
 
 function buildRecaptacionMessage(params: PostSaleMessageParams): string {
@@ -573,7 +555,6 @@ const PHASE_BUILDERS: Record<
   (params: PostSaleMessageParams) => string
 > = {
   agradecimiento: buildAgradecimientoMessage,
-  soporte: buildSoporteMessage,
   resena: buildResenaMessage,
   referidos: buildReferidosMessage,
   recaptacion: buildRecaptacionMessage,
@@ -585,6 +566,9 @@ export async function sendPostSaleMessage(
   options?: SendOptions,
 ): Promise<SendMessageSuccess> {
   const builder = PHASE_BUILDERS[params.phase];
+  if (!builder) {
+    throw new Error(`sendPostSaleMessage: fase desconocida "${params.phase}"`);
+  }
   return sendTextMessage(to, builder(params), options);
 }
 
@@ -1024,72 +1008,6 @@ export async function sendPostventaAgradecimiento(
     `Si necesitas algo durante estos primeros días, estamos aquí. ¡Disfrútala!`,
   ];
   return sendTextMessage(to, lines.join("\n"), options);
-}
-
-export type PostventaSoporteParams = {
-  buyerName: string;
-  guideUrl: string;
-  propertyCode: string;
-};
-
-const POSTVENTA_SOPORTE_TEMPLATE =
-  process.env.WHATSAPP_TEMPLATE_POSTVENTA_SOPORTE ?? "postventa_soporte";
-
-export async function sendPostventaSoporte(
-  to: string,
-  params: PostventaSoporteParams,
-  options?: SendOptions & { useTemplate?: boolean },
-): Promise<SendMessageSuccess> {
-  if (options?.useTemplate) {
-    const template: TemplateObject = {
-      name: POSTVENTA_SOPORTE_TEMPLATE,
-      language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
-      components: [
-        {
-          type: "body",
-          parameters: [
-            { type: "text", text: params.buyerName },
-            { type: "text", text: params.guideUrl },
-          ],
-        },
-        {
-          type: "button",
-          sub_type: "quick_reply",
-          index: "0",
-          parameters: [{ type: "payload", payload: `POSTVENTA_OK:${params.propertyCode}` }],
-        },
-        {
-          type: "button",
-          sub_type: "quick_reply",
-          index: "1",
-          parameters: [{ type: "payload", payload: `POSTVENTA_AYUDA:${params.propertyCode}` }],
-        },
-      ],
-    };
-    return sendTemplateMessage(to, template, options);
-  }
-
-  const bodyText = [
-    `🏠 *¿Todo bien con tu nueva vivienda?*`,
-    ``,
-    `Hola ${params.buyerName}, ya llevas unos días en tu nuevo hogar.`,
-    `¿Todo correcto con la entrega, llaves y suministros?`,
-    ``,
-    `Accede a nuestra guía práctica aquí:`,
-    params.guideUrl,
-  ].join("\n");
-
-  const interactive: InteractiveObject = {
-    type: "button",
-    body: { text: bodyText },
-    action: {
-      buttons: [
-        { type: "reply", reply: { id: `POSTVENTA_OK:${params.propertyCode}`, title: "Todo OK ✅" } },
-        { type: "reply", reply: { id: `POSTVENTA_AYUDA:${params.propertyCode}`, title: "Necesito ayuda" } },
-      ],
-    },
-  };
-  return sendInteractiveMessage(to, interactive, options);
 }
 
 export type PostventaResenaParams = {

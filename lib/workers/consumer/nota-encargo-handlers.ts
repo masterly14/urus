@@ -363,6 +363,33 @@ export async function handleCrearProspectoInmovilla(
   const precioinmo = keyacci === 1 ? session.precio : 0;
   const precioalq = keyacci === 2 ? session.precio : 0;
 
+  // Título y descripción: se parchean vía REST v1 tras la creación porque el
+  // endpoint CRM v2 no persiste estos campos de forma fiable y su ausencia
+  // rompe la ficha en la UI del CRM ("Cannot read properties of undefined
+  // (reading 'indexOf')").
+  const rawTituloes =
+    typeof raw.tituloes === "string" ? raw.tituloes.trim() : "";
+  const rawDescripciones =
+    typeof raw.descripciones === "string" ? raw.descripciones.trim() : "";
+  const addressText = [calle, numero > 0 ? numero : "", propertyCurrent.ciudad]
+    .filter((p) => p !== "" && p !== 0)
+    .join(" ");
+  const tituloes =
+    rawTituloes ||
+    propertyCurrent.titulo ||
+    `${tipoOfer} ${
+      keyacci === 2 ? "en alquiler" : "en venta"
+    } — ${addressText}`.trim();
+  const descripciones =
+    rawDescripciones ||
+    `Nota de encargo firmada. ${tipoOfer} de ${
+      Number(propertyCurrent.metrosConstruidos) || 0
+    } m² construidos, ${Number(propertyCurrent.habitaciones) || 0} habitaciones, ${
+      Number(propertyCurrent.banyos) || 0
+    } baños.${
+      referenciaCatastral ? ` Referencia catastral: ${referenciaCatastral}.` : ""
+    } Dirección: ${addressText}${cp ? `, ${cp}` : ""}.`;
+
   // 7. Create prospecto via CRM v2 (retry once with fresh login on 401)
   const createParams: Parameters<typeof createProspecto>[1] = {
     key_loca,
@@ -383,6 +410,9 @@ export async function handleCrearProspectoInmovilla(
     keycli,
     numagencia: inmoSession.numAgencia,
     keymedio: 12,
+    tituloes,
+    descripciones,
+    seedRaw: raw,
   };
 
   let prospectoResponse: Awaited<ReturnType<typeof createProspecto>>;

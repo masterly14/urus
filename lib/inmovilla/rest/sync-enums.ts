@@ -201,7 +201,7 @@ export async function syncEnums(
   await enrichMissingCities(client, prisma, skipZonas);
 }
 
-async function enrichMissingCities(
+export async function enrichMissingCities(
   client: InmovillaRestClient,
   prisma: PrismaClient,
   skipZonas: boolean,

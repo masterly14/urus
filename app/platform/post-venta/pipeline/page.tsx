@@ -13,9 +13,10 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { OperationCard, tipoClienteConfig } from "@/components/post-venta/operation-card";
+import { OperationCard, tipoClienteConfig, type OperationCardPanelSummary } from "@/components/post-venta/operation-card";
 import { operaciones } from "@/lib/mock-data/operaciones";
 import { comerciales } from "@/lib/mock-data/comerciales";
+import type { PanelSummary } from "@/lib/postventa/panel/types";
 import type {
     LeadStatusPipeline,
     OperacionPostVenta,
@@ -62,6 +63,7 @@ function PipelineContent() {
     );
     const [loading, setLoading] = useState<boolean>(!mockMode);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const [panelSummaries, setPanelSummaries] = useState<Record<string, OperationCardPanelSummary>>({});
 
     useEffect(() => {
         if (mockMode) {
@@ -115,6 +117,44 @@ function PipelineContent() {
         };
     }, [mockMode]);
 
+    // Carga de summaries del panel lateral (notas/checklist/adjuntos) para badges.
+    useEffect(() => {
+        if (mockMode || operations.length === 0) return;
+
+        let cancelled = false;
+        const ids = operations.map((op) => op.id);
+        const idsParam = ids.join(",");
+
+        const load = async () => {
+            try {
+                const response = await fetch(
+                    `/api/postventa/operaciones/panel-summary?ids=${encodeURIComponent(idsParam)}`,
+                    { credentials: "same-origin" },
+                );
+                if (!response.ok) return;
+                const body = (await response.json()) as { summaries: PanelSummary[] };
+                if (cancelled) return;
+                const map: Record<string, OperationCardPanelSummary> = {};
+                for (const s of body.summaries) {
+                    map[s.operacionId] = {
+                        notasVisibles: s.notasVisibles,
+                        checklistTotal: s.checklistTotal,
+                        checklistCompletados: s.checklistCompletados,
+                        adjuntos: s.adjuntos,
+                    };
+                }
+                setPanelSummaries(map);
+            } catch {
+                // ignorar — los badges son opcionales
+            }
+        };
+
+        void load();
+        return () => {
+            cancelled = true;
+        };
+    }, [mockMode, operations]);
+
     // Filter operations
     const filteredOps = useMemo(() => {
         return operations.filter((op) => {
@@ -145,7 +185,7 @@ function PipelineContent() {
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight">Pipeline Post-Venta</h1>
                         <p className="text-sm text-muted-foreground">
-                            Seguimiento automatizado de operaciones cerradas por 5 etapas
+                            Seguimiento automatizado de operaciones cerradas por 4 etapas
                         </p>
                     </div>
                 </div>
@@ -373,6 +413,14 @@ function PipelineContent() {
                                 mockMode
                                     ? `/platform/post-venta/operacion/${op.id}?mock=1`
                                     : undefined
+                            }
+                            panelSummary={panelSummaries[op.id]}
+                            comerciales={commercialFilters
+                                .filter((c) => c.id !== "system")
+                                .map((c) => ({ id: c.id, nombre: c.nombre }))}
+                            hidePanelButton={mockMode}
+                            onPanelSummaryChange={(operacionId, summary) =>
+                                setPanelSummaries((prev) => ({ ...prev, [operacionId]: summary }))
                             }
                         />
                     ))

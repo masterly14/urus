@@ -138,7 +138,14 @@ export type PropertySnapshotData = Pick<
   | "fechaActualizacion"
   | "numFotos"
   | "agente"
->;
+> & {
+  /**
+   * JSON crudo de Inmovilla. Se preserva entre ciclos para que los
+   * procesos de backfill y enriquecimiento (p.ej. sync-enums) puedan
+   * leer `key_loca`/`key_zona` sin volver a pegarle a la API.
+   */
+  raw?: Record<string, unknown>;
+};
 
 /** Compatibilidad: InmovillaProperty cumple el contrato de dominio Property. */
 export type { InmovillaProperty };

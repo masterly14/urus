@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import {
     Send,
     ArrowDownLeft,
-    CheckCircle2,
     Star,
     Link2,
     RefreshCcw,
@@ -28,18 +27,16 @@ interface KanbanColumnProps {
 
 const etapaColors: Record<EtapaPostVenta, string> = {
     1: "var(--urus-info)",
-    2: "var(--urus-success)",
-    3: "var(--urus-gold)",
-    4: "var(--urus-warning)",
-    5: "var(--urus-danger)",
+    2: "var(--urus-gold)",
+    3: "var(--urus-warning)",
+    4: "var(--urus-danger)",
 };
 
 const etapaIcons: Record<EtapaPostVenta, React.ReactNode> = {
     1: <Package className="h-3.5 w-3.5" />,
-    2: <CheckCircle2 className="h-3.5 w-3.5" />,
-    3: <Star className="h-3.5 w-3.5" />,
-    4: <Link2 className="h-3.5 w-3.5" />,
-    5: <RefreshCcw className="h-3.5 w-3.5" />,
+    2: <Star className="h-3.5 w-3.5" />,
+    3: <Link2 className="h-3.5 w-3.5" />,
+    4: <RefreshCcw className="h-3.5 w-3.5" />,
 };
 
 export function PipelineKanban({ children, className }: PipelineKanbanProps) {
@@ -107,10 +104,9 @@ interface TimelineEventProps {
 
 const etapaShortLabels: Record<EtapaPostVenta, string> = {
     1: "Cierre",
-    2: "Soporte",
-    3: "Reputación",
-    4: "Referidos",
-    5: "Recaptación",
+    2: "Reputación",
+    3: "Referidos",
+    4: "Recaptación",
 };
 
 export function TimelineEvent({ message, isLast = false }: TimelineEventProps) {

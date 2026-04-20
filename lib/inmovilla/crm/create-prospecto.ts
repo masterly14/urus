@@ -9,6 +9,8 @@ import type {
   CreateProspectoResponse,
   StatusChangePayload,
 } from "./types";
+import { createInmovillaRestClient } from "@/lib/inmovilla/rest";
+import { safeUpdateProperty } from "@/lib/inmovilla/rest/safe-update";
 
 const CRM_BASE = "https://crm.inmovilla.com";
 const TIMEOUT_MS = 30_000;
@@ -50,9 +52,12 @@ async function crmRequest<T>(
     }
 
     if (!res.ok) {
+      const parsed = json as Record<string, unknown>;
       const msg =
-        (json as Record<string, unknown>)?.mensaje ??
-        (json as Record<string, unknown>)?.message ??
+        (typeof parsed?.mensaje === "string" && parsed.mensaje) ||
+        (typeof parsed?.message === "string" && parsed.message) ||
+        (typeof parsed?.errors === "string" && parsed.errors) ||
+        JSON.stringify(parsed).slice(0, 5000) ||
         text.slice(0, 200);
       throw new Error(`CRM v2 ${method} ${path}: ${res.status} — ${msg}`);
     }
@@ -67,7 +72,58 @@ async function crmRequest<T>(
 // Build the full create payload with sensible defaults
 // ---------------------------------------------------------------------------
 
+function resolveTituloes(params: CreateProspectoParams): string {
+  const fromParam = typeof params.tituloes === "string" ? params.tituloes.trim() : "";
+  if (fromParam.length > 0) return fromParam;
+  const seedRaw = params.seedRaw ?? {};
+  if (typeof seedRaw.tituloes === "string" && seedRaw.tituloes.trim()) {
+    return seedRaw.tituloes.trim();
+  }
+  if (typeof seedRaw.titulo === "string" && seedRaw.titulo.trim()) {
+    return seedRaw.titulo.trim();
+  }
+  const calle = (params.calle ?? "").trim();
+  return calle.length > 0 ? `Prospecto ${calle}` : "Prospecto";
+}
+
+function resolveDescripciones(params: CreateProspectoParams): string {
+  const fromParam =
+    typeof params.descripciones === "string" ? params.descripciones.trim() : "";
+  if (fromParam.length > 0) return fromParam;
+  const seedRaw = params.seedRaw ?? {};
+  if (typeof seedRaw.descripciones === "string" && seedRaw.descripciones.trim()) {
+    return seedRaw.descripciones.trim();
+  }
+  // Fallback mínimo para que la ficha no tenga descripción en blanco (la UI
+  // del CRM hace `.indexOf()` sobre este campo sin defensa ante undefined).
+  return resolveTituloes(params);
+}
+
 function buildCreatePayload(params: CreateProspectoParams): Record<string, unknown> {
+  // Defaults observados en fichas válidas de Inmovilla.
+  const alqindex = String(params.alqindex ?? "0.00");
+  const alqinferior = String(params.alqinferior ?? "0.00");
+  const alqsuperior = String(params.alqsuperior ?? "0.00");
+  const conservacion = Number(params.conservacion ?? 20);
+  const keysuelo = Number(params.keysuelo ?? 0);
+  const keycarpin = Number(params.keycarpin ?? 0);
+  const keycarpinext = Number(params.keycarpinext ?? 0);
+  const todoext = Number(params.todoext ?? 0);
+  const keyagua = Number(params.keyagua ?? 0);
+  const keycalefa = Number(params.keycalefa ?? 0);
+  const seedRaw = params.seedRaw ?? {};
+  const seedCharacteristics =
+    typeof seedRaw.characteristics === "object" && seedRaw.characteristics !== null
+      ? (seedRaw.characteristics as Record<string, unknown>)
+      : {};
+  const flatScalarSeed = Object.fromEntries(
+    Object.entries(seedRaw).filter(([, value]) =>
+      typeof value === "string" || typeof value === "number" || typeof value === "boolean",
+    ),
+  );
+  const tituloes = resolveTituloes(params);
+  const descripciones = resolveDescripciones(params);
+
   const cadastreEntry: Record<string, unknown> = {
     id: -1,
     rnumero: "",
@@ -90,6 +146,7 @@ function buildCreatePayload(params: CreateProspectoParams): Record<string, unkno
   };
 
   return {
+    ...seedRaw,
     location: {
       key_loca: params.key_loca,
       key_zona: params.key_zona,
@@ -170,6 +227,9 @@ function buildCreatePayload(params: CreateProspectoParams): Record<string, unkno
       mascotas: false,
       actividad_comercial: 0,
       tipo_terreno: 0,
+      alqindex,
+      alqinferior,
+      alqsuperior,
     },
     rooms: {
       habdobles: 0,
@@ -249,6 +309,13 @@ function buildCreatePayload(params: CreateProspectoParams): Record<string, unkno
       propertyValuation: [],
       agencySlogan: [{ idioma: 1, slogan: "", countText: 0 }],
       agentSharedInfo: null,
+      conservacion,
+      keysuelo,
+      keycarpin,
+      keycarpinext,
+      alqindex,
+      alqinferior,
+      alqsuperior,
     },
     additionalFields: {
       libreta_catastral_articulo_matricial: "",
@@ -264,7 +331,17 @@ function buildCreatePayload(params: CreateProspectoParams): Record<string, unkno
     },
     customFields: [],
     customQualities: [],
-    characteristics: {},
+    characteristics: {
+      ...flatScalarSeed,
+      ...seedCharacteristics,
+      conservacion,
+      keysuelo,
+      keycarpin,
+      keycarpinext,
+      todoext,
+      keyagua,
+      keycalefa,
+    },
     sharing: { mls: false, cesioncom: 0, mls_comentario: "", circles: [] },
     dataDescription: { data: [] },
     descriptions: [],
@@ -286,6 +363,19 @@ function buildCreatePayload(params: CreateProspectoParams): Record<string, unkno
     },
     owners: [],
     root: false,
+    tituloes,
+    descripciones,
+    // Compatibilidad defensiva con validadores legacy del backend CRM.
+    conservacion,
+    keysuelo,
+    keycarpin,
+    keycarpinext,
+    alqindex,
+    alqinferior,
+    alqsuperior,
+    todoext,
+    keyagua,
+    keycalefa,
   };
 }
 
@@ -314,7 +404,79 @@ export async function createProspecto(
     `[crm-v2] Prospecto created: cod_ofer=${response.cod_ofer}`,
   );
 
+  // El endpoint CRM v2 crea el prospecto pero NO persiste tituloes/descripciones
+  // aunque los mandemos en el payload. Si quedan vacíos, la UI del CRM rompe
+  // con "Cannot read properties of undefined (reading 'indexOf')" al abrir la
+  // ficha. Parcheamos vía REST v1 (token estático) que sí persiste esos campos.
+  const tituloes = resolveTituloes(params);
+  const descripciones = resolveDescripciones(params);
+  await patchTitulosViaRest(response, tituloes, descripciones);
+
   return response;
+}
+
+/**
+ * Parche post-create: usa la REST v1 para fijar tituloes/descripciones en la
+ * ficha recién creada. Tolerante a fallos: si el parche no se puede aplicar
+ * (p.ej. no hay token o la API rechaza el update), no aborta la creación
+ * porque el prospecto ya existe en Inmovilla.
+ */
+async function patchTitulosViaRest(
+  created: CreateProspectoResponse,
+  tituloes: string,
+  descripciones: string,
+): Promise<void> {
+  const token = process.env.INMOVILLA_API_TOKEN;
+  if (!token) {
+    console.warn(
+      "[crm-v2] INMOVILLA_API_TOKEN no configurado; no se parcheará tituloes/descripciones vía REST v1.",
+    );
+    return;
+  }
+
+  const ref = created.mainData?.ref;
+  const codOfer = created.cod_ofer;
+  if (!ref && !codOfer) {
+    console.warn(
+      "[crm-v2] create response sin ref ni cod_ofer; no se puede parchear tituloes.",
+    );
+    return;
+  }
+
+  try {
+    const restClient = createInmovillaRestClient({ token });
+    const patch: Record<string, unknown> = {
+      tituloes,
+      descripciones,
+    };
+    const result = await safeUpdateProperty(
+      restClient,
+      { codOfer, ref },
+      patch,
+      {
+        logger: {
+          log: (m) => console.log(`[crm-v2→rest] ${m}`),
+          warn: (m) => console.warn(`[crm-v2→rest] ${m}`),
+        },
+      },
+    );
+    if (result.ok) {
+      const removed =
+        result.removedFields.length > 0
+          ? ` (campos descartados: ${result.removedFields.join(", ")})`
+          : "";
+      console.log(
+        `[crm-v2→rest] Parche tituloes/descripciones OK para ref=${result.payload.ref}${removed}.`,
+      );
+    }
+  } catch (err) {
+    // Warning, no error: el prospecto ya fue creado; solo falló el parche.
+    console.warn(
+      `[crm-v2→rest] Falló el parche de tituloes/descripciones para cod_ofer=${codOfer} ref=${ref}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
 }
 
 export async function changeProspectoStatus(

@@ -6,6 +6,7 @@ import { handleLeadIngestado } from "./lead-scoring-handler";
 import { handleLeadContactado } from "./lead-contacted-handler";
 import { handlePropertyMatching } from "./matching-handler";
 import { handleDemandaActualizada } from "./write-demand-update-handler";
+import { prisma } from "@/lib/prisma";
 import { handleWhatsAppRecibido } from "./whatsapp-nlu-handler";
 import { handleVisitaEvaluada } from "./visita-evaluada-handler";
 import { handleVisitaAgendada } from "./visita-agendada-handler";
@@ -106,10 +107,21 @@ function demandHandler(
     console.log(
       `[consumer] ${event.type} aggregateId=${event.aggregateId} → ${jobType}`,
     );
-    return {
-      success: true,
-      followUpJobs: [buildProjectionJob(event.id, jobType)],
-    };
+
+    const followUpJobs: EnqueueJobInput[] = [
+      buildProjectionJob(event.id, jobType),
+    ];
+
+    if (event.type !== "DEMANDA_ELIMINADA") {
+      followUpJobs.push({
+        type: "EVALUATE_DEMAND_COVERAGE",
+        payload: { demandId: event.aggregateId, sourceEventId: event.id },
+        idempotencyKey: `evaluate_coverage:demand:${event.id}`,
+        sourceEventId: event.id,
+      });
+    }
+
+    return { success: true, followUpJobs };
   };
 }
 
@@ -122,11 +134,66 @@ function auditOnlyHandler(reason: string): EventHandler {
   };
 }
 
+/**
+ * Cuando una propiedad sale de cartera (eliminada), las demandas que tenían
+ * match con ella pierden cobertura. Re-evalúa esas demandas para que el
+ * sistema busque alternativas en Statefox si la cobertura cae.
+ */
+async function handlePropertyRemovedWithCoverage(event: Event): Promise<HandlerResult> {
+  const propertyId = event.aggregateId;
+  console.log(
+    `[consumer] PROPIEDAD_ELIMINADA aggregateId=${propertyId} → projection + coverage re-eval`,
+  );
+
+  const followUpJobs: EnqueueJobInput[] = [
+    buildProjectionJob(event.id, "UPDATE_PROPERTY_PROJECTION"),
+  ];
+
+  try {
+    const matchEvents = await prisma.event.findMany({
+      where: {
+        type: "MATCH_GENERADO",
+        payload: { path: ["propertyId"], equals: propertyId },
+      },
+      select: { payload: true },
+      take: 50,
+    });
+
+    const demandIds = new Set<string>();
+    for (const ev of matchEvents) {
+      const p = ev.payload as Record<string, unknown> | null;
+      if (typeof p?.demandId === "string") demandIds.add(p.demandId);
+    }
+
+    for (const demandId of demandIds) {
+      followUpJobs.push({
+        type: "EVALUATE_DEMAND_COVERAGE",
+        payload: { demandId, sourceEventId: event.id },
+        idempotencyKey: `evaluate_coverage:prop_removed:${event.id}:${demandId}`,
+        sourceEventId: event.id,
+      });
+    }
+
+    if (demandIds.size > 0) {
+      console.log(
+        `[consumer] PROPIEDAD_ELIMINADA ${propertyId} → re-evaluando cobertura de ${demandIds.size} demandas afectadas`,
+      );
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `[consumer] PROPIEDAD_ELIMINADA ${propertyId} — error buscando demandas afectadas: ${msg}`,
+    );
+  }
+
+  return { success: true, followUpJobs };
+}
+
 // --- Property handlers ---
 // PROPIEDAD_CREADA dispara cruce de demandas + projection (matching-handler.ts)
 registerHandler("PROPIEDAD_CREADA", handlePropertyMatching);
 registerHandler("PROPIEDAD_MODIFICADA", handlePropertyMatching);
-registerHandler("PROPIEDAD_ELIMINADA", propertyHandler("UPDATE_PROPERTY_PROJECTION"));
+registerHandler("PROPIEDAD_ELIMINADA", handlePropertyRemovedWithCoverage);
 registerHandler("ESTADO_CAMBIADO", handleEstadoCambiado);
 
 // --- Demand handlers ---

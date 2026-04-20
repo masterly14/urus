@@ -5,7 +5,7 @@
 export type SemaforoStatus = "verde" | "amarillo" | "rojo";
 export type Arquetipo = "top" | "ineficiente" | "dependiente" | "bajo";
 export type NivelEstres = "bajo" | "medio" | "alto";
-export type EtapaPostVenta = 1 | 2 | 3 | 4 | 5;
+export type EtapaPostVenta = 1 | 2 | 3 | 4;
 export type TipoCliente = "comprador" | "inversor" | "vendedor";
 export type EstadoContrato = "borrador" | "revision" | "enviado" | "firmado";
 export type EstadoMensaje = "enviado" | "me_encaja" | "no_encaja" | "busco_diferente";

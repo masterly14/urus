@@ -3,6 +3,13 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   serverExternalPackages: ["undici"],
   async redirects() {
+    const postventaGuia = [
+      {
+        source: "/platform/postventa/guia",
+        destination: "/platform/post-venta",
+        permanent: false,
+      },
+    ];
     const legacyPrefixes = [
       "bi",
       "coach",
@@ -28,7 +35,7 @@ const nextConfig: NextConfig = {
       destination: `/platform/${prefix}`,
       permanent: false,
     }));
-    return [...exact, ...withPath];
+    return [...postventaGuia, ...exact, ...withPath];
   },
 };
 

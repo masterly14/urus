@@ -61,7 +61,7 @@ describe("scanPostventaCadences", () => {
       (c: unknown[]) => (c[0] as { payload: { step: string } }).payload.step,
     );
     expect(enqueuedSteps).toContain("D0_AGRADECIMIENTO");
-    expect(enqueuedSteps).toContain("D3_SOPORTE");
+    expect(enqueuedSteps).not.toContain("D3_SOPORTE");
     expect(enqueuedSteps).toContain("D10_RESENA");
     expect(result.followUpsEnqueued).toBeGreaterThan(0);
   });
@@ -77,7 +77,7 @@ describe("scanPostventaCadences", () => {
       (c: unknown[]) => (c[0] as { payload: { step: string } }).payload.step,
     );
     expect(enqueuedSteps).toContain("D0_AGRADECIMIENTO");
-    expect(enqueuedSteps).toContain("D3_SOPORTE");
+    expect(enqueuedSteps).not.toContain("D3_SOPORTE");
     expect(enqueuedSteps).not.toContain("D10_RESENA");
     expect(enqueuedSteps).not.toContain("D21_REFERIDOS");
     expect(enqueuedSteps).not.toContain("D90_RECAPTACION");

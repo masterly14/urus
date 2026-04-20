@@ -214,6 +214,27 @@ Resuelve comprador, propiedad y comercial asignado. Encola notificación WhatsAp
 
 ---
 
+### EVALUATE_DEMAND_COVERAGE — Enriquecimiento Statefox por baja cobertura
+
+| Campo | Valor |
+|-------|-------|
+| **Archivo** | `lib/workers/consumer/coverage-handler.ts` |
+| **Función** | `handleEvaluateDemandCoverage` |
+| **Módulo** | M5 (Smart Matching + Statefox) |
+
+Evalúa si una demanda activa está bien cubierta por la cartera interna (cruza contra `properties_current`). Si `bestScore < COVERAGE_MIN_SCORE` (default 60, env `MATCHING_COVERAGE_MIN_SCORE`) y no hay un microsite de coverage reciente (dedup por cooldown de `MATCHING_COVERAGE_COOLDOWN_DAYS`, default 7), encola `GENERATE_MICROSITE` con `source=coverage_scan` y `notifyOnEmpty=false`.
+
+**Disparadores:**
+- `DEMANDA_CREADA`, `DEMANDA_MODIFICADA`, `DEMANDA_ESTADO_CAMBIADO` (via `demandHandler` en `handlers.ts`).
+- `DEMANDA_ACTUALIZADA` (via `write-demand-update-handler.ts`).
+- `PROPIEDAD_ELIMINADA` (re-evalúa demandas que tenían match con la propiedad eliminada).
+- `ESTADO_CAMBIADO` cuando la propiedad deja de ser "Libre" (re-evalúa demandas afectadas).
+- Cron diario `POST /api/cron/matching-coverage-scan` (barrido de todas las demandas activas).
+
+**Side effects:** condicional job `GENERATE_MICROSITE` (source=coverage_scan). El microsite resultante pasa por la misma validación comercial que cualquier otro microsite.
+
+---
+
 ### CONTRATO_BORRADOR_GENERADO — Notificación borrador listo
 
 | Campo | Valor |
@@ -397,3 +418,14 @@ Los event handlers frecuentemente encolaen jobs que procesan otros módulos de `
 | `SEND_SIGNATURE_REQUEST` | Inicia flujo de firma digital in-house (upload PDF, token, SignatureRequest) |
 | `SEND_POSTVENTA_MESSAGE` | Envía mensaje de cadencia post-venta (agradecimiento, soporte, reseña, etc.) |
 | `NOTIFY_CONTRACT_DATA_INCOMPLETE` | Notifica al comercial de datos faltantes para contrato |
+| `EVALUATE_DEMAND_COVERAGE` | Evalúa si la cartera interna cubre una demanda; si bestScore < 60, encola `GENERATE_MICROSITE` con `source=coverage_scan` para buscar en Statefox |
+
+---
+
+## Rollout — EVALUATE_DEMAND_COVERAGE + cobertura Statefox
+
+1. **Migración Prisma**: aplicar migración `add-evaluate-demand-coverage-and-microsite-source` (columna `source String?` + índice en `MicrositeSelection`, nuevo enum `EVALUATE_DEMAND_COVERAGE` en `JobType`).
+2. **Deploy con cron desactivado**: desplegar sin registrar `POST /api/cron/matching-coverage-scan` en QStash. Los triggers por evento (DEMANDA_*, PROPIEDAD_ELIMINADA, ESTADO_CAMBIADO) ya estarán activos.
+3. **Validación manual**: ejecutar `POST /api/cron/matching-coverage-scan` manualmente contra 1-5 demandas de prueba. Verificar en logs `[coverage]` que las decisiones sean correctas (`covered`, `dedup_skip`, `enqueued_microsite`). Verificar que las MicrositeSelection generadas tengan `source=coverage_scan`.
+4. **Activar cron en QStash**: registrar el endpoint con cadencia diaria (`0 6 * * *`).
+5. **Monitoreo 1 semana**: vigilar logs `[coverage]` y métricas. Verificar que el cooldown funciona (no se duplican microsites). Si es necesario, ajustar `MATCHING_COVERAGE_MIN_SCORE`, `MATCHING_COVERAGE_COOLDOWN_DAYS` o `MATCHING_COVERAGE_CRON_BATCH` via env vars sin re-deploy.

@@ -6,7 +6,7 @@
  * vía plantilla Meta `postventa_formulario`.
  *
  * Si el comprador no rellena el formulario, la cadencia normal sigue
- * (soporte D+3, reseña D+10, etc.) pero no se agendan cumpleaños ni navidad:
+ * (reseña D+10, etc.) pero no se agendan cumpleaños ni navidad:
  * esa programación depende de `POSTVENTA_FORMULARIO_COMPLETADO`.
  */
 

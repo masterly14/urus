@@ -18,7 +18,7 @@ import type {
   DemandForMatching,
 } from "./types";
 
-const ACTIVE_DEMAND_STATES = ["1", "20", "23", "26", "31", "activa", "active"];
+export const ACTIVE_DEMAND_STATES = ["1", "20", "23", "26", "31", "activa", "active"];
 
 /**
  * Margen de seguridad sobre la tolerancia de precio usada en scoring (10% por defecto).
@@ -99,7 +99,7 @@ async function loadActiveDemands(
  * Filtros duros: descartan demandas sin scoring (operación incompatible, etc.).
  * Devuelve true si la demanda pasa los filtros y debe evaluarse.
  */
-function passesHardFilters(
+export function passesHardFilters(
   property: PropertyForMatching,
   demand: DemandForMatching,
 ): boolean {

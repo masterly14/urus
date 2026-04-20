@@ -22,7 +22,6 @@ Definida en `lib/postventa/start-cadence-handler.ts` (`POSTVENTA_CADENCE`).
 | -------------------- | ------------------ | ---------------- | --------------------------- | --------------------------------- | -------------------- |
 | `D0_AGRADECIMIENTO`  | 0                  | `agradecimiento` | `postventa_agradecimiento`  | `SEND_POSTVENTA_MESSAGE`          | No                   |
 | `D0_FORMULARIO`      | 0                  | `formulario`     | `postventa_formulario`      | `SEND_POSTVENTA_FORM`             | No                   |
-| `D3_SOPORTE`         | +3 días            | `soporte`        | `postventa_soporte`         | `SEND_POSTVENTA_MESSAGE`          | No                   |
 | `D10_RESENA`         | +10 días           | `resena`         | `postventa_resena`          | `SEND_POSTVENTA_MESSAGE`          | Sí                   |
 | `D21_REFERIDOS`      | +21 días           | `referidos`      | `postventa_referidos`       | `SEND_POSTVENTA_MESSAGE`          | Sí                   |
 | `D90_RECAPTACION`    | +90 días           | `recaptacion`    | `postventa_recaptacion`     | `SEND_POSTVENTA_MESSAGE`          | Sí                   |
@@ -83,26 +82,9 @@ Hola {{1}} 👋
 Queremos seguir cuidándote después de la operación {{2}}. Dinos unos datos en menos de 1 minuto para enviarte novedades útiles sobre tu vivienda y una felicitación personalizada cada año.
 ```
 
-### 3.3 `postventa_soporte` (con botones Quick Reply)
+### 3.3 `postventa_soporte` (retirada del flujo activo)
 
-- **Variables env:** `WHATSAPP_TEMPLATE_POSTVENTA_SOPORTE`
-- **Body — 2 variables**
-  - `{{1}}` nombre del comprador
-  - `{{2}}` URL a la guía de post-venta (ej. `https://<app>/postventa/guia`)
-- **Botones Quick Reply:**
-  - `POSTVENTA_OK:<propertyCode o operacionId>` → "Todo OK ✅"
-  - `POSTVENTA_AYUDA:<propertyCode o operacionId>` → "Necesito ayuda"
-
-> El webhook NLU (`lib/workers/consumer/whatsapp-nlu-handler.ts`, `extractPostventaPayload`) ya interpreta estos botones y emite `INCIDENCIA_POSTVENTA_ABIERTA` cuando aplica.
-
-**Texto sugerido (body):**
-```
-🏠 Hola {{1}}, ¿todo bien en tu nuevo hogar?
-
-¿Todo correcto con la entrega, las llaves y los suministros?
-Si necesitas ayuda con algún trámite, aquí tienes una guía práctica:
-{{2}}
-```
+El paso de cadencia `D3_SOPORTE` (mini-guía + botones Quick Reply) ya no se encola. Los hilos antiguos que usaron esta plantilla pueden seguir siendo interpretados por el NLU (`lib/workers/consumer/whatsapp-nlu-handler.ts`, payloads `POSTVENTA_OK` / `POSTVENTA_AYUDA`). Para nuevas implantaciones no hace falta crear ni aprobar `postventa_soporte` en Meta.
 
 ### 3.4 `postventa_resena`
 
@@ -275,7 +257,7 @@ A partir de 2026-04-17, la cadencia canónica es únicamente `lib/postventa/*`:
    2. Categoría: **Utility**.
    3. Idioma: **Español (`es`)** o el que coincida con `WHATSAPP_TEMPLATE_LANGUAGE`.
    4. Body: copia el texto sugerido. Sustituye las variables por `{{1}}`, `{{2}}`, etc., en el mismo orden documentado.
-   5. Si la plantilla lleva botones (Quick Reply en `postventa_soporte`, Flow en `postventa_formulario`), añádelos en el apartado "Botones".
+   5. Si la plantilla lleva botones (Quick Reply o Flow en `postventa_formulario`), añádelos en el apartado "Botones".
 3. Para `postventa_formulario`:
    - Crea primero el Flow `postventa_survey` en **WhatsApp Flows → Crear Flow → Importar JSON** y pega el contenido de `flows-whatsapp/postventa-survey.flow.json`.
    - Publica el Flow y copia su `flow_id`.

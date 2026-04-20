@@ -64,6 +64,7 @@ function toMicrositeProperty(p: {
     description:
       `Propiedad de prueba generada desde DB (properties_current). ` +
       `Tipo: ${p.tipoOfer || "N/D"}. Ciudad: ${p.ciudad || "N/D"}. Zona: ${p.zona || "N/D"}.`,
+    contactPhones: [],
     link: null,
     price: Number.isFinite(p.precio) ? p.precio : null,
     pricePerMeter:

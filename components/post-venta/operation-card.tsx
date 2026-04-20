@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
     User,
@@ -13,43 +14,58 @@ import {
     Circle,
     MessageSquare,
     Send,
+    PanelRight,
+    StickyNote,
+    CheckSquare,
+    Paperclip,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { OperacionPostVenta, EtapaPostVenta } from "@/lib/postventa/pipeline-types";
+import { OperationPanelDrawer } from "@/components/post-venta/operation-panel-drawer";
+
+export interface OperationCardPanelSummary {
+    notasVisibles: number;
+    checklistTotal: number;
+    checklistCompletados: number;
+    adjuntos: number;
+}
 
 interface OperationCardProps {
     operation: OperacionPostVenta;
     className?: string;
     detailHref?: string;
     viewMode?: "mensajes" | "estado";
+    panelSummary?: OperationCardPanelSummary;
+    comerciales?: Array<{ id: string; nombre: string }>;
+    onPanelSummaryChange?: (operacionId: string, summary: OperationCardPanelSummary) => void;
+    /** Si true, oculta el botón de panel lateral (p.ej. en el detail view). */
+    hidePanelButton?: boolean;
 }
 
 const etapaLabels: Record<EtapaPostVenta, string> = {
     1: "Cierre Inmediato",
-    2: "Soporte Temprano",
-    3: "Reputación",
-    4: "Referidos",
-    5: "Recaptación",
+    2: "Reputación",
+    3: "Referidos",
+    4: "Recaptación",
 };
 
 const etapaProgressLabels: Record<EtapaPostVenta, string> = {
     1: "Cierre inicial",
-    2: "Soporte",
-    3: "Reputación",
-    4: "Referidos",
-    5: "Recaptación",
+    2: "Reputación",
+    3: "Referidos",
+    4: "Recaptación",
 };
 
 const etapaColors: Record<EtapaPostVenta, string> = {
     1: "var(--urus-info)",
-    2: "var(--urus-success)",
-    3: "var(--urus-gold)",
-    4: "var(--urus-warning)",
-    5: "var(--urus-danger)",
+    2: "var(--urus-gold)",
+    3: "var(--urus-warning)",
+    4: "var(--urus-danger)",
 };
 
-const progressSteps = [1, 2, 3, 4, 5] as const;
+const progressSteps = [1, 2, 3, 4] as const;
 
 const tipoClienteConfig = {
     comprador: { label: "Comprador", color: "var(--urus-info)", emoji: "🏠" },
@@ -77,7 +93,17 @@ function formatDate(isoDate: string): string {
     });
 }
 
-export function OperationCard({ operation, className, detailHref, viewMode = "estado" }: OperationCardProps) {
+export function OperationCard({
+    operation,
+    className,
+    detailHref,
+    viewMode = "estado",
+    panelSummary,
+    comerciales,
+    onPanelSummaryChange,
+    hidePanelButton,
+}: OperationCardProps) {
+    const [panelOpen, setPanelOpen] = useState(false);
     const tipoConfig = tipoClienteConfig[operation.tipoCliente];
     const messageCount = operation.mensajes.length;
     const href = detailHref ?? `/platform/post-venta/operacion/${operation.id}`;
@@ -91,8 +117,16 @@ export function OperationCard({ operation, className, detailHref, viewMode = "es
         .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
         .slice(-3);
 
+    const hasChecklist = (panelSummary?.checklistTotal ?? 0) > 0;
+    const hasNotas = (panelSummary?.notasVisibles ?? 0) > 0;
+    const hasAdjuntos = (panelSummary?.adjuntos ?? 0) > 0;
+    const checklistPendientes = panelSummary
+        ? panelSummary.checklistTotal - panelSummary.checklistCompletados
+        : 0;
+
     return (
-        <Link href={href} className="block w-full">
+        <div className="relative w-full">
+            <Link href={href} className="block w-full">
             <Card
                 className={cn(
                     "border-border/50 bg-card/80 backdrop-blur-sm hover:bg-card hover:shadow-md hover:shadow-background/20 transition-all duration-300 hover:-translate-y-0.5 cursor-pointer group overflow-hidden min-h-[230px]",
@@ -117,16 +151,18 @@ export function OperationCard({ operation, className, detailHref, viewMode = "es
                                 <p className="text-sm sm:text-base font-semibold leading-tight truncate">{operation.direccion}</p>
                             </div>
                         </div>
-                        <div className="text-right shrink-0">
-                            <p className="text-sm sm:text-base font-bold font-mono text-foreground">
-                                {operation.precio.toLocaleString("es-ES")} €
-                            </p>
-                            <p
-                                className="text-xs font-medium mt-1"
-                                style={{ color: currentColor }}
-                            >
-                                {Math.round((operation.etapaActual / progressSteps.length) * 100)}%
-                            </p>
+                        <div className="text-right shrink-0 flex items-start gap-2">
+                            <div>
+                                <p className="text-sm sm:text-base font-bold font-mono text-foreground">
+                                    {operation.precio.toLocaleString("es-ES")} €
+                                </p>
+                                <p
+                                    className="text-xs font-medium mt-1"
+                                    style={{ color: currentColor }}
+                                >
+                                    {Math.round((operation.etapaActual / progressSteps.length) * 100)}%
+                                </p>
+                            </div>
                         </div>
                     </div>
 
@@ -263,7 +299,7 @@ export function OperationCard({ operation, className, detailHref, viewMode = "es
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                             <Badge
                                 variant="outline"
                                 className="text-[10px] px-2 py-0.5 gap-1"
@@ -291,6 +327,38 @@ export function OperationCard({ operation, className, detailHref, viewMode = "es
                                     {messageCount}
                                 </Badge>
                             )}
+
+                            {/* Indicadores del panel lateral (notas, checklist, adjuntos) */}
+                            {(hasNotas || hasChecklist || hasAdjuntos) && (
+                                <span className="inline-flex items-center gap-1.5 rounded-md border border-border/40 bg-accent/20 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                    {hasNotas && (
+                                        <span className="inline-flex items-center gap-0.5" title="Notas internas visibles">
+                                            <StickyNote className="h-3 w-3" />
+                                            {panelSummary?.notasVisibles}
+                                        </span>
+                                    )}
+                                    {hasChecklist && (
+                                        <span
+                                            className="inline-flex items-center gap-0.5"
+                                            title={`Checklist: ${panelSummary?.checklistCompletados}/${panelSummary?.checklistTotal}`}
+                                            style={{
+                                                color: checklistPendientes === 0
+                                                    ? "var(--urus-success)"
+                                                    : "var(--urus-warning)",
+                                            }}
+                                        >
+                                            <CheckSquare className="h-3 w-3" />
+                                            {panelSummary?.checklistCompletados}/{panelSummary?.checklistTotal}
+                                        </span>
+                                    )}
+                                    {hasAdjuntos && (
+                                        <span className="inline-flex items-center gap-0.5" title="Adjuntos">
+                                            <Paperclip className="h-3 w-3" />
+                                            {panelSummary?.adjuntos}
+                                        </span>
+                                    )}
+                                </span>
+                            )}
                         </div>
                     </div>
 
@@ -300,7 +368,39 @@ export function OperationCard({ operation, className, detailHref, viewMode = "es
                     </div>
                 </CardContent>
             </Card>
-        </Link>
+            </Link>
+
+            {/* Botón flotante para abrir el panel lateral sin navegar al detalle */}
+            {!hidePanelButton && (
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    className="absolute top-3 right-3 z-10 bg-card/95 backdrop-blur-sm shadow-sm"
+                    title="Abrir panel (notas, checklist, adjuntos)"
+                    aria-label="Abrir panel lateral de la operación"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setPanelOpen(true);
+                    }}
+                >
+                    <PanelRight className="h-3.5 w-3.5" />
+                </Button>
+            )}
+
+            {!hidePanelButton && (
+                <OperationPanelDrawer
+                    open={panelOpen}
+                    onOpenChange={setPanelOpen}
+                    operacionId={operation.id}
+                    operacionCodigo={operation.id}
+                    operacionTitulo={operation.direccion}
+                    comerciales={comerciales}
+                    onSummaryChange={(s) => onPanelSummaryChange?.(operation.id, s)}
+                />
+            )}
+        </div>
     );
 }
 

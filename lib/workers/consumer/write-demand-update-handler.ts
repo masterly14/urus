@@ -195,6 +195,13 @@ export async function handleDemandaActualizada(event: Event): Promise<HandlerRes
     }
   }
 
+  followUpJobs.push({
+    type: "EVALUATE_DEMAND_COVERAGE",
+    payload: { demandId, sourceEventId: event.id },
+    idempotencyKey: `evaluate_coverage:demand_updated:${event.id}`,
+    sourceEventId: event.id,
+  });
+
   return { success: true, followUpJobs };
 }
 

@@ -21,7 +21,6 @@ export interface PostventaStep {
 export const POSTVENTA_CADENCE: PostventaStep[] = [
   { label: "D0_AGRADECIMIENTO", delayMs: 0, template: "agradecimiento", requiresNoIncidencia: false },
   { label: "D0_FORMULARIO", delayMs: 0, template: "formulario", requiresNoIncidencia: false },
-  { label: "D3_SOPORTE", delayMs: 3 * MS_DAY, template: "soporte", requiresNoIncidencia: false },
   { label: "D10_RESENA", delayMs: 10 * MS_DAY, template: "resena", requiresNoIncidencia: true },
   { label: "D21_REFERIDOS", delayMs: 21 * MS_DAY, template: "referidos", requiresNoIncidencia: true },
   { label: "D90_RECAPTACION", delayMs: 90 * MS_DAY, template: "recaptacion", requiresNoIncidencia: true },
@@ -63,7 +62,7 @@ function parsePayload(raw: unknown): StartCadencePayload | null {
 
 /**
  * Job handler para START_POSTVENTA_CADENCE.
- * Encola los 5 SEND_POSTVENTA_MESSAGE con `availableAt` escalonado.
+ * Encola los jobs de cadencia (formulario + SEND_POSTVENTA_MESSAGE) con `availableAt` escalonado.
  */
 export async function handleStartPostventaCadence(
   job: JobRecord,

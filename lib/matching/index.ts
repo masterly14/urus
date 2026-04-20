@@ -8,8 +8,9 @@
  * Scoring: computeMatchScore(property, demand) → { totalScore, matchScore, isMatch }
  */
 
-export { matchDemandsToProperty, matchDemandsToPropertyById } from "./match-demands";
+export { matchDemandsToProperty, matchDemandsToPropertyById, passesHardFilters, ACTIVE_DEMAND_STATES } from "./match-demands";
 export { computeMatchScore, operationMatches, DEFAULT_CONFIG } from "./scoring";
+export { evaluateDemandCoverage, COVERAGE_MIN_SCORE } from "./coverage";
 export type {
   MatchResult,
   MatchScore,
@@ -19,4 +20,5 @@ export type {
   CriterionScore,
   PropertyForMatching,
   DemandForMatching,
+  DemandCoverageResult,
 } from "./types";

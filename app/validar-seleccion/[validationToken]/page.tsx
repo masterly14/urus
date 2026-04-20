@@ -227,6 +227,25 @@ export default async function ValidarSeleccionPage({
                           <span className="flex items-center gap-1"><svg className="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6 6.5 3.5a1.5 1.5 0 0 0-1-.5C4.683 3 4 3.683 4 4.5V17a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><line x1="10" x2="8" y1="5" y2="7"/><line x1="2" x2="22" y1="12" y2="12"/><line x1="7" x2="7" y1="19" y2="21"/><line x1="17" x2="17" y1="19" y2="21"/></svg>{p.baths} baños</span>
                         ) : null}
                       </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Teléfonos
+                        </span>
+                        {p.contactPhones.length > 0 ? (
+                          p.contactPhones.map((phone) => (
+                            <span
+                              key={`${p.propertyId}:phone:${phone}`}
+                              className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700"
+                            >
+                              {phone}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-500">
+                            Sin teléfono
+                          </span>
+                        )}
+                      </div>
                       {p.description ? (
                         <p className="mt-4 pt-4 border-t border-slate-100 line-clamp-3 text-xs text-slate-500 font-medium">
                           {p.description}

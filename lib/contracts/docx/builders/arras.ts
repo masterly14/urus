@@ -24,6 +24,15 @@ import {
   formatPeopleList,
   toUpperLegal,
 } from "../formatters";
+import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
+import {
+  additionalClausesNumberingConfig,
+  buildAdditionalClausesParagraphs,
+} from "@/lib/contracts/additional-clauses/docx-serializer";
+
+export interface BuildArrasDocumentOptions {
+  additionalClausesDoc?: AdditionalClausesDoc | null;
+}
 
 export interface ArrasRenderModel {
   title: string;
@@ -111,10 +120,16 @@ export function buildArrasRenderModel(payload: ArrasContractPayload): ArrasRende
   return { title, paragraphs, signatureLine };
 }
 
-export async function buildArrasDocument(payload: ArrasContractPayload): Promise<Document> {
+export async function buildArrasDocument(
+  payload: ArrasContractPayload,
+  options: BuildArrasDocumentOptions = {},
+): Promise<Document> {
   const model = buildArrasRenderModel(payload);
   const p = model.paragraphs;
   const logoHeader = await buildLogoHeaderParagraphs();
+  const additionalClausesParagraphs = buildAdditionalClausesParagraphs(
+    options.additionalClausesDoc ?? null,
+  );
 
   return new Document({
     styles: {
@@ -133,6 +148,7 @@ export async function buildArrasDocument(payload: ArrasContractPayload): Promise
         },
       },
     },
+    numbering: additionalClausesNumberingConfig,
     sections: [
       {
         properties: {},
@@ -173,6 +189,7 @@ export async function buildArrasDocument(payload: ArrasContractPayload): Promise
           body(p[17]),
           heading("SEPTIMA.- FUERO"),
           body(p[18]),
+          ...additionalClausesParagraphs,
           body(p[19]),
           new Paragraph({
             spacing: { before: 320, after: 140 },

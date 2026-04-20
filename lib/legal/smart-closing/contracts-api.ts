@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type { ContractTemplateInput } from "@/types/contracts";
+import { additionalClausesDocSchema } from "@/lib/contracts/additional-clauses/schema";
+import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
 
 export const contractTemplateInputSchema: z.ZodType<ContractTemplateInput> = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("arras"), templateVersion: z.string().optional(), payload: z.any() }),
@@ -19,6 +21,8 @@ export interface SmartClosingContractDetailDto {
   createdAt: string;
   updatedAt: string;
   contractTemplateInput: ContractTemplateInput;
+  additionalClausesDoc: AdditionalClausesDoc | null;
+  additionalClausesUpdatedAt: string | null;
   parties: Array<{
     role: string;
     fullName: string;
@@ -49,6 +53,8 @@ type LegalDocumentLike = {
   createdAt: Date;
   updatedAt: Date;
   contractInput: unknown;
+  additionalClausesDoc?: unknown;
+  additionalClausesUpdatedAt?: Date | null;
   parties?: Array<{
     role: string;
     fullName: string;
@@ -75,6 +81,12 @@ export function normalizeSmartClosingContractDetail(
     throw new Error("LegalDocument.contractInput inválido o ausente para Smart Closing");
   }
 
+  // Si el JSON persistido no cumple el subset, lo descartamos silenciosamente:
+  // no queremos que un documento corrupto tumbe toda la carga del contrato.
+  const parsedClauses = doc.additionalClausesDoc
+    ? additionalClausesDocSchema.safeParse(doc.additionalClausesDoc)
+    : null;
+
   return {
     id: doc.id,
     operationId: doc.operationId,
@@ -86,6 +98,10 @@ export function normalizeSmartClosingContractDetail(
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
     contractTemplateInput: parsedInput.data,
+    additionalClausesDoc: parsedClauses && parsedClauses.success ? parsedClauses.data : null,
+    additionalClausesUpdatedAt: doc.additionalClausesUpdatedAt
+      ? doc.additionalClausesUpdatedAt.toISOString()
+      : null,
     parties: (doc.parties ?? []).map((party) => ({
       role: party.role,
       fullName: party.fullName,

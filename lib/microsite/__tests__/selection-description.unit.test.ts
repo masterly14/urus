@@ -5,6 +5,7 @@ const minimalProp = (id: string, title: string, description: string | null) => (
   propertyId: id,
   title,
   description,
+  contactPhones: [],
   link: null,
   price: 100_000,
   pricePerMeter: null,

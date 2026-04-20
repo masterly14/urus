@@ -37,19 +37,19 @@ function extractAddress(raw: unknown): string | null {
 
 function toStageFromPostventaStep(step: string): EtapaPostVenta | null {
   if (step === "D0_AGRADECIMIENTO") return 1;
-  if (step === "D3_SOPORTE") return 2;
-  if (step === "D10_RESENA") return 3;
-  if (step === "D21_REFERIDOS") return 4;
-  if (step === "D90_RECAPTACION") return 5;
+  if (step === "D3_SOPORTE") return null;
+  if (step === "D10_RESENA") return 2;
+  if (step === "D21_REFERIDOS") return 3;
+  if (step === "D90_RECAPTACION") return 4;
   return null;
 }
 
 function toStageFromPostSalePhase(phase: string): EtapaPostVenta | null {
   if (phase === "agradecimiento") return 1;
-  if (phase === "soporte") return 2;
-  if (phase === "resena") return 3;
-  if (phase === "referidos") return 4;
-  if (phase === "recaptacion") return 5;
+  if (phase === "soporte") return null;
+  if (phase === "resena") return 2;
+  if (phase === "referidos") return 3;
+  if (phase === "recaptacion") return 4;
   return null;
 }
 
@@ -63,9 +63,8 @@ function parseIdempotencyStage(key: string): EtapaPostVenta | null {
 
 function stageLabel(stage: EtapaPostVenta): string {
   if (stage === 1) return "Agradecimiento enviado";
-  if (stage === 2) return "Soporte post-venta enviado";
-  if (stage === 3) return "Solicitud de reseña enviada";
-  if (stage === 4) return "Solicitud de referidos enviada";
+  if (stage === 2) return "Solicitud de reseña enviada";
+  if (stage === 3) return "Solicitud de referidos enviada";
   return "Re-captación enviada";
 }
 
@@ -99,7 +98,7 @@ function buildMessages(args: {
     if (event.type === "INCIDENCIA_POSTVENTA_ABIERTA") {
       rows.push({
         id: `event:${event.id}`,
-        etapa: 2,
+        etapa: 1,
         tipo: "respuesta",
         contenido: "Cliente reporta incidencia post-venta (necesita ayuda).",
         fecha: event.occurredAt.toISOString(),
@@ -110,7 +109,7 @@ function buildMessages(args: {
     if (event.type === "INCIDENCIA_POSTVENTA_RESUELTA") {
       rows.push({
         id: `event:${event.id}`,
-        etapa: 2,
+        etapa: 1,
         tipo: "enviado",
         contenido: "Incidencia post-venta marcada como resuelta.",
         fecha: event.occurredAt.toISOString(),
@@ -121,7 +120,7 @@ function buildMessages(args: {
     if (event.type === "RESENA_SOLICITADA") {
       rows.push({
         id: `event:${event.id}`,
-        etapa: 3,
+        etapa: 2,
         tipo: "enviado",
         contenido: "Solicitud de reseña enviada.",
         fecha: event.occurredAt.toISOString(),
@@ -132,7 +131,7 @@ function buildMessages(args: {
     if (event.type === "RECORDATORIO_RESENA_ENVIADO") {
       rows.push({
         id: `event:${event.id}`,
-        etapa: 3,
+        etapa: 2,
         tipo: "enviado",
         contenido: "Recordatorio de reseña enviado.",
         fecha: event.occurredAt.toISOString(),
@@ -143,7 +142,7 @@ function buildMessages(args: {
     if (event.type === "REFERIDO_SOLICITUD_ENVIADA") {
       rows.push({
         id: `event:${event.id}`,
-        etapa: 4,
+        etapa: 3,
         tipo: "enviado",
         contenido: "Solicitud de referidos enviada.",
         fecha: event.occurredAt.toISOString(),
@@ -293,8 +292,8 @@ async function buildOperacionPostventa(operacionId: string): Promise<OperacionPo
   }
 
   const incidenciaAbierta = await hasOpenIncidencia(propertyCode, closedAt);
-  if (incidenciaAbierta && maxStage > 2) {
-    maxStage = 2;
+  if (incidenciaAbierta && maxStage > 1) {
+    maxStage = 1;
   }
 
   const eventPayload = asRecord(latestClosedEvent?.payload);
@@ -307,7 +306,7 @@ async function buildOperacionPostventa(operacionId: string): Promise<OperacionPo
 
   const comprador = buyerParty?.fullName ?? demand?.nombre ?? "Cliente comprador";
   const vendedor = sellerParty?.fullName ?? "Cliente vendedor";
-  const checklistCompleto = maxStage === 5 && !incidenciaAbierta;
+  const checklistCompleto = maxStage === 4 && !incidenciaAbierta;
 
   return {
     id: operacion.id,

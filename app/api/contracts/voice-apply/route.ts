@@ -12,6 +12,7 @@ import type { JsonValue } from "@/lib/event-store/types";
 import type { ContractTemplateInput } from "@/types/contracts";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { withObservedRoute } from "@/lib/observability";
+import { additionalClausesDocSchema } from "@/lib/contracts/additional-clauses/schema";
 
 
 export const runtime = "nodejs";
@@ -61,6 +62,7 @@ const BodySchema = z.object({
   /** Si es false, no incrementa `_vN` aunque haya cambios (misma revisión de plantilla). Por defecto true. */
   bumpRevision: z.boolean().optional(),
   versioningContext: VersioningContextSchema.optional(),
+  additionalClausesDoc: additionalClausesDocSchema.nullable().optional(),
 });
 
 async function tryUploadVoiceRevisionDocx(params: {
@@ -119,6 +121,7 @@ const postHandler = async (request: Request) => {
     outputTemplateVersion,
     bumpRevision,
     versioningContext,
+    additionalClausesDoc,
   } = parsed.data;
 
   if (!SUPPORTED_KINDS.includes(contractTemplateInput.kind as (typeof SUPPORTED_KINDS)[number])) {
@@ -134,6 +137,7 @@ const postHandler = async (request: Request) => {
       input: contractTemplateInput,
       outputTemplateVersion,
       bumpTemplateRevision: bumpRevision !== false,
+      additionalClausesDoc: additionalClausesDoc ?? null,
     });
 
     if ("needsClarification" in result && result.needsClarification) {

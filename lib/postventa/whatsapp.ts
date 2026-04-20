@@ -2,7 +2,7 @@
  * Senders WhatsApp específicos del flujo post-venta:
  * - Envío del formulario inicial (WhatsApp Flow) tras cierre de operación.
  *
- * Los senders de mensajes de cadencia (agradecimiento, soporte, reseña,
+ * Los senders de mensajes de cadencia (agradecimiento, reseña,
  * referidos, recaptación, cumpleaños y navidad) viven en `lib/whatsapp/send.ts`.
  */
 
@@ -21,7 +21,7 @@ const WHATSAPP_TEMPLATE_LANGUAGE_CODE =
 
 const POSTVENTA_FORMULARIO_TEMPLATE =
   process.env.WHATSAPP_TEMPLATE_POSTVENTA_FORMULARIO ??
-  "postventa_formulario";
+  "postventa_survey";
 
 const POSTVENTA_FLOW_ID = process.env.WHATSAPP_FLOW_POSTVENTA_SURVEY_ID || "";
 

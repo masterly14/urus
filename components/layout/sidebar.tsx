@@ -19,7 +19,6 @@ import {
     ShoppingBag,
     FileText,
     FileSignature,
-    LayoutTemplate,
     PieChart,
     Wallet,
     UserCheck,
@@ -115,7 +114,6 @@ const navItems: NavItem[] = [
         icon: FileText,
         children: [
             { label: "Contratos", href: "/platform/legal/contratos", icon: FileSignature },
-            { label: "Plantillas", href: "/platform/legal/plantillas", icon: LayoutTemplate },
             { label: "Documentos", href: "/platform/legal/documentos", icon: Folder },
         ],
     },

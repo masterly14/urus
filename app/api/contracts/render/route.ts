@@ -4,6 +4,7 @@ import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { generateContractDocx } from "@/lib/contracts/docx";
 import type { ContractTemplateInput } from "@/types/contracts";
 import { withObservedRoute } from "@/lib/observability";
+import { additionalClausesDocSchema } from "@/lib/contracts/additional-clauses/schema";
 
 
 export const runtime = "nodejs";
@@ -21,6 +22,7 @@ const ContractTemplateInputSchema: z.ZodType<ContractTemplateInput> = z.discrimi
 
 const BodySchema = z.object({
   contractTemplateInput: ContractTemplateInputSchema,
+  additionalClausesDoc: additionalClausesDocSchema.nullable().optional(),
 });
 
 /** Solo en builds/runtime de producción se exige sesión (Next/Vercel fijan NODE_ENV=production). */
@@ -47,7 +49,7 @@ const postHandler = async (request: Request) => {
     );
   }
 
-  const { contractTemplateInput } = parsed.data;
+  const { contractTemplateInput, additionalClausesDoc } = parsed.data;
 
   if (!RENDERABLE_KINDS.includes(contractTemplateInput.kind as (typeof RENDERABLE_KINDS)[number])) {
     return NextResponse.json(
@@ -59,7 +61,9 @@ const postHandler = async (request: Request) => {
   }
 
   try {
-    const result = await generateContractDocx(contractTemplateInput);
+    const result = await generateContractDocx(contractTemplateInput, {
+      additionalClausesDoc: additionalClausesDoc ?? null,
+    });
     if (!result.ok) {
       return NextResponse.json(
         {

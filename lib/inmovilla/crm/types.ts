@@ -25,6 +25,32 @@ export interface CreateProspectoParams {
   numagencia: string;
   keymedio?: number;
   keycountry?: number;
+  // Campos que CRM v2 valida como obligatorios para create
+  // (si no se informan, Inmovilla devuelve 400 "no puede estar vacio").
+  alqindex?: string | number;
+  alqinferior?: string | number;
+  alqsuperior?: string | number;
+  conservacion?: number;
+  keysuelo?: number;
+  keycarpin?: number;
+  keycarpinext?: number;
+  todoext?: number;
+  keyagua?: number;
+  keycalefa?: number;
+  /**
+   * Payload base opcional (p.ej. raw de una ficha existente) para
+   * reutilizar defaults que el backend CRM valida como obligatorios.
+   */
+  seedRaw?: Record<string, unknown>;
+  /**
+   * Título en castellano para la ficha. Si se informa, se parchea vía REST v1
+   * tras la creación (el endpoint CRM v2 no persiste este campo de forma fiable
+   * y su ausencia rompe la UI del CRM con "Cannot read properties of undefined
+   * (reading 'indexOf')").
+   */
+  tituloes?: string;
+  /** Descripción en castellano. Mismo tratamiento que `tituloes`. */
+  descripciones?: string;
 }
 
 export interface CreateProspectoResponse {

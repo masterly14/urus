@@ -59,7 +59,17 @@ function toSnapshotData(p: InmovillaProperty): PropertySnapshotData {
     fechaActualizacion: str(p.fechaActualizacion),
     numFotos: Number(p.numFotos) || 0,
     agente: str(p.agente),
+    raw: p.raw && typeof p.raw === "object" ? p.raw : undefined,
   };
+}
+
+/** `true` si el objeto `raw` tiene al menos una clave útil (no es `{}` vacío). */
+function hasMeaningfulRaw(raw: unknown): boolean {
+  return (
+    !!raw &&
+    typeof raw === "object" &&
+    Object.keys(raw as Record<string, unknown>).length > 0
+  );
 }
 
 /** Hard cap to prevent OOM on unbounded snapshot load. Sized for current catalogue (~5k properties). */
@@ -90,6 +100,9 @@ export async function loadPreviousSnapshot(): Promise<SnapshotMap> {
       fechaActualizacion: row.fechaActualizacion,
       numFotos: row.numFotos,
       agente: row.agente,
+      raw: hasMeaningfulRaw(row.raw)
+        ? (row.raw as Record<string, unknown>)
+        : undefined,
     });
   }
   return map;
@@ -118,17 +131,46 @@ export async function saveCurrentSnapshot(
       prisma.$transaction(
         properties.map((p) => {
           const data = toSnapshotData(p);
+          // Solo persistir un `raw` nuevo si contiene algo útil. De lo contrario
+          // conservamos el `raw` previamente guardado en DB: así los ciclos
+          // `unchanged` (que no re-fetchean) no destruyen el JSON crudo que
+          // scripts de backfill/enriquecimiento necesitan (key_loca, key_zona, cp…).
+          const nextRaw = hasMeaningfulRaw(p.raw)
+            ? (p.raw as Prisma.InputJsonValue)
+            : null;
+
+          // Extraer `raw` del spread para no duplicar la clave en update.
+          const snapshotFieldsWithoutRaw: Omit<PropertySnapshotData, "raw"> = {
+            codigo: data.codigo,
+            ref: data.ref,
+            titulo: data.titulo,
+            tipoOfer: data.tipoOfer,
+            precio: data.precio,
+            metrosConstruidos: data.metrosConstruidos,
+            habitaciones: data.habitaciones,
+            banyos: data.banyos,
+            ciudad: data.ciudad,
+            zona: data.zona,
+            estado: data.estado,
+            nodisponible: data.nodisponible,
+            prospecto: data.prospecto,
+            fechaAlta: data.fechaAlta,
+            fechaActualizacion: data.fechaActualizacion,
+            numFotos: data.numFotos,
+            agente: data.agente,
+          };
+
           return prisma.propertySnapshot.upsert({
             where: { codigo: p.codigo },
             create: {
-              ...data,
-              raw: (p.raw ?? {}) as Prisma.InputJsonValue,
+              ...snapshotFieldsWithoutRaw,
+              raw: (nextRaw ?? {}) as Prisma.InputJsonValue,
               firstSeenAt: ts,
               lastSeenAt: ts,
             },
             update: {
-              ...data,
-              raw: (p.raw ?? {}) as Prisma.InputJsonValue,
+              ...snapshotFieldsWithoutRaw,
+              ...(nextRaw !== null ? { raw: nextRaw } : {}),
               lastSeenAt: ts,
             },
           });

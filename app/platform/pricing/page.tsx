@@ -37,6 +37,21 @@ export interface PropertyListItem {
   fechaAlta: string;
 }
 
+function normalizeForComparison(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+}
+
+function isEligibleForSmartPricing(property: PropertyListItem): boolean {
+  const ciudad = property.ciudad?.trim() ?? "";
+  const zona = property.zona?.trim() ?? "";
+  if (!ciudad || !zona) return false;
+  return normalizeForComparison(ciudad).includes("cordoba");
+}
+
 export default function PricingPage() {
   const [properties, setProperties] = useState<PropertyListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +60,7 @@ export default function PricingPage() {
   const [filterZona, setFilterZona] = useState<string>("all");
   const [filterEstado, setFilterEstado] = useState<string>("all");
   const [search, setSearch] = useState<string>("");
+  const [onlyEligible, setOnlyEligible] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const isMock = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mock");
@@ -76,6 +92,7 @@ export default function PricingPage() {
 
   const filtered = useMemo(() => {
     return properties.filter((p) => {
+      if (onlyEligible && !isEligibleForSmartPricing(p)) return false;
       if (filterZona !== "all" && p.zona !== filterZona) return false;
       if (filterEstado !== "all" && p.estado !== filterEstado) return false;
       if (search) {
@@ -90,7 +107,7 @@ export default function PricingPage() {
       }
       return true;
     });
-  }, [properties, filterZona, filterEstado, search]);
+  }, [properties, onlyEligible, filterZona, filterEstado, search]);
 
   const totalValue = useMemo(() => properties.reduce((s, p) => s + p.precio, 0), [properties]);
   const avgPriceM2 = useMemo(() => {
@@ -225,6 +242,17 @@ export default function PricingPage() {
               ))}
             </select>
 
+            {/* Elegibilidad Smart Pricing */}
+            <label className="inline-flex items-center gap-2 rounded-lg border border-border/50 bg-accent/30 px-2.5 py-1.5 text-xs cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={onlyEligible}
+                onChange={(e) => setOnlyEligible(e.target.checked)}
+                className="h-3.5 w-3.5 accent-[var(--color-secondary)]"
+              />
+              Solo elegibles Smart Pricing
+            </label>
+
             {/* View toggle + count */}
             <div className="flex items-center gap-2 ml-auto">
               <Badge variant="outline" className="text-[10px]">{filtered.length} resultados</Badge>
@@ -281,17 +309,34 @@ export default function PricingPage() {
                   {filtered.map((p) => (
                     <tr key={p.codigo} className="hover:bg-accent/20 transition-colors">
                       <td className="px-4 py-3">
-                        <Link href={`/platform/pricing/informe/${p.codigo}`} className="text-xs font-mono font-bold text-secondary hover:underline">
-                          {p.codigo}
-                        </Link>
+                        {isEligibleForSmartPricing(p) ? (
+                          <Link href={`/platform/pricing/informe/${p.codigo}`} className="text-xs font-mono font-bold text-secondary hover:underline">
+                            {p.codigo}
+                          </Link>
+                        ) : (
+                          <span className="text-xs font-mono font-bold text-muted-foreground">{p.codigo}</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
-                        <Link href={`/platform/pricing/informe/${p.codigo}`} className="text-sm font-medium hover:text-secondary transition-colors">
-                          {p.titulo || p.ref || p.codigo}
-                        </Link>
+                        {isEligibleForSmartPricing(p) ? (
+                          <Link href={`/platform/pricing/informe/${p.codigo}`} className="text-sm font-medium hover:text-secondary transition-colors">
+                            {p.titulo || p.ref || p.codigo}
+                          </Link>
+                        ) : (
+                          <span className="text-sm font-medium text-muted-foreground">
+                            {p.titulo || p.ref || p.codigo}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
-                        <Badge variant="outline" className="text-[9px]">{p.zona || p.ciudad}</Badge>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge variant="outline" className="text-[9px]">{p.zona || p.ciudad}</Badge>
+                          {!isEligibleForSmartPricing(p) && (
+                            <Badge variant="outline" className="text-[9px] border-[var(--urus-warning)]/40 text-[var(--urus-warning)]">
+                              No elegible
+                            </Badge>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <span className="text-sm font-mono font-medium">{p.precio.toLocaleString("es-ES")} €</span>

@@ -49,6 +49,7 @@ enum EventType {
   CONTRATO_BORRADOR_GENERADO
   CONTRATO_VERSIONADO
   CONTRATO_APROBADO
+  CONTRATO_CLAUSULAS_ADICIONALES_EDITADAS
   FIRMA_ENVIADA
   FIRMA_COMPLETADA
   FIRMA_RECHAZADA
@@ -136,6 +137,7 @@ enum JobType {
   PARTE_VISITA_ENVIAR_FORMULARIO
   AUTO_VALIDATE_MICROSITE
   SEND_WHATSAPP_MATCH
+  EVALUATE_DEMAND_COVERAGE
 }
 
 enum JobStatus {
@@ -832,10 +834,13 @@ model MicrositeSelection {
   validatedByComercialId String?
   escalatedAt            DateTime?
   feedbacks              MicrositeSelectionFeedback[]
+  /// * Origen de la selección: "coverage_scan" | "visita_evaluada" | "feedback_loop" | null (legacy).
+  source                 String?
 
   @@index([demandId, createdAt])
   @@index([token])
   @@index([status, validationDueAt])
+  @@index([demandId, source, createdAt])
   @@map("microsite_selections")
 }
 
@@ -874,6 +879,12 @@ model LegalDocument {
   templateVersion    String?
   status             LegalDocumentStatus @default(DRAFT)
   contractInput      Json?
+  /// Cláusulas adicionales libres escritas por el agente desde el editor
+  /// WYSIWYG (TipTap JSON con subset controlado: paragraph, bold, italic,
+  /// fontSize S/M/L, bulletList, orderedList). Opcional y editable solo
+  /// mientras el documento esté en DRAFT.
+  additionalClausesDoc      Json?
+  additionalClausesUpdatedAt DateTime?
   cloudinaryUrl      String?
   signedDocumentUrl  String?
   auditTrailUrl      String?
@@ -1226,12 +1237,85 @@ model Operacion {
   updatedAt      DateTime        @updatedAt
 
   asignaciones ColaboradorAsignacion[]
+  notas         OperacionNota[]
+  checklistItems OperacionChecklistItem[]
+  adjuntos      OperacionAdjunto[]
 
   @@index([propertyCode, estado])
   @@index([comercialId, createdAt])
   @@index([ciudad, estado])
   @@index([estado, closedAt])
   @@map("operaciones")
+}
+
+// ---------------------------------------------------------------------------
+// Panel lateral por operación: notas internas, checklist ad-hoc y adjuntos.
+// Modelos mutables (no event store) — ver docs/plan.md M11.
+// ---------------------------------------------------------------------------
+
+/// Nota interna asociada a una operación. Visibilidad:
+/// - CEO/admin: todas las notas.
+/// - comercial: solo las suyas (filtradas por authorUserId en la API).
+/// Nunca se incluyen en PDFs ni mensajes al cliente.
+model OperacionNota {
+  id             String   @id @default(cuid())
+  operacionId    String
+  authorUserId   String
+  authorName     String
+  /// "ceo" | "admin" | "comercial" — congelado en el momento de creación.
+  authorRole     String
+  content        String   @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  operacion Operacion @relation(fields: [operacionId], references: [id], onDelete: Cascade)
+
+  @@index([operacionId, createdAt])
+  @@index([authorUserId])
+  @@map("operacion_notas")
+}
+
+/// Ítem de checklist ad-hoc en una operación. Ordenable mediante `orden`.
+/// NO avanza el stage del pipeline automáticamente — es tracking operativo.
+model OperacionChecklistItem {
+  id                     String    @id @default(cuid())
+  operacionId            String
+  texto                  String
+  completado             Boolean   @default(false)
+  orden                  Int       @default(0)
+  responsableComercialId String?
+  createdByUserId        String
+  completadoByUserId     String?
+  completadoAt           DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  operacion Operacion @relation(fields: [operacionId], references: [id], onDelete: Cascade)
+
+  @@index([operacionId, orden])
+  @@index([responsableComercialId])
+  @@map("operacion_checklist_items")
+}
+
+/// Adjunto subido por un usuario a una operación. Se almacena en Cloudinary
+/// como resource_type=raw (PDF/Word) o image (jpg/png/webp).
+model OperacionAdjunto {
+  id               String   @id @default(cuid())
+  operacionId      String
+  nombre           String
+  mimeType         String
+  cloudinaryUrl    String
+  publicId         String
+  resourceType     String   @default("raw")
+  bytes            Int
+  uploadedByUserId String
+  uploadedByName   String
+  createdAt        DateTime @default(now())
+
+  operacion Operacion @relation(fields: [operacionId], references: [id], onDelete: Cascade)
+
+  @@index([operacionId, createdAt])
+  @@map("operacion_adjuntos")
 }
 
 /// H27: secuencia atómica por año para generar `Operacion.codigo`

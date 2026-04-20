@@ -11,15 +11,13 @@ const MS_DAY = 86_400_000;
  *
  * Fases:
  *   1. D0      — Agradecimiento inmediato
- *   2. D3–D7   — Soporte / ¿todo bien?
- *   3. D10–D14 — Solicitud de reseña (Google Review)
- *   4. D21–D30 — Activación de referidos
- *   5. D90–D180 — Re-captación
+ *   2. D10–D14 — Solicitud de reseña (Google Review)
+ *   3. D21–D30 — Activación de referidos
+ *   4. D90–D180 — Re-captación
  */
 
 export type PostSalePhase =
   | "agradecimiento"
-  | "soporte"
   | "resena"
   | "referidos"
   | "recaptacion";
@@ -36,12 +34,6 @@ export const POST_SALE_CADENCE: PostSaleCadenceStep[] = [
     phase: "agradecimiento",
     label: "D0",
     delayMs: 0,
-    jobType: "SEND_POST_SALE_MESSAGE",
-  },
-  {
-    phase: "soporte",
-    label: "D+5",
-    delayMs: 5 * MS_DAY,
     jobType: "SEND_POST_SALE_MESSAGE",
   },
   {
@@ -67,7 +59,6 @@ export const POST_SALE_CADENCE: PostSaleCadenceStep[] = [
 export function getPhaseLabel(phase: PostSalePhase): string {
   const labels: Record<PostSalePhase, string> = {
     agradecimiento: "Agradecimiento",
-    soporte: "Soporte post-entrega",
     resena: "Petición de reseña",
     referidos: "Activación de referidos",
     recaptacion: "Re-captación",
@@ -78,10 +69,9 @@ export function getPhaseLabel(phase: PostSalePhase): string {
 export function getPhaseEtapa(phase: PostSalePhase): number {
   const etapas: Record<PostSalePhase, number> = {
     agradecimiento: 1,
-    soporte: 2,
-    resena: 3,
-    referidos: 4,
-    recaptacion: 5,
+    resena: 2,
+    referidos: 3,
+    recaptacion: 4,
   };
   return etapas[phase];
 }

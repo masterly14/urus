@@ -11,6 +11,7 @@ import type { PricingOptions } from "@/lib/pricing";
 import {
   runPricingAnalysis,
   PricingDataIncompleteError,
+  PricingNotEligibleError,
 } from "@/lib/pricing";
 import { enqueueJob } from "@/lib/job-queue";
 
@@ -63,6 +64,13 @@ export async function handlePricingAnalysis(
 
     return { success: true };
   } catch (err) {
+    if (err instanceof PricingNotEligibleError) {
+      console.warn(
+        `[consumer:pricing] ${propertyCode} no elegible para Smart Pricing: ${err.reasons.join("; ")}`,
+      );
+      return { success: true };
+    }
+
     if (err instanceof PricingDataIncompleteError) {
       console.warn(
         `[consumer:pricing] Datos incompletos para ${propertyCode}: ${err.message}`,

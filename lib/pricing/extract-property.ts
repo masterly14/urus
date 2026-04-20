@@ -8,7 +8,7 @@
 import { prisma } from "@/lib/prisma";
 import { getNombreTipoByKeyTipo } from "@/lib/inmovilla/rest/catalogs";
 import type { PricingPropertyInput, PricingPropertyExtras } from "./types";
-import { PricingDataIncompleteError } from "./types";
+import { PricingDataIncompleteError, PricingNotEligibleError } from "./types";
 
 function parseBool(v: unknown): boolean {
   if (typeof v === "boolean") return v;
@@ -21,6 +21,20 @@ function parseStr(v: unknown): string | null {
   if (v == null) return null;
   const s = String(v).trim();
   return s.length > 0 ? s : null;
+}
+
+function normalizeForComparison(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+}
+
+function isCordobaCity(ciudad: string): boolean {
+  const normalized = normalizeForComparison(ciudad);
+  // Acepta "Córdoba", "Cordoba" y variantes como "Córdoba capital".
+  return normalized.includes("cordoba");
 }
 
 /**
@@ -72,9 +86,19 @@ export async function extractPropertyForPricing(
   if (!property.precio || property.precio <= 0) missing.push("precio");
   if (!property.metrosConstruidos || property.metrosConstruidos <= 0) missing.push("metrosConstruidos");
   if (!property.ciudad?.trim()) missing.push("ciudad");
+  if (!property.zona?.trim()) missing.push("zona");
 
   if (missing.length > 0) {
     throw new PricingDataIncompleteError(propertyCode, missing);
+  }
+
+  const notEligibleReasons: string[] = [];
+  if (!isCordobaCity(property.ciudad)) {
+    notEligibleReasons.push("ciudad fuera de cobertura (solo Córdoba)");
+  }
+
+  if (notEligibleReasons.length > 0) {
+    throw new PricingNotEligibleError(propertyCode, notEligibleReasons);
   }
 
   const snapshot = await prisma.propertySnapshot.findUnique({

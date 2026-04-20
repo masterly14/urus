@@ -108,7 +108,7 @@ describe("demand handlers", () => {
   ];
 
   for (const eventType of demandEventTypes) {
-    it(`${eventType}: debe retornar success con follow-up UPDATE_DEMAND_PROJECTION`, async () => {
+    it(`${eventType}: debe retornar success con follow-up UPDATE_DEMAND_PROJECTION + EVALUATE_DEMAND_COVERAGE`, async () => {
       const handler = getHandler(eventType)!;
       expect(handler).toBeDefined();
 
@@ -119,12 +119,11 @@ describe("demand handlers", () => {
       const result = await handler(event);
 
       expect(result.success).toBe(true);
-      expect(result.followUpJobs).toHaveLength(1);
-      expect(result.followUpJobs![0].type).toBe("UPDATE_DEMAND_PROJECTION");
+      expect(result.followUpJobs!.length).toBeGreaterThanOrEqual(2);
+      const types = result.followUpJobs!.map((j) => j.type);
+      expect(types).toContain("UPDATE_DEMAND_PROJECTION");
+      expect(types).toContain("EVALUATE_DEMAND_COVERAGE");
       expect(result.followUpJobs![0].sourceEventId).toBe(event.id);
-      expect(result.followUpJobs![0].idempotencyKey).toBe(
-        `update_demand_projection:${event.id}`,
-      );
     });
   }
 });

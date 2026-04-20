@@ -5,6 +5,7 @@ import { buildArrasDocument } from "./builders/arras";
 import { buildSenalCompraDocument } from "./builders/senal-compra";
 import { buildOfertaFirmeDocument } from "./builders/oferta-firme";
 import { validateContractTemplateInput } from "./validators";
+import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
 
 export type GenerateContractDocxResult =
   | {
@@ -17,6 +18,14 @@ export type GenerateContractDocxResult =
       issues: ContractFieldIssue[];
     };
 
+export interface GenerateContractDocxOptions {
+  /**
+   * Cláusulas adicionales libres escritas por el agente (TipTap JSON).
+   * Opcional: si está vacío o ausente, los builders no inyectan la sección.
+   */
+  additionalClausesDoc?: AdditionalClausesDoc | null;
+}
+
 const KIND_FILE_PREFIX: Record<string, string> = {
   arras: "Contrato_Arras",
   senal_compra: "Senal_Compra",
@@ -25,6 +34,7 @@ const KIND_FILE_PREFIX: Record<string, string> = {
 
 export async function generateContractDocx(
   input: ContractTemplateInput,
+  options: GenerateContractDocxOptions = {},
 ): Promise<GenerateContractDocxResult> {
   const issues = validateContractTemplateInput(input);
 
@@ -32,17 +42,19 @@ export async function generateContractDocx(
     return { ok: false, issues };
   }
 
+  const additionalClausesDoc = options.additionalClausesDoc ?? null;
+
   let doc: Document;
 
   switch (input.kind) {
     case "arras":
-      doc = await buildArrasDocument(input.payload);
+      doc = await buildArrasDocument(input.payload, { additionalClausesDoc });
       break;
     case "senal_compra":
-      doc = await buildSenalCompraDocument(input.payload);
+      doc = await buildSenalCompraDocument(input.payload, { additionalClausesDoc });
       break;
     case "oferta_firme":
-      doc = await buildOfertaFirmeDocument(input.payload);
+      doc = await buildOfertaFirmeDocument(input.payload, { additionalClausesDoc });
       break;
     default:
       return {

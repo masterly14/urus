@@ -103,3 +103,11 @@ export interface MatchDemandsResult {
   matches: MatchResult[];
   executionMs: number;
 }
+
+export interface DemandCoverageResult {
+  demandId: string;
+  bestScore: number;
+  totalCandidates: number;
+  topMatch: MatchResult | null;
+  executionMs: number;
+}

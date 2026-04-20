@@ -8,7 +8,6 @@ import { sendPostventaFormulario } from "@/lib/postventa/whatsapp";
 import { getBuyerInfoForProperty } from "@/lib/postventa/resolve-buyer";
 import {
   sendPostventaAgradecimiento,
-  sendPostventaSoporte,
   sendPostventaResena,
   sendPostventaReferidos,
   sendPostventaRecaptacion,
@@ -144,18 +143,6 @@ function buildTemplateSenders(): Record<string, TemplateSender> {
         buyerName: buyer.name || "cliente",
         operationRef,
       });
-    },
-    soporte: async ({ buyer, propertyCode, operacionId }) => {
-      const guideUrl = `${appUrl}/postventa/guia`;
-      await sendPostventaSoporte(
-        buyer.phone,
-        {
-          buyerName: buyer.name,
-          guideUrl,
-          propertyCode: operacionId ?? propertyCode,
-        },
-        { useTemplate: true },
-      );
     },
     resena: async ({ buyer }) => {
       if (!reviewUrl) {
@@ -307,6 +294,13 @@ export async function handleSendPostventaMessage(
     requiresNoIncidencia,
     sessionId,
   } = payload;
+
+  if (template === "soporte") {
+    console.warn(
+      `[postventa] SEND_POSTVENTA_MESSAGE ${step} template=soporte deprecado — omitiendo (job antiguo en cola)`,
+    );
+    return { success: true };
+  }
 
   if (requiresNoIncidencia) {
     const paused = await hasOpenIncidencia(propertyCode, new Date(closedAt));

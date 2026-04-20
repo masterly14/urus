@@ -37,6 +37,7 @@ export function getMicrositeMockSelection(): MockSelectionViewModel {
         "Tres dormitorios amplios, dos baños completos, salón comedor de 30 m² con salida a terraza. " +
         "Cocina equipada, suelos de madera, calefacción central. Finca clásica con ascensor y portero físico. " +
         "Próximo a Retiro, Serrano y Velázquez.",
+      contactPhones: ["911234567", "600123123"],
       link: "https://example.com/anuncio-1",
       price: 485_000,
       pricePerMeter: 4330,
@@ -76,6 +77,7 @@ export function getMicrositeMockSelection(): MockSelectionViewModel {
         "Ático con terraza panorámica de 25 m² y vistas a la sierra. " +
         "Dos dormitorios en suite, cocina abierta al salón, domótica completa. " +
         "Piscina comunitaria, garaje doble incluido. Urbanización privada con seguridad 24h.",
+      contactPhones: ["912345678"],
       link: "https://example.com/anuncio-2",
       price: 620_000,
       pricePerMeter: 6526,
@@ -113,6 +115,7 @@ export function getMicrositeMockSelection(): MockSelectionViewModel {
         "Dúplex completamente reformado en Chamberí. Planta baja con salón de doble altura, " +
         "cocina industrial y aseo de cortesía. Planta alta con 4 dormitorios y 2 baños. " +
         "Materiales de primera calidad, suelos de roble. Barrio tranquilo con todos los servicios.",
+      contactPhones: [],
       link: null,
       price: 395_000,
       pricePerMeter: 3086,

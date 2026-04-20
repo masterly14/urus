@@ -31,10 +31,9 @@ import type { EtapaPostVenta, TipoCliente } from "@/lib/mock-data/types";
 
 const pipelineStages: { id: EtapaPostVenta; label: string; description: string; emoji: string }[] = [
     { id: 1, label: "Cierre Inmediato", description: "Agradecimiento + Email resumen + Checklist", emoji: "🤝" },
-    { id: 2, label: "Soporte Temprano", description: "Validación + Mini guía", emoji: "📋" },
-    { id: 3, label: "Reputación", description: "Petición de reseña + Recordatorio", emoji: "⭐" },
-    { id: 4, label: "Referidos", description: "Invitación + Enlace directo", emoji: "🔗" },
-    { id: 5, label: "Recaptación", description: "Segmentación (Comprador/Inversor/Vendedor)", emoji: "🔄" },
+    { id: 2, label: "Reputación", description: "Petición de reseña + Recordatorio", emoji: "⭐" },
+    { id: 3, label: "Referidos", description: "Invitación + Enlace directo", emoji: "🔗" },
+    { id: 4, label: "Recaptación", description: "Segmentación (Comprador/Inversor/Vendedor)", emoji: "🔄" },
 ];
 
 export default function PipelinePage() {
@@ -52,7 +51,7 @@ export default function PipelinePage() {
 
     // Group by stage
     const opsByStage = useMemo(() => {
-        const grouped: Record<number, typeof filteredOps> = { 1: [], 2: [], 3: [], 4: [], 5: [] };
+        const grouped: Record<number, typeof filteredOps> = { 1: [], 2: [], 3: [], 4: [] };
         filteredOps.forEach((op) => {
             grouped[op.etapaActual].push(op);
         });
@@ -78,7 +77,7 @@ export default function PipelinePage() {
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight">Pipeline Post-Venta</h1>
                         <p className="text-sm text-muted-foreground">
-                            Seguimiento automatizado de operaciones cerradas por 5 etapas
+                            Seguimiento automatizado de operaciones cerradas por 4 etapas
                         </p>
                     </div>
                 </div>

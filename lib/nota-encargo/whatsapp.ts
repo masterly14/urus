@@ -103,7 +103,7 @@ export async function sendNotaEncargoNoConfirmada(
 
 const FORMULARIO_TEMPLATE =
   process.env.WHATSAPP_TEMPLATE_NOTA_ENCARGO_FORMULARIO ||
-  "nota_encargo_formulario";
+  "nota_encargo";
 
 const FLOW_ID = process.env.WHATSAPP_FLOW_NOTA_ENCARGO_ID || "";
 
