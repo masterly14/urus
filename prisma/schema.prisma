@@ -138,6 +138,7 @@ enum JobType {
   AUTO_VALIDATE_MICROSITE
   SEND_WHATSAPP_MATCH
   EVALUATE_DEMAND_COVERAGE
+  REBUILD_MATCHES_FOR_DEMAND
 }
 
 enum JobStatus {
@@ -1842,4 +1843,31 @@ model InmovillaSessionStore {
   updatedAt  DateTime @updatedAt
 
   @@map("inmovilla_session_store")
+}
+
+// ── M5: Rematch masivo por demanda ──────────────────────────────────────────
+
+enum RematchRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model RematchRun {
+  id                String           @id @default(cuid())
+  status            RematchRunStatus @default(RUNNING)
+  demandIdsList     Json             @default("[]")
+  totalDemands      Int
+  totalBatches      Int
+  currentBatch      Int              @default(0)
+  demandsProcessed  Int              @default(0)
+  matchesEmitted    Int              @default(0)
+  matchesSkipped    Int              @default(0)
+  errorMessage      String?
+  triggeredByUserId String
+  startedAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([status, startedAt])
+  @@map("rematch_runs")
 }

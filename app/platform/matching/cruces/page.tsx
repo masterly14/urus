@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { MatchCard, getMatchColor } from "@/components/matching/match-card";
 import type { CruceMatch } from "@/components/matching/match-card";
 import { WhatsAppPreview } from "@/components/matching/whatsapp-preview";
+import { RematchPanel } from "@/components/matching/rematch-panel";
 
 const POLL_INTERVAL_MS = 10_000;
 const ITEMS_PER_PAGE = 10;
@@ -329,6 +330,9 @@ export default function CrucesPage() {
                     </CardContent>
                 </Card>
             )}
+
+            {/* Rematch Panel — solo visible para CEO */}
+            <RematchPanel />
 
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

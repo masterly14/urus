@@ -9,6 +9,8 @@
  */
 
 export { matchDemandsToProperty, matchDemandsToPropertyById, passesHardFilters, ACTIVE_DEMAND_STATES } from "./match-demands";
+export { matchPropertiesToDemand } from "./match-properties";
+export type { MatchPropertiesResult } from "./match-properties";
 export { computeMatchScore, operationMatches, DEFAULT_CONFIG } from "./scoring";
 export { evaluateDemandCoverage, COVERAGE_MIN_SCORE } from "./coverage";
 export type {

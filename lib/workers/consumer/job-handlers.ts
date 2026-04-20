@@ -928,3 +928,8 @@ registerJobHandler("SEND_WHATSAPP_MATCH", handleSendWhatsAppMatch);
 import { handleEvaluateDemandCoverage } from "./coverage-handler";
 
 registerJobHandler("EVALUATE_DEMAND_COVERAGE", handleEvaluateDemandCoverage);
+
+// --- Matching (M5): rematch masivo por demanda ---
+import { handleRebuildMatchesForDemand } from "./rebuild-matches-handler";
+
+registerJobHandler("REBUILD_MATCHES_FOR_DEMAND", handleRebuildMatchesForDemand);
