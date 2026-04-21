@@ -1,8 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createTemplateBodySchema } from "@/lib/contracts/templates/schema";
-import { createId } from "@paralleldrive/cuid2";
+import { randomUUID } from "node:crypto";
 import type { TemplateStructure } from "@/types/contract-template";
+
+const createId = () => randomUUID().replace(/-/g, "").slice(0, 25);
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -77,9 +80,9 @@ export async function POST(req: NextRequest) {
       version: resolvedVersion,
       name,
       isActive: false,
-      structure: structure as unknown as Record<string, unknown>,
-      variableBindings: variableBindings as unknown as Record<string, unknown>,
-      sharedClauseOverrides: sharedClauseOverrides as unknown as Record<string, unknown>,
+      structure: structure as unknown as Prisma.InputJsonValue,
+      variableBindings: variableBindings as unknown as Prisma.InputJsonValue,
+      sharedClauseOverrides: sharedClauseOverrides as unknown as Prisma.InputJsonValue,
     },
   });
 

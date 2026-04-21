@@ -17,5 +17,12 @@ export default async function PlantillasPage() {
     orderBy: { updatedAt: "desc" },
   });
 
-  return <PlantillasListClient templates={templates} />;
+  const serializedTemplates = templates.map((template) => ({
+    ...template,
+    publishedAt: template.publishedAt?.toISOString() ?? null,
+    createdAt: template.createdAt.toISOString(),
+    updatedAt: template.updatedAt.toISOString(),
+  }));
+
+  return <PlantillasListClient templates={serializedTemplates} />;
 }
