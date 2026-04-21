@@ -478,6 +478,21 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
   const payload = event.payload as WhatsAppReceivedPayload;
   const waId = event.aggregateId;
 
+  // Guard: skip if already processed inline by the webhook (prevents duplicate responses)
+  const alreadyProcessed = await prisma.event.findFirst({
+    where: {
+      causationId: event.id,
+      type: { in: ["MENTAL_MSG_ENVIADO", "WHATSAPP_ENVIADO"] as never[] },
+    },
+    select: { id: true },
+  });
+  if (alreadyProcessed) {
+    console.log(
+      `[consumer:whatsapp] WHATSAPP_RECIBIDO waId=${waId} eventId=${event.id} — already processed inline, skipping`,
+    );
+    return { success: true };
+  }
+
   const postventaAction = extractPostventaPayload(payload);
   if (postventaAction) {
     return handlePostventaButton(postventaAction, event, waId);

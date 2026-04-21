@@ -200,6 +200,14 @@ export async function handleMentalHealthMessage(
 
   const comercialId = existingSession?.comercialId ?? await resolveComercialIdByWaId(waId);
 
+  if (!comercialId && !existingSession) {
+    await sendTextMessage(
+      waId,
+      "Este servicio está disponible exclusivamente para el equipo comercial de Urus Capital. Si crees que es un error, contacta a tu responsable.",
+    );
+    return { success: true };
+  }
+
   const session = existingSession
     ? existingSession
     : await prisma.mentalHealthSession.upsert({

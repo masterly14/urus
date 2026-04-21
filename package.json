@@ -33,6 +33,7 @@
     "daily-log:end": "tsx scripts/daily-log-end.ts",
     "daily-log:sync-commit": "tsx scripts/daily-log-sync-commit.ts",
     "whatsapp:test-m4": "tsx scripts/test-whatsapp-m4.ts",
+    "whatsapp:test-template-validation": "tsx scripts/test-whatsapp-template-validation.ts",
     "agents:test-langgraph": "tsx scripts/test-langgraph.ts",
     "eval:nlu": "tsx scripts/run-nlu-eval.ts",
     "eval:conversational": "tsx scripts/run-conversational-eval.ts",
