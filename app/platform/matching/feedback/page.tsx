@@ -209,13 +209,6 @@ function FeedbackContent() {
                                 Añade <span className="font-mono bg-accent/20 px-1.5 py-0.5 rounded">?mock=1</span> a la URL para visualizar el prototipo con datos de ejemplo.
                             </p>
                         </div>
-                        <Link
-                            href="/platform/matching/feedback?mock=1"
-                            className="inline-flex items-center gap-1.5 text-xs text-secondary hover:underline"
-                        >
-                            Ver con datos de ejemplo
-                            <ArrowRight className="h-3 w-3" />
-                        </Link>
                     </CardContent>
                 </Card>
             </div>

@@ -99,6 +99,10 @@ export function useSmartClosingSession(
   const [appliedSummaries, setAppliedSummaries] = useState<string[]>([]);
   const [validationIssues, setValidationIssues] = useState<ContractFieldIssue[]>([]);
   const [clarificationQuestions, setClarificationQuestions] = useState<string[]>([]);
+  const [assistantMessage, setAssistantMessage] = useState<string>("");
+  const [missingDataQuestions, setMissingDataQuestions] = useState<string[]>([]);
+  const [currentAdditionalClausesDoc, setCurrentAdditionalClausesDoc] =
+    useState<AdditionalClausesDoc | null>(options?.initialAdditionalClausesDoc ?? null);
   const [approved, setApproved] = useState(false);
   const [signaturePhase, setSignaturePhase] = useState<SignaturePhase>("idle");
   const [signatureResult, setSignatureResult] = useState<SignatureResult | null>(null);
@@ -277,6 +281,13 @@ export function useSmartClosingSession(
         setAppliedSummaries(merged.appliedSummaries);
         setValidationIssues(merged.validationIssues);
         setClarificationQuestions(merged.clarificationQuestions);
+        setAssistantMessage(merged.assistantMessage);
+        setMissingDataQuestions(merged.missingDataQuestions);
+
+        if (merged.updatedAdditionalClausesDoc) {
+          additionalClausesDocRef.current = merged.updatedAdditionalClausesDoc;
+          setCurrentAdditionalClausesDoc(merged.updatedAdditionalClausesDoc);
+        }
 
         if (data.ok && merged.doc.docxBase64) {
           return await refreshPreviewFromBase64(merged.doc.docxBase64);
@@ -396,6 +407,7 @@ export function useSmartClosingSession(
   const applyAdditionalClausesDoc = useCallback(
     async (doc: AdditionalClausesDoc | null) => {
       additionalClausesDocRef.current = doc;
+      setCurrentAdditionalClausesDoc(doc);
       await loadInitialRender(docStateRef.current.contractTemplateInput);
     },
     [loadInitialRender],
@@ -412,6 +424,8 @@ export function useSmartClosingSession(
     appliedSummaries,
     validationIssues,
     clarificationQuestions,
+    assistantMessage,
+    missingDataQuestions,
     approved,
     applyVoiceTranscript,
     approveDraft,
@@ -426,5 +440,6 @@ export function useSmartClosingSession(
     signatureError,
     sendToSignature,
     applyAdditionalClausesDoc,
+    currentAdditionalClausesDoc,
   };
 }

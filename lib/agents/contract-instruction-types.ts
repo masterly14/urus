@@ -81,6 +81,17 @@ export interface ContractVoiceStructuredPatch {
 
   // ── Otros ────────────────────────────────────────────────────────────────
   courtsMunicipality: string | null;
+
+  // ── Cláusulas adicionales dictadas por el comercial ────────────────────
+  /** Texto libre dictado para incluir como cláusula adicional. null si no dictó ninguna. */
+  additionalClauseText: string | null;
+
+  // ── Respuesta conversacional del asistente ─────────────────────────────
+  /** Mensaje que el asistente muestra al comercial: confirmación, resumen o pregunta. */
+  assistantMessage: string;
+  /** Datos que el asistente detecta como faltantes o incompletos en el contrato. */
+  missingDataQuestions: string[];
+
   ambiguousPoints: string[];
   reasoning: string;
 }

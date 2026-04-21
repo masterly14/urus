@@ -44,6 +44,7 @@
     "firma:live-e2e": "tsx scripts/test-signature-live-e2e.ts",
     "auth:security-e2e": "tsx scripts/test-auth-security-e2e.ts",
     "seed:ceo": "tsx scripts/seed-ceo.ts",
+    "seed:test-contract": "tsx scripts/seed-test-contract.ts",
     "session:refresh": "tsx scripts/refresh-inmovilla-session.ts",
     "backfill:comercial": "tsx scripts/backfill-comercial-relations.ts",
     "backfill:comercial-ref": "tsx scripts/backfill-comercial-ref-assignments.ts",

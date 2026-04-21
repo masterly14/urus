@@ -12,6 +12,8 @@ export interface DemandRow {
   presupuestoMin: number;
   presupuestoMax: number;
   habitacionesMin: number;
+  metrosMin: number | null;
+  metrosMax: number | null;
   agente: string;
   comercialId: string | null;
   leadStatus: LeadStatus;

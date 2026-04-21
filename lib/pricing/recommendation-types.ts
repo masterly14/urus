@@ -24,7 +24,9 @@ export const PricingRecommendationSchema = z.object({
     .string()
     .describe(
       "Diagnóstico textual profesional (2–4 frases) citando datos concretos del análisis: " +
-        "gap%, precio medio del cluster, número de comparables, segmentación particular/profesional.",
+        "diferencia porcentual, precio medio de mercado, número de propiedades similares, segmentación particular/profesional. " +
+        "IMPORTANTE: usar lenguaje comercial accesible. NO usar jerga técnica como 'gap', 'cluster', 'desviación estándar'. " +
+        "Usar en su lugar: 'diferencia de precio', 'media del mercado', 'propiedades similares', 'dispersión'.",
     ),
   recomendaciones: z
     .array(z.string())
@@ -51,7 +53,7 @@ export const PricingRecommendationSchema = z.object({
   argumentosComerciales: z
     .array(z.string())
     .describe(
-      "Puntos fuertes del inmueble frente al cluster (extras, ubicación, estado). " +
+      "Puntos fuertes del inmueble frente al mercado (extras, ubicación, estado). " +
         "Vacío si no hay ventajas identificables.",
     ),
   riesgos: z

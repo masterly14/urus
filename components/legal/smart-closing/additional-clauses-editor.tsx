@@ -148,6 +148,21 @@ export function AdditionalClausesEditor({
     editor.setEditable(!readOnly);
   }, [editor, readOnly]);
 
+  const prevInitialDocRef = useRef(initialDoc);
+  useEffect(() => {
+    if (!editor || !initialDoc) return;
+    if (initialDoc === prevInitialDocRef.current) return;
+    prevInitialDocRef.current = initialDoc;
+
+    const currentJson = JSON.stringify(editor.getJSON());
+    const incomingJson = JSON.stringify(initialDoc);
+    if (currentJson === incomingJson) return;
+
+    editor.commands.setContent(initialDoc);
+    latestDocRef.current = initialDoc;
+    if (!expanded) setExpanded(true);
+  }, [editor, initialDoc, expanded]);
+
   const persist = useCallback(
     async (doc: AdditionalClausesDoc) => {
       setSaveState("saving");

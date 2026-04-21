@@ -1,31 +1,112 @@
 "use client";
 
-import { Mic, Square, Wand2 } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { Mic, Send, Square } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 type VoicePanelPhase = "idle" | "recording" | "transcribing";
 
+interface AssistantBubble {
+  id: string;
+  text: string;
+  type: "assistant" | "user" | "missing-data";
+  timestamp: number;
+}
+
 export interface SmartClosingVoicePanelProps {
   disabled?: boolean;
   busy?: boolean;
-  /** Devuelve true si el contrato se actualizó correctamente (vista previa lista). */
   onApplyTranscript: (transcript: string) => Promise<boolean>;
+  assistantMessage?: string;
+  missingDataQuestions?: string[];
+  clarificationQuestions?: string[];
+  appliedSummaries?: string[];
 }
 
 export function SmartClosingVoicePanel({
   disabled,
   busy,
   onApplyTranscript,
+  assistantMessage,
+  missingDataQuestions,
+  clarificationQuestions,
+  appliedSummaries,
 }: SmartClosingVoicePanelProps) {
   const [phase, setPhase] = useState<VoicePanelPhase>("idle");
   const [transcript, setTranscript] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+  const [bubbles, setBubbles] = useState<AssistantBubble[]>([
+    {
+      id: "welcome",
+      text: "Hola, soy tu asistente de contratos. Puedes dictarme cambios de precio, plazos, clausulas nuevas... lo que necesites. Pulsa el microfono o escribe directamente.",
+      type: "assistant",
+      timestamp: Date.now(),
+    },
+  ]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const prevAssistantMsgRef = useRef<string>("");
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [bubbles]);
+
+  useEffect(() => {
+    if (assistantMessage && assistantMessage !== prevAssistantMsgRef.current) {
+      prevAssistantMsgRef.current = assistantMessage;
+      setBubbles((prev) => [
+        ...prev,
+        {
+          id: `a-${Date.now()}`,
+          text: assistantMessage,
+          type: "assistant",
+          timestamp: Date.now(),
+        },
+      ]);
+    }
+  }, [assistantMessage]);
+
+  useEffect(() => {
+    if (missingDataQuestions && missingDataQuestions.length > 0) {
+      const text = missingDataQuestions.join("\n");
+      setBubbles((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.type === "missing-data" && last.text === text) return prev;
+        return [
+          ...prev,
+          {
+            id: `md-${Date.now()}`,
+            text,
+            type: "missing-data",
+            timestamp: Date.now(),
+          },
+        ];
+      });
+    }
+  }, [missingDataQuestions]);
+
+  useEffect(() => {
+    if (clarificationQuestions && clarificationQuestions.length > 0) {
+      const text = clarificationQuestions.join("\n");
+      setBubbles((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.type === "missing-data" && last.text === text) return prev;
+        return [
+          ...prev,
+          {
+            id: `cl-${Date.now()}`,
+            text,
+            type: "missing-data",
+            timestamp: Date.now(),
+          },
+        ];
+      });
+    }
+  }, [clarificationQuestions]);
 
   const stopRecording = useCallback(() => {
     const rec = mediaRecorderRef.current;
@@ -56,7 +137,7 @@ export function SmartClosingVoicePanel({
           const blob = new Blob(chunksRef.current, { type: mime });
           chunksRef.current = [];
           if (blob.size === 0) {
-            setLocalError("No se capturó audio.");
+            setLocalError("No se capturo audio.");
             setPhase("idle");
             return;
           }
@@ -89,7 +170,7 @@ export function SmartClosingVoicePanel({
       rec.start();
       setPhase("recording");
     } catch {
-      setLocalError("No se pudo acceder al micrófono.");
+      setLocalError("No se pudo acceder al microfono.");
       setPhase("idle");
     }
   }, []);
@@ -97,96 +178,164 @@ export function SmartClosingVoicePanel({
   const handleApply = useCallback(async () => {
     const t = transcript.trim();
     if (!t) {
-      setLocalError("Escribe o dicta una instrucción antes de enviar.");
+      setLocalError("Escribe o dicta una instruccion antes de enviar.");
       return;
     }
     setLocalError(null);
+
+    setBubbles((prev) => [
+      ...prev,
+      {
+        id: `u-${Date.now()}`,
+        text: t,
+        type: "user",
+        timestamp: Date.now(),
+      },
+    ]);
+
     const ok = await onApplyTranscript(t);
     if (ok) {
       setTranscript("");
     }
   }, [onApplyTranscript, transcript]);
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        void handleApply();
+      }
+    },
+    [handleApply],
+  );
+
   const isRecording = phase === "recording";
   const isTranscribing = phase === "transcribing";
   const blocked = disabled || busy;
 
   return (
-    <Card
-      className={cn(
-        "border-border/50 bg-card/60 backdrop-blur-sm transition-all duration-300",
-        isRecording && "border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.15)]",
+    <Card className="border-0 shadow-none bg-neutral-950 overflow-hidden flex flex-col h-full rounded-none">
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-neutral-950">
+        {bubbles.map((b) => (
+          <div
+            key={b.id}
+            className={cn(
+              "max-w-[85%] text-[13px] leading-relaxed",
+              b.type === "user" && "ml-auto",
+            )}
+          >
+            <div
+              className={cn(
+                "rounded-xl px-3 py-2",
+                b.type === "assistant" &&
+                  "bg-neutral-900 border border-neutral-800 text-neutral-100",
+                b.type === "user" &&
+                  "bg-blue-600 text-white",
+                b.type === "missing-data" &&
+                  "bg-amber-50 border border-amber-200 text-amber-800",
+              )}
+            >
+              {b.text.split("\n").map((line, i) => (
+                <p key={i} className={i > 0 ? "mt-1" : undefined}>
+                  {b.type === "missing-data" && i === 0 && (
+                    <span className="font-medium">Te falta: </span>
+                  )}
+                  {line}
+                </p>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {busy && (
+          <div className="max-w-[85%]">
+            <div className="rounded-xl px-3 py-2 bg-neutral-900 border border-neutral-800 text-neutral-400 text-[13px]">
+              <span className="inline-flex gap-1">
+                <span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span>
+                <span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span>
+                <span className="animate-bounce" style={{ animationDelay: "300ms" }}>.</span>
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div ref={chatEndRef} />
+      </div>
+
+      {localError && (
+        <p className="text-xs text-red-300 px-4 py-1 bg-red-950/50" role="alert">
+          {localError}
+        </p>
       )}
-    >
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold flex items-center justify-between">
-          Instrucción por voz
-          {isRecording && (
-            <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse" aria-hidden />
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4 pb-6">
-        <div className="flex justify-center gap-3 py-2">
+
+      <div className="border-t border-neutral-800 p-3 bg-neutral-950">
+        <div className="flex items-end gap-2">
           {!isRecording ? (
             <Button
               type="button"
-              variant="secondary"
-              size="lg"
-              className="h-16 w-16 rounded-full p-0"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 rounded-full text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900"
               disabled={blocked || isTranscribing}
               onClick={startRecording}
-              aria-label="Iniciar grabación"
+              aria-label="Iniciar grabacion"
             >
-              <Mic className="h-7 w-7" />
+              <Mic className="h-5 w-5" />
             </Button>
           ) : (
             <Button
               type="button"
-              variant="destructive"
-              size="lg"
-              className="h-16 w-16 rounded-full p-0"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 rounded-full text-red-400 hover:text-red-300 hover:bg-red-900/40"
               onClick={stopRecording}
-              aria-label="Detener grabación"
+              aria-label="Detener grabacion"
             >
-              <Square className="h-6 w-6" />
+              <Square className="h-4 w-4" />
             </Button>
           )}
+
+          <Textarea
+            value={transcript}
+            onChange={(e) => setTranscript(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              isRecording
+                ? "Grabando... pulsa cuadrado para detener"
+                : isTranscribing
+                  ? "Transcribiendo..."
+                  : "Dicta un cambio o escribe aqui..."
+            }
+            disabled={blocked || isTranscribing}
+            className={cn(
+              "min-h-[40px] max-h-[100px] flex-1 resize-none rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-[13px]",
+              "text-neutral-100 caret-neutral-100 placeholder:text-neutral-400",
+              "focus-visible:border-neutral-500 focus-visible:ring-2 focus-visible:ring-neutral-700/70 focus-visible:outline-none",
+              "disabled:bg-neutral-800 disabled:text-neutral-500",
+            )}
+            rows={1}
+            aria-label="Instruccion para el contrato"
+          />
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 shrink-0 rounded-full text-blue-400 hover:text-blue-300 hover:bg-blue-900/30"
+            disabled={blocked || isRecording || isTranscribing || !transcript.trim()}
+            onClick={handleApply}
+            aria-label="Enviar instruccion"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
         </div>
 
-        <p className="text-xs text-center text-muted-foreground min-h-[1.25rem]">
-          {isRecording && "Grabando… pulsa cuadrado para detener."}
-          {isTranscribing && "Transcribiendo…"}
-          {!isRecording &&
-            !isTranscribing &&
-            "Pulsa el micrófono, dicta el cambio y detén. Luego revisa el texto."}
-        </p>
-
-        <Textarea
-          value={transcript}
-          onChange={(e) => setTranscript(e.target.value)}
-          placeholder="Transcripción editable (corrige si hace falta)…"
-          disabled={blocked || isTranscribing}
-          className="min-h-[80px] text-xs"
-          aria-label="Transcripción de la instrucción"
-        />
-
-        {localError && (
-          <p className="text-xs text-destructive" role="alert">
-            {localError}
+        {isRecording && (
+          <p className="text-[11px] text-red-500 mt-1.5 text-center animate-pulse">
+            Escuchando... pulsa el cuadrado para detener
           </p>
         )}
-
-        <Button
-          type="button"
-          className="w-full gap-2 bg-secondary hover:bg-secondary/90"
-          disabled={blocked || isRecording || isTranscribing || !transcript.trim()}
-          onClick={handleApply}
-        >
-          <Wand2 className="h-4 w-4" />
-          Aplicar al contrato
-        </Button>
-      </CardContent>
+      </div>
     </Card>
   );
 }

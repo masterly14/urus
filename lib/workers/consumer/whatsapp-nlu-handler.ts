@@ -309,6 +309,8 @@ async function loadSelectionProperties(
 }
 
 const COACH_PREFIX_RE = /^\/?coach\b/i;
+const GENERIC_MARKETING_MESSAGE =
+  "Hola, somos Urus Capital Group. Puedes conocer nuestro perfil aquí: https://www.idealista.com/pro/urus-capital-group/";
 
 async function loadConversationHistory(
   waId: string,
@@ -562,6 +564,13 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
     console.log(
       `[consumer:whatsapp] WHATSAPP_RECIBIDO waId=${waId} sin demandId resolvible — no-op`,
     );
+    try {
+      await sendTextMessage(waId, GENERIC_MARKETING_MESSAGE);
+    } catch (err) {
+      console.error(
+        `[consumer:whatsapp] Error enviando mensaje de marketing waId=${waId}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
     return { success: true };
   }
 

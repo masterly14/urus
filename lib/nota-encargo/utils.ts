@@ -1,25 +1,23 @@
 /**
  * Utility functions for the Nota de Encargo flow.
  *
- * `extractPropertyDataFromRaw` derives address, operation type and price
- * from a PropertySnapshot's `raw` JSON blob combined with the PropertyCurrent
- * city/zone data.  Originally lived in the tasks-ingestion parser; moved here
- * because the ingestion worker was removed in favour of a local platform trigger.
+ * `extractDireccionFromRaw` derives the street address from a
+ * PropertySnapshot's `raw` JSON blob combined with PropertyCurrent city/zone.
+ *
+ * `extractPropertyDataFromRaw` is kept for backward compatibility but
+ * callers should prefer `extractDireccionFromRaw` + PropertyCurrent.precio
+ * to avoid the 0-price bug when `raw` lacks `precioinmo`/`precioalq`.
  */
 
-export function extractPropertyDataFromRaw(
+export function extractDireccionFromRaw(
   raw: Record<string, unknown>,
   propertyCurrent: { ciudad: string; zona: string },
-): {
-  direccion: string;
-  tipoOperacion: "VENTA" | "ALQUILER";
-  precio: number;
-} {
+): string {
   const calle = String(raw.calle ?? "").trim();
   const numero = String(raw.numero ?? "").trim();
   const cp = String(raw.cp ?? "").trim();
 
-  const direccion = [
+  return [
     calle && numero
       ? `Calle ${calle}, ${numero}`
       : calle
@@ -31,6 +29,34 @@ export function extractPropertyDataFromRaw(
   ]
     .filter(Boolean)
     .join(", ");
+}
+
+/**
+ * Maps Inmovilla `tipoOfer` (e.g. "Venta", "Alquiler", "Venta y Alquiler")
+ * to the canonical operation type used by NotaEncargoSession.
+ */
+export function resolveOperationType(
+  tipoOfer: string,
+): "VENTA" | "ALQUILER" {
+  const lower = (tipoOfer ?? "").toLowerCase();
+  if (lower.includes("alquiler") && !lower.includes("venta")) return "ALQUILER";
+  return "VENTA";
+}
+
+/**
+ * @deprecated Use `extractDireccionFromRaw` + `PropertyCurrent.precio` instead.
+ * This function reads price from `raw.precioinmo`/`raw.precioalq` which may
+ * be absent depending on the Inmovilla sync endpoint used.
+ */
+export function extractPropertyDataFromRaw(
+  raw: Record<string, unknown>,
+  propertyCurrent: { ciudad: string; zona: string },
+): {
+  direccion: string;
+  tipoOperacion: "VENTA" | "ALQUILER";
+  precio: number;
+} {
+  const direccion = extractDireccionFromRaw(raw, propertyCurrent);
 
   const precioinmo = Number(raw.precioinmo) || 0;
   const precioalq = Number(raw.precioalq) || 0;

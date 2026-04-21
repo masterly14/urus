@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession, unauthorized, isCeoOrAdmin } from "@/lib/auth/session";
+import { getSession, unauthorized, forbidden, isCeoOrAdmin } from "@/lib/auth/session";
 
 export async function GET() {
   const session = await getSession();
   if (!session) return unauthorized();
+
+  if (!isCeoOrAdmin(session.role) && !session.comercialId) {
+    return forbidden();
+  }
 
   const where: Record<string, unknown> = {};
 

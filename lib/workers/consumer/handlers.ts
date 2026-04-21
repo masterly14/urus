@@ -269,6 +269,12 @@ registerHandler("NOTA_ENCARGO_CONFIRMADA", auditOnlyHandler("side effects en web
 registerHandler("NOTA_ENCARGO_NO_CONFIRMADA", auditOnlyHandler("trazabilidad: check-confirmacion job ya notificó al comercial"));
 registerHandler("NOTA_ENCARGO_FORMULARIO_COMPLETADO", handleNotaEncargoFormularioCompletado);
 
+// --- Pricing: precio aplicado desde recomendación (M7) ---
+registerHandler(
+  "PRICING_PRECIO_APLICADO",
+  auditOnlyHandler("trazabilidad: API route /api/pricing/apply-price ya actualizó Inmovilla; anti-loop en matching-handler"),
+);
+
 // --- Audit-only (eventos de trazabilidad o reservados) ---
 registerHandler("LEAD_SCORED", auditOnlyHandler("evento legacy no emitido; scoring incrustado en LEAD_INGESTADO"));
 registerHandler("LEAD_CONTACTADO", handleLeadContactado);

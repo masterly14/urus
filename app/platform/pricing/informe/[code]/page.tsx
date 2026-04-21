@@ -19,10 +19,15 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Loader2,
   Info,
   CheckCircle2,
   XCircle,
+  Phone,
+  Building2,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +36,7 @@ import {
   SemaforoIndicator,
   semaforoConfig,
 } from "@/components/pricing/semaforo-indicator";
-import type { PricingAnalysisResult } from "@/lib/pricing/types";
+import type { PricingAnalysisResult, PricingComparable } from "@/lib/pricing/types";
 import type { PricingRecommendation } from "@/lib/pricing/recommendation-types";
 import { pricingFixture } from "@/lib/mock-data/pricing-fixture";
 
@@ -66,6 +71,207 @@ function pctDiff(a: number, b: number): string {
   if (b === 0) return "—";
   const d = ((a - b) / b) * 100;
   return `${d > 0 ? "+" : ""}${d.toFixed(1)}%`;
+}
+
+// ── Aplicar precio sugerido ───────────────────────────────────────────────────
+
+function ApplyPriceCard({
+  propertyCode,
+  currentPrice,
+  suggestedMin,
+  suggestedMax,
+}: {
+  propertyCode: string;
+  currentPrice: number;
+  suggestedMin: number;
+  suggestedMax: number;
+}) {
+  const midPoint = Math.round((suggestedMin + suggestedMax) / 2);
+  const [selectedPrice, setSelectedPrice] = useState(midPoint);
+  const [step, setStep] = useState<"idle" | "confirming">("idle");
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<"success" | "error" | null>(null);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [cooldownSec, setCooldownSec] = useState(0);
+
+  useEffect(() => {
+    if (cooldownSec <= 0) return;
+    const t = setInterval(() => setCooldownSec((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(t);
+  }, [cooldownSec]);
+
+  const isBlocked = cooldownSec > 0;
+
+  const presets = [
+    { label: "Mínimo", value: suggestedMin },
+    { label: "Medio", value: midPoint },
+    { label: "Máximo", value: suggestedMax },
+  ];
+
+  async function handleApply() {
+    setSubmitting(true);
+    setErrorMsg("");
+    try {
+      const res = await fetch("/api/pricing/apply-price", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyCode,
+          newPrice: selectedPrice,
+          previousPrice: currentPrice,
+          source: "pricing-recommendation",
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Error desconocido" }));
+        if (data.code === "RATE_LIMIT" || res.status === 429) {
+          const retrySec = typeof data.retryAfterSeconds === "number" ? data.retryAfterSeconds : 120;
+          setCooldownSec(retrySec);
+          throw new Error(data.error || "Límite de peticiones alcanzado");
+        }
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      setResult("success");
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : String(err));
+      setResult("error");
+      setStep("idle");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (result === "success") {
+    return (
+      <Card className="border-[var(--urus-success)]/30 bg-[var(--urus-success)]/5">
+        <CardContent className="p-4 space-y-2">
+          <div className="flex items-center gap-3">
+            <Check className="h-5 w-5 text-[var(--urus-success)] shrink-0" />
+            <div>
+              <p className="text-sm font-medium">Precio actualizado a {formatEur(selectedPrice)} €</p>
+              <p className="text-[10px] text-muted-foreground">
+                El cambio puede tardar entre 10 y 15 minutos en reflejarse en Inmovilla y los portales
+                debido a las restricciones de su API. El sistema no volverá a re-analizar este cambio de precio.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2 rounded-lg bg-accent/10 px-3 py-2">
+            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground/60" />
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              Inmovilla establece límites de procesamiento en su API — los cambios de precio
+              se propagan a portales (Idealista, Fotocasa, etc.) según los ciclos de sincronización de cada portal.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-[var(--urus-danger)]/20 bg-[var(--urus-danger)]/3">
+      <CardContent className="p-4 space-y-3">
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Rango de precio sugerido</p>
+        <div className="flex items-center gap-4">
+          <div className="text-center flex-1">
+            <p className="text-xs text-muted-foreground">Mínimo</p>
+            <p className="text-lg font-bold font-mono text-[var(--urus-success)]">
+              {formatEur(suggestedMin)} €
+            </p>
+          </div>
+          <div className="h-8 w-px bg-border/30" />
+          <div className="text-center flex-1">
+            <p className="text-xs text-muted-foreground">Máximo</p>
+            <p className="text-lg font-bold font-mono text-[var(--urus-warning)]">
+              {formatEur(suggestedMax)} €
+            </p>
+          </div>
+          <div className="h-8 w-px bg-border/30" />
+          <div className="text-center flex-1">
+            <p className="text-xs text-muted-foreground">Actual</p>
+            <p className="text-lg font-bold font-mono text-[var(--urus-danger)]">
+              {formatEur(currentPrice)} €
+            </p>
+          </div>
+        </div>
+
+        <div className="pt-2 border-t border-border/20 space-y-2">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+            Aplicar nuevo precio en Inmovilla
+          </p>
+          <div className="flex items-center gap-2">
+            {presets.map((p) => (
+              <button
+                key={p.label}
+                disabled={isBlocked}
+                onClick={() => { setSelectedPrice(p.value); setStep("idle"); setResult(null); }}
+                className={`flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition-all disabled:opacity-40 ${
+                  selectedPrice === p.value
+                    ? "border-secondary bg-secondary/10 text-secondary"
+                    : "border-border/40 text-muted-foreground hover:border-border/60"
+                }`}
+              >
+                <span className="block text-[9px] opacity-70">{p.label}</span>
+                <span className="font-mono">{formatEur(p.value)} €</span>
+              </button>
+            ))}
+          </div>
+
+          {result === "error" && (
+            <div className="rounded-lg bg-[var(--urus-danger)]/10 px-3 py-2 space-y-1">
+              <div className="flex items-center gap-2 text-xs text-[var(--urus-danger)]">
+                <XCircle className="h-3.5 w-3.5 shrink-0" />
+                {errorMsg}
+              </div>
+              {isBlocked && (
+                <p className="text-[10px] text-muted-foreground pl-5.5">
+                  Inmovilla establece límites de peticiones por minuto.
+                  Podrás reintentar en <span className="font-mono font-medium text-foreground">{Math.ceil(cooldownSec / 60)} min {cooldownSec % 60}s</span>.
+                </p>
+              )}
+            </div>
+          )}
+
+          {step === "idle" ? (
+            <button
+              onClick={() => setStep("confirming")}
+              disabled={submitting || isBlocked}
+              className="w-full rounded-lg bg-secondary/15 text-secondary hover:bg-secondary/25 px-4 py-2 text-xs font-medium transition-colors disabled:opacity-50"
+            >
+              {isBlocked
+                ? `Disponible en ${Math.ceil(cooldownSec / 60)} min ${cooldownSec % 60}s`
+                : `Aplicar ${formatEur(selectedPrice)} € como nuevo precio`}
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleApply}
+                disabled={submitting || isBlocked}
+                className="flex-1 rounded-lg bg-secondary text-white px-4 py-2 text-xs font-medium transition-colors hover:bg-secondary/90 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {submitting ? (
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Actualizando...</>
+                ) : (
+                  <>Confirmar: {formatEur(selectedPrice)} €</>
+                )}
+              </button>
+              <button
+                onClick={() => setStep("idle")}
+                disabled={submitting}
+                className="rounded-lg border border-border/40 px-4 py-2 text-xs text-muted-foreground hover:bg-accent/20 transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          )}
+
+          <p className="text-[9px] text-muted-foreground/60 leading-relaxed">
+            Inmovilla establece límites en su API (máx. 10 peticiones/min). El cambio de precio puede
+            tardar entre 10–15 min en reflejarse en los portales.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 // ── Loading skeleton ──────────────────────────────────────────────────────────
@@ -176,10 +382,10 @@ function SectionHeader({ data }: { data: PricingAnalysisResult }) {
             <KpiBox label="Precio" value={`${formatEur(input.precio)} €`} sub={`${formatEur(input.precioM2)} €/m²`} />
             <KpiBox label="Superficie" value={`${input.metrosConstruidos} m²`} sub={`${input.habitaciones} hab · ${input.banyos} baños`} />
             <KpiBox
-              label="Gap Precio"
+              label="Diferencia"
               value={`${stats.gapPorcentaje > 0 ? "+" : ""}${stats.gapPorcentaje}%`}
               valueColor={stats.gapPorcentaje > 5 ? "var(--urus-danger)" : stats.gapPorcentaje > 0 ? "var(--urus-warning)" : "var(--urus-success)"}
-              sub="vs media cluster"
+              sub="vs media de mercado"
             />
             <KpiBox label="Comparables" value={String(stats.totalComparables)} sub={`de ${data.queryMeta.totalResultsFromAPI} totales`} />
           </div>
@@ -276,12 +482,12 @@ function SectionDiagnostico({
         <CardContent className="pt-0">
           <div className="rounded-xl p-4 bg-accent/10 border border-border/20">
             <p className="text-xs text-muted-foreground leading-relaxed">
-              No se pudo generar la recomendación IA. Diagnóstico estadístico: gap de{" "}
+              No se pudo generar la recomendación IA. Diagnóstico estadístico: diferencia de{" "}
               <span className="font-bold text-foreground">
                 {stats.gapPorcentaje > 0 ? "+" : ""}
                 {stats.gapPorcentaje}%
               </span>{" "}
-              respecto al cluster de {stats.totalComparables} comparables (media{" "}
+              respecto al mercado ({stats.totalComparables} propiedades similares, media{" "}
               {formatEur(stats.precioMedioM2)} €/m²).
             </p>
             {recommendationError && (
@@ -365,33 +571,12 @@ function SectionRecomendaciones({ recommendation, input }: { recommendation: Pri
         {recommendation.accion === "ajustar_precio" &&
           recommendation.precioSugeridoMin != null &&
           recommendation.precioSugeridoMax != null && (
-            <Card className="border-[var(--urus-danger)]/20 bg-[var(--urus-danger)]/3">
-              <CardContent className="p-4">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Rango de precio sugerido</p>
-                <div className="flex items-center gap-4">
-                  <div className="text-center flex-1">
-                    <p className="text-xs text-muted-foreground">Mínimo</p>
-                    <p className="text-lg font-bold font-mono text-[var(--urus-success)]">
-                      {formatEur(recommendation.precioSugeridoMin)} €
-                    </p>
-                  </div>
-                  <div className="h-8 w-px bg-border/30" />
-                  <div className="text-center flex-1">
-                    <p className="text-xs text-muted-foreground">Máximo</p>
-                    <p className="text-lg font-bold font-mono text-[var(--urus-warning)]">
-                      {formatEur(recommendation.precioSugeridoMax)} €
-                    </p>
-                  </div>
-                  <div className="h-8 w-px bg-border/30" />
-                  <div className="text-center flex-1">
-                    <p className="text-xs text-muted-foreground">Actual</p>
-                    <p className="text-lg font-bold font-mono text-[var(--urus-danger)]">
-                      {formatEur(input.precio)} €
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <ApplyPriceCard
+              propertyCode={input.propertyCode}
+              currentPrice={input.precio}
+              suggestedMin={recommendation.precioSugeridoMin}
+              suggestedMax={recommendation.precioSugeridoMax}
+            />
           )}
       </CardContent>
     </Card>
@@ -448,9 +633,9 @@ function SectionArgumentosRiesgos({ recommendation }: { recommendation: PricingR
   );
 }
 
-// ── Section E: Gap visual ─────────────────────────────────────────────────────
+// ── Section E: Comparación de precios ─────────────────────────────────────────
 
-function SectionGapVisual({ data }: { data: PricingAnalysisResult }) {
+function SectionComparacionPrecios({ data }: { data: PricingAnalysisResult }) {
   const { input, stats } = data;
   const maxScale = Math.max(input.precioM2, stats.precioMedioM2, stats.precioMaxM2) * 1.15;
 
@@ -459,14 +644,14 @@ function SectionGapVisual({ data }: { data: PricingAnalysisResult }) {
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-secondary" />
-          <CardTitle className="text-sm font-semibold">Gap de Precio vs Cluster (€/m²)</CardTitle>
+          <CardTitle className="text-sm font-semibold">Tu precio vs el mercado (€/m²)</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="pt-0 space-y-4">
         <div className="space-y-3">
           <PriceBar label="Tu inmueble" value={input.precioM2} maxScale={maxScale} color={stats.gapPorcentaje > 5 ? "var(--urus-danger)" : stats.gapPorcentaje > 0 ? "var(--urus-warning)" : "var(--urus-success)"} />
-          <PriceBar label="Media cluster" value={stats.precioMedioM2} maxScale={maxScale} color="var(--color-secondary)" />
-          <PriceBar label="Mediana cluster" value={stats.precioMedianaM2} maxScale={maxScale} color="var(--color-secondary)" opacity={0.6} />
+          <PriceBar label="Media de mercado" value={stats.precioMedioM2} maxScale={maxScale} color="var(--color-secondary)" />
+          <PriceBar label="Mediana de mercado" value={stats.precioMedianaM2} maxScale={maxScale} color="var(--color-secondary)" opacity={0.6} />
           {stats.precioMedioM2Particular != null && (
             <PriceBar label="Media particular" value={stats.precioMedioM2Particular} maxScale={maxScale} color="#a78bfa" />
           )}
@@ -480,7 +665,7 @@ function SectionGapVisual({ data }: { data: PricingAnalysisResult }) {
           <MiniStat label="Max €/m²" value={`${formatEur(stats.precioMaxM2)} €`} />
           <MiniStat label="Desviación" value={`${stats.desviacionEstandar}`} />
           <MiniStat
-            label="Gap"
+            label="Diferencia"
             value={`${stats.gapPorcentaje > 0 ? "+" : ""}${stats.gapPorcentaje}%`}
             valueColor={stats.gapPorcentaje > 5 ? "var(--urus-danger)" : stats.gapPorcentaje > 0 ? "var(--urus-warning)" : "var(--urus-success)"}
           />
@@ -534,10 +719,259 @@ function MiniStat({ label, value, valueColor }: { label: string; value: string; 
   );
 }
 
+// ── Photo carousel for comparable detail ─────────────────────────────────────
+
+function isValidImageUrl(url: string): boolean {
+  if (!url || typeof url !== "string") return false;
+  return url.startsWith("http://") || url.startsWith("https://");
+}
+
+function ComparablePhotoCarousel({ fotos, alt }: { fotos: string[]; alt: string }) {
+  const validFotos = fotos.filter(isValidImageUrl);
+  const [idx, setIdx] = useState(0);
+  const [failedUrls, setFailedUrls] = useState<Set<string>>(new Set());
+
+  const visibleFotos = validFotos.filter((u) => !failedUrls.has(u));
+
+  if (visibleFotos.length === 0) {
+    return (
+      <div className="w-full h-44 bg-accent/10 rounded-lg flex flex-col items-center justify-center gap-2">
+        <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
+        <span className="text-[10px] text-muted-foreground">
+          {fotos.length > 0 ? `${fotos.length} fotos (no disponibles)` : "Sin fotos"}
+        </span>
+      </div>
+    );
+  }
+
+  const safeIdx = idx % visibleFotos.length;
+
+  return (
+    <div className="relative w-full h-44 rounded-lg overflow-hidden bg-black/5">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={visibleFotos[safeIdx]}
+        alt={`${alt} - foto ${safeIdx + 1}`}
+        className="w-full h-full object-cover"
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => {
+          setFailedUrls((prev) => new Set(prev).add(visibleFotos[safeIdx]));
+        }}
+      />
+      {visibleFotos.length > 1 && (
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); setIdx((i) => (i - 1 + visibleFotos.length) % visibleFotos.length); }}
+            className="absolute left-1.5 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); setIdx((i) => (i + 1) % visibleFotos.length); }}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <div className="absolute bottom-1.5 right-2 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded">
+            {safeIdx + 1}/{visibleFotos.length}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Expandable comparable detail card ────────────────────────────────────────
+
+function ComparableDetailCard({ c, input }: { c: PricingComparable; input: PricingAnalysisResult["input"] }) {
+  const diff = pctDiff(c.precioM2, input.precioM2);
+  const isLower = c.precioM2 < input.precioM2;
+
+  return (
+    <div className="border border-border/30 rounded-lg bg-card/40 overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr]">
+        {/* Left: photo */}
+        <div className="lg:border-r border-border/20">
+          <ComparablePhotoCarousel fotos={c.fotos ?? []} alt={c.zona || c.ciudad} />
+        </div>
+
+        {/* Right: info */}
+        <div className="p-4 space-y-3">
+          {/* Metrics bar */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="text-center p-2 rounded bg-accent/5 border border-border/10">
+              <p className="text-[9px] text-muted-foreground uppercase">Precio</p>
+              <p className="text-xs font-mono font-bold">{formatEur(c.precio)} €</p>
+            </div>
+            <div className="text-center p-2 rounded bg-accent/5 border border-border/10">
+              <p className="text-[9px] text-muted-foreground uppercase">€/m²</p>
+              <p className="text-xs font-mono font-bold">{formatEur(c.precioM2)}</p>
+            </div>
+            <div className="text-center p-2 rounded bg-accent/5 border border-border/10">
+              <p className="text-[9px] text-muted-foreground uppercase">vs URUS</p>
+              <p className={`text-xs font-mono font-bold ${isLower ? "text-[var(--urus-success)]" : "text-[var(--urus-danger)]"}`}>
+                {diff}
+              </p>
+            </div>
+          </div>
+
+          {/* Description */}
+          {c.descripcion && (
+            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+              {c.descripcion}
+            </p>
+          )}
+
+          {/* Property details */}
+          <div className="flex flex-wrap gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
+            <span>{c.metrosConstruidos} m²</span>
+            <span>·</span>
+            <span>{c.habitaciones} hab</span>
+            <span>·</span>
+            <span>{c.banyos} baños</span>
+            {c.planta && <><span>·</span><span>Planta {c.planta}</span></>}
+            {c.orientacion && <><span>·</span><span>{c.orientacion}</span></>}
+            {c.diasPublicado != null && <><span>·</span><span>{c.diasPublicado}d publicado</span></>}
+          </div>
+
+          {/* Address */}
+          {c.direccion && (
+            <div className="flex items-start gap-1.5">
+              <MapPin className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
+              <span className="text-[10px] text-muted-foreground">{c.direccion}</span>
+            </div>
+          )}
+
+          {/* Advertiser / Agency + phones */}
+          <div className="flex items-center justify-between pt-2 border-t border-border/20 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <div>
+                <p className="text-[10px] font-medium">
+                  {c.anunciante?.nombre ?? (c.advertiserType === "private" ? "Particular" : "Profesional")}
+                </p>
+                <Badge variant="outline" className="text-[8px] mt-0.5">
+                  {c.advertiserType === "private" ? "Particular" : c.advertiserType === "professional" ? "Profesional" : "—"}
+                </Badge>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              {c.anunciante?.telefonos?.map((tel) => (
+                <a
+                  key={tel}
+                  href={`tel:${tel}`}
+                  className="flex items-center gap-1 text-[10px] text-secondary hover:text-secondary/80 transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Phone className="h-3 w-3" />
+                  <span className="font-mono">{tel}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          {/* External link + reference */}
+          <div className="flex items-center justify-between text-[10px]">
+            {c.referencia && (
+              <span className="text-muted-foreground font-mono">Ref: {c.referencia}</span>
+            )}
+            {c.link && (
+              <a
+                href={c.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-secondary hover:text-secondary/80 transition-colors font-medium"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Ver anuncio <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Comparable table row + inline expansion ───────────────────────────────────
+
+function ComparableRow({
+  c,
+  input,
+  diff,
+  isLower,
+  isExpanded,
+  onToggle,
+}: {
+  c: PricingComparable;
+  input: PricingAnalysisResult["input"];
+  diff: string;
+  isLower: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <>
+      <tr
+        className={`hover:bg-accent/10 transition-colors cursor-pointer ${isExpanded ? "bg-accent/5" : ""}`}
+        onClick={onToggle}
+      >
+        <td className="px-4 py-2.5 text-xs">
+          <div className="flex items-center gap-1">
+            {isExpanded ? <ChevronUp className="h-3 w-3 text-secondary" /> : <ChevronDown className="h-3 w-3 text-muted-foreground" />}
+            {c.zona || c.ciudad}
+          </div>
+        </td>
+        <td className="px-4 py-2.5 text-right text-xs font-mono">{formatEur(c.precio)} €</td>
+        <td className="px-4 py-2.5 text-right text-xs font-mono">{formatEur(c.precioM2)} €</td>
+        <td className="px-4 py-2.5 text-center text-xs font-mono">{c.metrosConstruidos}</td>
+        <td className="px-4 py-2.5 text-center text-xs font-mono">{c.habitaciones}</td>
+        <td className="px-4 py-2.5 text-center">
+          <Badge variant="outline" className="text-[8px]">
+            {c.advertiserType === "private" ? "Particular" : c.advertiserType === "professional" ? "Profesional" : "—"}
+          </Badge>
+        </td>
+        <td className="px-4 py-2.5 text-center text-xs font-mono">{c.diasPublicado != null ? `${c.diasPublicado}d` : "—"}</td>
+        <td className="px-4 py-2.5 text-center">
+          <span className={`text-xs font-mono font-bold ${isLower ? "text-[var(--urus-success)]" : "text-[var(--urus-danger)]"}`}>
+            {diff}
+          </span>
+        </td>
+        <td className="px-4 py-2.5 text-center">
+          {c.link ? (
+            <a
+              href={c.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-secondary hover:text-secondary/80 transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ExternalLink className="h-3.5 w-3.5 mx-auto" />
+            </a>
+          ) : (
+            <span className="text-muted-foreground/30">—</span>
+          )}
+        </td>
+      </tr>
+      {isExpanded && (
+        <tr>
+          <td colSpan={9} className="p-0">
+            <div className="p-4 bg-accent/5 animate-in fade-in slide-in-from-top-2 duration-200">
+              <ComparableDetailCard c={c} input={input} />
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
 // ── Section F: Tabla de comparables ───────────────────────────────────────────
 
 function SectionComparables({ data }: { data: PricingAnalysisResult }) {
   const { input, comparables } = data;
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
     <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
@@ -547,7 +981,7 @@ function SectionComparables({ data }: { data: PricingAnalysisResult }) {
             <Home className="h-4 w-4 text-secondary" />
             <CardTitle className="text-sm font-semibold">Comparables de Mercado</CardTitle>
           </div>
-          <p className="text-[10px] text-muted-foreground">{comparables.length} propiedades similares</p>
+          <p className="text-[10px] text-muted-foreground">{comparables.length} propiedades similares · Click para expandir ficha</p>
         </div>
       </CardHeader>
       <CardContent className="pt-0">
@@ -587,34 +1021,17 @@ function SectionComparables({ data }: { data: PricingAnalysisResult }) {
               {comparables.map((c) => {
                 const diff = pctDiff(c.precioM2, input.precioM2);
                 const isLower = c.precioM2 < input.precioM2;
+                const isExpanded = expandedId === c.statefoxId;
                 return (
-                  <tr key={c.statefoxId} className="hover:bg-accent/10 transition-colors">
-                    <td className="px-4 py-2.5 text-xs">{c.zona || c.ciudad}</td>
-                    <td className="px-4 py-2.5 text-right text-xs font-mono">{formatEur(c.precio)} €</td>
-                    <td className="px-4 py-2.5 text-right text-xs font-mono">{formatEur(c.precioM2)} €</td>
-                    <td className="px-4 py-2.5 text-center text-xs font-mono">{c.metrosConstruidos}</td>
-                    <td className="px-4 py-2.5 text-center text-xs font-mono">{c.habitaciones}</td>
-                    <td className="px-4 py-2.5 text-center">
-                      <Badge variant="outline" className="text-[8px]">
-                        {c.advertiserType === "private" ? "Particular" : c.advertiserType === "professional" ? "Profesional" : "—"}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-2.5 text-center text-xs font-mono">{c.diasPublicado != null ? `${c.diasPublicado}d` : "—"}</td>
-                    <td className="px-4 py-2.5 text-center">
-                      <span className={`text-xs font-mono font-bold ${isLower ? "text-[var(--urus-success)]" : "text-[var(--urus-danger)]"}`}>
-                        {diff}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-center">
-                      {c.link ? (
-                        <a href={c.link} target="_blank" rel="noopener noreferrer" className="text-secondary hover:text-secondary/80 transition-colors">
-                          <ExternalLink className="h-3.5 w-3.5 mx-auto" />
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground/30">—</span>
-                      )}
-                    </td>
-                  </tr>
+                  <ComparableRow
+                    key={c.statefoxId}
+                    c={c}
+                    input={input}
+                    diff={diff}
+                    isLower={isLower}
+                    isExpanded={isExpanded}
+                    onToggle={() => setExpandedId(isExpanded ? null : c.statefoxId)}
+                  />
                 );
               })}
             </tbody>
@@ -622,6 +1039,72 @@ function SectionComparables({ data }: { data: PricingAnalysisResult }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// ── Mapa de comparables (Google Maps Static API, limpio) ─────────────────────
+
+function SectionMapaComparables({ data }: { data: PricingAnalysisResult }) {
+  const { input, comparables } = data;
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ?? "";
+
+  const geoComparables = comparables.filter((c) => c.latitud && c.longitud);
+  if (geoComparables.length === 0) return null;
+
+  const center = {
+    lat: geoComparables.reduce((s, c) => s + (c.latitud ?? 0), 0) / geoComparables.length,
+    lng: geoComparables.reduce((s, c) => s + (c.longitud ?? 0), 0) / geoComparables.length,
+  };
+
+  const markers = geoComparables
+    .map((c) => `color:0x3B82F6%7Csize:small%7C${c.latitud},${c.longitud}`)
+    .join("&markers=");
+
+  const mapStyles = [
+    "style=feature:poi%7Cvisibility:off",
+    "style=feature:transit%7Cvisibility:off",
+    "style=feature:road%7Celement:labels.icon%7Cvisibility:off",
+    "style=feature:road.highway%7Celement:labels%7Cvisibility:off",
+    "style=feature:road.arterial%7Celement:labels%7Cvisibility:simplified",
+    "style=feature:administrative.land_parcel%7Cvisibility:off",
+    "style=feature:administrative.neighborhood%7Celement:labels%7Cvisibility:on",
+    "style=feature:landscape.man_made%7Celement:labels%7Cvisibility:off",
+  ].join("&");
+
+  const src = apiKey
+    ? `https://maps.googleapis.com/maps/api/staticmap?center=${center.lat},${center.lng}&zoom=14&size=800x300&scale=2&maptype=roadmap&markers=color:red%7Clabel:U%7C${center.lat},${center.lng}&markers=${markers}&${mapStyles}&key=${apiKey}`
+    : "";
+
+  if (!apiKey) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-8 text-muted-foreground rounded-lg border border-dashed border-border/40">
+        <MapPin className="h-8 w-8 text-muted-foreground/40" />
+        <span className="text-sm font-medium">{input.zona || input.ciudad}</span>
+        <span className="text-[10px] text-muted-foreground/60">
+          Configura NEXT_PUBLIC_GOOGLE_MAPS_KEY para ver el mapa
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative rounded-lg overflow-hidden">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={`Mapa de comparables en ${input.ciudad}`}
+        className="w-full h-auto object-cover"
+        loading="lazy"
+      />
+      <div className="absolute bottom-2 left-2 flex items-center gap-3 bg-black/70 rounded-md px-2.5 py-1.5 text-[10px] text-white">
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-red-500" /> Tu inmueble
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-blue-500" /> Comparables ({geoComparables.length})
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -880,52 +1363,136 @@ export default function InformePricingPage({
 
   const { data } = state;
 
+  return <InformeContent data={data} onRefresh={runAnalysis} />;
+}
+
+// ── Tab system ───────────────────────────────────────────────────────────────
+
+type TabId = "recomendacion" | "mercado" | "analisis";
+
+const TABS: { id: TabId; label: string; icon: typeof BrainCircuit }[] = [
+  { id: "recomendacion", label: "Recomendación", icon: BrainCircuit },
+  { id: "mercado", label: "Mercado", icon: Home },
+  { id: "analisis", label: "Análisis", icon: BarChart3 },
+];
+
+function InformeContent({ data, onRefresh }: { data: PricingAnalysisResult; onRefresh: () => void }) {
+  const [activeTab, setActiveTab] = useState<TabId>("recomendacion");
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {/* Nav bar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <Link href="/platform/pricing" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-3 w-3" /> Volver a Smart Pricing
         </Link>
         <button
-          onClick={runAnalysis}
+          onClick={onRefresh}
           className="px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-xs font-medium hover:bg-secondary/90 transition-colors"
         >
           Actualizar análisis
         </button>
       </div>
 
-      {/* A: Header */}
+      {/* Header — always visible */}
       <SectionHeader data={data} />
 
-      {/* B: Diagnóstico IA */}
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 rounded-xl bg-accent/10 border border-border/20">
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-medium transition-all ${
+                isActive
+                  ? "bg-card shadow-sm text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/10"
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab content — all tabs stay mounted to avoid re-fetching the map */}
+      <div className={activeTab === "recomendacion" ? "space-y-5" : "hidden"}>
+        <TabRecomendacion data={data} />
+      </div>
+      <div className={activeTab === "mercado" ? "space-y-5" : "hidden"}>
+        <TabMercado data={data} />
+      </div>
+      <div className={activeTab === "analisis" ? "space-y-5" : "hidden"}>
+        <TabAnalisis data={data} />
+      </div>
+
+      {/* Metadata — always at bottom, collapsed */}
+      <SectionMetadata data={data} />
+    </div>
+  );
+}
+
+// ── Tab: Recomendación ────────────────────────────────────────────────────────
+
+function TabRecomendacion({ data }: { data: PricingAnalysisResult }) {
+  return (
+    <div className="space-y-5">
       <SectionDiagnostico
         recommendation={data.recommendation}
         recommendationError={data.recommendationError}
         stats={data.stats}
       />
 
-      {/* Tendencia temporal */}
-      <SectionTemporalTrend trend={data.trend} />
-
-      {/* C + D: Recomendaciones + Argumentos/Riesgos */}
       {data.recommendation && (
         <>
           <SectionRecomendaciones recommendation={data.recommendation} input={data.input} />
           <SectionArgumentosRiesgos recommendation={data.recommendation} />
         </>
       )}
+    </div>
+  );
+}
 
-      {/* E: Gap visual */}
-      <SectionGapVisual data={data} />
+// ── Tab: Mercado ──────────────────────────────────────────────────────────────
 
-      {/* F: Tabla de comparables */}
+function TabMercado({ data }: { data: PricingAnalysisResult }) {
+  const hasGeo = data.comparables.some((c) => c.latitud && c.longitud);
+
+  return (
+    <div className="space-y-5">
+      {/* Map + table side by side on large screens */}
+      {hasGeo && (
+        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-secondary" />
+              <CardTitle className="text-sm font-semibold">Mapa de Comparables</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <SectionMapaComparables data={data} />
+          </CardContent>
+        </Card>
+      )}
+
       {data.comparables.length > 0 && <SectionComparables data={data} />}
 
-      {/* G: Extras */}
       <SectionExtras data={data} />
+    </div>
+  );
+}
 
-      {/* H: Metadata */}
-      <SectionMetadata data={data} />
+// ── Tab: Análisis ─────────────────────────────────────────────────────────────
+
+function TabAnalisis({ data }: { data: PricingAnalysisResult }) {
+  return (
+    <div className="space-y-5">
+      <SectionComparacionPrecios data={data} />
+      <SectionTemporalTrend trend={data.trend} />
     </div>
   );
 }

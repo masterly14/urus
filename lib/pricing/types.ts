@@ -47,6 +47,12 @@ export interface PricingPropertyExtras {
 // Comparable: propiedad de Statefox normalizada para pricing
 // ---------------------------------------------------------------------------
 
+export interface PricingComparableAdvertiser {
+  nombre: string | null;
+  tipo: "private" | "professional" | "unknown";
+  telefonos: string[];
+}
+
 export interface PricingComparable {
   statefoxId: string;
   precio: number;
@@ -61,6 +67,15 @@ export interface PricingComparable {
   extras: Partial<PricingPropertyExtras>;
   link: string | null;
   diasPublicado: number | null;
+  descripcion: string | null;
+  direccion: string | null;
+  fotos: string[];
+  anunciante: PricingComparableAdvertiser;
+  latitud: number | null;
+  longitud: number | null;
+  planta: string | null;
+  orientacion: string | null;
+  referencia: string | null;
 }
 
 // ---------------------------------------------------------------------------

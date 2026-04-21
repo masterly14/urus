@@ -49,15 +49,18 @@ export async function handleNotaEncargoRecordatorio(
     data: { state: "RECORDATORIO_ENVIADO" },
   });
 
-  const checkAt = new Date(
-    session.visitDateTime.getTime() - 30 * 60 * 1000,
-  );
-  await enqueueJob({
-    type: "NOTA_ENCARGO_CHECK_CONFIRMACION",
-    payload: { sessionId },
-    availableAt: new Date(Math.max(checkAt.getTime(), Date.now() + 60_000)),
-    idempotencyKey: `nota_encargo_check:${sessionId}`,
-  });
+  const horizonMs = session.visitDateTime.getTime() - Date.now();
+  if (horizonMs >= 45 * 60 * 1000) {
+    const checkAt = new Date(
+      session.visitDateTime.getTime() - 30 * 60 * 1000,
+    );
+    await enqueueJob({
+      type: "NOTA_ENCARGO_CHECK_CONFIRMACION",
+      payload: { sessionId },
+      availableAt: new Date(Math.max(checkAt.getTime(), Date.now() + 60_000)),
+      idempotencyKey: `nota_encargo_check:${sessionId}`,
+    });
+  }
 
   return { success: true };
 }

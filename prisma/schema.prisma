@@ -20,6 +20,7 @@ enum AggregateType {
   CEO
   MENTAL_CONVERSATION
   VISIT_SCHEDULING
+  MARKET
 }
 
 enum EventType {
@@ -58,6 +59,7 @@ enum EventType {
   FIRMA_SLA_ESCALADO
   PRICING_ANALISIS_GENERADO
   PRICING_RECOMENDACION_GENERADA
+  MARKET_INFORME_GENERADO
   INCIDENCIA_POSTVENTA_ABIERTA
   INCIDENCIA_POSTVENTA_RESUELTA
   POSTVENTA_FORMULARIO_ENVIADO
@@ -92,6 +94,7 @@ enum EventType {
   NOTA_ENCARGO_NO_CONFIRMADA
   NOTA_ENCARGO_FORMULARIO_COMPLETADO
   PARTE_VISITA_FORMULARIO_COMPLETADO
+  PRICING_PRECIO_APLICADO
 }
 
 enum JobType {
@@ -365,6 +368,39 @@ model PricingReport {
   @@index([sourceTrigger, analyzedAt])
   @@index([semaforo, analyzedAt])
   @@map("pricing_reports")
+}
+
+/// Informe estratégico IA del mercado agregado (M7 — Smart Pricing).
+///
+/// Se genera on-demand desde `/platform/pricing/mercado` a través de LangGraph
+/// sobre los datos ya agregados por `/api/pricing/mercado` para una ciudad
+/// (o todas si `ciudad = "Todas"`). Persiste el snapshot de entrada usado y el
+/// informe estructurado devuelto por el LLM. Cada generación emite un evento
+/// `MARKET_INFORME_GENERADO` en el Event Store con `aggregateType = MARKET`.
+model MarketReport {
+  id             String   @id @default(cuid())
+  /// Ciudad del alcance del informe. "Todas" cuando no se filtró por ciudad.
+  ciudad         String
+  /// Usuario que disparó la generación (AppSession.userId).
+  generatedBy    String
+  /// Modelo LLM usado (p. ej. "gpt-5.4-mini").
+  model          String
+  /// Snapshot de los datos agregados de mercado usados como input del LLM
+  /// (zones + competitors recortados a lo enviado al prompt).
+  inputSnapshot  Json
+  /// Informe estructurado (MarketReportSchema de Zod) devuelto por el graph.
+  report         Json
+  /// Tokens consumidos si el proveedor los reporta; null si no.
+  tokensUsed     Int?
+  /// ID del evento `MARKET_INFORME_GENERADO` emitido al persistir.
+  lastEventId    String?
+  generatedAt    DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([ciudad, generatedAt])
+  @@index([generatedBy, generatedAt])
+  @@map("market_reports")
 }
 
 model DemandCurrent {
@@ -642,10 +678,11 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  sessions    Session[]
-  accounts    Account[]
-  comercial   Comercial? @relation(fields: [comercialId], references: [id])
-  comercialId String?    @unique
+  sessions          Session[]
+  accounts          Account[]
+  comercial         Comercial? @relation(fields: [comercialId], references: [id])
+  comercialId       String?    @unique
+  contractTemplates ContractTemplate[]
 
   @@map("user")
 }
@@ -872,6 +909,29 @@ model MicrositeSelectionFeedback {
   @@unique([selectionId, propertyId])
   @@index([selectionId, createdAt])
   @@map("microsite_selection_feedback")
+}
+
+// --- Contract Templates (plantillas editables por el equipo interno) ---
+
+model ContractTemplate {
+  id                    String    @id @default(cuid())
+  documentKind          String
+  version               String
+  name                  String
+  isActive              Boolean   @default(false)
+  structure             Json
+  variableBindings      Json      @default("[]")
+  sharedClauseOverrides Json      @default("{}")
+  createdByUserId       String?
+  publishedAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  createdByUser User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([documentKind, version])
+  @@index([documentKind, isActive])
+  @@map("contract_templates")
 }
 
 // --- Legal Documents (proyección materializada del ciclo contractual) ---

@@ -34,6 +34,18 @@ export async function createClient(
 }
 
 /**
+ * Actualiza campos de un cliente existente.
+ * PUT /clientes/ con cod_cli + solo los campos a modificar.
+ */
+export async function updateClient(
+  client: InmovillaRestClient,
+  cod_cli: number,
+  patch: Partial<Pick<CreateClientPayload, "nombre" | "apellidos" | "telefono1" | "telefono2" | "email">>,
+): Promise<Cliente> {
+  return client.put<Cliente>("/clientes/", { cod_cli, ...patch });
+}
+
+/**
  * Busca clientes por teléfono y/o email.
  * GET /clientes/buscar/?telefono={telefono}&email={email}
  * Si se pasan ambos, la API aplica AND.

@@ -16,6 +16,7 @@ import type { JsonValue } from "@/lib/event-store/types";
 import type { PropertyForMatching } from "@/lib/matching";
 import { matchDemandsToPropertyById, matchDemandsToProperty } from "@/lib/matching";
 import { appendEvent } from "@/lib/event-store";
+import { prisma } from "@/lib/prisma";
 
 type PropertySnapshot = {
   codigo?: string;
@@ -91,6 +92,28 @@ function hasPricingRelevantChanges(event: Event): boolean {
   return changedFields.some((f) => PRICING_RELEVANT_FIELDS.has(f));
 }
 
+const ANTI_LOOP_WINDOW_MS = 30 * 60 * 1000; // 30 min
+
+/**
+ * If the price change was originated by our own PRICING_PRECIO_APLICADO event
+ * (i.e. a commercial applied a pricing recommendation), skip re-analysis to
+ * avoid a feedback loop: apply → ingestion detects change → re-analyze → new rec.
+ */
+async function isPriceChangeFromRecommendation(propertyCode: string): Promise<boolean> {
+  const cutoff = new Date(Date.now() - ANTI_LOOP_WINDOW_MS);
+  const recentApply = await prisma.event.findFirst({
+    where: {
+      type: "PRICING_PRECIO_APLICADO",
+      aggregateType: "PROPERTY",
+      aggregateId: propertyCode,
+      createdAt: { gte: cutoff },
+    },
+    select: { id: true },
+    orderBy: { createdAt: "desc" },
+  });
+  return recentApply !== null;
+}
+
 export async function handlePropertyMatching(event: Event): Promise<HandlerResult> {
   const propertyId = event.aggregateId;
 
@@ -107,12 +130,19 @@ export async function handlePropertyMatching(event: Event): Promise<HandlerResul
       },
     ];
     if (hasPricingRelevantChanges(event)) {
-      jobs.push({
-        type: "RUN_PRICING_ANALYSIS",
-        payload: { propertyCode: propertyId },
-        idempotencyKey: `run-pricing:${event.id}`,
-        sourceEventId: event.id,
-      });
+      const fromOwnRecommendation = await isPriceChangeFromRecommendation(propertyId);
+      if (fromOwnRecommendation) {
+        console.log(
+          `[consumer:matching] PROPIEDAD_MODIFICADA ${propertyId} — cambio de precio originado por recomendación propia, omitiendo re-análisis`,
+        );
+      } else {
+        jobs.push({
+          type: "RUN_PRICING_ANALYSIS",
+          payload: { propertyCode: propertyId },
+          idempotencyKey: `run-pricing:${event.id}`,
+          sourceEventId: event.id,
+        });
+      }
     }
     return { success: true, followUpJobs: jobs };
   }
@@ -130,12 +160,19 @@ export async function handlePropertyMatching(event: Event): Promise<HandlerResul
     },
   ];
   if (event.type !== "PROPIEDAD_MODIFICADA" || hasPricingRelevantChanges(event)) {
-    followUpJobs.push({
-      type: "RUN_PRICING_ANALYSIS",
-      payload: { propertyCode: propertyId },
-      idempotencyKey: `run-pricing:${event.id}`,
-      sourceEventId: event.id,
-    });
+    const fromOwnRecommendation = await isPriceChangeFromRecommendation(propertyId);
+    if (fromOwnRecommendation) {
+      console.log(
+        `[consumer:matching] ${event.type} ${propertyId} — cambio de precio originado por recomendación propia, omitiendo re-análisis`,
+      );
+    } else {
+      followUpJobs.push({
+        type: "RUN_PRICING_ANALYSIS",
+        payload: { propertyCode: propertyId },
+        idempotencyKey: `run-pricing:${event.id}`,
+        sourceEventId: event.id,
+      });
+    }
   }
 
   try {

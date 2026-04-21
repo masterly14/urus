@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   Users2,
@@ -17,12 +17,23 @@ import {
   Loader2,
   CheckCircle2,
   AlertTriangle,
+  Pencil,
+  UserRoundPen,
+  UserCog,
+  Ban,
 } from "lucide-react";
 import { useSession } from "@/lib/hooks/use-session";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -31,9 +42,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useDemands, type DemandsFilters, type DemandRow } from "@/lib/hooks/use-demands";
 import type { LeadStatus } from "@prisma/client";
+import { DeactivateConfirmDialog } from "./deactivate-confirm-dialog";
 
 // ---------------------------------------------------------------------------
 // LeadStatus metadata
@@ -204,13 +221,36 @@ function ForceMatchButton({
   result,
   errorMsg,
   onTrigger,
+  blocked = false,
+  blockedReason,
 }: {
   demandCodigo: string;
   state: RematchState;
   result: RematchResult | null;
   errorMsg: string | null;
   onTrigger: (codigo: string) => void;
+  blocked?: boolean;
+  blockedReason?: string;
 }) {
+  if (blocked && state === "idle") {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={(e) => {
+          e.stopPropagation();
+          onTrigger(demandCodigo);
+        }}
+        className="gap-1.5 text-xs h-8 border-[var(--urus-warning)]/40 text-[var(--urus-warning)] hover:text-[var(--urus-warning)] hover:bg-[var(--urus-warning)]/10 whitespace-nowrap"
+        title={blockedReason ?? "Faltan datos para cruzar"}
+      >
+        <AlertTriangle className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">Completar datos</span>
+        <span className="sm:hidden">Datos</span>
+      </Button>
+    );
+  }
+
   if (state === "loading") {
     return (
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -269,6 +309,335 @@ function ForceMatchButton({
       <span className="sm:hidden">Cruce</span>
     </Button>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Edit buyer modal
+// ---------------------------------------------------------------------------
+
+function EditBuyerModal({
+  open,
+  onOpenChange,
+  demandCodigo,
+  currentNombre,
+  currentTelefono,
+  contextMessage,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  demandCodigo: string;
+  currentNombre: string;
+  currentTelefono: string;
+  contextMessage?: string;
+  onSuccess: () => void;
+}) {
+  const displayName = displayBuyerName(currentNombre);
+  const hasName = displayName !== "Sin nombre";
+
+  const [nombre, setNombre] = useState(hasName ? currentNombre.split(" ")[0] ?? "" : "");
+  const [apellidos, setApellidos] = useState(hasName ? currentNombre.split(" ").slice(1).join(" ") : "");
+  const [telefono, setTelefono] = useState(currentTelefono ?? "");
+  const [email, setEmail] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<"success" | "error" | "duplicate" | null>(null);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [duplicateInfo, setDuplicateInfo] = useState<string>("");
+
+  const hasChanges = nombre.trim() || apellidos.trim() || telefono.trim() || email.trim();
+
+  function buildBody(force = false): Record<string, unknown> {
+    const body: Record<string, unknown> = {};
+    if (nombre.trim()) body.nombre = nombre.trim();
+    if (apellidos.trim()) body.apellidos = apellidos.trim();
+    if (telefono.trim()) {
+      const digits = telefono.replace(/\D/g, "");
+      if (digits) body.telefono1 = Number(digits);
+    }
+    if (email.trim()) body.email = email.trim();
+    if (force) body.force = true;
+    return body;
+  }
+
+  async function handleSubmit(force = false) {
+    if (!hasChanges) return;
+    setSubmitting(true);
+    if (!force) {
+      setResult(null);
+      setErrorMsg("");
+      setDuplicateInfo("");
+    }
+
+    try {
+      const res = await fetch(`/api/demands/${encodeURIComponent(demandCodigo)}/update-client`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildBody(force)),
+      });
+      const data = await res.json();
+
+      if (res.status === 409 && data.error === "duplicate") {
+        setResult("duplicate");
+        setDuplicateInfo(data.message ?? "Ya existe un cliente con este dato");
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      setResult("success");
+      setTimeout(() => {
+        onSuccess();
+        onOpenChange(false);
+      }, 1500);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : String(err));
+      setResult("error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserRoundPen className="h-5 w-5 text-secondary" />
+            Completar datos del comprador
+          </DialogTitle>
+          <DialogDescription>
+            {contextMessage ?? `Demanda ${demandCodigo} — los cambios se guardan directamente en Inmovilla.`}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 pt-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Nombre</label>
+              <Input
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                placeholder="Nombre"
+                disabled={submitting}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Apellidos</label>
+              <Input
+                value={apellidos}
+                onChange={(e) => setApellidos(e.target.value)}
+                placeholder="Apellidos"
+                disabled={submitting}
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Teléfono</label>
+            <Input
+              value={telefono}
+              onChange={(e) => setTelefono(e.target.value)}
+              placeholder="Ej: 612345678"
+              type="tel"
+              disabled={submitting}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Email</label>
+            <Input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="comprador@email.com"
+              type="email"
+              disabled={submitting}
+            />
+          </div>
+
+          {result === "success" && (
+            <div className="flex items-center gap-2 text-xs text-[var(--urus-success)] bg-[var(--urus-success)]/10 rounded-lg px-3 py-2">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              Datos actualizados en Inmovilla. Se reflejarán en la plataforma en los próximos minutos.
+            </div>
+          )}
+
+          {result === "duplicate" && (
+            <div className="rounded-lg bg-[var(--urus-warning)]/10 border border-[var(--urus-warning)]/20 px-3 py-2 space-y-2">
+              <div className="flex items-center gap-2 text-xs text-[var(--urus-warning)] font-medium">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                Posible duplicado
+              </div>
+              <p className="text-[10px] text-muted-foreground">{duplicateInfo}</p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleSubmit(true)}
+                disabled={submitting}
+                className="text-xs h-7 border-[var(--urus-warning)]/30 text-[var(--urus-warning)] hover:bg-[var(--urus-warning)]/10"
+              >
+                {submitting ? (
+                  <><Loader2 className="h-3 w-3 animate-spin" /> Guardando...</>
+                ) : (
+                  "Guardar de todas formas"
+                )}
+              </Button>
+            </div>
+          )}
+
+          {result === "error" && (
+            <div className="flex items-center gap-2 text-xs text-[var(--urus-danger)] bg-[var(--urus-danger)]/10 rounded-lg px-3 py-2">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              {errorMsg}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => handleSubmit()}
+              disabled={submitting || !hasChanges || result === "success" || result === "duplicate"}
+              className="gap-2"
+            >
+              {submitting ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Guardando...</>
+              ) : (
+                "Guardar en Inmovilla"
+              )}
+            </Button>
+          </div>
+
+          <p className="text-[9px] text-muted-foreground/60 leading-relaxed">
+            Los datos se actualizan directamente en Inmovilla vía API REST (PUT /clientes/).
+            Inmovilla establece un límite de 20 peticiones por minuto.
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Reassign agent popover (CEO/Admin only)
+// ---------------------------------------------------------------------------
+
+interface ComercialOption {
+  id: string;
+  nombre: string;
+  ciudad: string;
+}
+
+function ReassignPopover({
+  demandCodigo,
+  currentAgente,
+  onSuccess,
+}: {
+  demandCodigo: string;
+  currentAgente: string;
+  onSuccess: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [comerciales, setComerciales] = useState<ComercialOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fetchedRef = useRef(false);
+
+  useEffect(() => {
+    if (!open || fetchedRef.current) return;
+    fetchedRef.current = true;
+    setLoading(true);
+    fetch("/api/comerciales/activos")
+      .then((r) => r.json())
+      .then((data) => setComerciales(data.comerciales ?? []))
+      .catch(() => setError("No se pudieron cargar los comerciales"))
+      .finally(() => setLoading(false));
+  }, [open]);
+
+  const handleSelect = async (comercialId: string) => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/demands/${encodeURIComponent(demandCodigo)}/reassign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comercialId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
+      setOpen(false);
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-auto min-h-8 w-full max-w-[200px] justify-start gap-2 px-2.5 py-1.5 text-left font-normal border-border shadow-sm hover:bg-muted/50"
+          title="Cambiar comercial asignado"
+        >
+          <UserCog className="h-3.5 w-3.5 shrink-0 text-secondary" aria-hidden />
+          <span className="flex min-w-0 flex-1 flex-col items-start gap-0 leading-tight">
+            <span className="truncate text-xs font-medium text-foreground">
+              {currentAgente || "Sin asignar"}
+            </span>
+            <span className="text-[10px] text-muted-foreground">Reasignar</span>
+          </span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-56 p-0">
+        <div className="px-3 py-2 border-b border-border/50">
+          <p className="text-xs font-medium">Reasignar comercial</p>
+        </div>
+        <div className="max-h-48 overflow-y-auto py-1">
+          {loading && (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          )}
+          {error && (
+            <p className="text-xs text-destructive px-3 py-2">{error}</p>
+          )}
+          {!loading && comerciales.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              disabled={submitting}
+              onClick={() => handleSelect(c.id)}
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted/60 transition-colors disabled:opacity-50 flex items-center justify-between"
+            >
+              <span className="truncate font-medium">{c.nombre}</span>
+              <span className="text-muted-foreground text-[10px] shrink-0 ml-2">{c.ciudad}</span>
+            </button>
+          ))}
+          {!loading && !error && comerciales.length === 0 && (
+            <p className="text-xs text-muted-foreground px-3 py-2">No hay comerciales activos</p>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function isMissingBuyerData(demand: DemandRow): boolean {
+  const noName = !demand.nombre?.trim() || /^(null|undefined|sin nombre)$/i.test(demand.nombre.trim());
+  const noPhone = !demand.telefono?.trim();
+  return noName || noPhone;
 }
 
 // ---------------------------------------------------------------------------
@@ -396,35 +765,98 @@ function DemandTableRow({
   demand,
   showComercial,
   showForceMatch,
+  isCeoOrAdmin,
   rematchState,
   rematchResult,
   rematchError,
   onForceMatch,
+  onRefresh,
 }: {
   demand: DemandRow;
   showComercial: boolean;
   showForceMatch: boolean;
+  isCeoOrAdmin: boolean;
   rematchState: RematchState;
   rematchResult: RematchResult | null;
   rematchError: string | null;
   onForceMatch: (codigo: string) => void;
+  onRefresh: () => void;
 }) {
   const budgetLabel = formatBudget(demand.presupuestoMin, demand.presupuestoMax);
   const hasBudgetRange =
     demand.presupuestoMin > 0 || demand.presupuestoMax > 0;
+  const incomplete = isMissingBuyerData(demand);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [guardModalOpen, setGuardModalOpen] = useState(false);
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const isTerminal = demand.leadStatus === "CERRADO" || demand.leadStatus === "PERDIDO";
+
+  const handleForceMatchGuarded = useCallback(() => {
+    if (!demand.telefono?.trim()) {
+      setGuardModalOpen(true);
+      return;
+    }
+    onForceMatch(demand.codigo);
+  }, [demand.telefono, demand.codigo, onForceMatch]);
 
   return (
-    <TableRow className="border-border/80 transition-colors hover:bg-muted/60">
+    <>
+    <TableRow className="border-border/80 transition-colors hover:bg-muted/60 group/row">
       <TableCell className="max-w-[220px] py-3 pl-4 align-top">
-        <div className="font-medium leading-snug line-clamp-2">
-          {displayBuyerName(demand.nombre)}
-        </div>
-        {demand.telefono && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-            <Phone className="h-3 w-3 shrink-0" />
-            <span>{demand.telefono}</span>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-start justify-between gap-2">
+            <span className="min-w-0 flex-1 font-medium leading-snug line-clamp-2">
+              {displayBuyerName(demand.nombre)}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setEditModalOpen(true)}
+              className={cn(
+                "h-7 shrink-0 gap-1 px-2 text-[11px] font-medium shadow-sm",
+                incomplete
+                  ? "border-[var(--urus-warning)]/40 text-[var(--urus-warning)] hover:bg-[var(--urus-warning)]/10"
+                  : "border-border",
+              )}
+              title={
+                incomplete
+                  ? "Completar nombre, teléfono o email del comprador"
+                  : "Editar datos del comprador"
+              }
+            >
+              {incomplete ? (
+                <>
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                  Completar
+                </>
+              ) : (
+                <>
+                  <Pencil className="h-3 w-3 shrink-0" />
+                  Editar
+                </>
+              )}
+            </Button>
           </div>
-        )}
+          {demand.telefono && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Phone className="h-3 w-3 shrink-0" />
+              <span>{demand.telefono}</span>
+            </div>
+          )}
+          {!demand.telefono && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setEditModalOpen(true)}
+              className="h-7 w-fit gap-1 px-2 text-[11px] border-[var(--urus-warning)]/35 text-[var(--urus-warning)] hover:bg-[var(--urus-warning)]/10"
+            >
+              <Phone className="h-3 w-3 shrink-0" />
+              Sin teléfono — añadir
+            </Button>
+          )}
+        </div>
       </TableCell>
 
       <TableCell className="max-w-[200px] py-3 align-top">
@@ -469,12 +901,34 @@ function DemandTableRow({
       </TableCell>
 
       <TableCell className="py-3 align-middle">
-        <StatusBadge status={demand.leadStatus} />
+        <div className="flex items-center gap-1.5">
+          <StatusBadge status={demand.leadStatus} />
+          {!isTerminal && (
+            <button
+              type="button"
+              onClick={() => setDeactivateOpen(true)}
+              className="shrink-0 opacity-0 group-hover/row:opacity-50 hover:!opacity-100 transition-opacity"
+              title="Dar de baja esta demanda"
+            >
+              <Ban className="h-3 w-3 text-destructive" />
+            </button>
+          )}
+        </div>
       </TableCell>
 
       {showComercial && (
-        <TableCell className="text-sm text-muted-foreground max-w-[140px] truncate py-3 align-top">
-          {demand.agente || "—"}
+        <TableCell className="py-3 align-top">
+          {isCeoOrAdmin ? (
+            <ReassignPopover
+              demandCodigo={demand.codigo}
+              currentAgente={demand.agente}
+              onSuccess={onRefresh}
+            />
+          ) : (
+            <span className="text-sm text-muted-foreground max-w-[140px] truncate block">
+              {demand.agente || "—"}
+            </span>
+          )}
         </TableCell>
       )}
 
@@ -492,11 +946,41 @@ function DemandTableRow({
             state={rematchState}
             result={rematchResult}
             errorMsg={rematchError}
-            onTrigger={onForceMatch}
+            onTrigger={handleForceMatchGuarded}
+            blocked={!demand.telefono?.trim()}
+            blockedReason="El comprador no tiene teléfono — completa los datos para poder enviar ofertas por WhatsApp."
           />
         </TableCell>
       )}
     </TableRow>
+
+    <EditBuyerModal
+      open={editModalOpen}
+      onOpenChange={setEditModalOpen}
+      demandCodigo={demand.codigo}
+      currentNombre={demand.nombre}
+      currentTelefono={demand.telefono}
+      onSuccess={onRefresh}
+    />
+
+    <EditBuyerModal
+      open={guardModalOpen}
+      onOpenChange={setGuardModalOpen}
+      demandCodigo={demand.codigo}
+      currentNombre={demand.nombre}
+      currentTelefono={demand.telefono}
+      contextMessage="Esta demanda no tiene teléfono de contacto. Completa los datos del comprador antes de forzar el cruce — sin teléfono, el sistema no puede enviar WhatsApp al comprador."
+      onSuccess={onRefresh}
+    />
+
+    <DeactivateConfirmDialog
+      open={deactivateOpen}
+      onOpenChange={setDeactivateOpen}
+      demandCodigo={demand.codigo}
+      buyerName={demand.nombre}
+      onSuccess={onRefresh}
+    />
+    </>
   );
 }
 
@@ -754,10 +1238,12 @@ export default function DemandasPage() {
                       demand={demand}
                       showComercial={isCeoOrAdmin}
                       showForceMatch={isCeoOrAdmin}
+                      isCeoOrAdmin={isCeoOrAdmin}
                       rematchState={rematchStates[demand.codigo] ?? "idle"}
                       rematchResult={rematchResults[demand.codigo] ?? null}
                       rematchError={rematchErrors[demand.codigo] ?? null}
                       onForceMatch={handleForceMatch}
+                      onRefresh={refetch}
                     />
                   ))
                 )}

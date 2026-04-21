@@ -4,6 +4,7 @@
 
 import type { ContractVoiceStructuredPatch } from "@/lib/agents/contract-instruction-types";
 import type { ContractFieldIssue, ContractTemplateInput } from "@/types/contracts";
+import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
 
 export interface SmartClosingDocState {
   contractTemplateInput: ContractTemplateInput;
@@ -11,35 +12,33 @@ export interface SmartClosingDocState {
   docxFileName: string | null;
 }
 
+interface VoiceApplySharedFields {
+  updatedInput: ContractTemplateInput;
+  appliedSummaries: string[];
+  patch: ContractVoiceStructuredPatch;
+  nextTemplateVersion?: string;
+  assistantMessage?: string;
+  missingDataQuestions?: string[];
+  updatedAdditionalClausesDoc?: AdditionalClausesDoc | null;
+}
+
 export type VoiceApplyClientResponse =
-  | {
+  | (VoiceApplySharedFields & {
       ok: true;
-      updatedInput: ContractTemplateInput;
       docxBase64: string;
       docxFileName: string;
-      appliedSummaries: string[];
-      patch: ContractVoiceStructuredPatch;
-      nextTemplateVersion?: string;
-    }
-  | {
+    })
+  | (VoiceApplySharedFields & {
       ok: false;
       needsClarification?: false;
-      updatedInput: ContractTemplateInput;
       validationIssues: ContractFieldIssue[];
-      appliedSummaries: string[];
-      patch: ContractVoiceStructuredPatch;
-      nextTemplateVersion?: string;
-    }
-  | {
+    })
+  | (VoiceApplySharedFields & {
       ok: false;
       needsClarification: true;
-      updatedInput: ContractTemplateInput;
       validationIssues: ContractFieldIssue[];
       clarificationQuestions: string[];
-      appliedSummaries: string[];
-      patch: ContractVoiceStructuredPatch;
-      nextTemplateVersion?: string;
-    };
+    });
 
 export interface VoiceApplyUiDelta {
   doc: SmartClosingDocState;
@@ -48,6 +47,9 @@ export interface VoiceApplyUiDelta {
   validationIssues: ContractFieldIssue[];
   clarificationQuestions: string[];
   nextTemplateVersion?: string;
+  assistantMessage: string;
+  missingDataQuestions: string[];
+  updatedAdditionalClausesDoc: AdditionalClausesDoc | null;
 }
 
 /** Si `ok: false`, conserva el borrador DOCX y el input previos (validación falló tras el parche). */
@@ -55,6 +57,15 @@ export function mergeVoiceApplyIntoSession(
   prev: SmartClosingDocState,
   res: VoiceApplyClientResponse,
 ): VoiceApplyUiDelta {
+  const shared = {
+    lastPatch: res.patch,
+    appliedSummaries: res.appliedSummaries,
+    nextTemplateVersion: res.nextTemplateVersion,
+    assistantMessage: res.assistantMessage ?? "",
+    missingDataQuestions: res.missingDataQuestions ?? [],
+    updatedAdditionalClausesDoc: res.updatedAdditionalClausesDoc ?? null,
+  };
+
   if (res.ok) {
     return {
       doc: {
@@ -62,11 +73,9 @@ export function mergeVoiceApplyIntoSession(
         docxBase64: res.docxBase64,
         docxFileName: res.docxFileName,
       },
-      lastPatch: res.patch,
-      appliedSummaries: res.appliedSummaries,
+      ...shared,
       validationIssues: [],
       clarificationQuestions: [],
-      nextTemplateVersion: res.nextTemplateVersion,
     };
   }
   if (res.needsClarification) {
@@ -76,11 +85,9 @@ export function mergeVoiceApplyIntoSession(
         docxBase64: prev.docxBase64,
         docxFileName: prev.docxFileName,
       },
-      lastPatch: res.patch,
-      appliedSummaries: res.appliedSummaries,
+      ...shared,
       validationIssues: [],
       clarificationQuestions: res.clarificationQuestions,
-      nextTemplateVersion: res.nextTemplateVersion,
     };
   }
   return {
@@ -89,10 +96,8 @@ export function mergeVoiceApplyIntoSession(
       docxBase64: prev.docxBase64,
       docxFileName: prev.docxFileName,
     },
-    lastPatch: res.patch,
-    appliedSummaries: res.appliedSummaries,
+    ...shared,
     validationIssues: res.validationIssues,
     clarificationQuestions: [],
-    nextTemplateVersion: res.nextTemplateVersion,
   };
 }

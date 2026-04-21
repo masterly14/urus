@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Bell, ChevronLeft, ChevronRight, ExternalLink, LogOut, Search, Settings, User } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, ExternalLink, LogOut, Settings, User } from "lucide-react";
 import { useSession } from "@/lib/hooks/use-session";
 import { signOut } from "@/lib/auth/client";
 import { useNotifications } from "@/lib/hooks/use-notifications";
@@ -183,18 +183,6 @@ export function TopBar({ logoSrc }: { logoSrc?: string }) {
                         </span>
                     </div>
                 )}
-            </div>
-
-            {/* Center: Search */}
-            <div className="hidden md:flex items-center max-w-md flex-1 mx-8">
-                <div className="relative w-full">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                        type="text"
-                        placeholder="Buscar propiedades, comerciales, operaciones..."
-                        className="h-9 w-full rounded-lg border border-border/50 bg-accent/30 pl-9 pr-4 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-secondary/50 transition-all"
-                    />
-                </div>
             </div>
 
             {/* Right section */}

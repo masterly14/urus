@@ -48,6 +48,15 @@ function makeComparable(overrides?: Partial<PricingComparable>): PricingComparab
     extras: {},
     link: null,
     diasPublicado: 30,
+    descripcion: null,
+    direccion: null,
+    fotos: [],
+    anunciante: { nombre: null, tipo: "professional", telefonos: [] },
+    latitud: null,
+    longitud: null,
+    planta: null,
+    orientacion: null,
+    referencia: null,
     ...overrides,
   };
 }

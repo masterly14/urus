@@ -2,16 +2,13 @@
 
 import { Download, FileText, Loader2, Maximize2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { base64ToArrayBuffer } from "@/lib/legal/smart-closing/docx-to-html";
 import type { ContractTemplateInput } from "@/types/contracts";
@@ -91,63 +88,57 @@ export function DocxPreviewPanel({
 
   return (
     <>
-      <Card className="flex min-h-0 w-full flex-col overflow-hidden border-border/50 bg-card/60 backdrop-blur-sm shadow-sm">
-        <div className="bg-muted/30 border-b border-border/30 p-3 flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">{KIND_LABEL[contractTemplateInput.kind]}</span>
-            <Badge variant="outline" className="font-mono text-xs">
-              {contractTemplateInput.templateVersion ?? "sin versión"}
-            </Badge>
+      <div className="flex min-h-0 flex-1 w-full flex-col overflow-hidden">
+        <div className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-2 flex items-center justify-between gap-2 shrink-0 bg-white dark:bg-neutral-950">
+          <div className="flex items-center gap-2">
+            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-[13px] font-medium">{KIND_LABEL[contractTemplateInput.kind]}</span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="gap-2"
+              className="h-7 gap-1.5 text-xs text-muted-foreground"
               disabled={!canExpand}
               onClick={() => setExpandOpen(true)}
-              title="Ampliar vista previa"
             >
-              <Maximize2 className="h-3.5 w-3.5" />
+              <Maximize2 className="h-3 w-3" />
               Ampliar
             </Button>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="gap-2"
+              className="h-7 gap-1.5 text-xs text-muted-foreground"
               disabled={!docxBase64 || !docxFileName}
               onClick={handleDownload}
             >
               {converting && !previewHtml ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
-                <Download className="h-3.5 w-3.5" />
+                <Download className="h-3 w-3" />
               )}
-              Descargar DOCX
+              DOCX
             </Button>
           </div>
         </div>
 
-        <CardContent className="flex flex-col bg-white contract-preview-word-canvas p-0">
-          <ScrollArea className="h-[clamp(260px,52vh,620px)] w-full">
-            <div className="flex justify-center py-8 px-4 min-h-full">
-              <div className={cn("contract-paper", "contract-paper--embedded")}>
-                {showSkeleton ? (
-                  previewSkeleton
-                ) : (
-                  <div
-                    className="contract-mammoth-preview"
-                    dangerouslySetInnerHTML={{ __html: previewHtml }}
-                  />
-                )}
-              </div>
+        <div className="flex-1 min-h-0 bg-neutral-100 dark:bg-neutral-900 contract-preview-word-canvas overflow-auto">
+          <div className="flex justify-center py-6 px-4 min-h-full">
+            <div className={cn("contract-paper", "contract-paper--embedded")}>
+              {showSkeleton ? (
+                previewSkeleton
+              ) : (
+                <div
+                  className="contract-mammoth-preview"
+                  dangerouslySetInnerHTML={{ __html: previewHtml }}
+                />
+              )}
             </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      </div>
 
       <Dialog open={expandOpen} onOpenChange={setExpandOpen}>
         <DialogContent

@@ -1,5 +1,5 @@
 import { parseGuardarResponse } from "./parsers";
-import { verifyDemandEmail, verifyDemandPriority, verifyDemandCriteria } from "./verify";
+import { verifyDemandEmail, verifyDemandPriority, verifyDemandCriteria, verifyDemandAgent, verifyDemandStatus } from "./verify";
 import type {
   WriteOperation,
   WriteOperationSpec,
@@ -235,6 +235,86 @@ const updateDemandCriteriaSpec: WriteOperationSpec<"updateDemandCriteria"> = {
     verifyDemandCriteria(responseText, ctx.payload.patch ?? {}),
 };
 
+const updateDemandAgentSpec: WriteOperationSpec<"updateDemandAgent"> = {
+  operation: "updateDemandAgent",
+  mainStep: ({ payload, session }) => {
+    const query = toQueryString({
+      eS: "0",
+      tipocruce: "1",
+      porarea: "1",
+      ref: payload.demandRef,
+      idi: "1",
+      envConf: payload.envConf ?? "false",
+      cache: buildCacheToken(session.numAgencia),
+    });
+
+    return {
+      path: `/new/app/guardar/guardar.php?${query}`,
+      body: {
+        "demandas-keyagente": payload.newAgentId,
+        tipopropiedad: payload.propertyTypes,
+        "demandas-cod_dempriclave": payload.demandId,
+        "clientes-cod_clipriclave": payload.clientId,
+        "demandas-keycliclaveext": payload.clientId,
+        nbclave: "demandas.cod_dem",
+        antagente: payload.agentId,
+      },
+      responseMode: "text",
+    };
+  },
+  parseMainResponse: parseGuardarResponse,
+  verify: (ctx, demandId) => ({
+    path: buildFichaClientePath(ctx, demandId),
+    body: {
+      crwhere: `demandas.cod_dem;=;${demandId};`,
+      otraagencia: "",
+    },
+    responseMode: "text",
+  }),
+  parseVerify: (responseText, ctx) =>
+    verifyDemandAgent(responseText, ctx.payload.newAgentId),
+};
+
+const updateDemandStatusSpec: WriteOperationSpec<"updateDemandStatus"> = {
+  operation: "updateDemandStatus",
+  mainStep: ({ payload, session }) => {
+    const query = toQueryString({
+      eS: "0",
+      tipocruce: "1",
+      porarea: "1",
+      ref: payload.demandRef,
+      idi: "1",
+      envConf: payload.envConf ?? "false",
+      cache: buildCacheToken(session.numAgencia),
+    });
+
+    return {
+      path: `/new/app/guardar/guardar.php?${query}`,
+      body: {
+        "demandas-keysitu": payload.keysitu,
+        tipopropiedad: payload.propertyTypes,
+        "demandas-cod_dempriclave": payload.demandId,
+        "clientes-cod_clipriclave": payload.clientId,
+        "demandas-keycliclaveext": payload.clientId,
+        nbclave: "demandas.cod_dem",
+        antagente: payload.agentId,
+      },
+      responseMode: "text",
+    };
+  },
+  parseMainResponse: parseGuardarResponse,
+  verify: (ctx, demandId) => ({
+    path: buildFichaClientePath(ctx, demandId),
+    body: {
+      crwhere: `demandas.cod_dem;=;${demandId};`,
+      otraagencia: "",
+    },
+    responseMode: "text",
+  }),
+  parseVerify: (responseText, ctx) =>
+    verifyDemandStatus(responseText, ctx.payload.keysitu),
+};
+
 export const writeOperationRegistry: {
   [K in WriteOperation]: WriteOperationSpec<K>;
 } = {
@@ -242,4 +322,6 @@ export const writeOperationRegistry: {
   updateDemandEmail: updateDemandEmailSpec,
   updateDemandPriority: updateDemandPrioritySpec,
   updateDemandCriteria: updateDemandCriteriaSpec,
+  updateDemandAgent: updateDemandAgentSpec,
+  updateDemandStatus: updateDemandStatusSpec,
 };

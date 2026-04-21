@@ -29,8 +29,6 @@ import {
     UsersRound,
     AlertTriangle,
     Settings,
-    ChevronLeft,
-    ChevronRight,
     ChevronDown,
     Users2,
     Folder,
@@ -39,6 +37,9 @@ import {
     Sparkles,
     MessagesSquare,
     ClipboardList,
+    PanelLeftClose,
+    PanelLeftOpen,
+    LayoutTemplate,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -120,6 +121,7 @@ const navItems: NavItem[] = [
         icon: FileText,
         children: [
             { label: "Contratos", href: "/platform/legal/contratos", icon: FileSignature },
+            { label: "Plantillas", href: "/platform/legal/plantillas", icon: LayoutTemplate, ceoOnly: true },
             { label: "Documentos", href: "/platform/legal/documentos", icon: Folder },
         ],
     },
@@ -196,6 +198,26 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 collapsed ? "w-16" : "w-64"
             )}
         >
+            <div className="border-b border-border/50 p-2">
+                <Button
+                    onClick={onToggle}
+                    className={cn(
+                        "flex w-full items-center rounded-lg px-3 py-2.5 text-muted-foreground transition-colors hover:bg-accent/80 hover:text-foreground",
+                        collapsed ? "justify-center" : "justify-between"
+                    )}
+                    aria-label={collapsed ? "Expandir sidebar" : "Contraer sidebar"}
+                >
+                    {collapsed ? (
+                        <PanelLeftOpen className="h-5 w-5" />
+                    ) : (
+                        <>
+                            <span className="text-sm font-medium">Contraer menú</span>
+                            <PanelLeftClose className="h-5 w-5" />
+                        </>
+                    )}
+                </Button>
+            </div>
+
             {/* Nav items */}
             <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
                 {filteredItems.map((item) => {
@@ -283,15 +305,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 })}
             </nav>
 
-            {/* Collapse toggle */}
-            <div className="border-t border-border/50 p-2">
-                <Button
-                    onClick={onToggle}
-                    className="flex w-full items-center justify-center rounded-lg p-2.5 text-muted-foreground transition-colors hover:bg-accent/80 hover:text-foreground"
-                >
-                    {collapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
-                </Button>
-            </div>
         </aside>
     );
 }

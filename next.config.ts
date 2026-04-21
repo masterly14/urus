@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**.inmovilla.com" },
       { protocol: "https", hostname: "**.apinmo.com" },
       { protocol: "https", hostname: "img3.idealista.com" },
+      { protocol: "https", hostname: "img4.idealista.com" },
       { protocol: "https", hostname: "images.unsplash.com" },
     ],
   },

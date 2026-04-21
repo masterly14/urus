@@ -67,3 +67,37 @@ export function verifyDemandCriteria(
 
   return { ok: true, field: "none", expected: "n/a", actual: "n/a" };
 }
+
+export function verifyDemandAgent(
+  fichaResponseText: string,
+  expectedAgentId: string,
+): VerifyResult {
+  const actual = parseFichaFieldValue(fichaResponseText, "demandas", "keyagente");
+  if (actual === null) {
+    return { ok: false, field: "demandas.keyagente", expected: expectedAgentId };
+  }
+
+  return {
+    ok: actual === expectedAgentId,
+    field: "demandas.keyagente",
+    expected: expectedAgentId,
+    actual,
+  };
+}
+
+export function verifyDemandStatus(
+  fichaResponseText: string,
+  expectedKeysitu: string,
+): VerifyResult {
+  const actual = parseFichaFieldValue(fichaResponseText, "demandas", "keysitu");
+  if (actual === null) {
+    return { ok: false, field: "demandas.keysitu", expected: expectedKeysitu };
+  }
+
+  return {
+    ok: actual === expectedKeysitu,
+    field: "demandas.keysitu",
+    expected: expectedKeysitu,
+    actual,
+  };
+}

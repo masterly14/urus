@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -37,6 +38,8 @@ import {
   CalendarDays,
   Clock,
   Phone,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 
 interface NotaEncargoSesion {
@@ -101,15 +104,83 @@ function fmtPrice(precio: number) {
   return new Intl.NumberFormat("es-ES").format(precio) + " \u20AC";
 }
 
+function todayLocalISO(): string {
+  const d = new Date();
+  const offset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - offset).toISOString().slice(0, 10);
+}
+
 function getTomorrow(): string {
   const d = new Date();
   d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  const offset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - offset).toISOString().slice(0, 10);
 }
 
+function minTimeForDate(fecha: string): string | undefined {
+  const today = todayLocalISO();
+  if (fecha !== today) return undefined;
+  const d = new Date();
+  d.setHours(d.getHours() + 1);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function isDateTimeInPast(fecha: string, hora: string): boolean {
+  const dt = new Date(`${fecha}T${hora}:00`);
+  return dt.getTime() <= Date.now();
+}
+
+// ---------------------------------------------------------------------------
+// Mock fixtures for ?mock=1
+// ---------------------------------------------------------------------------
+
+const MOCK_SESIONES: NotaEncargoSesion[] = [
+  {
+    id: "mock-1",
+    propertyRef: "URUS01DEMO",
+    direccion: "Calle Ejemplo 1, Madrid",
+    propietarioPhone: "34666111222",
+    visitDateTime: new Date(Date.now() + 86400000).toISOString(),
+    state: "PENDING",
+    tipoOperacion: "VENTA",
+    precio: 275000,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "mock-2",
+    propertyRef: "URUS02DEMO",
+    direccion: "Av. Libertad 42, Zaragoza",
+    propietarioPhone: "34600333444",
+    visitDateTime: new Date(Date.now() + 172800000).toISOString(),
+    state: "RECORDATORIO_ENVIADO",
+    tipoOperacion: "ALQUILER",
+    precio: 850,
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+  },
+  {
+    id: "mock-3",
+    propertyRef: "URUS03DEMO",
+    direccion: "Plaza Mayor 5, Valencia",
+    propietarioPhone: "34611555666",
+    visitDateTime: new Date(Date.now() - 86400000).toISOString(),
+    state: "FIRMADA",
+    tipoOperacion: "VENTA",
+    precio: 180000,
+    createdAt: new Date(Date.now() - 604800000).toISOString(),
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export default function CaptacionPage() {
+  const searchParams = useSearchParams();
+  const isMock = searchParams.get("mock") === "1";
+
   const [sesiones, setSesiones] = useState<NotaEncargoSesion[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isMock);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [stateFilter, setStateFilter] = useState<string>("ALL");
 
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -122,12 +193,32 @@ export default function CaptacionPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const fetchSesiones = useCallback(() => {
+    if (isMock) {
+      setSesiones(MOCK_SESIONES);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
+    setFetchError(null);
     fetch("/api/captacion/sesiones")
-      .then((res) => (res.ok ? res.json() : { sesiones: [] }))
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(
+            body.error ?? `Error ${res.status} al cargar sesiones`,
+          );
+        }
+        return res.json();
+      })
       .then((data) => setSesiones(data.sesiones ?? []))
+      .catch((err) => {
+        setFetchError(
+          err instanceof Error ? err.message : "Error de conexión",
+        );
+        setSesiones([]);
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [isMock]);
 
   useEffect(() => {
     fetchSesiones();
@@ -146,11 +237,17 @@ export default function CaptacionPage() {
     setSheetOpen(true);
   }
 
+  const dateTimeInPast = useMemo(
+    () => fecha && hora && isDateTimeInPast(fecha, hora),
+    [fecha, hora],
+  );
+
   const canSubmit =
     property !== null &&
     phone.replace(/\s/g, "").length >= 9 &&
     fecha &&
     hora &&
+    !dateTimeInPast &&
     !submitting;
 
   async function handleSubmit(e: React.FormEvent) {
@@ -200,6 +297,8 @@ export default function CaptacionPage() {
     ...Array.from(new Set(sesiones.map((s) => s.state))),
   ];
 
+  const timeMin = minTimeForDate(fecha);
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
@@ -237,6 +336,21 @@ export default function CaptacionPage() {
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : fetchError ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+              <AlertTriangle className="h-6 w-6 text-destructive" />
+              <p className="text-sm font-medium text-destructive">
+                {fetchError}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchSesiones}
+              >
+                <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                Reintentar
+              </Button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
@@ -341,7 +455,7 @@ export default function CaptacionPage() {
                   id="sheet-fecha"
                   type="date"
                   value={fecha}
-                  min={new Date().toISOString().slice(0, 10)}
+                  min={todayLocalISO()}
                   onChange={(e) => setFecha(e.target.value)}
                   required
                 />
@@ -355,11 +469,18 @@ export default function CaptacionPage() {
                   id="sheet-hora"
                   type="time"
                   value={hora}
+                  min={timeMin}
                   onChange={(e) => setHora(e.target.value)}
                   required
                 />
               </div>
             </div>
+
+            {dateTimeInPast && (
+              <p className="text-sm font-medium text-destructive">
+                La fecha y hora de visita no pueden estar en el pasado
+              </p>
+            )}
 
             {formError && (
               <p className="text-sm font-medium text-destructive">

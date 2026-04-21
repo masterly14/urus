@@ -6,7 +6,8 @@
 import { interpretContractVoiceInstructions } from "@/lib/agents/contract-instruction-graph";
 import type { ContractVoiceStructuredPatch } from "@/lib/agents/contract-instruction-types";
 import type { ContractFieldIssue, ContractTemplateInput } from "@/types/contracts";
-import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
+import type { AdditionalClausesDoc, AdditionalClauseBlock } from "@/lib/contracts/additional-clauses/types";
+import { EMPTY_ADDITIONAL_CLAUSES_DOC } from "@/lib/contracts/additional-clauses/types";
 import { generateContractDocx } from "../docx";
 import { bumpVoiceRevisionTemplateVersion } from "./bump-template-version";
 import { applyArrasVoicePatches } from "./apply-arras-instructions";
@@ -34,56 +35,61 @@ export interface InterpretVoiceAndRegenerateParams {
   additionalClausesDoc?: AdditionalClausesDoc | null;
 }
 
+interface SharedResultFields {
+  patch: ContractVoiceStructuredPatch;
+  appliedSummaries: string[];
+  previousTemplateVersion: string | undefined;
+  nextTemplateVersion: string | undefined;
+  hadAppliedChanges: boolean;
+  updatedInput: ContractTemplateInput;
+  /** Mensaje conversacional del asistente para mostrar al comercial. */
+  assistantMessage: string;
+  /** Preguntas sobre datos faltantes que el asistente detectó. */
+  missingDataQuestions: string[];
+  /** additionalClausesDoc actualizado (incluye clausulas dictadas por voz). */
+  updatedAdditionalClausesDoc: AdditionalClausesDoc | null;
+  metrics: {
+    interpretationMs: number;
+    regenerationMs: number;
+  };
+}
+
 export type InterpretVoiceAndRegenerateResult =
-  | {
+  | (SharedResultFields & {
       ok: true;
-      patch: ContractVoiceStructuredPatch;
-      appliedSummaries: string[];
-      /** Versión de plantilla antes de aplicar el flujo (la del `input`). */
-      previousTemplateVersion: string | undefined;
-      /** Versión asignada al `updatedInput.templateVersion`. */
-      nextTemplateVersion: string | undefined;
-      /** true si el parche aplicó al menos un cambio estructural al payload. */
-      hadAppliedChanges: boolean;
-      updatedInput: ContractTemplateInput;
       docx: { bufferBase64: string; fileName: string };
-      metrics: {
-        interpretationMs: number;
-        regenerationMs: number;
-      };
-    }
-  | {
+    })
+  | (SharedResultFields & {
       ok: false;
-      patch: ContractVoiceStructuredPatch;
-      appliedSummaries: string[];
-      previousTemplateVersion: string | undefined;
-      nextTemplateVersion: string | undefined;
-      hadAppliedChanges: boolean;
-      updatedInput: ContractTemplateInput;
       issues: ContractFieldIssue[];
-      metrics: {
-        interpretationMs: number;
-        regenerationMs: number;
-      };
-    }
-  | {
+    })
+  | (SharedResultFields & {
       ok: false;
       needsClarification: true;
       clarificationQuestions: string[];
-      patch: ContractVoiceStructuredPatch;
-      appliedSummaries: string[];
-      previousTemplateVersion: string | undefined;
-      nextTemplateVersion: string | undefined;
       hadAppliedChanges: false;
-      updatedInput: ContractTemplateInput;
-      metrics: {
-        interpretationMs: number;
-        regenerationMs: number;
-      };
-    };
+    });
 
 function toBase64(buffer: Buffer): string {
   return buffer.toString("base64");
+}
+
+function appendClauseToDoc(
+  existing: AdditionalClausesDoc | null,
+  text: string,
+): AdditionalClausesDoc {
+  const base: AdditionalClausesDoc = existing ?? { ...EMPTY_ADDITIONAL_CLAUSES_DOC };
+  const blocks: AdditionalClauseBlock[] = [...(base.content ?? [])];
+
+  const paragraphs = text.split(/\n+/).filter((line) => line.trim().length > 0);
+  for (const para of paragraphs) {
+    blocks.push({
+      type: "paragraph",
+      content: [{ type: "text", text: para.trim() }],
+    });
+  }
+
+  return { type: "doc", content: blocks };
 }
 
 type VoicePatchableInput = Extract<
@@ -146,6 +152,9 @@ export async function interpretVoiceAndRegenerateDocx(
   } as Parameters<typeof interpretContractVoiceInstructions>[0]);
   const interpretationMs = Date.now() - interpretationStartedAt;
 
+  const assistantMessage = patch.assistantMessage || "";
+  const missingDataQuestions = patch.missingDataQuestions ?? [];
+
   const clarification = getVoiceClarificationDecision(patch);
   if (clarification.needsClarification) {
     return {
@@ -158,6 +167,9 @@ export async function interpretVoiceAndRegenerateDocx(
       nextTemplateVersion: input.templateVersion,
       hadAppliedChanges: false,
       updatedInput: input,
+      assistantMessage: assistantMessage || clarification.questions.join(" "),
+      missingDataQuestions,
+      updatedAdditionalClausesDoc: additionalClausesDoc ?? null,
       metrics: {
         interpretationMs,
         regenerationMs: 0,
@@ -167,6 +179,13 @@ export async function interpretVoiceAndRegenerateDocx(
 
   const voiceInput = input as VoicePatchableInput;
   const { appliedSummaries, updatedInput: patched } = applyVoicePatchOnce(voiceInput, patch);
+
+  let updatedClausesDoc = additionalClausesDoc ?? null;
+  if (patch.additionalClauseText?.trim()) {
+    updatedClausesDoc = appendClauseToDoc(updatedClausesDoc, patch.additionalClauseText);
+    appliedSummaries.push("Clausula adicional anadida por voz");
+  }
+
   const hadAppliedChanges = appliedSummaries.length > 0;
 
   let resolvedVersion = outputTemplateVersion;
@@ -185,41 +204,38 @@ export async function interpretVoiceAndRegenerateDocx(
   const nextTemplateVersion = updatedInput.templateVersion;
 
   const regenerationStartedAt = Date.now();
-  const docxResult = await generateContractDocx(updatedInput, { additionalClausesDoc });
+  const docxResult = await generateContractDocx(updatedInput, {
+    additionalClausesDoc: updatedClausesDoc,
+  });
   const regenerationMs = Date.now() - regenerationStartedAt;
 
-  if (!docxResult.ok) {
-    return {
-      ok: false,
-      patch,
-      appliedSummaries,
-      previousTemplateVersion,
-      nextTemplateVersion,
-      hadAppliedChanges,
-      updatedInput,
-      issues: docxResult.issues,
-      metrics: {
-        interpretationMs,
-        regenerationMs,
-      },
-    };
-  }
-
-  return {
-    ok: true,
+  const sharedFields = {
     patch,
     appliedSummaries,
     previousTemplateVersion,
     nextTemplateVersion,
     hadAppliedChanges,
     updatedInput,
+    assistantMessage,
+    missingDataQuestions,
+    updatedAdditionalClausesDoc: updatedClausesDoc,
+    metrics: { interpretationMs, regenerationMs },
+  };
+
+  if (!docxResult.ok) {
+    return {
+      ok: false,
+      ...sharedFields,
+      issues: docxResult.issues,
+    };
+  }
+
+  return {
+    ok: true,
+    ...sharedFields,
     docx: {
       bufferBase64: toBase64(docxResult.buffer),
       fileName: docxResult.fileName,
-    },
-    metrics: {
-      interpretationMs,
-      regenerationMs,
     },
   };
 }

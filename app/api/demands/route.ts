@@ -82,6 +82,8 @@ const getHandler = async (request: Request) => {
         presupuestoMin: true,
         presupuestoMax: true,
         habitacionesMin: true,
+        metrosMin: true,
+        metrosMax: true,
         agente: true,
         comercialId: true,
         leadStatus: true,

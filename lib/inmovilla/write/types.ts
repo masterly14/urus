@@ -4,7 +4,9 @@ export type WriteOperation =
   | "createDemand"
   | "updateDemandEmail"
   | "updateDemandPriority"
-  | "updateDemandCriteria";
+  | "updateDemandCriteria"
+  | "updateDemandAgent"
+  | "updateDemandStatus";
 
 export type CreateDemandPayload = {
   query: {
@@ -63,11 +65,33 @@ export type UpdateDemandCriteriaPayload = {
   envConf?: "true" | "false";
 };
 
+export type UpdateDemandAgentPayload = {
+  demandId: string;
+  demandRef: string;
+  clientId: string;
+  agentId: string;
+  newAgentId: string;
+  propertyTypes: string;
+  envConf?: "true" | "false";
+};
+
+export type UpdateDemandStatusPayload = {
+  demandId: string;
+  demandRef: string;
+  clientId: string;
+  agentId: string;
+  propertyTypes: string;
+  keysitu: string;
+  envConf?: "true" | "false";
+};
+
 export type WriteOperationPayloadMap = {
   createDemand: CreateDemandPayload;
   updateDemandEmail: UpdateDemandEmailPayload;
   updateDemandPriority: UpdateDemandPriorityPayload;
   updateDemandCriteria: UpdateDemandCriteriaPayload;
+  updateDemandAgent: UpdateDemandAgentPayload;
+  updateDemandStatus: UpdateDemandStatusPayload;
 };
 
 export type WriteRequestContext<T extends WriteOperation = WriteOperation> = {

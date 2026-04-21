@@ -21,7 +21,7 @@ import { buildPricingTrendSummary } from "./trend-summary";
 import { persistPricingReport } from "./report-repo";
 
 export type { PricingAnalysisResult, PricingOptions } from "./types";
-export type { PricingPropertyInput, PricingComparable, PricingClusterStats, SemaforoStatus } from "./types";
+export type { PricingPropertyInput, PricingComparable, PricingComparableAdvertiser, PricingClusterStats, SemaforoStatus } from "./types";
 export type { PricingRecommendation, PricingAction } from "./recommendation-types";
 export { PricingRecommendationSchema } from "./recommendation-types";
 export { PricingDataIncompleteError, PricingNotEligibleError } from "./types";

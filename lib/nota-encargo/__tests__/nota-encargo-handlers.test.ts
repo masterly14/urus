@@ -157,7 +157,10 @@ describe("handleNotaEncargoRecordatorio", () => {
   });
 
   it("sends reminder and transitions to RECORDATORIO_ENVIADO", async () => {
-    sessionFindUniqueOrThrowMock.mockResolvedValue(makeSession());
+    const futureVisit = new Date(Date.now() + 3 * 60 * 60 * 1000);
+    sessionFindUniqueOrThrowMock.mockResolvedValue(
+      makeSession({ visitDateTime: futureVisit }),
+    );
 
     const result = await handleNotaEncargoRecordatorio(
       makeJob({ sessionId: "session-1" }),
@@ -176,6 +179,44 @@ describe("handleNotaEncargoRecordatorio", () => {
         data: { state: "RECORDATORIO_ENVIADO" },
       }),
     );
+    expect(enqueueJobMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "NOTA_ENCARGO_CHECK_CONFIRMACION",
+      }),
+    );
+  });
+
+  it("skips CHECK_CONFIRMACION when visit is < 45 min away", async () => {
+    const nearVisit = new Date(Date.now() + 20 * 60 * 1000);
+    sessionFindUniqueOrThrowMock.mockResolvedValue(
+      makeSession({ visitDateTime: nearVisit }),
+    );
+
+    const result = await handleNotaEncargoRecordatorio(
+      makeJob({ sessionId: "session-1" }),
+    );
+
+    expect(result.success).toBe(true);
+    expect(sendRecordatorioMock).toHaveBeenCalled();
+    expect(sessionUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { state: "RECORDATORIO_ENVIADO" },
+      }),
+    );
+    expect(enqueueJobMock).not.toHaveBeenCalled();
+  });
+
+  it("enqueues CHECK_CONFIRMACION when visit is >= 45 min away", async () => {
+    const futureVisit = new Date(Date.now() + 3 * 60 * 60 * 1000);
+    sessionFindUniqueOrThrowMock.mockResolvedValue(
+      makeSession({ visitDateTime: futureVisit }),
+    );
+
+    const result = await handleNotaEncargoRecordatorio(
+      makeJob({ sessionId: "session-1" }),
+    );
+
+    expect(result.success).toBe(true);
     expect(enqueueJobMock).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "NOTA_ENCARGO_CHECK_CONFIRMACION",

@@ -57,8 +57,14 @@ const ContractVoicePatchSchema = z.object({
   feesVatRatePercent: z.number().nullable().describe("% de IVA sobre honorarios. null si no."),
 
   courtsMunicipality: z.string().nullable().describe("Municipio de los juzgados / fuero. null si no."),
-  ambiguousPoints: z.array(z.string()).describe("Lista de ambigüedades. Vacía si no hay dudas."),
-  reasoning: z.string().describe("Breve razonamiento para auditoría."),
+
+  additionalClauseText: z.string().nullable().describe("Texto libre dictado por el comercial para agregar como clausula adicional al contrato. null si no dicto ninguna clausula nueva. Limpiar y formalizar el texto sin perder la intencion."),
+
+  assistantMessage: z.string().describe("Mensaje conversacional para el comercial: confirma lo que entendiste, resume los cambios aplicados, o pregunta lo que falta. Habla en segunda persona, tono profesional pero cercano."),
+  missingDataQuestions: z.array(z.string()).describe("Preguntas concretas sobre datos que faltan o estan incompletos en el contrato. Vacio si todo esta completo."),
+
+  ambiguousPoints: z.array(z.string()).describe("Lista de ambigüedades tecnicas. Vacia si no hay dudas."),
+  reasoning: z.string().describe("Breve razonamiento para auditoria."),
 });
 
 const llmStructured = llm.withStructuredOutput(ContractVoicePatchSchema, {
@@ -96,19 +102,33 @@ function buildSystemPrompt(documentKind: string): string {
 - jurisdiction.courtsMunicipality: string`,
   };
 
-  return `Eres el intérprete legal-operativo de un contrato inmobiliario en España.
-El sistema NO edita texto libre: solo propones cambios en variables y flags del modelo de datos.
+  return `Eres un asistente de contratos inmobiliarios para agentes comerciales en Espana.
+Tu trabajo es ayudar al comercial a preparar el contrato de forma rapida y natural, como si fueras su asistente personal.
+
+Puedes hacer DOS cosas:
+1. MODIFICAR DATOS del contrato: precios, plazos, fechas, opciones (arras penitenciales/confirmatorias, entrega de llaves, etc.)
+2. AGREGAR CLAUSULAS ADICIONALES: si el comercial dicta texto libre ("anade una clausula que diga...", "pon que el comprador se compromete a..."), capturalo en additionalClauseText con redaccion formal pero fiel a lo que dijo. El contrato base tiene clausulas numeradas (PRIMERA a SEPTIMA). Las clausulas adicionales se insertan automaticamente despues, NO incluyas numeracion ("OCTAVA.-", etc.) en el texto — el sistema lo hace solo. Simplemente redacta el contenido de la clausula.
 
 ${kindSpecific[documentKind] ?? ""}
 
 Reglas:
 1. Usa el JSON del borrador actual como verdad: no inventes datos que el gestor no haya pedido cambiar.
-2. Solo rellena un campo del parche si la instrucción es clara; en caso contrario null y añade ambigüedad en ambiguousPoints.
+2. Solo rellena un campo del parche si la instruccion es clara; en caso contrario null.
 3. Si el gestor pide "arras penitenciales" o "confirmatorias", mapea a arrasRegime.
-4. Plazos: si dice "X días" sin fecha concreta, usa el campo de días correspondiente (asume naturales) y menciona la suposición en ambiguousPoints si podría ser hábil.
-5. Precios en euros (número). Porcentajes → convertir a importe solo si inequívoco con precio total actual; si no, ambiguousPoints.
-6. noOperationalChanges=true solo cuando no hay instrucción de modificación contractual.
-7. Campos que no aplican al tipo de documento "${documentKind}" deben venir en null.`;
+4. Plazos: si dice "X dias" sin fecha concreta, usa el campo de dias correspondiente (asume naturales).
+5. Precios en euros (numero). Porcentajes: convertir a importe solo si inequivoco con precio total actual.
+6. noOperationalChanges=true solo cuando no hay instruccion de modificacion contractual NI clausulas nuevas.
+7. Campos que no aplican al tipo de documento "${documentKind}" deben venir en null.
+8. IMPORTANTE sobre ambiguousPoints: usa ambiguousPoints SOLO para cosas que realmente impiden actuar (por ejemplo, "cambia el precio" sin decir a cuanto). NO pongas erratas, correcciones ortograficas ni notas informativas en ambiguousPoints — esas van en assistantMessage. Si puedes interpretar la intencion del comercial con confianza, APLICA el cambio y comenta la correccion en assistantMessage.
+9. IMPORTANTE sobre additionalClauseText: cuando el comercial dicte una clausula, corrige ortografia y formaliza la redaccion juridica, pero MANTEN la intencion original. No dejes additionalClauseText en null si el comercial claramente pidio agregar una clausula, incluso si hay erratas en la transcripcion.
+
+Tono de assistantMessage:
+- Habla como un asistente real: "Listo, he actualizado el precio a 250.000 EUR" o "He anadido la clausula que me has indicado".
+- Si detectas datos faltantes o incompletos en el contrato (campos vacios, incoherencias), pregunta de forma natural en missingDataQuestions: "Falta la fecha limite para escritura, cuando deberia ser?"
+- Si corregiste una errata de la transcripcion, mencionalo brevemente: "He corregido 'gravamene' por 'gravamenes' en la clausula."
+- NO seas robotico. NO uses jerga tecnica. Usa "tu" (tuteo).
+- Si no hubo cambios, di algo como "No he detectado cambios en lo que me has dicho. Puedes indicarme que modificar o dictarme una clausula nueva."
+- SIEMPRE genera un assistantMessage, incluso si no hay cambios.`;
 }
 
 const InstructionState = Annotation.Root({
@@ -153,6 +173,9 @@ function emptyPatch(raw: Record<string, unknown>): ContractVoiceStructuredPatch 
     feesFixedNetEur: (raw.feesFixedNetEur as number | null) ?? null,
     feesVatRatePercent: (raw.feesVatRatePercent as number | null) ?? null,
     courtsMunicipality: (raw.courtsMunicipality as string | null) ?? null,
+    additionalClauseText: (raw.additionalClauseText as string | null) ?? null,
+    assistantMessage: (raw.assistantMessage as string) ?? "",
+    missingDataQuestions: (raw.missingDataQuestions as string[]) ?? [],
     ambiguousPoints: (raw.ambiguousPoints as string[]) ?? [],
     reasoning: (raw.reasoning as string) ?? "",
   };

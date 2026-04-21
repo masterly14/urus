@@ -26,8 +26,12 @@ export async function handleNotaEncargoButtonReply(
     return false;
   }
 
+  const last9 = from.slice(-9);
   const session = await prisma.notaEncargoSession.findFirst({
-    where: { propietarioPhone: from, state: "RECORDATORIO_ENVIADO" },
+    where: {
+      propietarioPhone: { endsWith: last9 },
+      state: "RECORDATORIO_ENVIADO",
+    },
     orderBy: { visitDateTime: "asc" },
   });
 

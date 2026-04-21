@@ -248,3 +248,205 @@ body {
 .contract-mammoth-preview > :last-child {
   margin-bottom: 0;
 }
+
+/* ── Template Editor ────────────────────────────────────────────────── */
+
+.template-editor-scroll {
+  background: linear-gradient(to bottom, #f1f5f9 0%, #e8ecf1 100%);
+}
+
+.dark .template-editor-scroll {
+  background: linear-gradient(to bottom, #0a0c10 0%, #0f1117 100%);
+}
+
+.template-editor-content {
+  min-height: 800px;
+  padding: 60px 64px;
+  background: #ffffff;
+  color: #1e293b;
+  font-size: 15px;
+  line-height: 1.8;
+  outline: none;
+}
+
+.template-editor-content:focus {
+  outline: none;
+}
+
+.template-editor-content h1 {
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1a365d;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 1em 0 0.6em;
+}
+
+.template-editor-content h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1a365d;
+  margin: 1.2em 0 0.4em;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.template-editor-content p {
+  margin-bottom: 0.5em;
+}
+
+.template-editor-content p:last-child {
+  margin-bottom: 0;
+}
+
+.template-editor-content ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+}
+
+.template-editor-content ol {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+}
+
+.template-editor-content li {
+  margin-bottom: 0.25em;
+}
+
+/* ── Variable chips (inline) ── */
+
+.template-editor-content .contract-variable-chip {
+  display: inline;
+  padding: 1px 7px;
+  margin: 0 1px;
+  border-radius: 3px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: nowrap;
+  vertical-align: baseline;
+  cursor: default;
+  background: #f5f5f5;
+  color: #1a365d;
+  border: 1px solid #d4d4d4;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.template-editor-content .contract-variable-chip:hover {
+  background: #ebebeb;
+  border-color: #b0b0b0;
+}
+
+/* ── Logo header block ── */
+
+.template-editor-content .logo-header-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 20px;
+  margin: 0 0 24px;
+  background: linear-gradient(135deg, #1a365d 0%, #234681 100%);
+  color: #ffffff;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.template-editor-content .logo-header-block::before {
+  content: "🏛️";
+  font-size: 18px;
+}
+
+/* ── Shared clause block ── */
+
+.template-editor-content .shared-clause-block {
+  display: block;
+  padding: 12px 16px;
+  margin: 8px 0;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #1a365d;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #475569;
+  user-select: none;
+}
+
+.template-editor-content .shared-clause-block::before {
+  content: "📄 Clausula compartida: ";
+  font-weight: 600;
+  color: #1a365d;
+}
+
+.template-editor-content .shared-clause-block[data-enabled="false"] {
+  opacity: 0.5;
+  border-left-color: #94a3b8;
+}
+
+.template-editor-content .shared-clause-block[data-enabled="false"]::before {
+  content: "📄 Clausula (desactivada): ";
+}
+
+/* ── Conditional block ── */
+
+.template-editor-content .conditional-block {
+  display: block;
+  padding: 12px 16px;
+  margin: 8px 0;
+  background: #fefce8;
+  border: 1px dashed #d97706;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #92400e;
+  user-select: none;
+}
+
+.template-editor-content .conditional-block::before {
+  content: "⚡ Condicional: ";
+  font-weight: 600;
+}
+
+/* ── Signature block ── */
+
+.template-editor-content .signature-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  margin: 24px 0 8px;
+  background: #f8fafc;
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.template-editor-content .signature-block::before {
+  content: "✍️";
+  font-size: 18px;
+}
+
+/* ── ProseMirror selection ── */
+
+.template-editor-content .ProseMirror-selectednode {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.template-editor-content p.is-editor-empty:first-child::before {
+  content: "Escribe aqui el contenido del contrato...";
+  float: left;
+  color: #94a3b8;
+  pointer-events: none;
+  height: 0;
+}

@@ -119,6 +119,7 @@ function resolveZoneName(pZone: string | StatefoxPropertyZone | undefined): stri
 }
 
 function toComparable(id: string, prop: StatefoxSnapshotProperty): PricingComparable {
+  const advertiserType = mapAdvertiserType(prop);
   return {
     statefoxId: id,
     precio: prop.pPrice ?? 0,
@@ -129,10 +130,25 @@ function toComparable(id: string, prop: StatefoxSnapshotProperty): PricingCompar
     ciudad: prop.pCity?.cityName ?? "",
     zona: resolveZoneName(prop.pZone),
     tipologia: prop.pHousing ?? "",
-    advertiserType: mapAdvertiserType(prop),
+    advertiserType,
     extras: mapExtras(prop.pExtras),
     link: prop.pLink ?? null,
     diasPublicado: computeDaysPublished(prop),
+    descripcion: prop.pDescription ?? null,
+    direccion: prop.pAddress ?? null,
+    fotos: Array.isArray(prop.pImages)
+      ? prop.pImages.filter((u) => typeof u === "string" && (u.startsWith("http://") || u.startsWith("https://")))
+      : [],
+    anunciante: {
+      nombre: prop.pAdvert?.name ?? null,
+      tipo: advertiserType,
+      telefonos: prop.pPhones ?? [],
+    },
+    latitud: prop.pPoint?.latitude ?? null,
+    longitud: prop.pPoint?.longitude ?? null,
+    planta: prop.pFloor ?? null,
+    orientacion: prop.pOrientation ?? null,
+    referencia: prop.pRef ?? null,
   };
 }
 

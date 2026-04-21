@@ -137,6 +137,24 @@ describe("handleNotaEncargoButtonReply", () => {
 
     expect(result).toBe(false);
   });
+
+  it("matches session when wa_id has country prefix but stored phone does not", async () => {
+    sessionFindFirstMock.mockResolvedValue(makeSession());
+
+    const result = await handleNotaEncargoButtonReply(
+      "34666777888",
+      "nota_encargo_confirmo",
+    );
+
+    expect(result).toBe(true);
+    expect(sessionFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          propietarioPhone: { endsWith: "666777888" },
+        }),
+      }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

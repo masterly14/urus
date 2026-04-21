@@ -37,3 +37,38 @@ export interface MercadoResponse {
   ciudad: string;
   generatedAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Lazy-loaded detail per zone
+// Endpoint: GET /api/pricing/mercado/zona/[zona]
+// ---------------------------------------------------------------------------
+
+export interface ZonePropertyDetail {
+  codigo: string;
+  titulo: string;
+  precio: number;
+  metrosConstruidos: number;
+  precioM2: number;
+  habitaciones: number;
+  banyos: number;
+  ciudad: string;
+  zona: string;
+  estado: string;
+  mainPhotoUrl: string | null;
+  numFotos: number;
+  portalUrl: string | null;
+  portalName: string | null;
+  /** Semáforo del informe de pricing si existe; null si la propiedad aún no tiene informe. */
+  semaforo: "verde" | "amarillo" | "rojo" | "sin_datos" | null;
+  /** Gap porcentual del informe; null si aún no tiene informe. */
+  gapPorcentaje: number | null;
+  /** Fecha en la que se analizó por última vez el pricing; null si nunca. */
+  analyzedAt: string | null;
+}
+
+export interface ZoneDetailResponse {
+  zona: string;
+  totalUrus: number;
+  properties: ZonePropertyDetail[];
+  generatedAt: string;
+}

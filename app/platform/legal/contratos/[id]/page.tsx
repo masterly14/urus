@@ -6,9 +6,12 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
+  ClipboardList,
   ExternalLink,
+  FileText,
   History,
   Loader2,
+  MessageSquare,
   Send,
 } from "lucide-react";
 import {
@@ -23,7 +26,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -40,6 +42,7 @@ import {
 import type { SmartClosingContractDetailDto } from "@/lib/legal/smart-closing/contracts-api";
 import type { ContractTemplateInput } from "@/types/contracts";
 import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
+import { cn } from "@/lib/utils";
 
 function extractPrimarySignerName(input: ContractTemplateInput): string {
   switch (input.kind) {
@@ -60,6 +63,8 @@ const KIND_LABEL: Record<string, string> = {
   oferta_firme: "Oferta en firme",
   anexo_mobiliario: "Anexo mobiliario",
 };
+
+type SidebarTab = "assistant" | "data" | "history";
 
 function SmartClosingContractDetail({
   contract,
@@ -88,6 +93,7 @@ function SmartClosingContractDetail({
   );
 
   const [approveOpen, setApproveOpen] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("assistant");
 
   const defaultSignerName = useMemo(
     () => extractPrimarySignerName(initialTemplate),
@@ -121,6 +127,8 @@ function SmartClosingContractDetail({
     appliedSummaries,
     validationIssues,
     clarificationQuestions,
+    assistantMessage,
+    missingDataQuestions,
     approved,
     applyVoiceTranscript,
     approveDraft,
@@ -132,15 +140,12 @@ function SmartClosingContractDetail({
     signatureError,
     sendToSignature,
     applyAdditionalClausesDoc,
+    currentAdditionalClausesDoc,
   } = useSmartClosingSession(initialTemplate, {
     versioningContext,
     initialAdditionalClausesDoc: contract.additionalClausesDoc,
   });
 
-  // Una edición en el editor WYSIWYG:
-  // 1. Persiste el JSON en BD (lo hace el propio componente, debounced).
-  // 2. Re-renderiza el DOCX para que la preview y el PDF final de firma
-  //    incluyan las cláusulas con el último contenido.
   const clausesRerenderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleClausesPersisted = useCallback(
     (_updatedAt: string | null, doc: AdditionalClausesDoc | null) => {
@@ -185,66 +190,61 @@ function SmartClosingContractDetail({
 
   const kindLabel = KIND_LABEL[docState.contractTemplateInput.kind] ?? "Contrato";
 
-    return (
-    <div className="flex min-h-0 flex-col gap-4 pb-6">
-      <header className="flex items-center justify-between shrink-0 flex-wrap gap-3">
-        <div className="flex items-center gap-4 min-w-0">
-                    <Link href="/platform/legal/contratos">
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                            <ArrowLeft className="h-4 w-4" />
-                        </Button>
-                    </Link>
+  return (
+    <div className="flex min-h-0 flex-col h-[calc(100vh-64px)]">
+      {/* ── Compact header ── */}
+      <header className="flex items-center justify-between px-4 py-2.5 border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-sm shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link href="/platform/legal/contratos">
+            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+              <ArrowLeft className="h-3.5 w-3.5" />
+            </Button>
+          </Link>
           <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg font-bold flex items-center gap-2 truncate">
-                {kindLabel}
-                <Badge variant="outline" className="font-mono font-normal text-xs shrink-0">
-                  {contract.id.toUpperCase()}
+            <h1 className="text-sm font-semibold truncate flex items-center gap-2">
+              {kindLabel}
+              <span className="text-[11px] font-mono text-muted-foreground font-normal">
+                {contract.id.slice(0, 8).toUpperCase()}
+              </span>
+              {approved && signaturePhase !== "sent" && (
+                <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-[10px] px-1.5 py-0">
+                  Aprobado
                 </Badge>
-                {approved && signaturePhase !== "sent" && (
-                  <Badge className="bg-[var(--urus-success)] text-white border-none shrink-0">
-                    Aprobado
-                  </Badge>
-                )}
-                {signaturePhase === "sent" && (
-                  <Badge className="bg-blue-600 text-white border-none shrink-0">
-                    Enviado a firma
-                  </Badge>
-                )}
-              </h1>
-                        </div>
-            <p className="text-xs text-muted-foreground flex items-center gap-2 truncate">
-              Operación {contract.operationId} · {(buyerParty?.fullName ?? defaultSignerName) || "—"} ↔{" "}
-              {sellerParty?.fullName ?? "—"}
+              )}
+              {signaturePhase === "sent" && (
+                <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/20 text-[10px] px-1.5 py-0">
+                  Enviado a firma
+                </Badge>
+              )}
+            </h1>
+            <p className="text-[11px] text-muted-foreground truncate">
+              {(buyerParty?.fullName ?? defaultSignerName) || "—"} · {sellerParty?.fullName ?? "—"}
             </p>
-                    </div>
-                </div>
+          </div>
+        </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1 mr-1 bg-accent/30 px-2 py-1 rounded-md border border-border/30">
-            <History className="h-3 w-3 text-muted-foreground shrink-0" />
-            <span className="text-xs font-mono font-medium truncate max-w-[140px]">
-              {docState.contractTemplateInput.templateVersion ?? "—"}
-            </span>
-                    </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-muted-foreground bg-muted/40 px-1.5 py-0.5 rounded border border-border/40">
+            {docState.contractTemplateInput.templateVersion ?? "—"}
+          </span>
 
           <AlertDialog open={approveOpen} onOpenChange={setApproveOpen}>
             <AlertDialogTrigger asChild>
               <Button
                 size="sm"
-                className="gap-2 bg-[var(--urus-gold)] hover:bg-[var(--urus-gold)]/90 text-black border-none"
+                className="h-7 gap-1.5 text-xs bg-[var(--urus-gold)] hover:bg-[var(--urus-gold)]/90 text-black border-none"
                 disabled={approved || voiceBusy || phase === "error" || signaturePhase === "sending"}
               >
-                <Send className="h-3.5 w-3.5" />
-                Aprobar y enviar a firma
+                <Send className="h-3 w-3" />
+                Enviar a firma
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent className="max-w-lg">
               <AlertDialogHeader>
                 <AlertDialogTitle>Aprobar y enviar a firma digital</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Confirma los datos de los firmantes. El documento se enviará para
-                  firma digital. No podrás enviar más instrucciones por voz hasta revertir.
+                  Confirma los datos de los firmantes. El documento se enviara para
+                  firma digital.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <div className="space-y-4 py-2">
@@ -252,51 +252,26 @@ function SmartClosingContractDetail({
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="signer-name" className="text-sm">Nombre</Label>
-                    <Input
-                      id="signer-name"
-                      value={signerName}
-                      onChange={(e) => setSignerName(e.target.value)}
-                      placeholder="Nombre completo del comprador"
-                    />
+                    <Input id="signer-name" value={signerName} onChange={(e) => setSignerName(e.target.value)} placeholder="Nombre completo del comprador" />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="signer-email" className="text-sm">Email</Label>
-                    <Input
-                      id="signer-email"
-                      ref={signerEmailRef}
-                      type="email"
-                      value={signerEmail}
-                      onChange={(e) => setSignerEmail(e.target.value)}
-                      placeholder="comprador@ejemplo.com"
-                    />
+                    <Input id="signer-email" ref={signerEmailRef} type="email" value={signerEmail} onChange={(e) => setSignerEmail(e.target.value)} placeholder="comprador@ejemplo.com" />
                   </div>
                 </div>
-
                 <hr className="border-border/30" />
-
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Vendedor</p>
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="seller-name" className="text-sm">Nombre</Label>
-                    <Input
-                      id="seller-name"
-                      value={sellerName}
-                      onChange={(e) => setSellerName(e.target.value)}
-                      placeholder="Nombre completo del vendedor"
-                    />
+                    <Input id="seller-name" value={sellerName} onChange={(e) => setSellerName(e.target.value)} placeholder="Nombre completo del vendedor" />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="seller-email" className="text-sm">Email</Label>
-                    <Input
-                      id="seller-email"
-                      type="email"
-                      value={sellerEmail}
-                      onChange={(e) => setSellerEmail(e.target.value)}
-                      placeholder="vendedor@ejemplo.com"
-                    />
+                    <Input id="seller-email" type="email" value={sellerEmail} onChange={(e) => setSellerEmail(e.target.value)} placeholder="vendedor@ejemplo.com" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-sm text-muted-foreground">Teléfono</Label>
+                    <Label className="text-sm text-muted-foreground">Telefono</Label>
                     <Input value={sellerPhone} disabled className="opacity-60" />
                   </div>
                 </div>
@@ -308,113 +283,71 @@ function SmartClosingContractDetail({
                   disabled={!signerName.trim() || !signerEmail.trim()}
                   className="bg-[var(--urus-gold)] text-black hover:bg-[var(--urus-gold)]/90"
                 >
-                  Confirmar y enviar a firma
+                  Confirmar y enviar
                 </Button>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
 
           {approved && (
-            <Button type="button" variant="outline" size="sm" onClick={resetApproval}>
-              Reabrir revisión
-                    </Button>
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={resetApproval}>
+              Reabrir
+            </Button>
           )}
-                </div>
-            </header>
+        </div>
+      </header>
 
-      {phase === "error" && errorMessage && (
-        <div
-          className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive flex items-start gap-2"
-          role="alert"
-        >
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-medium">Error</p>
-            <p>{errorMessage}</p>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="mt-1 h-7 px-2"
-              onClick={() => {
-                dismissError();
-                void reloadPreview();
-              }}
-            >
+      {/* ── Status banners (compact) ── */}
+      <div className="shrink-0 px-4 space-y-1.5 empty:hidden pt-2">
+        {phase === "error" && errorMessage && (
+          <div className="rounded-md border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs text-red-700 dark:text-red-400 flex items-center gap-2" role="alert">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1 truncate">{errorMessage}</span>
+            <Button type="button" variant="ghost" size="sm" className="h-5 px-1.5 text-[10px]" onClick={() => { dismissError(); void reloadPreview(); }}>
               Cerrar
-                            </Button>
-                        </div>
-                    </div>
-      )}
-
-      {signaturePhase === "sending" && (
-        <div className="rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm flex items-center gap-2 text-blue-700 dark:text-blue-300">
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-          Subiendo documento y enviando a firma digital…
-        </div>
-      )}
-
-      {signaturePhase === "sent" && signatureResult && (
-        <div className="rounded-lg border border-[var(--urus-success)]/40 bg-[var(--urus-success)]/10 px-3 py-2 text-sm flex flex-col gap-1.5 text-[var(--urus-success)]">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            Documento enviado a firma digital correctamente.
+            </Button>
           </div>
-          {signatureResult.signingUrl && (
-            <a
-              href={signatureResult.signingUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs underline underline-offset-2 hover:opacity-80"
-            >
-              <ExternalLink className="h-3 w-3" />
-              Abrir enlace de firma
-            </a>
-          )}
-          <p className="text-xs text-muted-foreground">
-            ID: {signatureResult.signatureRequestId}
-            {signatureResult.normalizedToPdf && " · Convertido a PDF"}
-          </p>
-        </div>
-      )}
-
-      {signaturePhase === "error" && signatureError && (
-        <div
-          className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive flex items-start gap-2"
-          role="alert"
-        >
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-medium">Error al enviar a firma</p>
-            <p>{signatureError}</p>
-          </div>
-        </div>
-      )}
-
-      {lastPatch &&
-        lastPatch.confidence < 0.65 &&
-        !lastPatch.noOperationalChanges && (
-          <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-3 py-2">
-            Confianza baja en la última interpretación ({Math.round(lastPatch.confidence * 100)}
-            %). Revisa el resumen de cambios y el texto del contrato.
-          </p>
         )}
 
-      {clarificationQuestions.length > 0 && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm">
-          <p className="font-medium text-amber-800 dark:text-amber-300">
-            Hace falta aclarar la instrucción antes de modificar el contrato.
-          </p>
-          <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-amber-700 dark:text-amber-400">
-            {clarificationQuestions.map((question, index) => (
-              <li key={index}>{question}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+        {signaturePhase === "sending" && (
+          <div className="rounded-md border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/30 px-3 py-2 text-xs flex items-center gap-2 text-blue-700 dark:text-blue-400">
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+            Enviando a firma digital...
+          </div>
+        )}
 
-      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,400px)] lg:gap-6">
-        <div className="flex min-w-0 flex-col gap-4">
+        {signaturePhase === "sent" && signatureResult && (
+          <div className="rounded-md border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+            <span>Enviado a firma.</span>
+            {signatureResult.signingUrl && (
+              <a href={signatureResult.signingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline underline-offset-2">
+                <ExternalLink className="h-3 w-3" /> Abrir
+              </a>
+            )}
+          </div>
+        )}
+
+        {signaturePhase === "error" && signatureError && (
+          <div className="rounded-md border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs text-red-700 dark:text-red-400 flex items-center gap-2" role="alert">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            {signatureError}
+          </div>
+        )}
+
+        {lastPatch && lastPatch.confidence < 0.5 && !lastPatch.noOperationalChanges && (
+          <div className="rounded-md border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-700 dark:text-amber-400 flex items-center gap-2">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            Confianza baja ({Math.round(lastPatch.confidence * 100)}%). Revisa los cambios.
+          </div>
+        )}
+      </div>
+
+      {/* ── Main 2-column layout ── */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-0">
+
+        {/* Left: Document */}
+        <div className="min-h-0 flex flex-col border-r border-neutral-200 dark:border-neutral-800">
           <DocxPreviewPanel
             contractTemplateInput={docState.contractTemplateInput}
             docxBase64={docState.docxBase64}
@@ -426,72 +359,113 @@ function SmartClosingContractDetail({
 
           <AdditionalClausesEditor
             contractId={contract.id}
-            initialDoc={contract.additionalClausesDoc}
+            initialDoc={currentAdditionalClausesDoc ?? contract.additionalClausesDoc}
             readOnly={approved || contract.status !== "DRAFT"}
             onPersisted={handleClausesPersisted}
           />
         </div>
 
-        <aside className="flex min-w-0 flex-col gap-4">
-          <SmartClosingVoicePanel
-            disabled={approved}
-            busy={voiceBusy}
-            onApplyTranscript={applyVoiceTranscript}
-          />
-
-          {(appliedSummaries.length > 0 || validationIssues.length > 0) && (
-            <Card className="border-border/50 bg-card/60 backdrop-blur-sm overflow-hidden shrink-0">
-              <CardHeader className="py-2 pb-0">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <History className="h-3.5 w-3.5" />
-                  Última instrucción
-                            </CardTitle>
-                        </CardHeader>
-              <CardContent className="pt-3 space-y-3">
-                {appliedSummaries.length > 0 && (
-                  <ul className="text-xs space-y-1 list-disc pl-4 text-muted-foreground">
-                    {appliedSummaries.map((s, i) => (
-                      <li key={i}>{s}</li>
-                    ))}
-                  </ul>
+        {/* Right: Sidebar with tabs */}
+        <aside className="min-h-0 flex flex-col bg-white dark:bg-neutral-950">
+          {/* Tab bar */}
+          <div className="flex border-b border-neutral-200 dark:border-neutral-800 shrink-0">
+            {([
+              { id: "assistant" as const, icon: MessageSquare, label: "Asistente" },
+              { id: "data" as const, icon: ClipboardList, label: "Datos" },
+              { id: "history" as const, icon: History, label: "Historial" },
+            ]).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setSidebarTab(tab.id)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium transition-colors border-b-2 -mb-px",
+                  sidebarTab === tab.id
+                    ? "border-neutral-900 dark:border-white text-neutral-900 dark:text-white"
+                    : "border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300",
                 )}
-                {validationIssues.length > 0 && (
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-destructive">Validación</p>
-                    <ul className="text-xs space-y-1 list-disc pl-4 text-destructive/90">
-                      {validationIssues.map((iss, i) => (
-                        <li key={i}>
-                          {iss.fieldPath}: {iss.message}
-                        </li>
-                      ))}
-                    </ul>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-          )}
+              >
+                <tab.icon className="h-3.5 w-3.5" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-          <Card className="flex flex-col border-border/50 bg-card/60 backdrop-blur-sm overflow-hidden">
-            <CardHeader className="py-2 pb-0 shrink-0">
-              <CardTitle className="text-sm">Resumen legal (payload)</CardTitle>
-            </CardHeader>
-            <ScrollArea className="h-[min(420px,50vh)] w-full min-h-[180px]">
-              <CardContent className="pt-2 pr-4 pb-4">
-                <PayloadSummaryFields
-                  payload={docState.contractTemplateInput.payload}
-                  disabled={approved || voiceBusy}
-                  onCommit={commitPayloadFieldEdit}
+          {/* Tab content */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {/* ── Asistente tab ── */}
+            {sidebarTab === "assistant" && (
+              <div className="h-full flex flex-col">
+                <SmartClosingVoicePanel
+                  disabled={approved}
+                  busy={voiceBusy}
+                  onApplyTranscript={applyVoiceTranscript}
+                  assistantMessage={assistantMessage}
+                  missingDataQuestions={missingDataQuestions}
+                  clarificationQuestions={clarificationQuestions}
+                  appliedSummaries={appliedSummaries}
                 />
-              </CardContent>
-                        </ScrollArea>
-                    </Card>
+              </div>
+            )}
 
-          {versioningContext?.propertyCode && (
-            <VersionHistoryPanel contractId={contract.id} />
-          )}
-        </aside>
+            {/* ── Datos tab ── */}
+            {sidebarTab === "data" && (
+              <ScrollArea className="h-full">
+                <div className="p-4 space-y-4">
+                  {(appliedSummaries.length > 0 || validationIssues.length > 0) && (
+                    <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+                      <div className="px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
+                        <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wide">Ultimo cambio</p>
+                      </div>
+                      <div className="px-3 py-2.5 space-y-2">
+                        {appliedSummaries.length > 0 && (
+                          <ul className="text-[11px] space-y-0.5 list-disc pl-3.5 text-neutral-600 dark:text-neutral-400">
+                            {appliedSummaries.map((s, i) => <li key={i}>{s}</li>)}
+                          </ul>
+                        )}
+                        {validationIssues.length > 0 && (
+                          <ul className="text-[11px] space-y-0.5 list-disc pl-3.5 text-red-600 dark:text-red-400">
+                            {validationIssues.map((iss, i) => (
+                              <li key={i}>{iss.fieldPath}: {iss.message}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wide mb-2">
+                      Datos del contrato
+                    </p>
+                    <PayloadSummaryFields
+                      payload={docState.contractTemplateInput.payload}
+                      disabled={approved || voiceBusy}
+                      onCommit={commitPayloadFieldEdit}
+                    />
+                  </div>
                 </div>
-            </div>
+              </ScrollArea>
+            )}
+
+            {/* ── Historial tab ── */}
+            {sidebarTab === "history" && (
+              <ScrollArea className="h-full">
+                <div className="p-4">
+                  {versioningContext?.propertyCode ? (
+                    <VersionHistoryPanel contractId={contract.id} />
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-8">
+                      Sin historial disponible
+                    </p>
+                  )}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+        </aside>
+      </div>
+    </div>
   );
 }
 
@@ -544,7 +518,7 @@ export default function ContratoDetallePage({
     return (
       <div className="flex h-[50vh] items-center justify-center gap-3 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Cargando contrato real...
+        Cargando contrato...
       </div>
     );
   }
@@ -553,7 +527,7 @@ export default function ContratoDetallePage({
     return (
       <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
         <p className="text-muted-foreground">
-          {loadError ?? "No se encontró un contrato persistido para este id."}
+          {loadError ?? "No se encontro un contrato para este id."}
         </p>
         <Button asChild variant="outline">
           <Link href="/platform/legal/contratos">Volver al listado</Link>

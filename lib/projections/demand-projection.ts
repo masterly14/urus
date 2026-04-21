@@ -240,6 +240,10 @@ export async function applyDemandProjection(
           metrosMax?: number;
           tipoOperacion?: string;
         };
+        newAgent?: {
+          comercialId: string;
+          nombre: string;
+        };
         detectedAt?: string;
       };
 
@@ -261,6 +265,13 @@ export async function applyDemandProjection(
           ? v.tipoOperacion.trim()
           : undefined;
 
+      const agentUpdate = payload.newAgent
+        ? {
+            agente: payload.newAgent.nombre,
+            comercialId: payload.newAgent.comercialId,
+          }
+        : {};
+
       await prisma.demandCurrent.upsert({
         where: { codigo },
         create: {
@@ -275,6 +286,7 @@ export async function applyDemandProjection(
           ...(metrosMin !== undefined ? { metrosMin } : {}),
           ...(metrosMax !== undefined ? { metrosMax } : {}),
           ...(tipoOperacion !== undefined ? { tipoOperacion } : {}),
+          ...agentUpdate,
           lastEventId: event.id,
           lastEventPosition: event.position,
           lastEventAt: event.occurredAt,
@@ -290,6 +302,7 @@ export async function applyDemandProjection(
           ...(metrosMin !== undefined ? { metrosMin } : {}),
           ...(metrosMax !== undefined ? { metrosMax } : {}),
           ...(tipoOperacion !== undefined ? { tipoOperacion } : {}),
+          ...agentUpdate,
           fechaActualizacion: str(updatedAt),
           lastEventId: event.id,
           lastEventPosition: event.position,

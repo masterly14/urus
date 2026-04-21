@@ -6,6 +6,9 @@ import { buildSenalCompraDocument } from "./builders/senal-compra";
 import { buildOfertaFirmeDocument } from "./builders/oferta-firme";
 import { validateContractTemplateInput } from "./validators";
 import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
+import { prisma } from "@/lib/prisma";
+import { compileTemplate } from "@/lib/contracts/templates/engine";
+import type { TemplateStructure } from "@/types/contract-template";
 
 export type GenerateContractDocxResult =
   | {
@@ -46,28 +49,41 @@ export async function generateContractDocx(
 
   let doc: Document;
 
-  switch (input.kind) {
-    case "arras":
-      doc = await buildArrasDocument(input.payload, { additionalClausesDoc });
-      break;
-    case "senal_compra":
-      doc = await buildSenalCompraDocument(input.payload, { additionalClausesDoc });
-      break;
-    case "oferta_firme":
-      doc = await buildOfertaFirmeDocument(input.payload, { additionalClausesDoc });
-      break;
-    default:
-      return {
-        ok: false,
-        issues: [
-          {
-            event: "DATOS_INCOMPLETOS",
-            documentKind: (input as ContractTemplateInput).kind,
-            fieldPath: "kind",
-            message: `No existe builder DOCX para kind=${(input as ContractTemplateInput).kind}.`,
-          },
-        ],
-      };
+  const activeTemplate = await prisma.contractTemplate.findFirst({
+    where: { documentKind: input.kind, isActive: true },
+  });
+
+  if (activeTemplate) {
+    const structure = activeTemplate.structure as unknown as TemplateStructure;
+    const overrides = activeTemplate.sharedClauseOverrides as Record<string, string | null> | null;
+    doc = await compileTemplate(structure, input, {
+      additionalClausesDoc,
+      sharedClauseOverrides: overrides,
+    });
+  } else {
+    switch (input.kind) {
+      case "arras":
+        doc = await buildArrasDocument(input.payload, { additionalClausesDoc });
+        break;
+      case "senal_compra":
+        doc = await buildSenalCompraDocument(input.payload, { additionalClausesDoc });
+        break;
+      case "oferta_firme":
+        doc = await buildOfertaFirmeDocument(input.payload, { additionalClausesDoc });
+        break;
+      default:
+        return {
+          ok: false,
+          issues: [
+            {
+              event: "DATOS_INCOMPLETOS",
+              documentKind: (input as ContractTemplateInput).kind,
+              fieldPath: "kind",
+              message: `No existe builder DOCX para kind=${(input as ContractTemplateInput).kind}.`,
+            },
+          ],
+        };
+    }
   }
 
   const buffer = await Packer.toBuffer(doc);

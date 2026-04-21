@@ -127,14 +127,14 @@ export function getRecommendation(prop: Propiedad): Recommendation {
     return {
       action: "Mejorar fotos",
       colorToken: "warning",
-      text: `La propiedad tiene un gap de precio moderado (+${prop.gapPrecio}%) pero su posición en portal (#${prop.posicionPortal}) sugiere baja visibilidad. Antes de ajustar precio, recomendamos invertir en fotografía profesional, home staging virtual y mejorar la descripción. Propiedades con fotos profesionales en ${prop.zona} reciben 3x más solicitudes de visita.`,
+      text: `La propiedad tiene una diferencia de precio moderada (+${prop.gapPrecio}%) respecto al mercado y su posición en portal (#${prop.posicionPortal}) sugiere baja visibilidad. Antes de ajustar precio, recomendamos invertir en fotografía profesional, home staging virtual y mejorar la descripción. Propiedades con fotos profesionales en ${prop.zona} reciben 3x más solicitudes de visita.`,
     };
   }
 
   return {
     action: "Mantener estrategia",
     colorToken: "success",
-    text: `La propiedad está bien posicionada (#${prop.posicionPortal}) con un gap competitivo (${prop.gapPrecio}%). Recomendamos mantener la estrategia actual y monitorear semanalmente. Si la posición cae por debajo del #5, considere reajustar.`,
+    text: `La propiedad está bien posicionada (#${prop.posicionPortal}) con un precio competitivo (${prop.gapPrecio}% respecto al mercado). Recomendamos mantener la estrategia actual y monitorear semanalmente. Si la posición cae por debajo del #5, considere reajustar.`,
   };
 }
 
