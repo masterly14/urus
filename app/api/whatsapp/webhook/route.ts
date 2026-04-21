@@ -7,6 +7,11 @@
  *
  * POST: Meta envía el payload del evento. Verificamos la firma X-Hub-Signature-256,
  *       parseamos los mensajes entrantes y emitimos eventos WHATSAPP_RECIBIDO en el Event Store.
+ *
+ * Categoría A (procesamiento inline):
+ *   Mensajes conversacionales (/coach, feedback comprador, visitas) se procesan
+ *   dentro del request para garantizar respuesta < 3s. El evento se persiste siempre.
+ *   Si el procesamiento inline falla, se encola un job como fallback.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -16,7 +21,8 @@ import {
   parseWebhookPayload,
 } from "@/lib/whatsapp";
 import type { ParsedWebhookMessage } from "@/lib/whatsapp";
-import { appendEventAndEnqueueJob } from "@/lib/event-store";
+import { appendEvent } from "@/lib/event-store";
+import { enqueueJob } from "@/lib/job-queue";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 import {
@@ -25,6 +31,7 @@ import {
 } from "@/lib/nota-encargo";
 import { handleParteVisitaNfmReply } from "@/lib/parte-visita/webhook-handler";
 import { handlePostventaFormNfmReply } from "@/lib/postventa/form-response-handler";
+import { tryInlineProcessing } from "@/lib/whatsapp/inline-processor";
 
 
 // ---- GET: verificación del challenge ----
@@ -122,7 +129,6 @@ const postHandler = async (request: NextRequest): Promise<NextResponse> => {
         .map(async (e) => {
           const waMessageId = e.message.id;
 
-          // Dedup: Meta may retry delivery; skip if we already stored this messageId
           const existing = await prisma.event.findFirst({
             where: {
               type: "WHATSAPP_RECIBIDO",
@@ -148,17 +154,33 @@ const postHandler = async (request: NextRequest): Promise<NextResponse> => {
           if (e.message.type === "button" && "button" in msg) content["button"] = msg["button"];
           if ("context" in msg) content["context"] = msg["context"];
 
-          const stored = await appendEventAndEnqueueJob({
-            event: {
-              type: "WHATSAPP_RECIBIDO",
-              aggregateType: "WHATSAPP_CONVERSATION",
-              aggregateId: e.waId,
-              payload: content as import("@/lib/event-store").JsonValue,
-              metadata: { source: "whatsapp_webhook", waMessageId },
-            },
-          });
+          const eventPayload = content as import("@/lib/event-store").JsonValue;
+          const eventInput = {
+            type: "WHATSAPP_RECIBIDO" as const,
+            aggregateType: "WHATSAPP_CONVERSATION" as const,
+            aggregateId: e.waId,
+            payload: eventPayload,
+            metadata: { source: "whatsapp_webhook", waMessageId } as import("@/lib/event-store").JsonValue,
+          };
 
-          return stored;
+          // Persist event (always — traceability is non-negotiable)
+          const storedEvent = await appendEvent(eventInput);
+
+          // Attempt inline processing for Category A (conversational) messages.
+          // If successful, skip enqueueing a job — the response was already sent.
+          const inlineResult = await tryInlineProcessing(storedEvent);
+
+          if (!inlineResult.processed) {
+            // Not Category A, or inline failed → enqueue for consumer (fallback)
+            await enqueueJob({
+              type: "PROCESS_EVENT",
+              payload: { eventId: storedEvent.id, eventType: storedEvent.type },
+              sourceEventId: storedEvent.id,
+              idempotencyKey: `process-event:${storedEvent.id}`,
+            });
+          }
+
+          return storedEvent;
         }),
   );
 
@@ -168,7 +190,6 @@ const postHandler = async (request: NextRequest): Promise<NextResponse> => {
       r.status === "rejected" ? (r.reason instanceof Error ? r.reason.message : String(r.reason)) : "",
     );
     console.error("[whatsapp/webhook] Error al guardar eventos:", errors);
-    // Meta requiere 200 aunque fallen los side-effects para no reintentar indefinidamente
   }
 
   return NextResponse.json({ ok: true }, { status: 200 });
