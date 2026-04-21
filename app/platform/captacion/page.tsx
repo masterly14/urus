@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Card,
@@ -174,7 +174,7 @@ const MOCK_SESIONES: NotaEncargoSesion[] = [
 // Component
 // ---------------------------------------------------------------------------
 
-export default function CaptacionPage() {
+function CaptacionPageContent() {
   const searchParams = useSearchParams();
   const isMock = searchParams.get("mock") === "1";
 
@@ -503,5 +503,13 @@ export default function CaptacionPage() {
         </SheetContent>
       </Sheet>
     </div>
+  );
+}
+
+export default function CaptacionPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Cargando captacion...</div>}>
+      <CaptacionPageContent />
+    </Suspense>
   );
 }

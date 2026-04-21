@@ -12,7 +12,7 @@
  */
 
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import type { ArrasContractPayload, ContractTemplateInput } from "@/types/contracts";
 
 const prisma = new PrismaClient();
@@ -109,7 +109,7 @@ async function main() {
       status: "DRAFT",
       templateVersion: "test-voice-v1",
       propertyCode: PROPERTY_CODE,
-      additionalClausesDoc: null,
+      additionalClausesDoc: Prisma.DbNull,
       additionalClausesUpdatedAt: null,
       approvedAt: null,
       approvedByUserId: null,

@@ -3,7 +3,7 @@
  *
  * Ejecutar:  npx tsx prisma/seed-templates.ts
  */
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 const createId = () => randomUUID().replace(/-/g, "").slice(0, 25);
 import type { TemplateBlock, TemplateStructure } from "@/types/contract-template";
@@ -254,14 +254,14 @@ async function main() {
         version: tpl.version,
         name: tpl.name,
         isActive: true,
-        structure: tpl.structure as unknown as Record<string, unknown>,
-        variableBindings: [],
-        sharedClauseOverrides: {},
+        structure: tpl.structure as unknown as Prisma.InputJsonValue,
+        variableBindings: [] as Prisma.InputJsonValue,
+        sharedClauseOverrides: {} as Prisma.InputJsonValue,
         publishedAt: new Date(),
       },
       update: {
         name: tpl.name,
-        structure: tpl.structure as unknown as Record<string, unknown>,
+        structure: tpl.structure as unknown as Prisma.InputJsonValue,
       },
     });
     console.log(`Upserted: ${tpl.documentKind} (${tpl.version})`);

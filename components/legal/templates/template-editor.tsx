@@ -48,7 +48,7 @@ import { SignatureBlockNode } from "@/lib/contracts/templates/tiptap/signature-b
 import { VariablePanel } from "./variable-panel";
 import { TemplatePreview } from "./template-preview";
 import type { TemplateStructure, TemplateBlock } from "@/types/contract-template";
-import type { ContractDocumentKind } from "@/types/contracts";
+import type { ContractDocumentKind, SharedClauseBlockId } from "@/types/contracts";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -70,6 +70,25 @@ const DOC_KIND_LABELS: Record<string, string> = {
   oferta_firme: "Oferta en Firme",
   anexo_mobiliario: "Anexo Mobiliario",
 };
+
+const SHARED_CLAUSE_IDS = [
+  "gastos_itp_iva_plusvalia",
+  "fuero_jurisdiccion",
+  "penitencial_desistimiento_basico",
+  "libre_cargas_cancelacion_propiedad",
+  "libre_cargas_declaracion_vendedor",
+  "estado_visitado_cuerpo_cierto",
+  "arras_convocatoria_rescision_7_dias",
+  "entrega_llaves_y_resto_precio",
+] as const satisfies readonly SharedClauseBlockId[];
+
+const DEFAULT_SHARED_CLAUSE_ID: SharedClauseBlockId = "fuero_jurisdiccion";
+
+function toSharedClauseBlockId(value: unknown): SharedClauseBlockId {
+  return SHARED_CLAUSE_IDS.includes(value as SharedClauseBlockId)
+    ? (value as SharedClauseBlockId)
+    : DEFAULT_SHARED_CLAUSE_ID;
+}
 
 function structureToTipTapContent(structure: TemplateStructure) {
   const content: Record<string, unknown>[] = [];
@@ -263,7 +282,7 @@ function tipTapToStructure(json: Record<string, unknown>): TemplateStructure {
           config: {
             type: "shared_clause",
             clause: {
-              clauseId: String(attrs.clauseId ?? ""),
+              clauseId: toSharedClauseBlockId(attrs.clauseId),
               enabled: attrs.enabled !== false,
               overrideText: attrs.overrideText ? String(attrs.overrideText) : undefined,
             },

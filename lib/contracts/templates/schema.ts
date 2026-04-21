@@ -82,5 +82,5 @@ export const updateTemplateBodySchema = z.object({
   name: z.string().min(1).max(200).optional(),
   structure: templateStructureSchema.optional(),
   variableBindings: z.array(variableBindingSchema).optional(),
-  sharedClauseOverrides: z.record(z.string().nullable()).optional(),
+  sharedClauseOverrides: z.record(z.string(), z.string().nullable()).optional(),
 });
