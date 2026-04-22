@@ -931,3 +931,8 @@ registerJobHandler("EVALUATE_DEMAND_COVERAGE", handleEvaluateDemandCoverage);
 import { handleRebuildMatchesForDemand } from "./rebuild-matches-handler";
 
 registerJobHandler("REBUILD_MATCHES_FOR_DEMAND", handleRebuildMatchesForDemand);
+
+// --- Operaciones v2 (M11): escritura REST de estado de propiedad en Inmovilla ---
+import { handleUpdatePropertyStatusInmovilla } from "@/lib/operacion/inmovilla-property-status-handler";
+
+registerJobHandler("UPDATE_PROPERTY_STATUS_INMOVILLA", handleUpdatePropertyStatusInmovilla);

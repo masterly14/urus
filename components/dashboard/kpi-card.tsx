@@ -43,8 +43,8 @@ export function KpiCard({ title, value, change, trend, icon: Icon, format = "num
     const isPositive = change >= 0;
 
     return (
-        <Card className={cn("relative overflow-hidden border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-background/20", className)}>
-            <CardContent className="p-5">
+        <Card className={cn("relative overflow-hidden transition-all duration-150 hover:shadow-[var(--shadow-elevated)]", className)}>
+            <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                     <div className="space-y-2">
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -73,8 +73,8 @@ export function KpiCard({ title, value, change, trend, icon: Icon, format = "num
                         </div>
                     </div>
                     <div className="flex flex-col items-end gap-2">
-                        <div className="rounded-lg bg-accent/50 p-2.5">
-                            <Icon className="h-5 w-5 text-secondary" />
+                        <div className="rounded-lg bg-muted p-2.5">
+                            <Icon className="h-5 w-5 text-muted-foreground" />
                         </div>
                         {historico.length > 0 && (
                             <SparklineChart

@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import {
-  getComercialesDashboard,
-  getComercialDashboardDetail,
   getDefaultDashboardRange,
-  getLeadScoreStatsByComercial,
 } from "@/lib/dashboard/comercial/queries";
+import {
+  getCachedComercialesDashboard,
+  getCachedComercialDetail,
+  getCachedLeadScoreStats,
+} from "@/lib/dashboard/comercial/cached-queries";
 import {
   classifyComercial,
   computeTeamAverages,
@@ -60,9 +62,9 @@ const getHandler = async (request: Request, context: { params: Promise<{ id: str
 
   try {
     const [detailResult, teamResult, leadScoreRows] = await Promise.all([
-      getComercialDashboardDetail(comercialId, range),
-      getComercialesDashboard(range),
-      getLeadScoreStatsByComercial(range),
+      getCachedComercialDetail(comercialId, range),
+      getCachedComercialesDashboard(range),
+      getCachedLeadScoreStats(range),
     ]);
 
     let classification: Pick<ClassificationResult, "profile" | "confidence"> | null = null;

@@ -2,14 +2,14 @@ import type { JobRecord } from "@/lib/job-queue/types";
 import type { HandlerResult } from "./types";
 import { appendEvent } from "@/lib/event-store/event-store";
 import {
-  buildArrasContractTemplateInputFromNeonAndInmovilla,
-  createDefaultArrasExtractionDeps,
+  buildContractTemplateInput,
   emitContractDataIncomplete,
 } from "@/lib/contracts/extraction";
 import { generateContractDocx } from "@/lib/contracts/docx";
 import { uploadContractDocument } from "@/lib/cloudinary";
 import { buildContractVersionStem } from "@/lib/contracts/naming";
 import { prisma } from "@/lib/prisma";
+import type { ContractDocumentKind } from "@/types/contracts";
 import type { Prisma } from "@prisma/client";
 
 interface GenerateContractDraftPayload {
@@ -21,7 +21,11 @@ interface GenerateContractDraftPayload {
   previousEstado?: string;
   newEstado?: string;
   sourceEventId?: string;
+  documentKind?: string;
+  manualData?: Record<string, unknown>;
 }
+
+const VALID_DOCUMENT_KINDS = new Set<string>(["arras", "senal_compra", "oferta_firme"]);
 
 function parsePayload(raw: unknown): GenerateContractDraftPayload | null {
   if (!raw || typeof raw !== "object") return null;
@@ -37,12 +41,20 @@ function parsePayload(raw: unknown): GenerateContractDraftPayload | null {
     previousEstado: typeof obj.previousEstado === "string" ? obj.previousEstado : undefined,
     newEstado: typeof obj.newEstado === "string" ? obj.newEstado : undefined,
     sourceEventId: typeof obj.sourceEventId === "string" ? obj.sourceEventId : undefined,
+    documentKind: typeof obj.documentKind === "string" ? obj.documentKind : undefined,
+    manualData: obj.manualData && typeof obj.manualData === "object"
+      ? obj.manualData as Record<string, unknown>
+      : undefined,
   };
 }
 
 /**
  * Job handler para GENERATE_CONTRACT_DRAFT.
  * Orquesta: extracción → validación → generación DOCX → upload Cloudinary → evento.
+ *
+ * Soporta los 3 documentKind: arras, senal_compra, oferta_firme.
+ * Si no se especifica documentKind, usa "arras" para backward compatibility
+ * con los jobs encolados por smart-closing-handler.
  */
 export async function handleGenerateContractDraft(
   job: JobRecord,
@@ -56,39 +68,34 @@ export async function handleGenerateContractDraft(
     };
   }
 
-  const {
-    propertyCode,
-    newEstado,
-  } = payload;
+  const { propertyCode, newEstado, manualData } = payload;
+
+  const documentKind: ContractDocumentKind =
+    payload.documentKind && VALID_DOCUMENT_KINDS.has(payload.documentKind)
+      ? (payload.documentKind as ContractDocumentKind)
+      : "arras";
 
   const demandId = payload.demandId ?? propertyCode;
   const operationId = payload.operacionCodigo ?? payload.operationId ?? `OP-${propertyCode}`;
   const operacionId = payload.operacionId ?? undefined;
-  const initialTemplateVersion = buildContractVersionStem(operationId, "arras", 1);
+  const initialTemplateVersion = buildContractVersionStem(operationId, documentKind, 1);
 
   console.log(
-    `[smart-closing] GENERATE_CONTRACT_DRAFT job=${job.id} property=${propertyCode} estado="${newEstado ?? "?"}"`,
+    `[contract-draft] GENERATE_CONTRACT_DRAFT job=${job.id} property=${propertyCode} kind=${documentKind} estado="${newEstado ?? "?"}"`,
   );
 
-  const deps = createDefaultArrasExtractionDeps();
-
-  const extractionResult = await buildArrasContractTemplateInputFromNeonAndInmovilla(
-    {
-      demandId,
-      propertyCode,
-      templateVersion: initialTemplateVersion,
-      operation: {
-        operationId,
-        totalPurchasePriceAmount: 0,
-        arrasAmountAmount: 0,
-      },
-    },
-    deps,
-  );
+  const extractionResult = await buildContractTemplateInput({
+    documentKind,
+    propertyCode,
+    demandId,
+    operationId,
+    manualData,
+    templateVersion: initialTemplateVersion,
+  });
 
   if (!extractionResult.ok) {
     console.log(
-      `[smart-closing] Datos incompletos para ${propertyCode} — emitiendo DATOS_INCOMPLETOS`,
+      `[contract-draft] Datos incompletos para ${propertyCode} (${documentKind}) — emitiendo DATOS_INCOMPLETOS`,
     );
 
     await emitContractDataIncomplete(extractionResult.validationSignal);
@@ -100,7 +107,7 @@ export async function handleGenerateContractDraft(
 
   if (!docxResult.ok) {
     console.error(
-      `[smart-closing] Error generando DOCX para ${propertyCode}: ${docxResult.issues.map((i) => i.message).join("; ")}`,
+      `[contract-draft] Error generando DOCX para ${propertyCode} (${documentKind}): ${docxResult.issues.map((i) => i.message).join("; ")}`,
     );
     return {
       success: false,
@@ -112,7 +119,7 @@ export async function handleGenerateContractDraft(
     buffer: docxResult.buffer,
     fileName: docxResult.fileName,
     folder: `contracts/${operationId}`,
-    tags: ["draft", "v1", "arras"],
+    tags: ["draft", "v1", documentKind],
     context: {
       operationId,
       propertyCode,
@@ -122,19 +129,19 @@ export async function handleGenerateContractDraft(
   });
 
   console.log(
-    `[smart-closing] DOCX subido a Cloudinary: ${uploadResult.secureUrl} (${uploadResult.bytes} bytes)`,
+    `[contract-draft] DOCX subido a Cloudinary: ${uploadResult.secureUrl} (${uploadResult.bytes})`,
   );
 
   const resolvedVersion = extractionResult.input.templateVersion ?? initialTemplateVersion;
 
   await prisma.legalDocument.upsert({
     where: {
-      operationId_documentKind: { operationId, documentKind: "arras" },
+      operationId_documentKind: { operationId, documentKind },
     },
     create: {
       operationId,
       propertyCode,
-      documentKind: "arras",
+      documentKind,
       templateVersion: resolvedVersion,
       status: "DRAFT",
       contractInput: extractionResult.input as unknown as Prisma.JsonObject,
@@ -156,7 +163,7 @@ export async function handleGenerateContractDraft(
       operacionId,
       demandId,
       propertyCode,
-      documentKind: "arras",
+      documentKind,
       templateVersion: resolvedVersion,
       fileName: docxResult.fileName,
       cloudinary: {
@@ -173,7 +180,7 @@ export async function handleGenerateContractDraft(
   });
 
   console.log(
-    `[smart-closing] Evento CONTRATO_BORRADOR_GENERADO emitido para ${propertyCode}`,
+    `[contract-draft] Evento CONTRATO_BORRADOR_GENERADO emitido para ${propertyCode} (${documentKind})`,
   );
 
   return { success: true };

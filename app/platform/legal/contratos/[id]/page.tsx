@@ -193,7 +193,7 @@ function SmartClosingContractDetail({
   return (
     <div className="flex min-h-0 flex-col h-[calc(100vh-64px)]">
       {/* ── Compact header ── */}
-      <header className="flex items-center justify-between px-4 py-2.5 border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-sm shrink-0">
+      <header className="flex items-center justify-between px-4 py-2.5 border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-950/80 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <Link href="/platform/legal/contratos">
             <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
@@ -207,12 +207,12 @@ function SmartClosingContractDetail({
                 {contract.id.slice(0, 8).toUpperCase()}
               </span>
               {approved && signaturePhase !== "sent" && (
-                <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-[10px] px-1.5 py-0">
+                <Badge className="bg-urus-success/15 text-urus-success border-urus-success/20 text-[10px] px-1.5 py-0">
                   Aprobado
                 </Badge>
               )}
               {signaturePhase === "sent" && (
-                <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/20 text-[10px] px-1.5 py-0">
+                <Badge className="bg-[var(--urus-info)]/15 text-[var(--urus-info)] border-[var(--urus-info)]/20 text-[10px] px-1.5 py-0">
                   Enviado a firma
                 </Badge>
               )}
@@ -300,7 +300,7 @@ function SmartClosingContractDetail({
       {/* ── Status banners (compact) ── */}
       <div className="shrink-0 px-4 space-y-1.5 empty:hidden pt-2">
         {phase === "error" && errorMessage && (
-          <div className="rounded-md border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs text-red-700 dark:text-red-400 flex items-center gap-2" role="alert">
+          <div className="rounded-md border border-urus-danger/20 bg-urus-danger/5 px-3 py-2 text-xs text-urus-danger flex items-center gap-2" role="alert">
             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
             <span className="flex-1 truncate">{errorMessage}</span>
             <Button type="button" variant="ghost" size="sm" className="h-5 px-1.5 text-[10px]" onClick={() => { dismissError(); void reloadPreview(); }}>
@@ -310,14 +310,14 @@ function SmartClosingContractDetail({
         )}
 
         {signaturePhase === "sending" && (
-          <div className="rounded-md border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/30 px-3 py-2 text-xs flex items-center gap-2 text-blue-700 dark:text-blue-400">
+          <div className="rounded-md border border-[var(--urus-info)]/20 bg-[var(--urus-info)]/5 px-3 py-2 text-xs flex items-center gap-2 text-[var(--urus-info)]">
             <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
             Enviando a firma digital...
           </div>
         )}
 
         {signaturePhase === "sent" && signatureResult && (
-          <div className="rounded-md border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+          <div className="rounded-md border border-urus-success/20 bg-urus-success/5 px-3 py-2 text-xs text-urus-success flex items-center gap-2">
             <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
             <span>Enviado a firma.</span>
             {signatureResult.signingUrl && (
@@ -329,14 +329,14 @@ function SmartClosingContractDetail({
         )}
 
         {signaturePhase === "error" && signatureError && (
-          <div className="rounded-md border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs text-red-700 dark:text-red-400 flex items-center gap-2" role="alert">
+          <div className="rounded-md border border-urus-danger/20 bg-urus-danger/5 px-3 py-2 text-xs text-urus-danger flex items-center gap-2" role="alert">
             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
             {signatureError}
           </div>
         )}
 
         {lastPatch && lastPatch.confidence < 0.5 && !lastPatch.noOperationalChanges && (
-          <div className="rounded-md border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-700 dark:text-amber-400 flex items-center gap-2">
+          <div className="rounded-md border border-urus-warning/20 bg-urus-warning/5 px-3 py-2 text-xs text-urus-warning flex items-center gap-2">
             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
             Confianza baja ({Math.round(lastPatch.confidence * 100)}%). Revisa los cambios.
           </div>
@@ -424,7 +424,7 @@ function SmartClosingContractDetail({
                           </ul>
                         )}
                         {validationIssues.length > 0 && (
-                          <ul className="text-[11px] space-y-0.5 list-disc pl-3.5 text-red-600 dark:text-red-400">
+                          <ul className="text-[11px] space-y-0.5 list-disc pl-3.5 text-urus-danger">
                             {validationIssues.map((iss, i) => (
                               <li key={i}>{iss.fieldPath}: {iss.message}</li>
                             ))}

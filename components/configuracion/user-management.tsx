@@ -93,9 +93,9 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  ceo: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-  admin: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  comercial: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+  ceo: "bg-urus-warning/10 text-urus-warning",
+  admin: "bg-urus-info/10 text-urus-info",
+  comercial: "bg-urus-success/10 text-urus-success",
 };
 
 export function UserManagement() {
@@ -394,7 +394,7 @@ export function UserManagement() {
                 </span>
               )}
               {inviteSuccess && (
-                <span className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
+                <span className="flex items-center gap-1.5 text-sm text-urus-success">
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
                   Invitación enviada correctamente
                 </span>

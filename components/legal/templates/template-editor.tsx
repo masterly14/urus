@@ -483,7 +483,7 @@ export function TemplateEditor({ template }: { template: TemplateData }) {
             </span>
 
             {template.isActive && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full shrink-0">
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-urus-success bg-urus-success-bg px-2 py-0.5 rounded-full shrink-0">
                 <CheckCircle2 className="h-3 w-3" />
                 Activa
               </span>
@@ -766,8 +766,8 @@ function SaveIndicator({ state }: { state: SaveState }) {
     <span className={cn(
       "inline-flex items-center gap-1.5 text-xs transition-opacity",
       state === "saving" && "text-neutral-400",
-      state === "saved" && "text-emerald-600",
-      state === "error" && "text-red-500",
+      state === "saved" && "text-urus-success",
+      state === "error" && "text-urus-danger",
     )}>
       {state === "saving" && <><Loader2 className="h-3 w-3 animate-spin" /> Guardando...</>}
       {state === "saved" && <><CheckCircle2 className="h-3 w-3" /> Guardado</>}

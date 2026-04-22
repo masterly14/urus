@@ -17,16 +17,16 @@ type RunListItem = {
 
 function ScoreBadge({ score }: { score: number | null }) {
   if (score === null) return <span className="text-neutral-500">--</span>;
-  const color = score >= 0.85 ? "text-emerald-400" : score >= 0.7 ? "text-amber-400" : "text-rose-400";
+  const color = score >= 0.85 ? "text-urus-success" : score >= 0.7 ? "text-urus-warning" : "text-urus-danger";
   return <span className={`font-mono font-bold ${color}`}>{score.toFixed(3)}</span>;
 }
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     running: "text-blue-400 border-blue-800 bg-blue-500/10",
-    completed: "text-emerald-400 border-emerald-800 bg-emerald-500/10",
-    completed_with_errors: "text-amber-400 border-amber-800 bg-amber-500/10",
-    failed: "text-rose-400 border-rose-800 bg-rose-500/10",
+    completed: "text-urus-success border-urus-success/30 bg-urus-success/10",
+    completed_with_errors: "text-urus-warning border-urus-warning/30 bg-urus-warning/10",
+    failed: "text-urus-danger border-urus-danger/30 bg-urus-danger/10",
   };
   const statusLabels: Record<string, string> = {
     running: "En ejecución",
@@ -68,14 +68,14 @@ export default function EvalDashboardPage() {
         {loading ? (
           <div className="text-sm text-neutral-500">Cargando...</div>
         ) : runs.length === 0 ? (
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-6 text-center">
+          <div className="rounded-lg border border-neutral-800 bg-neutral-900/40 p-6 text-center">
             <div className="text-lg font-medium">Sin evaluaciones</div>
             <p className="mt-2 text-sm text-neutral-400">
               Ejecuta <code className="rounded bg-neutral-800 px-1.5 py-0.5 text-xs">npx tsx scripts/run-nlu-eval.ts --name &quot;mi-eval&quot;</code> para crear la primera.
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900/40">
+          <div className="overflow-x-auto rounded-lg border border-neutral-800 bg-neutral-900/40">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-neutral-800 text-left text-xs text-neutral-500">

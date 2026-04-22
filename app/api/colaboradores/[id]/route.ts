@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
@@ -102,6 +103,8 @@ const patchHandler = async (request: Request, { params }: Params) => {
       data,
     });
 
+    revalidateTag("colaboradores-dashboard", { expire: 0 });
+
     return NextResponse.json({ ok: true, colaborador });
   } catch (error) {
     console.error("[api/colaboradores/:id] PATCH error:", error);
@@ -124,6 +127,8 @@ const deleteHandler = async (request: Request, { params }: Params) => {
       where: { id },
       data: { activo: false },
     });
+
+    revalidateTag("colaboradores-dashboard", { expire: 0 });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

@@ -69,7 +69,7 @@ export default function ColaboradoresPage() {
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
                         <Users className="h-5 w-5 text-secondary" />
                     </div>
                     <div>
@@ -93,7 +93,7 @@ export default function ColaboradoresPage() {
 
             {/* KPI Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-secondary/15 p-2">
@@ -107,7 +107,7 @@ export default function ColaboradoresPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-[var(--urus-info)]/15 p-2">
@@ -121,7 +121,7 @@ export default function ColaboradoresPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-[var(--urus-danger)]/15 p-2">
@@ -135,7 +135,7 @@ export default function ColaboradoresPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-[var(--urus-success)]/15 p-2">
@@ -153,7 +153,7 @@ export default function ColaboradoresPage() {
             {/* Alerts + Filters row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* SLA Alerts */}
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
                             <AlertTriangle className="h-4 w-4 text-[var(--urus-danger)]" />
@@ -174,7 +174,7 @@ export default function ColaboradoresPage() {
                                     return (
                                         <Link key={c.id} href={`/colaboradores/${c.id}`}>
                                             <div
-                                                className="rounded-xl p-3 border transition-all hover:brightness-110 cursor-pointer"
+                                                className="rounded-lg p-3 border transition-all hover:brightness-110 cursor-pointer"
                                                 style={{
                                                     borderColor: `color-mix(in oklch, ${estadoConfig[c.estado].color} 25%, transparent)`,
                                                     backgroundColor: `color-mix(in oklch, ${estadoConfig[c.estado].color} 5%, transparent)`,
@@ -211,7 +211,7 @@ export default function ColaboradoresPage() {
                 </Card>
 
                 {/* Status by type chart */}
-                <Card className="lg:col-span-2 border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="lg:col-span-2 border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
                             <Wrench className="h-4 w-4 text-secondary" />
@@ -317,7 +317,7 @@ export default function ColaboradoresPage() {
             </div>
 
             {/* Filters */}
-            <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+            <Card className="border-border/50">
                 <CardContent className="p-4">
                     <div className="flex items-center gap-4 flex-wrap">
                         <div className="flex items-center gap-2">
@@ -385,7 +385,7 @@ export default function ColaboradoresPage() {
             </Card>
 
             {/* Collaborators Table */}
-            <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+            <Card className="border-border/50">
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full">

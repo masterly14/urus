@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import useSWR from "swr";
 import type { LeadStatus } from "@prisma/client";
 
 export interface DemandRow {
@@ -66,37 +66,18 @@ const EMPTY_STATS: LeadStatusStats = {
 };
 
 export function useDemands(filters: DemandsFilters = {}) {
-  const [demands, setDemands] = useState<DemandRow[]>([]);
-  const [total, setTotal] = useState(0);
-  const [stats, setStats] = useState<LeadStatusStats>(EMPTY_STATS);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const qs = buildSearchParams(filters);
+  const { data, error, isLoading, mutate } = useSWR<DemandsResponse>(
+    `/api/demands${qs}`,
+    { keepPreviousData: true },
+  );
 
-  const fetchDemands = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const qs = buildSearchParams(filters);
-      const res = await fetch(`/api/demands${qs}`);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error ?? `HTTP ${res.status}`);
-      }
-      const data: DemandsResponse = await res.json();
-      setDemands(data.demands ?? []);
-      setTotal(data.total ?? 0);
-      setStats(data.stats ?? EMPTY_STATS);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
-    } finally {
-      setIsLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(filters)]);
-
-  useEffect(() => {
-    fetchDemands();
-  }, [fetchDemands]);
-
-  return { demands, total, stats, isLoading, error, refetch: fetchDemands };
+  return {
+    demands: data?.demands ?? [],
+    total: data?.total ?? 0,
+    stats: data?.stats ?? EMPTY_STATS,
+    isLoading,
+    error: error?.message ?? null,
+    refetch: () => { mutate(); },
+  };
 }

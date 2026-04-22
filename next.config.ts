@@ -13,10 +13,32 @@ const nextConfig: NextConfig = {
     ],
   },
   async redirects() {
+    const postventaToOperaciones = [
+      {
+        source: "/platform/post-venta/:path*",
+        destination: "/platform/operaciones",
+        permanent: false,
+      },
+      {
+        source: "/platform/post-venta",
+        destination: "/platform/operaciones",
+        permanent: false,
+      },
+      {
+        source: "/platform/postventa/:path*",
+        destination: "/platform/operaciones",
+        permanent: false,
+      },
+      {
+        source: "/platform/postventa",
+        destination: "/platform/operaciones",
+        permanent: false,
+      },
+    ];
     const postventaGuia = [
       {
         source: "/platform/postventa/guia",
-        destination: "/platform/post-venta",
+        destination: "/platform/operaciones",
         permanent: false,
       },
     ];
@@ -45,7 +67,7 @@ const nextConfig: NextConfig = {
       destination: `/platform/${prefix}`,
       permanent: false,
     }));
-    return [...postventaGuia, ...exact, ...withPath];
+    return [...postventaToOperaciones, ...postventaGuia, ...exact, ...withPath];
   },
 };
 

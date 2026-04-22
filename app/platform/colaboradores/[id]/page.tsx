@@ -172,7 +172,7 @@ export default function ColaboradorDetallePage({
           <ArrowLeft className="h-4 w-4" />
           Volver a Colaboradores
         </Link>
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+        <Card className="border-border/50">
           <CardContent className="flex flex-col items-center justify-center py-20 text-center">
             <p className="text-lg font-semibold mb-2">Colaborador no encontrado</p>
             <p className="text-sm text-muted-foreground">El colaborador solicitado no existe.</p>
@@ -199,13 +199,13 @@ export default function ColaboradorDetallePage({
       </Link>
 
       {/* Header */}
-      <Card className="border-border/50 bg-card/60 backdrop-blur-sm overflow-hidden">
+      <Card className="border-border/50 overflow-hidden">
         <div className="h-1.5" style={{ backgroundColor: slaColor }} />
         <CardContent className="p-6">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
             <div className="space-y-3 flex-1">
               <div className="flex items-center gap-3 flex-wrap">
-                <div className="h-12 w-12 rounded-xl bg-accent/40 flex items-center justify-center text-lg font-bold text-secondary">
+                <div className="h-12 w-12 rounded-lg bg-accent/40 flex items-center justify-center text-lg font-bold text-secondary">
                   {detail.nombre.split(" ")[0].slice(0, 2).toUpperCase()}
                 </div>
                 <div>
@@ -290,7 +290,7 @@ export default function ColaboradorDetallePage({
 
       {/* Asignaciones con kanban */}
       {detail.asignaciones.length === 0 ? (
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+        <Card className="border-border/50">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Briefcase className="h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="text-sm font-medium">Sin operaciones asignadas</p>
@@ -301,7 +301,7 @@ export default function ColaboradorDetallePage({
         </Card>
       ) : (
         detail.asignaciones.map((asig) => (
-          <Card key={asig.id} className="border-border/50 bg-card/60 backdrop-blur-sm">
+          <Card key={asig.id} className="border-border/50">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
@@ -358,7 +358,7 @@ export default function ColaboradorDetallePage({
 
       {/* Contacto */}
       {(detail.contactoNombre || detail.contactoEmail || detail.contactoTelefono) && (
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+        <Card className="border-border/50">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-secondary" />

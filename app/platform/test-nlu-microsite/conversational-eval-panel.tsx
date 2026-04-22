@@ -110,15 +110,15 @@ const CATEGORIES = [
 // ── Utilidades ──────────────────────────────────────────────────────────────
 
 function scoreColor(score: number): string {
-  if (score >= 0.85) return "text-emerald-400";
-  if (score >= 0.7) return "text-amber-400";
-  return "text-rose-400";
+  if (score >= 0.85) return "text-urus-success";
+  if (score >= 0.7) return "text-urus-warning";
+  return "text-urus-danger";
 }
 
 function passRateColor(rate: number): string {
-  if (rate >= 0.9) return "text-emerald-400";
-  if (rate >= 0.7) return "text-amber-400";
-  return "text-rose-400";
+  if (rate >= 0.9) return "text-urus-success";
+  if (rate >= 0.7) return "text-urus-warning";
+  return "text-urus-danger";
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -245,7 +245,7 @@ export function ConversationalEvalPanel() {
 
       {/* Error */}
       {error ? (
-        <div className="rounded-lg border border-rose-800 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+        <div className="rounded-lg border border-urus-danger/30 bg-urus-danger/10 px-4 py-3 text-sm text-urus-danger">
           {error}
         </div>
       ) : null}
@@ -324,7 +324,7 @@ export function ConversationalEvalPanel() {
               <h3 className="text-sm font-semibold">Top fallos</h3>
               <ul className="mt-3 space-y-1 text-xs">
                 {summary.topFailures.map((f, i) => (
-                  <li key={i} className="flex items-start gap-2 text-rose-300">
+                  <li key={i} className="flex items-start gap-2 text-urus-danger">
                     <span className="shrink-0 rounded bg-rose-500/10 px-1.5 py-0.5 text-[10px]">
                       {f.count}x
                     </span>
@@ -384,7 +384,7 @@ function ScenarioRow({
   onToggleTrial: (id: string) => void;
 }) {
   const statusIcon = result.passAtK ? "✓" : "✗";
-  const statusColor = result.passAtK ? "text-emerald-400" : "text-rose-400";
+  const statusColor = result.passAtK ? "text-urus-success" : "text-urus-danger";
 
   return (
     <div className="rounded-lg border border-neutral-800 bg-neutral-900/60">
@@ -438,7 +438,7 @@ function TrialRow({
         onClick={onToggle}
         className="flex w-full items-center gap-3 px-3 py-2 text-left text-[11px] hover:bg-neutral-800/20"
       >
-        <span className={`font-bold ${trial.passed ? "text-emerald-400" : "text-rose-400"}`}>
+        <span className={`font-bold ${trial.passed ? "text-urus-success" : "text-urus-danger"}`}>
           Trial {trial.trialIndex + 1}
         </span>
         <span className={`font-mono ${scoreColor(trial.overallScore)}`}>
@@ -455,7 +455,7 @@ function TrialRow({
           {/* Buyer message */}
           <div>
             <div className="text-[10px] uppercase text-neutral-500 mb-1">Mensaje comprador</div>
-            <div className="rounded bg-emerald-500/5 border border-emerald-900 p-2 text-emerald-100">
+            <div className="rounded bg-urus-success/5 border border-urus-success/30 p-2 text-urus-success">
               {trial.buyerMessage}
             </div>
           </div>
@@ -496,8 +496,8 @@ function TrialRow({
                   key={g.name}
                   className={`rounded border px-2 py-0.5 text-[10px] ${
                     g.passed
-                      ? "border-emerald-800 bg-emerald-500/10 text-emerald-300"
-                      : "border-rose-800 bg-rose-500/10 text-rose-300"
+                      ? "border-urus-success/30 bg-urus-success/10 text-urus-success"
+                      : "border-urus-danger/30 bg-urus-danger/10 text-urus-danger"
                   }`}
                   title={g.details ?? ""}
                 >
@@ -519,7 +519,7 @@ function TrialRow({
                 <JudgeDim label="Safety" score={trial.judgeEvaluation.safetyScore} />
               </div>
               {trial.judgeEvaluation.failures.length > 0 ? (
-                <ul className="mt-2 ml-4 list-disc text-rose-300/80">
+                <ul className="mt-2 ml-4 list-disc text-urus-danger/80">
                   {trial.judgeEvaluation.failures.map((f, i) => (
                     <li key={i}>{f}</li>
                   ))}

@@ -51,7 +51,7 @@ export default function PerformanceLayout({ children }: PerformanceLayoutProps) 
                     }
                 </p>
             </div>
-            <div className="flex items-center space-x-1 border-b border-border/40 pb-2">
+            <div className="flex items-center gap-1 overflow-x-auto border border-border rounded-lg p-1">
                 {filteredItems.map((item) => {
                     const isActive = pathname.startsWith(item.href);
                     const Icon = item.icon;
@@ -60,10 +60,10 @@ export default function PerformanceLayout({ children }: PerformanceLayoutProps) 
                             key={item.href}
                             href={item.href}
                             className={cn(
-                                "flex items-center space-x-2 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-2.5",
+                                "flex items-center space-x-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap",
                                 isActive
-                                    ? "border-primary text-primary"
-                                    : "border-transparent text-muted-foreground hover:text-foreground"
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                             )}
                         >
                             <Icon className="h-4 w-4" />

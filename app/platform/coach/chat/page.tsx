@@ -214,7 +214,7 @@ export default function CoachChatPage() {
         <div className="space-y-4">
             {/* Header */}
             <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[var(--urus-info)]/20 to-[var(--urus-info)]/5 flex items-center justify-center">
+                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-[var(--urus-info)]/20 to-[var(--urus-info)]/5 flex items-center justify-center">
                     <Brain className="h-5 w-5 text-[var(--urus-info)]" />
                 </div>
                 <div>
@@ -230,7 +230,7 @@ export default function CoachChatPage() {
                 {/* Conversations Sidebar */}
                 <Card
                     className={cn(
-                        "border-border/50 bg-card/60 backdrop-blur-sm flex flex-col shrink-0 transition-all duration-300",
+                        "border-border/50 flex flex-col shrink-0 transition-all duration-300",
                         sidebarOpen ? "w-72" : "w-0 overflow-hidden border-0 p-0"
                     )}
                 >
@@ -255,7 +255,7 @@ export default function CoachChatPage() {
                                         key={conv.id}
                                         onClick={() => setActiveConvId(conv.id)}
                                         className={cn(
-                                            "w-full text-left rounded-xl px-3 py-2.5 transition-all duration-200 group",
+                                            "w-full text-left rounded-lg px-3 py-2.5 transition-all duration-200 group",
                                             conv.id === activeConvId
                                                 ? "bg-accent/40 border border-border/50"
                                                 : "hover:bg-accent/20"
@@ -280,7 +280,7 @@ export default function CoachChatPage() {
                 </Card>
 
                 {/* Chat Area */}
-                <Card className="flex-1 border-border/50 bg-card/60 backdrop-blur-sm flex flex-col overflow-hidden">
+                <Card className="flex-1 border-border/50 flex flex-col overflow-hidden">
                     {/* Chat header */}
                     <div className="flex items-center justify-between px-5 py-3 border-b border-border/30 shrink-0">
                         <div className="flex items-center gap-3">
@@ -360,14 +360,14 @@ export default function CoachChatPage() {
                                     onChange={(e) => setInput(e.target.value)}
                                     placeholder="Escribe un mensaje..."
                                     disabled={isTyping}
-                                    className="w-full bg-accent/30 border border-border/50 rounded-xl px-4 py-2.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-secondary/30 focus:border-secondary/50 transition-all disabled:opacity-50"
+                                    className="w-full bg-accent/30 border border-border/50 rounded-lg px-4 py-2.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-secondary/30 focus:border-secondary/50 transition-all disabled:opacity-50"
                                 />
                             </div>
                             <Button
                                 type="submit"
                                 size="sm"
                                 disabled={!input.trim() || isTyping}
-                                className="h-10 w-10 rounded-xl p-0 bg-gradient-to-br from-[var(--urus-info)] to-[var(--urus-info)]/70 hover:from-[var(--urus-info)]/90 hover:to-[var(--urus-info)]/60 disabled:opacity-30"
+                                className="h-10 w-10 rounded-lg p-0 bg-gradient-to-br from-[var(--urus-info)] to-[var(--urus-info)]/70 hover:from-[var(--urus-info)]/90 hover:to-[var(--urus-info)]/60 disabled:opacity-30"
                             >
                                 <Send className="h-4 w-4" />
                             </Button>

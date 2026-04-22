@@ -212,7 +212,7 @@ export function CeoSnapshotModal({
                     <SelectItem key={p.period} value={p.period}>
                       {p.label}
                       {!p.hasData && (
-                        <span className="ml-2 text-xs text-amber-600 font-medium">
+                        <span className="ml-2 text-xs text-urus-warning font-medium">
                           · sin datos
                         </span>
                       )}
@@ -313,7 +313,7 @@ export function CeoSnapshotModal({
           )}
 
           {saveError && (
-            <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/10 px-3 py-2 rounded-md">
+            <p className="text-sm text-urus-danger bg-urus-danger-bg px-3 py-2 rounded-md">
               {saveError}
             </p>
           )}

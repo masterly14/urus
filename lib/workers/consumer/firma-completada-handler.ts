@@ -167,21 +167,19 @@ export async function handleFirmaCompletada(
   if (legalDoc) {
     const followUpJobs: EnqueueJobInput[] = [
       {
-        type: "WRITE_TO_INMOVILLA",
+        type: "UPDATE_PROPERTY_STATUS_INMOVILLA",
         payload: {
-          operation: "UPDATE_PROPERTY_STATUS",
-          args: {
-            propertyCode: sigReq.propertyCode,
-            estadoficha: "vendido",
-          },
+          propertyCode: sigReq.propertyCode,
+          estadoficha: 3,
+          operacionId: operationId,
         },
-        idempotencyKey: `write_inmovilla_post_firma:${operationId}`,
+        idempotencyKey: `update_property_status:${operationId}`,
         sourceEventId: event.id,
       },
     ];
 
     console.log(
-      `[firma-completada] Firma completa — encolando WRITE_TO_INMOVILLA para ${sigReq.propertyCode}`,
+      `[firma-completada] Firma completa — encolando UPDATE_PROPERTY_STATUS_INMOVILLA para ${sigReq.propertyCode}`,
     );
 
     const appUrl = getPublicAppUrl();

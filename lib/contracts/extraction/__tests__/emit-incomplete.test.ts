@@ -11,7 +11,7 @@ vi.mock("@/lib/job-queue", () => ({
 import { emitContractDataIncomplete } from "../emit-incomplete";
 import { appendEvent } from "@/lib/event-store/event-store";
 import { enqueueJob } from "@/lib/job-queue";
-import type { ContractIncompleteValidationSignal } from "../arras-payload";
+import type { ContractIncompleteValidationSignal } from "../shared";
 
 const mockAppendEvent = vi.mocked(appendEvent);
 const mockEnqueueJob = vi.mocked(enqueueJob);

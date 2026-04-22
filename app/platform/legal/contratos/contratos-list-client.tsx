@@ -89,7 +89,7 @@ export function ContratosListClient({
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
             <FileSignature className="h-5 w-5 text-secondary" />
           </div>
           <div>
@@ -115,7 +115,7 @@ export function ContratosListClient({
           return (
             <Card
               key={key}
-              className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+              className="border-border/50 transition-all duration-300 cursor-pointer"
               onClick={() =>
                 setFilterEstado(filterEstado === key ? "all" : key)
               }
@@ -151,7 +151,7 @@ export function ContratosListClient({
         })}
       </div>
 
-      <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+      <Card className="border-border/50">
         <CardContent className="p-4">
           <div className="flex items-center gap-4 flex-wrap">
             <Filter className="h-4 w-4 text-muted-foreground" />
@@ -201,7 +201,7 @@ export function ContratosListClient({
         </CardContent>
       </Card>
 
-      <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+      <Card className="border-border/50">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full">

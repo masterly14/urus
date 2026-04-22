@@ -20,25 +20,25 @@ export default function PerformanceAlertsPage() {
     return (
         <div className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Card className="bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800">
+                <Card className="bg-urus-danger-bg border-urus-danger/20">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-red-800 dark:text-red-200">Alertas Críticas</CardTitle>
-                        <AlertOctagon className="h-4 w-4 text-red-600 dark:text-red-400" />
+                        <CardTitle className="text-sm font-medium text-urus-danger">Alertas Críticas</CardTitle>
+                        <AlertOctagon className="h-4 w-4 text-urus-danger" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-red-700 dark:text-red-300">{highSeverityCount}</div>
-                        <p className="text-xs text-red-600/80 dark:text-red-400/80">+2 desde ayer</p>
+                        <div className="text-2xl font-bold text-urus-danger">{highSeverityCount}</div>
+                        <p className="text-xs text-urus-danger/80">+2 desde ayer</p>
                     </CardContent>
                 </Card>
 
-                <Card className="bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800">
+                <Card className="bg-urus-warning-bg border-urus-warning/20">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-amber-800 dark:text-amber-200">Coste de Oportunidad</CardTitle>
-                        <DollarSign className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                        <CardTitle className="text-sm font-medium text-urus-warning">Coste de Oportunidad</CardTitle>
+                        <DollarSign className="h-4 w-4 text-urus-warning" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">€45,000</div>
-                        <p className="text-xs text-amber-600/80 dark:text-amber-400/80">Perdidos en leads no gestionados</p>
+                        <div className="text-2xl font-bold text-urus-warning">€45,000</div>
+                        <p className="text-xs text-urus-warning/80">Perdidos en leads no gestionados</p>
                     </CardContent>
                 </Card>
             </div>
@@ -55,9 +55,9 @@ export default function PerformanceAlertsPage() {
                             <div className="flex items-start gap-4">
                                 <div className={cn(
                                     "p-2 rounded-full shrink-0",
-                                    alert.severity === "high" ? "bg-red-100 text-red-600" :
-                                        alert.severity === "medium" ? "bg-amber-100 text-amber-600" :
-                                            "bg-blue-100 text-blue-600"
+                                    alert.severity === "high" ? "bg-urus-danger/10 text-urus-danger" :
+                                        alert.severity === "medium" ? "bg-urus-warning/10 text-urus-warning" :
+                                            "bg-urus-info/10 text-urus-info"
                                 )}>
                                     {alert.type === "drop" ? <TrendingDown className="h-5 w-5" /> :
                                         alert.type === "opportunity_cost" ? <DollarSign className="h-5 w-5" /> :
@@ -87,7 +87,7 @@ export default function PerformanceAlertsPage() {
                                         Ver Detalles
                                     </Button>
                                     {alert.severity === "high" && (
-                                        <Button size="sm" className="text-xs h-8 bg-red-600 hover:bg-red-700 text-white">
+                                        <Button size="sm" className="text-xs h-8 bg-urus-danger hover:bg-urus-danger/90 text-white">
                                             Intervenir
                                         </Button>
                                     )}
@@ -99,7 +99,7 @@ export default function PerformanceAlertsPage() {
 
                 {performanceAlerts.length === 0 && (
                     <div className="text-center py-12 text-muted-foreground">
-                        <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-emerald-500/50" />
+                        <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-urus-success/50" />
                         <p>No hay alertas activas. El rendimiento es óptimo.</p>
                     </div>
                 )}

@@ -129,7 +129,7 @@ export function OperationCard({
             <Link href={href} className="block w-full">
             <Card
                 className={cn(
-                    "border-border/50 bg-card/80 backdrop-blur-sm hover:bg-card hover:shadow-md hover:shadow-background/20 transition-all duration-300 hover:-translate-y-0.5 cursor-pointer group overflow-hidden min-h-[230px]",
+                    "border-border/50 hover:bg-card hover:shadow-[var(--shadow-elevated)] transition-all duration-300 hover:-translate-y-0.5 cursor-pointer group overflow-hidden min-h-[230px]",
                     className
                 )}
                 style={{
@@ -242,10 +242,10 @@ export function OperationCard({
                             </div>
                         </>
                     ) : (
-                        <div className="space-y-3 rounded-xl border border-border/40 bg-accent/15 p-3.5">
+                        <div className="space-y-3 rounded-lg border border-border/40 bg-accent/15 p-3.5">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-1.5 text-xs font-medium">
-                                    <MessageSquare className="h-3.5 w-3.5 text-secondary" />
+                                    <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
                                     Historial de mensajes
                                 </div>
                                 <Badge variant="outline" className="text-[10px]">
@@ -364,7 +364,7 @@ export function OperationCard({
 
                     {/* Arrow indicator on hover */}
                     <div className="flex items-center justify-end opacity-0 group-hover:opacity-100 transition-opacity -mt-2">
-                        <ArrowRight className="h-3 w-3 text-secondary" />
+                        <ArrowRight className="h-3 w-3 text-muted-foreground" />
                     </div>
                 </CardContent>
             </Card>
@@ -376,7 +376,7 @@ export function OperationCard({
                     type="button"
                     variant="outline"
                     size="icon-sm"
-                    className="absolute top-3 right-3 z-10 bg-card/95 backdrop-blur-sm shadow-sm"
+                    className="absolute top-3 right-3 z-10 bg-card shadow-sm"
                     title="Abrir panel (notas, checklist, adjuntos)"
                     aria-label="Abrir panel lateral de la operación"
                     onClick={(e) => {

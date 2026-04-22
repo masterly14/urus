@@ -310,7 +310,7 @@ export default function MercadoPage() {
             </Link>
 
             <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
+                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
                     <BarChart3 className="h-5 w-5 text-secondary" />
                 </div>
                 <div>
@@ -337,7 +337,7 @@ export default function MercadoPage() {
             />
 
             {/* Heat Map by Zone */}
-            <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+            <Card className="border border-border">
                 <CardHeader className="pb-3">
                     <div className="flex items-center gap-2">
                         <Flame className="h-4 w-4 text-[var(--urus-danger)]" />
@@ -369,13 +369,13 @@ export default function MercadoPage() {
                                     aria-expanded={isActive}
                                     aria-controls={isExpandable ? "mercado-zona-detail" : undefined}
                                     disabled={!isExpandable}
-                                    className={`text-left rounded-xl p-4 border transition-all group relative overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/60 ${
+                                    className={`text-left rounded-lg p-4 border transition-all group relative overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/60 ${
                                         isActive
-                                            ? "border-secondary/60 ring-1 ring-secondary/30 shadow-[0_0_0_1px_color-mix(in_oklch,var(--secondary)_25%,transparent)]"
+                                            ? "border-secondary/60 shadow-[0_0_0_1px_color-mix(in_oklch,var(--secondary)_25%,transparent)]"
                                             : "border-border/20"
                                     } ${
                                         isExpandable
-                                            ? "hover:scale-[1.03] hover:border-border/40 cursor-pointer"
+                                            ? "hover:border-border/40 cursor-pointer"
                                             : "cursor-default opacity-80"
                                     }`}
                                     style={{
@@ -476,7 +476,7 @@ export default function MercadoPage() {
 
             {/* Price Trends */}
             {trendLines.length > 0 && (
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border border-border">
                     <CardHeader className="pb-3">
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-2">
@@ -541,7 +541,7 @@ export default function MercadoPage() {
 
             {/* Portfolio Table */}
             {competitors.length > 0 && (
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border border-border">
                     <CardHeader className="pb-3">
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-2">
@@ -615,15 +615,15 @@ export default function MercadoPage() {
                         </div>
 
                         <div className="mt-4 pt-3 border-t border-border/20 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div className="rounded-xl p-3 bg-accent/10 border border-border/20 text-center">
+                            <div className="rounded-lg p-3 bg-accent/10 border border-border/20 text-center">
                                 <p className="text-[9px] text-muted-foreground uppercase tracking-wider">€/m² Medio Mercado</p>
                                 <p className="text-lg font-bold font-mono">{avgZoneM2.toLocaleString("es-ES")} €</p>
                             </div>
-                            <div className="rounded-xl p-3 bg-accent/10 border border-border/20 text-center">
+                            <div className="rounded-lg p-3 bg-accent/10 border border-border/20 text-center">
                                 <p className="text-[9px] text-muted-foreground uppercase tracking-wider">€/m² URUS</p>
                                 <p className="text-lg font-bold font-mono text-secondary">{avgUrusM2.toLocaleString("es-ES")} €</p>
                             </div>
-                            <div className="rounded-xl p-3 bg-accent/10 border border-border/20 text-center">
+                            <div className="rounded-lg p-3 bg-accent/10 border border-border/20 text-center">
                                 <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Diferencia media vs mercado</p>
                                 <p className="text-lg font-bold font-mono">
                                     {parseFloat(avgGap) > 0 ? "+" : ""}{avgGap}%
@@ -775,7 +775,7 @@ function ZonePropertyTile({ property }: { property: ZonePropertyDetail }) {
     return (
         <Link
             href={`/platform/pricing/informe/${property.codigo}`}
-            className="group flex flex-col overflow-hidden rounded-xl border border-border/40 bg-card/70 hover:border-secondary/50 hover:shadow-lg hover:shadow-background/20 transition-all"
+            className="group flex flex-col overflow-hidden rounded-lg border border-border hover:border-secondary/50 hover:shadow-[var(--shadow-elevated)] transition-all"
         >
             <div className="relative aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-muted/60 via-background to-muted/30">
                 {showImage ? (
@@ -784,7 +784,7 @@ function ZonePropertyTile({ property }: { property: ZonePropertyDetail }) {
                         alt={property.titulo}
                         fill
                         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                        className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                        className="object-cover transition-transform duration-500"
                         onError={() => setErrored(true)}
                         unoptimized
                     />
@@ -802,7 +802,7 @@ function ZonePropertyTile({ property }: { property: ZonePropertyDetail }) {
 
                 {property.semaforo && (
                     <div
-                        className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-md border bg-background/85 backdrop-blur px-1.5 py-0.5 text-[9px] font-medium"
+                        className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-md border bg-background/85 px-1.5 py-0.5 text-[9px] font-medium"
                         style={{
                             borderColor: `color-mix(in oklch, ${dotColor} 45%, transparent)`,
                             color: dotColor,
@@ -816,7 +816,7 @@ function ZonePropertyTile({ property }: { property: ZonePropertyDetail }) {
 
                 {property.gapPorcentaje !== null && (
                     <div
-                        className="absolute top-2 right-2 rounded-md bg-background/85 backdrop-blur px-1.5 py-0.5 text-[9px] font-mono font-bold"
+                        className="absolute top-2 right-2 rounded-md bg-background/85 px-1.5 py-0.5 text-[9px] font-mono font-bold"
                         style={{
                             color:
                                 property.gapPorcentaje <= 0
@@ -912,7 +912,7 @@ function MarketReportCard({
     const report = informe?.report ?? null;
 
     return (
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm overflow-hidden">
+        <Card className="border border-border overflow-hidden">
             <CardHeader className="pb-0">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
@@ -1072,7 +1072,7 @@ function MarketReportBody({ report, confidence }: { report: MarketReport; confid
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                     {report.zonasDestacadas.map((z) => (
-                        <div key={z.zona} className="rounded-xl p-3 border border-border/30 bg-accent/5 space-y-1.5">
+                        <div key={z.zona} className="rounded-lg p-3 border border-border/30 bg-accent/5 space-y-1.5">
                             <div className="flex items-center justify-between gap-2">
                                 <span className="text-xs font-semibold">{z.zona}</span>
                                 <span className="text-xs font-mono font-bold">{z.precioMedioM2.toLocaleString("es-ES")} €/m²</span>
@@ -1113,7 +1113,7 @@ function MarketReportBody({ report, confidence }: { report: MarketReport; confid
                         <p className="text-sm font-bold font-mono text-[var(--urus-danger)]">{report.posicionamientoUrus.semaforos.rojo}</p>
                     </div>
                 </div>
-                <div className="rounded-xl p-3 border border-border/30 bg-accent/5 space-y-2 mb-3">
+                <div className="rounded-lg p-3 border border-border/30 bg-accent/5 space-y-2 mb-3">
                     <div className="flex items-center gap-2">
                         <span className="text-[10px] text-muted-foreground">Diferencia media vs mercado:</span>
                         <span className={`text-xs font-mono font-bold ${

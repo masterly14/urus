@@ -19,6 +19,8 @@ export interface PanelChecklistItemDTO {
   orden: number;
   responsableComercialId: string | null;
   responsableNombre: string | null;
+  responsableColaboradorId: string | null;
+  responsableColaboradorNombre: string | null;
   createdByUserId: string;
   completadoByUserId: string | null;
   completadoAt: string | null;

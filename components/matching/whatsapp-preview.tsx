@@ -69,7 +69,7 @@ export function WhatsAppPreview({ match, className, onSent }: WhatsAppPreviewPro
     const hasTelefono = !!match.comprador.telefono;
 
     return (
-        <div className={cn("rounded-xl overflow-hidden border border-border/30", className)}>
+        <div className={cn("rounded-lg overflow-hidden border border-border/30", className)}>
             {/* Header */}
             <div className="bg-[#075e54] dark:bg-[#1f2c34] px-4 py-2.5 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">

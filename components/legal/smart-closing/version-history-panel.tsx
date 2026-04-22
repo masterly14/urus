@@ -111,7 +111,7 @@ export function VersionHistoryPanel({
   }
 
   return (
-    <Card className="border-border/50 bg-card/60">
+    <Card className="border-border/50 bg-card">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm flex items-center gap-2">
           <History className="h-4 w-4" />
@@ -165,7 +165,7 @@ export function VersionHistoryPanel({
                   {ev.ambiguousPoints.length > 0 && (
                     <ul className="mb-2 space-y-1">
                       {ev.ambiguousPoints.map((point, pointIndex) => (
-                        <li key={pointIndex} className="text-[10px] text-amber-700 dark:text-amber-400">
+                        <li key={pointIndex} className="text-[10px] text-urus-warning">
                           {point}
                         </li>
                       ))}
@@ -191,10 +191,10 @@ export function VersionHistoryPanel({
                           <span
                             className={`shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full ${
                               ch.kind === "added"
-                                ? "bg-green-500"
+                                ? "bg-urus-success"
                                 : ch.kind === "removed"
-                                  ? "bg-red-500"
-                                  : "bg-yellow-500"
+                                  ? "bg-urus-danger"
+                                  : "bg-urus-warning"
                             }`}
                           />
                           <span className="text-muted-foreground">

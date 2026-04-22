@@ -28,36 +28,58 @@
   --radius-xl: calc(var(--radius) + 4px);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --shadow-card: var(--shadow-card);
+  --shadow-elevated: var(--shadow-elevated);
+  --color-urus-gold: var(--urus-gold);
+  --color-urus-success: var(--urus-success);
+  --color-urus-success-bg: var(--urus-success-bg);
+  --color-urus-warning: var(--urus-warning);
+  --color-urus-warning-bg: var(--urus-warning-bg);
+  --color-urus-danger: var(--urus-danger);
+  --color-urus-danger-bg: var(--urus-danger-bg);
+  --color-urus-info: var(--urus-info);
+  --color-urus-info-bg: var(--urus-info-bg);
+  --color-urus-ai: var(--urus-ai);
+  --color-urus-ai-bg: var(--urus-ai-bg);
 }
 
 :root {
-  --radius: 0.75rem;
+  --radius: 0.5rem;
 
-  --background: #ffffff;
-  --foreground: #0f172a;
+  --background: #f4f5f7;
+  --foreground: #1a1a2e;
   --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card-foreground: #1a1a2e;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
+  --popover-foreground: #1a1a2e;
   --primary: #1a365d;
   --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #f1f5f9;
-  --accent-foreground: #0f172a;
-  --destructive: #ef4444;
+  --secondary: #edf0f4;
+  --secondary-foreground: #1a1a2e;
+  --muted: #f1f3f6;
+  --muted-foreground: #6b7280;
+  --accent: #edf0f4;
+  --accent-foreground: #1a1a2e;
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #c9a84c;
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: #1a365d;
 
   --urus-gold: #c9a84c;
-  --urus-success: #10b981;
+  --urus-success: #16a34a;
+  --urus-success-bg: #f0fdf4;
   --urus-warning: #f59e0b;
-  --urus-danger: #ef4444;
-  --urus-info: #3b82f6;
+  --urus-warning-bg: #fffbeb;
+  --urus-danger: #dc2626;
+  --urus-danger-bg: #fef2f2;
+  --urus-info: #2563eb;
+  --urus-info-bg: #eff6ff;
+  --urus-ai: #7c3aed;
+  --urus-ai-bg: #f5f3ff;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 4px rgba(0, 0, 0, 0.02);
+  --shadow-elevated: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .dark {
@@ -80,12 +102,34 @@
   --border: #2d3139;
   --input: #2d3139;
   --ring: #c9a84c;
+
+  --urus-gold: #c9a84c;
+  --urus-success: #22c55e;
+  --urus-success-bg: #052e16;
+  --urus-warning: #fbbf24;
+  --urus-warning-bg: #422006;
+  --urus-danger: #f87171;
+  --urus-danger-bg: #450a0a;
+  --urus-info: #60a5fa;
+  --urus-info-bg: #172554;
+  --urus-ai: #a78bfa;
+  --urus-ai-bg: #2e1065;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 1px 4px rgba(0, 0, 0, 0.1);
+  --shadow-elevated: 0 4px 12px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* ── Interactive rows (tables, lists, clickable items) ─────────────── */
+
+.interactive-row {
+  @apply transition-colors duration-150 cursor-pointer;
+  @apply hover:bg-muted/40;
 }
 
 /* ── Smart Closing: contract preview (mammoth output) ─────────────── */

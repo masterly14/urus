@@ -104,12 +104,12 @@ function VisionEjecutivaPageInner() {
             <div className="space-y-6">
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     {Array.from({ length: 4 }).map((_, i) => (
-                        <Skeleton key={i} className="h-32 rounded-xl" />
+                        <Skeleton key={i} className="h-32 rounded-lg" />
                     ))}
                 </div>
                 <div className="grid gap-4 md:grid-cols-7">
-                    <Skeleton className="h-80 md:col-span-4 rounded-xl" />
-                    <Skeleton className="h-80 md:col-span-3 rounded-xl" />
+                    <Skeleton className="h-80 md:col-span-4 rounded-lg" />
+                    <Skeleton className="h-80 md:col-span-3 rounded-lg" />
                 </div>
             </div>
         );
@@ -117,13 +117,13 @@ function VisionEjecutivaPageInner() {
 
     if (!useMock && error) {
         return (
-            <Card className="border-red-200 bg-red-50 dark:bg-red-900/10">
+            <Card className="border-urus-danger bg-urus-danger/10 dark:bg-urus-danger/10">
                 <CardHeader className="flex flex-row items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-red-600" />
-                    <CardTitle className="text-red-900 dark:text-red-200">Error al cargar datos</CardTitle>
+                    <AlertTriangle className="h-5 w-5 text-urus-danger" />
+                    <CardTitle className="text-urus-danger dark:text-urus-danger">Error al cargar datos</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
+                    <p className="text-sm text-urus-danger dark:text-urus-danger">{error}</p>
                 </CardContent>
             </Card>
         );
@@ -224,7 +224,7 @@ function VisionEjecutivaPageInner() {
                             {(Object.keys(semaforos) as Array<keyof typeof semaforos>).map((key) => (
                                 <div
                                     key={key}
-                                    className="flex items-center justify-between p-3 rounded-lg border bg-card/50"
+                                    className="flex items-center justify-between p-3 rounded-lg border"
                                 >
                                     <span className="text-sm font-medium">
                                         {semaforoLabels[key]}

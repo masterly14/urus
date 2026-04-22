@@ -111,7 +111,7 @@ export default function EvalRunDetailPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-6xl px-4 py-8 space-y-8">
+      <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           <EvalKpiCard label="Overall Score" value={aggregated.avgOverallScore} />
           <EvalKpiCard label="Property Resolution" value={aggregated.avgPropertyResolution} format="percent" />
@@ -123,16 +123,16 @@ export default function EvalRunDetailPage() {
           <EvalKpiCard label="Avg Latency" value={aggregated.avgLatencyMs} format="ms" invertDelta />
         </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <EvalCategoryChart data={byCategory} />
 
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+          <div className="rounded-lg border border-neutral-800 bg-neutral-900/40 p-4">
             <h3 className="mb-4 text-sm font-semibold text-neutral-300">Score por persona</h3>
             <div className="space-y-2">
               {byPersona.map((p) => (
                 <div key={p.personaId} className="flex items-center justify-between text-sm">
                   <span className="text-neutral-400">{p.personaId} <span className="text-neutral-600">({p.count})</span></span>
-                  <span className={`font-mono font-medium ${p.avgScore >= 0.85 ? "text-emerald-400" : p.avgScore >= 0.7 ? "text-amber-400" : "text-rose-400"}`}>
+                  <span className={`font-mono font-medium ${p.avgScore >= 0.85 ? "text-urus-success" : p.avgScore >= 0.7 ? "text-urus-warning" : "text-urus-danger"}`}>
                     {p.avgScore.toFixed(3)}
                   </span>
                 </div>
@@ -142,12 +142,12 @@ export default function EvalRunDetailPage() {
         </div>
 
         {topFailures.length > 0 ? (
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+          <div className="rounded-lg border border-neutral-800 bg-neutral-900/40 p-4">
             <h3 className="mb-3 text-sm font-semibold text-neutral-300">Top fallos recurrentes</h3>
             <div className="space-y-1.5">
               {topFailures.map((f, i) => (
                 <div key={i} className="flex items-start gap-2 text-xs">
-                  <span className="rounded bg-rose-500/20 px-1.5 py-0.5 font-mono text-rose-300">{f.count}x</span>
+                  <span className="rounded bg-urus-danger/20 px-1.5 py-0.5 font-mono text-urus-danger">{f.count}x</span>
                   <span className="text-neutral-400">{f.failure}</span>
                 </div>
               ))}

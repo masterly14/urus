@@ -137,12 +137,12 @@ export function PropertyDescriptionEditor({
         </div>
       </div>
       {message ? (
-        <p className="mt-2 rounded-md border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700">
+        <p className="mt-2 rounded-md border border-urus-success/20 bg-urus-success/10 px-2.5 py-1.5 text-xs font-medium text-urus-success">
           {message}
         </p>
       ) : null}
       {error ? (
-        <p className="mt-2 rounded-md border border-red-100 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700">
+        <p className="mt-2 rounded-md border border-urus-danger/20 bg-urus-danger-bg px-2.5 py-1.5 text-xs font-medium text-urus-danger">
           {error}
         </p>
       ) : null}

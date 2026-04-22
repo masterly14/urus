@@ -54,7 +54,7 @@ export function KanbanColumn({ etapa, label, description, emoji, count, children
         <div className="flex flex-col min-w-[260px] w-[260px] shrink-0">
             {/* Column header */}
             <div
-                className="rounded-xl px-3 py-2.5 mb-3 border"
+                className="rounded-lg px-3 py-2.5 mb-3 border"
                 style={{
                     borderColor: `color-mix(in oklch, ${color} 25%, transparent)`,
                     backgroundColor: `color-mix(in oklch, ${color} 6%, transparent)`,
@@ -152,7 +152,7 @@ export function TimelineEvent({ message, isLast = false }: TimelineEventProps) {
                 </div>
                 <div
                     className={cn(
-                        "rounded-xl px-3 py-2 text-sm leading-relaxed",
+                        "rounded-lg px-3 py-2 text-sm leading-relaxed",
                         isSent
                             ? "bg-accent/30 border border-border/30"
                             : "bg-[var(--urus-success)]/5 border border-[var(--urus-success)]/15"

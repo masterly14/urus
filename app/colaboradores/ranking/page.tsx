@@ -65,7 +65,7 @@ export default function RankingPage() {
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[var(--urus-gold)]/20 to-[var(--urus-gold)]/5 flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-[var(--urus-gold)]/20 to-[var(--urus-gold)]/5 flex items-center justify-center">
                         <Trophy className="h-5 w-5 text-[var(--urus-gold)]" />
                     </div>
                     <div>
@@ -92,7 +92,7 @@ export default function RankingPage() {
             {/* Top 3 + Bottom 3 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* TOP 3 */}
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
                             <Medal className="h-4 w-4 text-[var(--urus-gold)]" />
@@ -106,7 +106,7 @@ export default function RankingPage() {
                             return (
                                 <Link key={c.id} href={`/colaboradores/${c.id}`}>
                                     <div
-                                        className="rounded-xl p-4 border transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer"
+                                        className="rounded-lg p-4 border transition-all hover:shadow-[var(--shadow-elevated)] hover:-translate-y-0.5 cursor-pointer"
                                         style={{
                                             borderColor: `color-mix(in oklch, ${medalColors[i]} 30%, transparent)`,
                                             backgroundColor: `color-mix(in oklch, ${medalColors[i]} 4%, transparent)`,
@@ -168,7 +168,7 @@ export default function RankingPage() {
                 </Card>
 
                 {/* BOTTOM 3 */}
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
                             <AlertTriangle className="h-4 w-4 text-[var(--urus-danger)]" />
@@ -182,7 +182,7 @@ export default function RankingPage() {
                             const diff = c.slaReal - c.slaEsperado;
                             return (
                                 <Link key={c.id} href={`/colaboradores/${c.id}`}>
-                                    <div className="rounded-xl p-4 border border-[var(--urus-danger)]/15 bg-[var(--urus-danger)]/3 transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer">
+                                    <div className="rounded-lg p-4 border border-[var(--urus-danger)]/15 bg-[var(--urus-danger)]/3 transition-all hover:shadow-[var(--shadow-elevated)] hover:-translate-y-0.5 cursor-pointer">
                                         <div className="flex items-center gap-3">
                                             <div className="h-10 w-10 rounded-lg bg-[var(--urus-danger)]/10 flex items-center justify-center text-sm font-bold text-[var(--urus-danger)]">
                                                 #{sorted.length - i}
@@ -235,7 +235,7 @@ export default function RankingPage() {
             </div>
 
             {/* Comparativas chart */}
-            <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+            <Card className="border-border/50">
                 <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -280,14 +280,14 @@ export default function RankingPage() {
             </Card>
 
             {/* Full Ranking Table */}
-            <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+            <Card className="border-border/50">
                 <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Users className="h-4 w-4 text-secondary" />
                             <CardTitle className="text-sm font-semibold">Tabla Ranking Completa</CardTitle>
                         </div>
-                        <div className="flex items-center gap-1 bg-accent/30 rounded-xl p-1 border border-border/30">
+                        <div className="flex items-center gap-1 bg-accent/30 rounded-lg p-1 border border-border/30">
                             {([
                                 { key: "score" as SortField, label: "Score" },
                                 { key: "sla" as SortField, label: "SLA" },

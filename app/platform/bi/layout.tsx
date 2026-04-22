@@ -50,7 +50,7 @@ export default function BILayout({ children }: BILayoutProps) {
                 </p>
             </div>
             <CeoSnapshotAlert />
-            <div className="flex items-center space-x-1 overflow-x-auto pb-2">
+            <div className="flex items-center gap-1 overflow-x-auto border border-border rounded-lg p-1">
                 {ceoNavigation.map((item) => {
                     const isActive = pathname.startsWith(item.href);
                     const Icon = item.icon;
@@ -59,10 +59,10 @@ export default function BILayout({ children }: BILayoutProps) {
                             key={item.href}
                             href={item.href}
                             className={cn(
-                                "flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap",
+                                "flex items-center space-x-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap",
                                 isActive
-                                    ? "bg-primary text-primary-foreground shadow-sm"
-                                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                             )}
                         >
                             <Icon className="h-4 w-4" />

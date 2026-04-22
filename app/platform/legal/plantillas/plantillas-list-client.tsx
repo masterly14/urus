@@ -176,7 +176,7 @@ export function PlantillasListClient({ templates }: { templates: TemplateRow[] }
                 <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{tpl.version}</td>
                 <td className="px-4 py-3">
                   {tpl.isActive ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                    <span className="inline-flex items-center gap-1 text-xs text-urus-success">
                       <CheckCircle2 className="h-3.5 w-3.5" />
                       Activa
                     </span>
@@ -186,7 +186,7 @@ export function PlantillasListClient({ templates }: { templates: TemplateRow[] }
                       Publicada (inactiva)
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                    <span className="inline-flex items-center gap-1 text-xs text-urus-warning">
                       <Clock className="h-3.5 w-3.5" />
                       Borrador
                     </span>

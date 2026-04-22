@@ -226,13 +226,13 @@ export function SmartClosingVoicePanel({
           >
             <div
               className={cn(
-                "rounded-xl px-3 py-2",
+                "rounded-lg px-3 py-2",
                 b.type === "assistant" &&
                   "bg-neutral-900 border border-neutral-800 text-neutral-100",
                 b.type === "user" &&
                   "bg-blue-600 text-white",
                 b.type === "missing-data" &&
-                  "bg-amber-50 border border-amber-200 text-amber-800",
+                  "bg-amber-50 border border-amber-200 text-urus-warning",
               )}
             >
               {b.text.split("\n").map((line, i) => (
@@ -249,7 +249,7 @@ export function SmartClosingVoicePanel({
 
         {busy && (
           <div className="max-w-[85%]">
-            <div className="rounded-xl px-3 py-2 bg-neutral-900 border border-neutral-800 text-neutral-400 text-[13px]">
+            <div className="rounded-lg px-3 py-2 bg-neutral-900 border border-neutral-800 text-neutral-400 text-[13px]">
               <span className="inline-flex gap-1">
                 <span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span>
                 <span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span>
@@ -263,7 +263,7 @@ export function SmartClosingVoicePanel({
       </div>
 
       {localError && (
-        <p className="text-xs text-red-300 px-4 py-1 bg-red-950/50" role="alert">
+        <p className="text-xs text-urus-danger px-4 py-1 bg-red-950/50" role="alert">
           {localError}
         </p>
       )}
@@ -287,7 +287,7 @@ export function SmartClosingVoicePanel({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-9 w-9 shrink-0 rounded-full text-red-400 hover:text-red-300 hover:bg-red-900/40"
+              className="h-9 w-9 shrink-0 rounded-full text-urus-danger hover:text-urus-danger hover:bg-urus-danger/10"
               onClick={stopRecording}
               aria-label="Detener grabacion"
             >
@@ -331,7 +331,7 @@ export function SmartClosingVoicePanel({
         </div>
 
         {isRecording && (
-          <p className="text-[11px] text-red-500 mt-1.5 text-center animate-pulse">
+          <p className="text-[11px] text-urus-danger mt-1.5 text-center animate-pulse">
             Escuchando... pulsa el cuadrado para detener
           </p>
         )}

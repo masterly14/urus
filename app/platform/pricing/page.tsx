@@ -23,6 +23,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PropertyCard } from "@/components/pricing/property-card";
+import { AiIndicator } from "@/components/ui/ai-indicator";
 import { propertiesListFixture } from "@/lib/mock-data/pricing-fixture";
 
 export interface PropertyListItem {
@@ -250,13 +251,13 @@ export default function PricingPage() {
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <Skeleton className="h-24 rounded-xl" />
-          <Skeleton className="h-24 rounded-xl" />
-          <Skeleton className="h-24 rounded-xl" />
+          <Skeleton className="h-24 rounded-lg" />
+          <Skeleton className="h-24 rounded-lg" />
+          <Skeleton className="h-24 rounded-lg" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-48 rounded-xl" />
+            <Skeleton key={i} className="h-48 rounded-lg" />
           ))}
         </div>
       </div>
@@ -266,7 +267,7 @@ export default function PricingPage() {
   if (error) {
     return (
       <div className="space-y-6">
-        <Card className="border-[var(--urus-danger)]/30 bg-card/60 backdrop-blur-sm">
+        <Card className="border-[var(--urus-danger)]/30">
           <CardContent className="p-8 text-center space-y-4">
             <AlertTriangle className="h-12 w-12 text-[var(--urus-danger)] mx-auto" />
             <h2 className="text-lg font-semibold">Error cargando propiedades</h2>
@@ -282,11 +283,14 @@ export default function PricingPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
             <Tag className="h-5 w-5 text-secondary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Smart Pricing</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight">Smart Pricing</h1>
+              <AiIndicator label="Valoración IA" />
+            </div>
             <p className="text-sm text-muted-foreground">
               Selecciona un inmueble para generar su informe de precio
             </p>
@@ -306,7 +310,7 @@ export default function PricingPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+        <Card className="border border-border">
           <CardContent className="p-5">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
               Total propiedades
@@ -314,7 +318,7 @@ export default function PricingPage() {
             <p className="text-2xl font-bold font-mono">{properties.length}</p>
           </CardContent>
         </Card>
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+        <Card className="border border-border">
           <CardContent className="p-5">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
               Valor cartera
@@ -324,7 +328,7 @@ export default function PricingPage() {
             </p>
           </CardContent>
         </Card>
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+        <Card className="border border-border">
           <CardContent className="p-5">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
               €/m² medio
@@ -337,7 +341,7 @@ export default function PricingPage() {
       </div>
 
       {/* Filters */}
-      <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+      <Card className="border border-border">
         <CardContent className="p-4">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
@@ -421,7 +425,7 @@ export default function PricingPage() {
 
       {/* Properties Grid/List */}
       {filtered.length === 0 ? (
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+        <Card className="border border-border">
           <CardContent className="p-12 text-center">
             <MapPin className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">
@@ -440,7 +444,7 @@ export default function PricingPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+          <Card className="border border-border">
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full">

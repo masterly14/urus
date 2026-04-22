@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { AiIndicator } from "@/components/ui/ai-indicator";
 
 export interface CruceMatch {
     id: string;
@@ -128,8 +129,8 @@ function MatchCard({ match, isNew = false, className }: MatchCardProps) {
     return (
         <Card
             className={cn(
-                "border-border/50 bg-card/80 backdrop-blur-sm hover:bg-card hover:shadow-lg hover:shadow-background/20 transition-all duration-500 group overflow-hidden",
-                isNew && "animate-in slide-in-from-top-4 ease-out duration-700 ring-2 ring-secondary/30",
+                "transition-all duration-300 group overflow-hidden hover:shadow-[var(--shadow-elevated)]",
+                isNew && "animate-in slide-in-from-top-4 ease-out duration-700 ring-2 ring-primary/20",
                 className
             )}
         >
@@ -138,10 +139,11 @@ function MatchCard({ match, isNew = false, className }: MatchCardProps) {
             <CardContent className="p-4 space-y-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <ArrowLeftRight className="h-4 w-4 text-secondary" />
+                        <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
                         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                             Cruce Automático
                         </span>
+                        <AiIndicator />
                         {isNew && (
                             <Badge className="text-[9px] px-1.5 bg-secondary/15 text-secondary border-secondary/30 animate-pulse">
                                 Nuevo
@@ -161,7 +163,7 @@ function MatchCard({ match, isNew = false, className }: MatchCardProps) {
 
                 <div className="grid grid-cols-1 md:grid-cols-[1fr,auto,1fr] gap-3 items-center">
                     {/* Property */}
-                    <div className="rounded-xl p-3 bg-accent/20 border border-border/30 space-y-2">
+                    <div className="rounded-lg p-3 bg-accent/20 border border-border/30 space-y-2">
                         <div className="flex items-center gap-1.5">
                             <Home className="h-3.5 w-3.5 text-secondary" />
                             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Propiedad</span>
@@ -224,7 +226,7 @@ function MatchCard({ match, isNew = false, className }: MatchCardProps) {
                     </div>
 
                     {/* Buyer / Demand */}
-                    <div className="rounded-xl p-3 bg-accent/20 border border-border/30 space-y-2">
+                    <div className="rounded-lg p-3 bg-accent/20 border border-border/30 space-y-2">
                         <div className="flex items-center gap-1.5">
                             <User className="h-3.5 w-3.5 text-[var(--urus-gold)]" />
                             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Demanda</span>

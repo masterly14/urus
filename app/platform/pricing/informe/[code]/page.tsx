@@ -280,12 +280,12 @@ function InformeSkeleton() {
   return (
     <div className="space-y-6">
       <Skeleton className="h-4 w-48" />
-      <Skeleton className="h-40 w-full rounded-xl" />
+      <Skeleton className="h-40 w-full rounded-lg" />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Skeleton className="h-56 w-full rounded-xl" />
-        <Skeleton className="h-56 w-full rounded-xl" />
+        <Skeleton className="h-56 w-full rounded-lg" />
+        <Skeleton className="h-56 w-full rounded-lg" />
       </div>
-      <Skeleton className="h-64 w-full rounded-xl" />
+      <Skeleton className="h-64 w-full rounded-lg" />
     </div>
   );
 }
@@ -315,7 +315,7 @@ function InformeError({
       >
         <ArrowLeft className="h-3 w-3" /> Volver a Smart Pricing
       </Link>
-      <Card className="border-[var(--urus-danger)]/30 bg-card/60 backdrop-blur-sm">
+      <Card className="border-[var(--urus-danger)]/30">
         <CardContent className="p-8 text-center space-y-4">
           <AlertTriangle className="h-12 w-12 text-[var(--urus-danger)] mx-auto" />
           <h2 className="text-lg font-semibold">
@@ -350,7 +350,7 @@ function SectionHeader({ data }: { data: PricingAnalysisResult }) {
   const semConfig = semaforoConfig[stats.semaforo];
 
   return (
-    <Card className="border-border/50 bg-card/60 backdrop-blur-sm overflow-hidden">
+    <Card className="border border-border overflow-hidden">
       <div className="h-1.5" style={{ backgroundColor: semConfig.color }} />
       <CardContent className="p-6">
         <div className="flex items-start justify-between flex-wrap gap-4">
@@ -407,7 +407,7 @@ function KpiBox({
   valueColor?: string;
 }) {
   return (
-    <div className="text-center px-4 py-2 rounded-xl bg-accent/10 border border-border/20">
+    <div className="text-center px-4 py-2 rounded-lg bg-accent/10 border border-border/20">
       <p className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</p>
       <p className="text-lg font-bold font-mono" style={valueColor ? { color: valueColor } : undefined}>
         {value}
@@ -425,7 +425,7 @@ function SectionTemporalTrend({
   if (!trend) return null;
 
   return (
-    <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+    <Card className="border border-border">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <TrendingDown className="h-4 w-4 text-secondary" />
@@ -433,7 +433,7 @@ function SectionTemporalTrend({
         </div>
       </CardHeader>
       <CardContent className="pt-0 space-y-4">
-        <div className="rounded-xl p-4 bg-accent/10 border border-border/20">
+        <div className="rounded-lg p-4 bg-accent/10 border border-border/20">
           <p className="text-xs text-muted-foreground leading-relaxed">{trend.summary}</p>
         </div>
 
@@ -472,7 +472,7 @@ function SectionDiagnostico({
 
   if (recommendationError || !recommendation) {
     return (
-      <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+      <Card className="border border-border">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <BrainCircuit className="h-4 w-4 text-secondary" />
@@ -480,7 +480,7 @@ function SectionDiagnostico({
           </div>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="rounded-xl p-4 bg-accent/10 border border-border/20">
+          <div className="rounded-lg p-4 bg-accent/10 border border-border/20">
             <p className="text-xs text-muted-foreground leading-relaxed">
               No se pudo generar la recomendación IA. Diagnóstico estadístico: diferencia de{" "}
               <span className="font-bold text-foreground">
@@ -504,7 +504,7 @@ function SectionDiagnostico({
 
   return (
     <Card
-      className="border-border/50 bg-card/60 backdrop-blur-sm overflow-hidden"
+      className="border border-border overflow-hidden"
       style={{ borderColor: `color-mix(in oklch, ${accion.color} 25%, var(--color-border))` }}
     >
       <div className="h-1" style={{ backgroundColor: accion.color }} />
@@ -534,7 +534,7 @@ function SectionDiagnostico({
           {accion.label}
         </Badge>
 
-        <div className="rounded-xl p-4 bg-accent/10 border border-border/20">
+        <div className="rounded-lg p-4 bg-accent/10 border border-border/20">
           <div className="flex items-start gap-2">
             <Sparkles className="h-4 w-4 text-[var(--urus-gold)] shrink-0 mt-0.5" />
             <p className="text-xs text-muted-foreground leading-relaxed">{recommendation.diagnostico}</p>
@@ -549,7 +549,7 @@ function SectionDiagnostico({
 
 function SectionRecomendaciones({ recommendation, input }: { recommendation: PricingRecommendation; input: PricingAnalysisResult["input"] }) {
   return (
-    <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+    <Card className="border border-border">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-secondary" />
@@ -559,7 +559,7 @@ function SectionRecomendaciones({ recommendation, input }: { recommendation: Pri
       <CardContent className="pt-0 space-y-4">
         <div className="space-y-2">
           {recommendation.recomendaciones.map((r, i) => (
-            <div key={i} className="flex items-start gap-3 rounded-xl p-3 bg-accent/5 border border-border/10 hover:bg-accent/10 transition-colors">
+            <div key={i} className="flex items-start gap-3 rounded-lg p-3 bg-accent/5 border border-border/10 hover:bg-accent/10 transition-colors">
               <span className="h-6 w-6 rounded-full bg-secondary/10 flex items-center justify-center shrink-0 text-[10px] font-bold text-secondary">
                 {i + 1}
               </span>
@@ -593,7 +593,7 @@ function SectionArgumentosRiesgos({ recommendation }: { recommendation: PricingR
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {hasArgs && (
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+        <Card className="border border-border">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <Shield className="h-4 w-4 text-[var(--urus-success)]" />
@@ -612,7 +612,7 @@ function SectionArgumentosRiesgos({ recommendation }: { recommendation: PricingR
       )}
 
       {hasRisks && (
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+        <Card className="border border-border">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-[var(--urus-danger)]" />
@@ -640,7 +640,7 @@ function SectionComparacionPrecios({ data }: { data: PricingAnalysisResult }) {
   const maxScale = Math.max(input.precioM2, stats.precioMedioM2, stats.precioMaxM2) * 1.15;
 
   return (
-    <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+    <Card className="border border-border">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-secondary" />
@@ -710,7 +710,7 @@ function PriceBar({
 
 function MiniStat({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
   return (
-    <div className="text-center rounded-xl p-3 bg-accent/10 border border-border/20">
+    <div className="text-center rounded-lg p-3 bg-accent/10 border border-border/20">
       <p className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</p>
       <p className="text-lg font-bold font-mono" style={valueColor ? { color: valueColor } : undefined}>
         {value}
@@ -789,7 +789,7 @@ function ComparableDetailCard({ c, input }: { c: PricingComparable; input: Prici
   const isLower = c.precioM2 < input.precioM2;
 
   return (
-    <div className="border border-border/30 rounded-lg bg-card/40 overflow-hidden">
+    <div className="border border-border/30 rounded-lg bg-card overflow-hidden">
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr]">
         {/* Left: photo */}
         <div className="lg:border-r border-border/20">
@@ -974,7 +974,7 @@ function SectionComparables({ data }: { data: PricingAnalysisResult }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
-    <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+    <Card className="border border-border">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -1098,7 +1098,7 @@ function SectionMapaComparables({ data }: { data: PricingAnalysisResult }) {
       />
       <div className="absolute bottom-2 left-2 flex items-center gap-3 bg-black/70 rounded-md px-2.5 py-1.5 text-[10px] text-white">
         <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-red-500" /> Tu inmueble
+          <span className="w-2 h-2 rounded-full bg-urus-danger" /> Tu inmueble
         </span>
         <span className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-blue-500" /> Comparables ({geoComparables.length})
@@ -1125,7 +1125,7 @@ function SectionExtras({ data }: { data: PricingAnalysisResult }) {
   if (top5.length === 0) return null;
 
   return (
-    <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+    <Card className="border border-border">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <Check className="h-4 w-4 text-[var(--urus-success)]" />
@@ -1190,7 +1190,7 @@ function SectionMetadata({ data }: { data: PricingAnalysisResult }) {
   const { queryMeta, analyzedAt } = data;
 
   return (
-    <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+    <Card className="border border-border">
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-6 py-3 text-left hover:bg-accent/10 transition-colors"
@@ -1398,7 +1398,7 @@ function InformeContent({ data, onRefresh }: { data: PricingAnalysisResult; onRe
       <SectionHeader data={data} />
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-xl bg-accent/10 border border-border/20">
+      <div className="flex gap-1 p-1 rounded-lg bg-accent/10 border border-border/20">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -1466,7 +1466,7 @@ function TabMercado({ data }: { data: PricingAnalysisResult }) {
     <div className="space-y-5">
       {/* Map + table side by side on large screens */}
       {hasGeo && (
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+        <Card className="border border-border">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <MapPin className="h-4 w-4 text-secondary" />

@@ -248,13 +248,13 @@ function ConfiguracionContent() {
           </CardContent>
         </Card>
 
-        <Card className="border-amber-200/50 dark:border-amber-800/50">
+        <Card className="border-urus-warning/30 dark:border-urus-warning/30">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Errores / DLQ</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <AlertTriangle className="h-4 w-4 text-urus-warning" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+            <div className="text-2xl font-bold text-urus-warning">
               {data.jobQueue.failed + data.jobQueue.deadLetter}
             </div>
             <p className="text-xs text-muted-foreground">

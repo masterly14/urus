@@ -528,7 +528,7 @@ export function OperationPanelDrawer({
                             </TabsList>
 
                             <TabsContent value="notas" className="mt-3 space-y-3">
-                                <div className="space-y-2 rounded-lg border border-border/40 bg-card/40 p-3">
+                                <div className="space-y-2 rounded-lg border border-border/40 bg-card p-3">
                                     <textarea
                                         value={nuevaNota}
                                         onChange={(e) => setNuevaNota(e.target.value.slice(0, NOTA_MAX_LENGTH))}
@@ -565,7 +565,7 @@ export function OperationPanelDrawer({
                                         {notas.map((nota) => (
                                             <li
                                                 key={nota.id}
-                                                className="rounded-lg border border-border/40 bg-card/60 p-3 space-y-2"
+                                                className="rounded-lg border border-border/40 bg-card p-3 space-y-2"
                                             >
                                                 <div className="flex items-start justify-between gap-2">
                                                     <div className="min-w-0 flex-1">
@@ -648,7 +648,7 @@ export function OperationPanelDrawer({
                             </TabsContent>
 
                             <TabsContent value="checklist" className="mt-3 space-y-3">
-                                <div className="space-y-2 rounded-lg border border-border/40 bg-card/40 p-3">
+                                <div className="space-y-2 rounded-lg border border-border/40 bg-card p-3">
                                     <input
                                         type="text"
                                         value={nuevoItem}
@@ -702,7 +702,7 @@ export function OperationPanelDrawer({
                                         {checklist.map((item, idx) => (
                                             <li
                                                 key={item.id}
-                                                className="flex items-start gap-2 rounded-lg border border-border/40 bg-card/60 p-2.5"
+                                                className="flex items-start gap-2 rounded-lg border border-border/40 bg-card p-2.5"
                                             >
                                                 <button
                                                     type="button"
@@ -840,7 +840,7 @@ export function OperationPanelDrawer({
                             </TabsContent>
 
                             <TabsContent value="adjuntos" className="mt-3 space-y-3">
-                                <div className="space-y-2 rounded-lg border border-border/40 bg-card/40 p-3">
+                                <div className="space-y-2 rounded-lg border border-border/40 bg-card p-3">
                                     <input
                                         ref={fileInputRef}
                                         type="file"
@@ -887,7 +887,7 @@ export function OperationPanelDrawer({
                                         {adjuntos.map((adj) => (
                                             <li
                                                 key={adj.id}
-                                                className="flex items-center gap-2 rounded-lg border border-border/40 bg-card/60 p-2.5"
+                                                className="flex items-center gap-2 rounded-lg border border-border/40 bg-card p-2.5"
                                             >
                                                 <FileText className="h-4 w-4 text-secondary shrink-0" />
                                                 <div className="min-w-0 flex-1">

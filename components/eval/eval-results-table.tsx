@@ -19,7 +19,7 @@ type ResultRow = {
 };
 
 function ScoreBadge({ score }: { score: number }) {
-  const color = score >= 0.85 ? "text-emerald-400" : score >= 0.7 ? "text-amber-400" : "text-rose-400";
+  const color = score >= 0.85 ? "text-urus-success" : score >= 0.7 ? "text-urus-warning" : "text-urus-danger";
   return <span className={`font-mono text-xs ${color}`}>{score.toFixed(2)}</span>;
 }
 
@@ -27,7 +27,7 @@ export function EvalResultsTable({ results }: { results: ResultRow[] }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 overflow-hidden">
+    <div className="rounded-lg border border-neutral-800 bg-neutral-900/40 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
@@ -65,9 +65,9 @@ export function EvalResultsTable({ results }: { results: ResultRow[] }) {
                   <td className="px-3 py-2 text-right text-neutral-400">{r.latencyMs}</td>
                   <td className="px-3 py-2 text-right">
                     {r.failures.length > 0 ? (
-                      <span className="text-rose-400">{r.failures.length}</span>
+                      <span className="text-urus-danger">{r.failures.length}</span>
                     ) : (
-                      <span className="text-emerald-500">0</span>
+                      <span className="text-urus-success">0</span>
                     )}
                   </td>
                 </tr>
@@ -88,7 +88,7 @@ export function EvalResultsTable({ results }: { results: ResultRow[] }) {
                         {r.failures.length > 0 ? (
                           <div>
                             <span className="text-neutral-500">Fallos: </span>
-                            <ul className="mt-1 list-disc pl-4 text-rose-300">
+                            <ul className="mt-1 list-disc pl-4 text-urus-danger">
                               {r.failures.map((f, i) => <li key={i}>{f}</li>)}
                             </ul>
                           </div>

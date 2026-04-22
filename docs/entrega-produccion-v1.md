@@ -26,7 +26,7 @@
 
 ### ¿Qué se ha construido?
 
-Se ha construido un **sistema de automatización integral** que envuelve el CRM actual (Inmovilla) y lo convierte en el centro de un ecosistema inteligente. El sistema no reemplaza Inmovilla — lo potencia. Inmovilla sigue siendo donde viven los datos legales y definitivos. Lo que se ha añadido encima es un "cerebro" que:
+Se ha construido un **sistema de automatización integral** que envuelve el CRM actual (Inmovilla) y lo convierte en el centro de un ecosistema inteligente. El sistema no reemplaza Inmovilla — lo potencia. Inmovilla sigue siendo donde viven los datos y definitivos. Lo que se ha añadido encima es un "cerebro" que:
 
 - **Lee automáticamente** todo lo que pasa en Inmovilla (propiedades nuevas, cambios de precio, demandas, contactos).
 - **Piensa y decide** (cruza compradores con propiedades, puntúa leads, analiza precios de mercado).
@@ -72,11 +72,7 @@ Se ha construido un **sistema de automatización integral** que envuelve el CRM 
 
 **¿Qué hace el sistema?** Cruza esa propiedad nueva contra todos los compradores activos y busca compatibilidades reales (zona, precio, metros, tipo de vivienda, preferencias).
 
-**Página relacionada:** `/platform/matching` — Aquí se ven los cruces automáticos generados.
-
----
-
-### 2.2. Notificaciones automáticas por WhatsApp
+**Página relacionada:** `/platform/matching` — Aquí se ven los cruces automáticos generado2.2. Notificaciones automáticas por WhatsApp
 
 **¿Qué pasa?** Cuando el sistema detecta que un comprador encaja con una propiedad nueva, le envía un WhatsApp automáticamente. El mensaje incluye la información de la propiedad y le pregunta si le interesa.
 

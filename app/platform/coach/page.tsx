@@ -88,7 +88,7 @@ export default function CoachPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[var(--urus-info)]/20 to-[var(--urus-info)]/5 flex items-center justify-center">
+                        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-[var(--urus-info)]/20 to-[var(--urus-info)]/5 flex items-center justify-center">
                             <Brain className="h-5 w-5 text-[var(--urus-info)]" />
                         </div>
                         <div>
@@ -107,7 +107,7 @@ export default function CoachPage() {
 
             {/* KPI Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-5">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-[var(--urus-info)]/15 p-2.5">
@@ -121,7 +121,7 @@ export default function CoachPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-5">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-secondary/15 p-2.5">
@@ -135,7 +135,7 @@ export default function CoachPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-5">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-[var(--urus-danger)]/15 p-2.5">
@@ -149,7 +149,7 @@ export default function CoachPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-5">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-[var(--urus-success)]/15 p-2.5">
@@ -167,7 +167,7 @@ export default function CoachPage() {
             {/* Main Content: Gauge + Needs Support + Bar Chart */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Stress Gauge */}
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardHeader className="pb-2">
                         <div className="flex items-center gap-2">
                             <Heart className="h-4 w-4 text-[var(--urus-danger)]" />
@@ -201,7 +201,7 @@ export default function CoachPage() {
                 </Card>
 
                 {/* Needs Support */}
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
@@ -229,7 +229,7 @@ export default function CoachPage() {
                                 {needsSupportList.map((c) => (
                                     <div
                                         key={c.comercialId}
-                                        className="flex items-center gap-3 rounded-xl p-3 bg-[var(--urus-danger)]/5 border border-[var(--urus-danger)]/15 hover:bg-[var(--urus-danger)]/10 transition-colors"
+                                        className="flex items-center gap-3 rounded-lg p-3 bg-[var(--urus-danger)]/5 border border-[var(--urus-danger)]/15 hover:bg-[var(--urus-danger)]/10 transition-colors"
                                     >
                                         <div className="h-10 w-10 rounded-full bg-[var(--urus-danger)]/15 flex items-center justify-center text-sm font-bold text-[var(--urus-danger)]">
                                             {c.avatar}
@@ -269,7 +269,7 @@ export default function CoachPage() {
                 </Card>
 
                 {/* Weekly Usage Bar Chart */}
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
                             <TrendingUp className="h-4 w-4 text-secondary" />
@@ -312,7 +312,7 @@ export default function CoachPage() {
             </div>
 
             {/* Metrics Table */}
-            <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+            <Card className="border-border/50">
                 <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">

@@ -161,7 +161,7 @@ export default function ContratoDetallePage({ params }: { params: Promise<{ id: 
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr,350px] gap-4 min-h-0">
 
                 {/* Visual Editor (Left Panel) */}
-                <Card className="flex flex-col overflow-hidden border-border/50 bg-card/60 backdrop-blur-sm shadow-sm h-full">
+                <Card className="flex flex-col overflow-hidden border-border/50 shadow-sm h-full">
                     <div className="bg-muted/30 border-b border-border/30 p-2 flex items-center justify-between">
                         <div className="flex items-center gap-1">
                             <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
@@ -265,11 +265,11 @@ export default function ContratoDetallePage({ params }: { params: Promise<{ id: 
                 {/* Right Panel: Tools & Voice (Fixed Width) */}
                 <div className="flex flex-col gap-4">
                     {/* Voice Interaction Card */}
-                    <Card className={cn("border-border/50 bg-card/60 backdrop-blur-sm transition-all duration-300", isRecording ? "border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.15)]" : "")}>
+                    <Card className={cn("border-border/50 transition-all duration-300", isRecording ? "border-urus-danger/50 shadow-[0_0_20px_rgba(239,68,68,0.15)]" : "")}>
                         <CardHeader className="pb-2">
                             <CardTitle className="text-sm font-semibold flex items-center justify-between">
                                 Voice-to-Action
-                                {isRecording && <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />}
+                                {isRecording && <span className="flex h-2 w-2 rounded-full bg-urus-danger animate-pulse" />}
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -279,13 +279,13 @@ export default function ContratoDetallePage({ params }: { params: Promise<{ id: 
                                     disabled={isRecording || isProcessing}
                                     className={cn(
                                         "h-20 w-20 rounded-full flex items-center justify-center transition-all duration-300 relative group",
-                                        isRecording ? "bg-red-500/10 scale-110" : "bg-secondary/10 hover:bg-secondary/20 hover:scale-105"
+                                        isRecording ? "bg-urus-danger/10 scale-110" : "bg-secondary/10 hover:bg-secondary/20"
                                     )}
                                 >
                                     {isRecording ? (
                                         <>
-                                            <div className="absolute inset-0 rounded-full border-2 border-red-500 animate-ping opacity-20" />
-                                            <div className="h-8 w-8 bg-red-500 rounded-sm" />
+                                            <div className="absolute inset-0 rounded-full border-2 border-urus-danger animate-ping opacity-20" />
+                                            <div className="h-8 w-8 bg-urus-danger rounded-sm" />
                                         </>
                                     ) : (
                                         <Mic className={cn("h-8 w-8", isProcessing ? "text-muted-foreground animate-pulse" : "text-secondary")} />
@@ -315,7 +315,7 @@ export default function ContratoDetallePage({ params }: { params: Promise<{ id: 
                             {/* AI Action Proposal */}
                             {aiAction && (
                                 <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-300">
-                                    <div className="rounded-xl border border-secondary/30 bg-secondary/5 p-3 space-y-2">
+                                    <div className="rounded-lg border border-secondary/30 bg-secondary/5 p-3 space-y-2">
                                         <div className="flex items-center gap-2 text-secondary font-semibold text-xs">
                                             <Wand2 className="h-3 w-3" />
                                             Acción Propuesta
@@ -342,7 +342,7 @@ export default function ContratoDetallePage({ params }: { params: Promise<{ id: 
                     </Card>
 
                     {/* Variables Panel */}
-                    <Card className="flex-1 flex flex-col border-border/50 bg-card/60 backdrop-blur-sm overflow-hidden">
+                    <Card className="flex-1 flex flex-col border-border/50 overflow-hidden">
                         <div className="flex items-center gap-1 p-2 border-b border-border/30 overflow-x-auto">
                             <Button
                                 variant={activeTab === "variables" ? "secondary" : "ghost"}

@@ -49,10 +49,10 @@ export function FirmaHeader({
         </div>
       </div>
       {isUiMock && (
-        <div className="bg-amber-50 border-b border-amber-200 text-amber-800">
+        <div className="bg-urus-warning/10 border-b border-urus-warning/30 text-urus-warning">
           <p className="px-4 py-2 text-center text-xs font-medium md:px-6">
             Vista previa (mock): datos y PDF de demostración. Añade{" "}
-            <code className="rounded bg-amber-100 px-1 py-0.5 text-amber-900 border border-amber-200">?mock=1</code> a la URL.
+            <code className="rounded bg-urus-warning/20 px-1 py-0.5 text-urus-warning border border-urus-warning/30">?mock=1</code> a la URL.
           </p>
         </div>
       )}
@@ -74,7 +74,7 @@ export function DeclineBlock({
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="w-full text-xs text-slate-500 hover:text-red-600 hover:bg-red-50 mt-4 transition-colors">
+        <Button variant="ghost" size="sm" className="w-full text-xs text-slate-500 hover:text-urus-danger hover:bg-urus-danger/10 mt-4 transition-colors">
           No deseo firmar este documento
         </Button>
       </AlertDialogTrigger>
@@ -127,13 +127,13 @@ export function StatusCard({
 }) {
   if (status === "declined") {
     return (
-      <div className="flex flex-col items-center justify-center p-8 text-center space-y-4 bg-red-50 rounded-xl border border-red-100">
+      <div className="flex flex-col items-center justify-center p-8 text-center space-y-4 bg-red-50 rounded-lg border border-red-100">
         <div className="rounded-full bg-red-100 p-3">
-          <XCircle className="h-10 w-10 text-red-600" />
+          <XCircle className="h-10 w-10 text-urus-danger" />
         </div>
         <div>
-          <p className="text-lg font-semibold text-red-900">Firma rechazada</p>
-          <p className="text-sm text-red-600/80 mt-1 max-w-sm">
+          <p className="text-lg font-semibold text-urus-danger">Firma rechazada</p>
+          <p className="text-sm text-urus-danger/80 mt-1 max-w-sm">
             Has indicado que no deseas firmar este documento. El equipo ha sido notificado.
           </p>
         </div>
@@ -142,18 +142,18 @@ export function StatusCard({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center p-8 text-center space-y-4 bg-emerald-50 rounded-xl border border-emerald-100">
+    <div className="flex flex-col items-center justify-center p-8 text-center space-y-4 bg-emerald-50 rounded-lg border border-emerald-100">
       <div className="rounded-full bg-emerald-100 p-3">
-        <CheckCircle2 className="h-10 w-10 text-emerald-600" />
+        <CheckCircle2 className="h-10 w-10 text-urus-success" />
       </div>
       <div>
         <p className="text-lg font-semibold text-emerald-900">Documento firmado con éxito</p>
-        <p className="text-sm text-emerald-700 mt-1 max-w-sm">
+        <p className="text-sm text-urus-success mt-1 max-w-sm">
           {date ? `Firmado el ${new Date(date).toLocaleDateString("es-ES")}` : "La firma se ha completado correctamente."}
         </p>
       </div>
       {documentUrl && (
-        <Button asChild variant="outline" className="mt-2 bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800">
+        <Button asChild variant="outline" className="mt-2 bg-white border-urus-success/30 text-urus-success hover:bg-urus-success/10 hover:text-urus-success">
           <a href={documentUrl} target="_blank" rel="noopener noreferrer">
             Descargar documento firmado
           </a>

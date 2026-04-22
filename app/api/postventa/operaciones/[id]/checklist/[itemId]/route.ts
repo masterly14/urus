@@ -12,6 +12,7 @@ const UpdateItemSchema = z.object({
   texto: z.string().trim().min(1).max(CHECKLIST_ITEM_MAX_LENGTH).optional(),
   completado: z.boolean().optional(),
   responsableComercialId: z.string().trim().min(1).nullable().optional(),
+  responsableColaboradorId: z.string().trim().min(1).nullable().optional(),
   orden: z.number().int().min(0).optional(),
 });
 
@@ -42,6 +43,9 @@ const patchHandler = async (request: Request, { params }: Params) => {
   if (parsed.data.responsableComercialId !== undefined) {
     data.responsableComercialId = parsed.data.responsableComercialId;
   }
+  if (parsed.data.responsableColaboradorId !== undefined) {
+    data.responsableColaboradorId = parsed.data.responsableColaboradorId;
+  }
   if (parsed.data.completado !== undefined) {
     data.completado = parsed.data.completado;
     if (parsed.data.completado && !existing.completado) {
@@ -66,6 +70,7 @@ const patchHandler = async (request: Request, { params }: Params) => {
       completado: updated.completado,
       orden: updated.orden,
       responsableComercialId: updated.responsableComercialId,
+      responsableColaboradorId: updated.responsableColaboradorId,
       createdByUserId: updated.createdByUserId,
       completadoByUserId: updated.completadoByUserId,
       completadoAt: updated.completadoAt?.toISOString() ?? null,

@@ -40,7 +40,7 @@ export function CollaboratorCard({ collaborator, rank, className }: Collaborator
         <Link href={`/colaboradores/${collaborator.id}`}>
             <Card
                 className={cn(
-                    "border-border/50 bg-card/80 backdrop-blur-sm hover:bg-card hover:shadow-md hover:shadow-background/20 transition-all duration-300 hover:-translate-y-0.5 cursor-pointer group",
+                    "border-border/50 hover:bg-card hover:shadow-[var(--shadow-elevated)] transition-all duration-300 hover:-translate-y-0.5 cursor-pointer group",
                     className
                 )}
             >
@@ -113,7 +113,7 @@ export function CollaboratorCard({ collaborator, rank, className }: Collaborator
                             width={100}
                             height={22}
                         />
-                        <ArrowRight className="h-3 w-3 text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <ArrowRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
                 </CardContent>
             </Card>

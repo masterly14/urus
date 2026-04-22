@@ -50,9 +50,9 @@ function AlertIcon({ type }: { type: string }) {
 function severityColor(severity: string) {
   switch (severity) {
     case "high":
-      return { border: "#ef4444", bg: "bg-red-100 text-red-600", text: "text-red-600" };
+      return { border: "#ef4444", bg: "bg-urus-danger/10 text-urus-danger", text: "text-urus-danger" };
     case "medium":
-      return { border: "#f59e0b", bg: "bg-amber-100 text-amber-600", text: "text-amber-600" };
+      return { border: "#f59e0b", bg: "bg-urus-warning/10 text-urus-warning", text: "text-urus-warning" };
     default:
       return { border: "#3b82f6", bg: "bg-blue-100 text-blue-600", text: "text-blue-600" };
   }
@@ -106,35 +106,35 @@ export default function PerformanceAlertsPage() {
     <div className="space-y-6">
       {/* Summary cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800">
+        <Card className="bg-urus-danger/5 dark:bg-urus-danger/10 border-urus-danger/30 dark:border-urus-danger/20">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-red-800 dark:text-red-200">
+            <CardTitle className="text-sm font-medium text-urus-danger">
               Alertas Críticas
             </CardTitle>
-            <AlertOctagon className="h-4 w-4 text-red-600 dark:text-red-400" />
+            <AlertOctagon className="h-4 w-4 text-urus-danger" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-700 dark:text-red-300">
+            <div className="text-2xl font-bold text-urus-danger">
               {loading ? "-" : highCount}
             </div>
-            <p className="text-xs text-red-600/80 dark:text-red-400/80">
+            <p className="text-xs text-urus-danger/80">
               Severidad alta sin resolver
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800">
+        <Card className="bg-urus-warning/5 dark:bg-urus-warning/10 border-urus-warning/30 dark:border-urus-warning/20">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-amber-800 dark:text-amber-200">
+            <CardTitle className="text-sm font-medium text-urus-warning">
               Plazos Incumplidos
             </CardTitle>
-            <ShieldAlert className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <ShieldAlert className="h-4 w-4 text-urus-warning" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">
+            <div className="text-2xl font-bold text-urus-warning">
               {loading ? "-" : slaCount}
             </div>
-            <p className="text-xs text-amber-600/80 dark:text-amber-400/80">
+            <p className="text-xs text-urus-warning/80">
               Clientes, firma o micrositio
             </p>
           </CardContent>
@@ -206,8 +206,8 @@ export default function PerformanceAlertsPage() {
         </div>
 
         {error && (
-          <Card className="border-red-200 bg-red-50 dark:bg-red-900/10">
-            <CardContent className="p-4 text-sm text-red-700 dark:text-red-300">
+          <Card className="border-urus-danger/30 bg-urus-danger/5 dark:bg-urus-danger/10">
+            <CardContent className="p-4 text-sm text-urus-danger">
               Error: {error}
             </CardContent>
           </Card>
@@ -221,7 +221,7 @@ export default function PerformanceAlertsPage() {
 
         {!loading && alerts.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
-            <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-emerald-500/50" />
+            <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-urus-success/50" />
             <p>No hay alertas activas. El rendimiento es optimo.</p>
           </div>
         )}
@@ -292,7 +292,7 @@ function AlertCard({
                 {SEVERITY_LABELS[alert.severity] ?? alert.severity}
               </Badge>
               {alert.resolvedAt && (
-                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 font-normal">
+                <Badge variant="outline" className="bg-urus-success/10 text-urus-success border-urus-success/30 font-normal">
                   Resuelta
                 </Badge>
               )}

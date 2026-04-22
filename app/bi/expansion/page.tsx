@@ -39,7 +39,7 @@ export default function ExpansionDashboard() {
 
     return (
         <div className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
                 {/* Readiness Checklist */}
                 <Card className="h-full">
                     <CardHeader>
@@ -110,9 +110,9 @@ export default function ExpansionDashboard() {
                     <CardContent>
                         <div className="space-y-6">
                             {potentialLocations.map((loc) => (
-                                <div key={loc.city} className="flex items-center justify-between p-3 border rounded-lg bg-card/50 hover:bg-accent/50 transition-colors">
+                                <div key={loc.city} className="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-accent/50 transition-colors">
                                     <div className="flex items-center gap-3">
-                                        <div className="bg-primary/10 p-2 rounded-full">
+                                        <div className="bg-primary/10 p-2 rounded-lg">
                                             <MapPin className="h-4 w-4 text-primary" />
                                         </div>
                                         <div>
@@ -123,7 +123,7 @@ export default function ExpansionDashboard() {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <div className="flex items-center gap-1 justify-end font-bold text-emerald-600">
+                                        <div className="flex items-center gap-1 justify-end font-bold text-urus-success">
                                             <TrendingUp className="h-3 w-3" />
                                             {loc.roi}% ROI
                                         </div>
@@ -150,7 +150,7 @@ export default function ExpansionDashboard() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="grid md:grid-cols-3 gap-8">
+                        <div className="grid md:grid-cols-3 gap-4">
                         <div className="space-y-4">
                             <div className="space-y-2">
                                 <label className="text-sm font-medium">Inversión Inicial (€)</label>
@@ -182,7 +182,7 @@ export default function ExpansionDashboard() {
                         <div className="md:col-span-2 h-[200px] bg-slate-800/50 rounded-lg p-4 flex items-center justify-center border border-slate-700 border-dashed">
                             <div className="text-center space-y-2">
                                 <p className="text-slate-400 text-sm">ROI Estimado (Año 1)</p>
-                                <p className="text-4xl font-bold text-emerald-400">
+                                <p className="text-4xl font-bold text-urus-success">
                                     {(((projectedRevenue - simulationInvestment) / simulationInvestment) * 100).toFixed(1)}%
                                 </p>
                                 <p className="text-xs text-slate-500">

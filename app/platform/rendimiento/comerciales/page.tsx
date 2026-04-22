@@ -46,10 +46,10 @@ import {
 } from "@/lib/dashboard/comercial/classify";
 
 const PROFILE_STYLES: Record<ComercialProfile, string> = {
-    top_performer: "bg-emerald-100 text-emerald-800 border-emerald-200",
-    productivo_ineficiente: "bg-amber-100 text-amber-800 border-amber-200",
+    top_performer: "bg-urus-success/10 text-urus-success border-urus-success/30",
+    productivo_ineficiente: "bg-urus-warning/10 text-urus-warning border-urus-warning/30",
     dependiente_lead_caliente: "bg-blue-100 text-blue-800 border-blue-200",
-    bajo_rendimiento_estructural: "bg-red-100 text-red-800 border-red-200",
+    bajo_rendimiento_estructural: "bg-urus-danger/10 text-urus-danger border-urus-danger/30",
     sin_datos_suficientes: "bg-gray-100 text-gray-600 border-gray-200",
 };
 
@@ -150,9 +150,9 @@ export default function ComercialesDashboardPage() {
             <div className="flex items-center justify-center h-64">
                 <Card className="max-w-md">
                     <CardContent className="p-6 text-center space-y-2">
-                        <AlertTriangle className="h-8 w-8 text-red-500 mx-auto" />
+                        <AlertTriangle className="h-8 w-8 text-urus-danger mx-auto" />
                         <p className="text-sm text-muted-foreground">Error al cargar datos</p>
-                        <p className="text-xs text-red-500">{error}</p>
+                        <p className="text-xs text-urus-danger">{error}</p>
                     </CardContent>
                 </Card>
             </div>
@@ -218,7 +218,7 @@ export default function ComercialesDashboardPage() {
             {loading ? (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     {Array.from({ length: 4 }).map((_, i) => (
-                        <Skeleton key={i} className="h-[120px] rounded-xl" />
+                        <Skeleton key={i} className="h-[120px] rounded-lg" />
                     ))}
                 </div>
             ) : (
@@ -382,9 +382,9 @@ export default function ComercialesDashboardPage() {
                                         <TableCell className="text-right">
                                             <span className={cn(
                                                 "text-sm font-medium",
-                                                row.conversionLeadToVisit >= 0.15 ? "text-emerald-600" :
-                                                    row.conversionLeadToVisit >= 0.08 ? "text-yellow-600" :
-                                                        "text-red-500"
+                                                row.conversionLeadToVisit >= 0.15 ? "text-urus-success" :
+                                                    row.conversionLeadToVisit >= 0.08 ? "text-urus-warning" :
+                                                        "text-urus-danger"
                                             )}>
                                                 {formatPercent(row.conversionLeadToVisit)}
                                             </span>
@@ -392,9 +392,9 @@ export default function ComercialesDashboardPage() {
                                         <TableCell className="text-right">
                                             <span className={cn(
                                                 "text-sm font-medium",
-                                                row.conversionVisitToClose >= 0.3 ? "text-emerald-600" :
-                                                    row.conversionVisitToClose >= 0.15 ? "text-yellow-600" :
-                                                        "text-red-500"
+                                                row.conversionVisitToClose >= 0.3 ? "text-urus-success" :
+                                                    row.conversionVisitToClose >= 0.15 ? "text-urus-warning" :
+                                                        "text-urus-danger"
                                             )}>
                                                 {formatPercent(row.conversionVisitToClose)}
                                             </span>

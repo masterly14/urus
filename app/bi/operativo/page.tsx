@@ -99,10 +99,10 @@ export default function OperationalDashboard() {
                                                         className={cn(
                                                             "w-[60px]",
                                                             agent.efficiency > 90
-                                                                ? "bg-emerald-100"
+                                                                ? "bg-urus-success"
                                                                 : agent.efficiency < 70
-                                                                    ? "bg-red-100"
-                                                                    : "bg-yellow-100"
+                                                                    ? "bg-urus-danger"
+                                                                    : "bg-urus-warning"
                                                         )}
                                                     />
                                                     <span className="text-sm font-bold">{agent.efficiency}%</span>
@@ -140,22 +140,22 @@ export default function OperationalDashboard() {
                 {sortedAgents
                     .filter((a) => a.efficiency < 70)
                     .map((agent) => (
-                        <Card key={agent.agentId} className="border-red-200 bg-red-50 dark:bg-red-900/10">
+                        <Card key={agent.agentId} className="border-urus-danger/20 bg-urus-danger/5">
                             <CardHeader className="flex flex-row items-center gap-2 pb-2">
-                                <AlertOctagon className="h-5 w-5 text-red-600" />
-                                <CardTitle className="text-sm font-medium text-red-900 dark:text-red-200">
+                                <AlertOctagon className="h-5 w-5 text-urus-danger" />
+                                <CardTitle className="text-sm font-medium text-urus-danger">
                                     Bajo Rendimiento Detectado
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <p className="text-sm text-red-800 dark:text-red-300">
+                                <p className="text-sm text-urus-danger">
                                     El agente <span className="font-bold">{agent.agentName}</span> ({agent.city}) tiene una eficiencia del {agent.efficiency}%, muy por debajo de la media.
                                 </p>
                                 <div className="mt-4 flex gap-2">
-                                    <Badge variant="outline" className="bg-white hover:bg-white text-red-700 border-red-200">
+                                    <Badge variant="outline" className="bg-white hover:bg-white text-urus-danger border-urus-danger/20">
                                         Sugerir Capacitación
                                     </Badge>
-                                    <Badge variant="outline" className="bg-white hover:bg-white text-red-700 border-red-200">
+                                    <Badge variant="outline" className="bg-white hover:bg-white text-urus-danger border-urus-danger/20">
                                         Revisar Leads
                                     </Badge>
                                 </div>

@@ -89,9 +89,9 @@ function phaseColor(phase: ConversationPhase): string {
     case "REVIEWING_OPTIONS":
       return "border-violet-800 bg-violet-500/10 text-violet-300";
     case "GIVING_FEEDBACK":
-      return "border-amber-800 bg-amber-500/10 text-amber-300";
+      return "border-urus-warning/30 bg-urus-warning/10 text-urus-warning";
     case "SCHEDULING_VISIT":
-      return "border-emerald-800 bg-emerald-500/10 text-emerald-300";
+      return "border-urus-success/30 bg-urus-success/10 text-urus-success";
     case "IDLE_FOLLOWUP":
       return "border-neutral-700 bg-neutral-800 text-neutral-300";
     default:
@@ -106,13 +106,13 @@ function toolBadgeColor(name: string): string {
     case "emit_selection_feedback":
       return "border-violet-800 bg-violet-500/10 text-violet-300";
     case "update_demand":
-      return "border-amber-800 bg-amber-500/10 text-amber-300";
+      return "border-urus-warning/30 bg-urus-warning/10 text-urus-warning";
     case "request_more_options":
-      return "border-emerald-800 bg-emerald-500/10 text-emerald-300";
+      return "border-urus-success/30 bg-urus-success/10 text-urus-success";
     case "initiate_visit":
       return "border-fuchsia-800 bg-fuchsia-500/10 text-fuchsia-300";
     case "escalate_to_human":
-      return "border-rose-800 bg-rose-500/10 text-rose-300";
+      return "border-urus-danger/30 bg-urus-danger/10 text-urus-danger";
     case "get_property_details":
       return "border-cyan-800 bg-cyan-500/10 text-cyan-300";
     default:
@@ -311,7 +311,7 @@ export default function ChatAgentePage() {
   return (
     <div className="flex h-full min-h-screen flex-col bg-neutral-950 text-neutral-100">
       {/* Header */}
-      <header className="border-b border-neutral-800 bg-neutral-900/80 px-4 py-3 backdrop-blur sm:px-6">
+      <header className="border-b border-neutral-800 bg-neutral-900/80 px-4 py-3 sm:px-6">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <div>
             <h1 className="text-lg font-semibold">Chat con el agente conversacional</h1>
@@ -339,7 +339,7 @@ export default function ChatAgentePage() {
       <div className="mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[320px,1fr]">
         {/* Sidebar: contexto */}
         <aside className="flex flex-col gap-4">
-          <section className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+          <section className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
             <h2 className="mb-2 text-sm font-semibold">Contexto</h2>
             <div className="flex flex-col gap-2">
               {presets.map((p) => (
@@ -364,14 +364,14 @@ export default function ChatAgentePage() {
 
           {selectedPreset ? (
             <>
-              <section className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+              <section className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
                   Descripción
                 </h3>
                 <p className="text-xs text-neutral-300">{selectedPreset.description}</p>
               </section>
 
-              <section className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+              <section className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
                 <div className="mb-2 flex items-center justify-between">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
                     Digest del comprador
@@ -419,7 +419,7 @@ export default function ChatAgentePage() {
                 )}
               </section>
 
-              <section className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+              <section className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
                   Propiedades ({selectedPreset.properties.length})
                 </h3>
@@ -451,7 +451,7 @@ export default function ChatAgentePage() {
         </aside>
 
         {/* Chat */}
-        <section className="flex flex-col overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
+        <section className="flex flex-col overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900">
           <div
             ref={scrollRef}
             className="flex-1 space-y-3 overflow-y-auto p-4"
@@ -482,7 +482,7 @@ export default function ChatAgentePage() {
           {/* Composer */}
           <div className="border-t border-neutral-800 bg-neutral-950 p-3">
             {error ? (
-              <div className="mb-2 rounded-md border border-rose-800 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+              <div className="mb-2 rounded-md border border-urus-danger/30 bg-urus-danger/10 px-3 py-2 text-xs text-urus-danger">
                 {error}
               </div>
             ) : null}
@@ -535,7 +535,7 @@ function TurnBubble({ turn }: { turn: AgentTurn }) {
       <div className="flex justify-end">
         <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-emerald-600/90 px-3 py-2 text-sm text-white shadow">
           {renderWhatsAppText(turn.text)}
-          <div className="mt-1 text-right text-[10px] text-emerald-100/70">
+          <div className="mt-1 text-right text-[10px] text-urus-success/70">
             {formatTime(turn.timestamp)}
           </div>
         </div>

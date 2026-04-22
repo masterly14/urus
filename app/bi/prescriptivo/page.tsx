@@ -87,7 +87,7 @@ export default function PrescriptiveDashboard() {
                 </Card>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-3">
+            <div className="grid gap-4 lg:grid-cols-3">
                 <div className="lg:col-span-2 space-y-4">
                     <h2 className="text-xl font-semibold tracking-tight">Recomendaciones Activas</h2>
                     <div className="grid gap-4">
@@ -126,7 +126,7 @@ export default function PrescriptiveDashboard() {
                                             <span className="font-semibold text-muted-foreground flex items-center gap-1">
                                                 <Coins className="h-3 w-3" /> Impacto Estimado:
                                             </span>
-                                            <p className="font-bold text-emerald-600 dark:text-emerald-400">
+                                            <p className="font-bold text-urus-success">
                                                 {rec.impact}
                                             </p>
                                         </div>
@@ -161,7 +161,7 @@ export default function PrescriptiveDashboard() {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-right py-3 align-top">
-                                                <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                                                <Badge variant="outline" className="text-[10px] bg-urus-success/10 text-urus-success border-urus-success/20">
                                                     Activa
                                                 </Badge>
                                             </TableCell>
@@ -182,14 +182,14 @@ export default function PrescriptiveDashboard() {
                         <CardContent>
                             <div className="space-y-4">
                                 <div className="flex items-start gap-3 text-sm">
-                                    <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5" />
+                                    <CheckCircle2 className="h-4 w-4 text-urus-success mt-0.5" />
                                     <div>
                                         <p className="font-medium">Redistribución Leads (Enero)</p>
                                         <p className="text-xs text-muted-foreground">Logró aumentar conversiones un 4%</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3 text-sm">
-                                    <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5" />
+                                    <CheckCircle2 className="h-4 w-4 text-urus-success mt-0.5" />
                                     <div>
                                         <p className="font-medium">Contratación Jr. (Noviembre)</p>
                                         <p className="text-xs text-muted-foreground">ROI positivo en mes 2</p>

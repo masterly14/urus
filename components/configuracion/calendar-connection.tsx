@@ -166,35 +166,35 @@ export function CalendarConnection() {
 
       <CardContent className="space-y-4">
         {flashMessage === "connected" && (
-          <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-800 dark:bg-green-950/50 dark:text-green-200">
+          <div className="flex items-center gap-2 rounded-lg border border-urus-success/30 bg-urus-success-bg px-4 py-3 text-sm text-urus-success">
             <CheckCircle2 className="h-4 w-4 shrink-0" />
             Calendario conectado correctamente. Las visitas se sincronizarán
             automáticamente.
           </div>
         )}
         {flashMessage === "failed" && (
-          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200">
+          <div className="flex items-center gap-2 rounded-lg border border-urus-danger/30 bg-urus-danger-bg px-4 py-3 text-sm text-urus-danger">
             <XCircle className="h-4 w-4 shrink-0" />
             No se pudo conectar el calendario. Inténtalo de nuevo.
           </div>
         )}
 
         {error && (
-          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200">
+          <div className="flex items-center gap-2 rounded-lg border border-urus-danger/30 bg-urus-danger-bg px-4 py-3 text-sm text-urus-danger">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             {error}
           </div>
         )}
 
         {missingComercialLink ? (
-          <div className="rounded-lg border border-amber-200/60 bg-amber-50/50 px-4 py-3 dark:border-amber-800/60 dark:bg-amber-950/30">
+          <div className="rounded-lg border border-urus-warning/30 bg-urus-warning-bg px-4 py-3">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-              <div className="space-y-1 text-sm text-amber-800 dark:text-amber-200">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-urus-warning" />
+              <div className="space-y-1 text-sm text-urus-warning">
                 <p className="font-medium">
                   Configuración pendiente
                 </p>
-                <p className="text-amber-700 dark:text-amber-300">
+                <p className="text-urus-warning/80">
                   Tu cuenta aún no está vinculada a una ficha de comercial.
                   Contacta a un administrador para que complete la vinculación
                   desde <strong>Configuración → Usuarios</strong>.
@@ -266,14 +266,14 @@ export function CalendarConnection() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="rounded-lg border border-amber-200/60 bg-amber-50/50 px-4 py-3 dark:border-amber-800/60 dark:bg-amber-950/30">
+            <div className="rounded-lg border border-urus-warning/30 bg-urus-warning-bg px-4 py-3">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-urus-warning" />
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                  <p className="text-sm font-medium text-urus-warning">
                     Calendario no conectado
                   </p>
-                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                  <p className="text-sm text-urus-warning/80">
                     Para que el sistema pueda agendar visitas automáticamente,
                     necesitas conectar tu Google Calendar. Esto permite consultar
                     tu disponibilidad y crear eventos de visita directamente en

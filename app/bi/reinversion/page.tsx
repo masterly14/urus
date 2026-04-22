@@ -34,19 +34,19 @@ export default function ReinvestmentDashboard() {
 
     return (
         <div className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
                 <Card className="bg-slate-900 text-slate-50 border-slate-800">
                     <CardHeader>
                         <CardTitle className="text-slate-400 font-medium text-sm">Tesorería Disponible</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center gap-4">
-                            <Banknote className="h-10 w-10 text-emerald-400" />
+                            <Banknote className="h-10 w-10 text-urus-success" />
                             <div>
                                 <p className="text-4xl font-bold font-mono">
                                     €{currentTreasury.toLocaleString()}
                                 </p>
-                                <p className="text-sm text-emerald-400 flex items-center gap-1 mt-1">
+                                <p className="text-sm text-urus-success flex items-center gap-1 mt-1">
                                     <ArrowUpRight className="h-3 w-3" /> +12% vs mes anterior
                                 </p>
                             </div>
@@ -79,7 +79,7 @@ export default function ReinvestmentDashboard() {
                 </Card>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-3">
                 <div className="md:col-span-2 space-y-6">
                     <Card>
                         <CardHeader>
@@ -108,7 +108,7 @@ export default function ReinvestmentDashboard() {
                                                 €{inv.amount.toLocaleString()}
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                <span className="font-bold text-emerald-600">
+                                                <span className="font-bold text-urus-success">
                                                     {inv.roi}%
                                                 </span>
                                             </TableCell>
@@ -117,7 +117,7 @@ export default function ReinvestmentDashboard() {
                                                     {inv.status === "active" ? (
                                                         <RefreshCcw className="h-3 w-3 text-blue-500 animate-spin-slow" />
                                                     ) : (
-                                                        <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                                                        <div className="h-2 w-2 rounded-full bg-urus-success" />
                                                     )}
                                                     <span className="text-xs capitalization">{inv.status}</span>
                                                 </div>

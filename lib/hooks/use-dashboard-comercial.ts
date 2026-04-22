@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import useSWR from "swr";
 import type { ComercialesDashboardRow, ComercialDashboardDetail } from "@/lib/dashboard/comercial/queries";
 import type { ComercialProfile } from "@/lib/dashboard/comercial/classify";
 import { useSession } from "@/lib/hooks/use-session";
+import { swrAuthFetcher } from "@/lib/swr/config";
 
 export interface DashboardComercialesFilters {
   from?: string;
@@ -48,38 +49,21 @@ function buildSearchParams(filters: DashboardComercialesFilters): string {
 
 export function useDashboardComerciales(filters: DashboardComercialesFilters = {}) {
   const { sessionHeaders } = useSession();
-  const [data, setData] = useState<ComercialesResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const qs = buildSearchParams(filters);
+  const url = `/api/dashboard/comerciales${qs}`;
 
-  const headersJson = JSON.stringify(sessionHeaders);
+  const { data, error, isLoading, mutate } = useSWR<ComercialesResponse>(
+    sessionHeaders ? [url, sessionHeaders] : null,
+    swrAuthFetcher,
+    { keepPreviousData: true },
+  );
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const qs = buildSearchParams(filters);
-      const res = await fetch(`/api/dashboard/comerciales${qs}`, {
-        headers: JSON.parse(headersJson) as Record<string, string>,
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `HTTP ${res.status}`);
-      }
-      const json: ComercialesResponse = await res.json();
-      setData(json);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [filters.from, filters.to, filters.includeInactive, headersJson]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  return { data, loading, error, refetch: fetchData };
+  return {
+    data: data ?? null,
+    loading: isLoading,
+    error: error?.message ?? null,
+    refetch: () => { mutate(); },
+  };
 }
 
 export function useDashboardComercialDetail(
@@ -87,37 +71,19 @@ export function useDashboardComercialDetail(
   filters: DashboardComercialesFilters = {},
 ) {
   const { sessionHeaders } = useSession();
-  const [data, setData] = useState<ComercialDetailResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const qs = buildSearchParams(filters);
+  const url = comercialId ? `/api/dashboard/comercial/${comercialId}${qs}` : null;
 
-  const headersJson = JSON.stringify(sessionHeaders);
+  const { data, error, isLoading, mutate } = useSWR<ComercialDetailResponse>(
+    url && sessionHeaders ? [url, sessionHeaders] : null,
+    swrAuthFetcher,
+    { keepPreviousData: true },
+  );
 
-  const fetchData = useCallback(async () => {
-    if (!comercialId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const qs = buildSearchParams(filters);
-      const res = await fetch(`/api/dashboard/comercial/${comercialId}${qs}`, {
-        headers: JSON.parse(headersJson) as Record<string, string>,
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `HTTP ${res.status}`);
-      }
-      const json: ComercialDetailResponse = await res.json();
-      setData(json);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [comercialId, filters.from, filters.to, filters.includeInactive, headersJson]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  return { data, loading, error, refetch: fetchData };
+  return {
+    data: data ?? null,
+    loading: isLoading,
+    error: error?.message ?? null,
+    refetch: () => { mutate(); },
+  };
 }

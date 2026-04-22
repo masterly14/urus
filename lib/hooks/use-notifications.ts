@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import useSWR from "swr";
 import type { Channel } from "pusher-js";
 import type { AppNotification } from "@/lib/mock-data/types";
 import { useAppSession } from "@/lib/hooks/use-session";
@@ -13,35 +14,26 @@ function userChannel(userId: string): string {
   return `private-notifications-user-${userId}`;
 }
 
+interface NotificationsResponse {
+  notifications: AppNotification[];
+}
+
 export function useNotifications() {
   const { user, isCeoOrAdmin } = useAppSession();
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [pusherNotifications, setPusherNotifications] = useState<AppNotification[]>([]);
   const [connected, setConnected] = useState(false);
   const subscribedChannels = useRef<Channel[]>([]);
 
+  const { data: initialData, mutate } = useSWR<NotificationsResponse>(
+    user?.id ? "/api/notifications" : null,
+  );
+
+  const notifications = mergeNotifications(
+    initialData?.notifications ?? [],
+    pusherNotifications,
+  );
+
   const unreadCount = notifications.filter((n) => !n.read).length;
-
-  useEffect(() => {
-    if (!user?.id) return;
-
-    let cancelled = false;
-
-    async function fetchInitial() {
-      try {
-        const res = await fetch("/api/notifications");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!cancelled && Array.isArray(data.notifications)) {
-          setNotifications(data.notifications);
-        }
-      } catch {
-        // Silently fail — notifications will arrive via Pusher
-      }
-    }
-
-    fetchInitial();
-    return () => { cancelled = true; };
-  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -71,7 +63,7 @@ export function useNotifications() {
         channels.push(channel);
 
         channel.bind(PUSHER_EVENT_NAME, (data: AppNotification) => {
-          setNotifications((prev) => {
+          setPusherNotifications((prev) => {
             if (prev.some((n) => n.id === data.id)) return prev;
             return [data, ...prev].slice(0, MAX_NOTIFICATIONS);
           });
@@ -107,8 +99,19 @@ export function useNotifications() {
   }, [user?.id, isCeoOrAdmin]);
 
   const markAsRead = useCallback(async (id: string) => {
-    setNotifications((prev) =>
+    setPusherNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
+    );
+    mutate(
+      (current) =>
+        current
+          ? {
+              notifications: current.notifications.map((n) =>
+                n.id === id ? { ...n, read: true } : n,
+              ),
+            }
+          : current,
+      false,
     );
 
     try {
@@ -120,10 +123,17 @@ export function useNotifications() {
     } catch {
       // Optimistic update already applied
     }
-  }, []);
+  }, [mutate]);
 
   const markAllRead = useCallback(async () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setPusherNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    mutate(
+      (current) =>
+        current
+          ? { notifications: current.notifications.map((n) => ({ ...n, read: true })) }
+          : current,
+      false,
+    );
 
     try {
       await fetch("/api/notifications", {
@@ -134,7 +144,23 @@ export function useNotifications() {
     } catch {
       // Optimistic update already applied
     }
-  }, []);
+  }, [mutate]);
 
   return { notifications, unreadCount, markAsRead, markAllRead, connected };
+}
+
+function mergeNotifications(
+  initial: AppNotification[],
+  pusher: AppNotification[],
+): AppNotification[] {
+  const seen = new Set<string>();
+  const merged: AppNotification[] = [];
+
+  for (const n of [...pusher, ...initial]) {
+    if (seen.has(n.id)) continue;
+    seen.add(n.id);
+    merged.push(n);
+  }
+
+  return merged.slice(0, MAX_NOTIFICATIONS);
 }

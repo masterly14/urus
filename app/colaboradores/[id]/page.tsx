@@ -76,7 +76,7 @@ export default function ColaboradorDetallePage({ params }: { params: Promise<{ i
                     <ArrowLeft className="h-4 w-4" />
                     Volver a Colaboradores
                 </Link>
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardContent className="flex flex-col items-center justify-center py-20 text-center">
                         <p className="text-lg font-semibold mb-2">Colaborador no encontrado</p>
                         <p className="text-sm text-muted-foreground">El colaborador solicitado no existe.</p>
@@ -113,7 +113,7 @@ export default function ColaboradorDetallePage({ params }: { params: Promise<{ i
             </Link>
 
             {/* Header Card */}
-            <Card className="border-border/50 bg-card/60 backdrop-blur-sm overflow-hidden">
+            <Card className="border-border/50 overflow-hidden">
                 <div
                     className="h-1.5"
                     style={{ backgroundColor: estadoConfig[collab.estado].color }}
@@ -122,7 +122,7 @@ export default function ColaboradorDetallePage({ params }: { params: Promise<{ i
                     <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
                         <div className="space-y-3 flex-1">
                             <div className="flex items-center gap-3 flex-wrap">
-                                <div className="h-12 w-12 rounded-xl bg-accent/40 flex items-center justify-center text-lg font-bold text-secondary">
+                                <div className="h-12 w-12 rounded-lg bg-accent/40 flex items-center justify-center text-lg font-bold text-secondary">
                                     {collab.nombre.split(" ")[0].slice(0, 2).toUpperCase()}
                                 </div>
                                 <div>
@@ -175,7 +175,7 @@ export default function ColaboradorDetallePage({ params }: { params: Promise<{ i
             {/* Score + SLA + Comparison */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Score Gauge */}
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
                             <Target className="h-4 w-4 text-secondary" />
@@ -255,7 +255,7 @@ export default function ColaboradorDetallePage({ params }: { params: Promise<{ i
                 </Card>
 
                 {/* SLA Detail */}
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4 text-[var(--urus-info)]" />
@@ -322,7 +322,7 @@ export default function ColaboradorDetallePage({ params }: { params: Promise<{ i
                 </Card>
 
                 {/* Cross-comparison vs type average */}
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
                             <BarChart3 className="h-4 w-4 text-[var(--urus-gold)]" />
@@ -383,7 +383,7 @@ export default function ColaboradorDetallePage({ params }: { params: Promise<{ i
                         })}
 
                         {/* Rank within type */}
-                        <div className="rounded-xl p-3 bg-accent/20 border border-border/30 mt-2">
+                        <div className="rounded-lg p-3 bg-accent/20 border border-border/30 mt-2">
                             <div className="flex items-center gap-2">
                                 <Award className="h-4 w-4 text-[var(--urus-gold)]" />
                                 <div>
@@ -402,7 +402,7 @@ export default function ColaboradorDetallePage({ params }: { params: Promise<{ i
             </div>
 
             {/* Operations Table */}
-            <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+            <Card className="border-border/50">
                 <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">

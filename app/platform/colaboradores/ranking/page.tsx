@@ -261,7 +261,7 @@ export default function DashboardColaboradoresPage() {
 
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[var(--urus-gold)]/20 to-[var(--urus-gold)]/5 flex items-center justify-center">
+        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-[var(--urus-gold)]/20 to-[var(--urus-gold)]/5 flex items-center justify-center">
           <Trophy className="h-5 w-5 text-[var(--urus-gold)]" />
         </div>
         <div>
@@ -309,7 +309,7 @@ export default function DashboardColaboradoresPage() {
       </div>
 
       {/* Recomendaciones IA */}
-      <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+      <Card className="border-border/50">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-[#8b5cf6]" />
@@ -411,7 +411,7 @@ export default function DashboardColaboradoresPage() {
       {/* Distribución por clasificación */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {CLASIFICACIONES.map((cls) => (
-          <Card key={cls} className="border-border/50 bg-card/60 backdrop-blur-sm">
+          <Card key={cls} className="border-border/50">
             <CardContent className="p-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Semaforo status={SEMAFORO_CLASIFICACION[cls]} size="sm" />
@@ -427,7 +427,7 @@ export default function DashboardColaboradoresPage() {
 
       {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+        <Card className="border-border/50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Euro className="h-4 w-4 text-[var(--urus-success)]" />
@@ -452,7 +452,7 @@ export default function DashboardColaboradoresPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+        <Card className="border-border/50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-[#3b82f6]" />
@@ -480,7 +480,7 @@ export default function DashboardColaboradoresPage() {
 
       {/* Semáforos por tipo */}
       {metricasPorTipo.length > 0 && (
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+        <Card className="border-border/50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-secondary" />
@@ -542,7 +542,7 @@ export default function DashboardColaboradoresPage() {
       )}
 
       {/* Filters */}
-      <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+      <Card className="border-border/50">
         <CardContent className="p-4">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
@@ -591,7 +591,7 @@ export default function DashboardColaboradoresPage() {
       </Card>
 
       {/* Ranking completo */}
-      <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+      <Card className="border-border/50">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Trophy className="h-4 w-4 text-[var(--urus-gold)]" />
@@ -626,7 +626,7 @@ export default function DashboardColaboradoresPage() {
                     const medalColors = [
                       "text-[var(--urus-gold)]",
                       "text-gray-400",
-                      "text-amber-700",
+                      "text-urus-warning",
                     ];
 
                     return (

@@ -205,12 +205,12 @@ export function DocumentExplorer({ documents }: { documents: DocumentItem[] }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {currentDocs.length === 0 ? (
-          <div className="col-span-full h-32 flex items-center justify-center text-muted-foreground bg-muted/20 rounded-xl border border-dashed">
+          <div className="col-span-full h-32 flex items-center justify-center text-muted-foreground bg-muted/20 rounded-lg border border-dashed">
             Carpeta vacía.
           </div>
         ) : (
           currentDocs.map((doc) => (
-            <Card key={doc.id} className="flex flex-col h-full overflow-hidden transition-all hover:shadow-md border-transparent bg-card shadow-sm ring-1 ring-border/50">
+            <Card key={doc.id} className="flex flex-col h-full overflow-hidden transition-all hover:shadow-[var(--shadow-elevated)] border border-border bg-card shadow-sm">
               <div className="p-5 flex justify-between items-start gap-4">
                 <div className="overflow-hidden">
                   <h4 className="font-semibold text-base truncate" title={doc.operationId}>{doc.operationId}</h4>
@@ -222,7 +222,7 @@ export function DocumentExplorer({ documents }: { documents: DocumentItem[] }) {
               </div>
               
               <CardContent className="px-5 pb-5 pt-0 flex-1 flex flex-col gap-4">
-                <div className="space-y-3 bg-muted/20 p-4 rounded-xl">
+                <div className="space-y-3 bg-muted/20 p-4 rounded-lg">
                   {getMainSignerName(doc.parties) && (
                     <div className="flex items-center gap-3 text-sm">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">

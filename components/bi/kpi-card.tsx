@@ -1,6 +1,10 @@
-import { ArrowDownRight, ArrowUpRight, TrendingUp } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+
+/**
+ * Backward-compatible KPICard for BI/Rendimiento views.
+ * New code should use KpiCard from @/components/dashboard/kpi-card instead.
+ */
 
 interface KPICardProps {
     title: string;
@@ -16,44 +20,50 @@ export function KPICard({
     title,
     value,
     trend,
-    trendLabel = "vs last month",
+    trendLabel = "vs mes anterior",
     icon,
     className,
     Description,
 }: KPICardProps) {
-    const isPositive = trend && trend > 0;
-    const isNeutral = trend === 0;
+    const isPositive = trend !== undefined && trend > 0;
+    const isNegative = trend !== undefined && trend < 0;
 
     return (
-        <Card className={cn("overflow-hidden", className)}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-                {icon && <div className="text-muted-foreground opacity-70">{icon}</div>}
-            </CardHeader>
-            <CardContent>
-                <div className="text-2xl font-bold">{value}</div>
-                {(trend !== undefined || Description) && (
-                    <div className="flex items-center text-xs text-muted-foreground mt-1">
-                        {trend !== undefined && (
-                            <span
-                                className={cn(
-                                    "flex items-center font-medium mr-2",
-                                    isPositive ? "text-emerald-500" : isNeutral ? "text-yellow-500" : "text-red-500"
+        <Card className={cn("relative overflow-hidden transition-all duration-150 hover:shadow-[var(--shadow-elevated)]", className)}>
+            <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                    <div className="space-y-1.5">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            {title}
+                        </p>
+                        <p className="text-2xl font-bold tracking-tight">
+                            {value}
+                        </p>
+                        {(trend !== undefined || Description) && (
+                            <div className="flex items-center gap-1.5 text-xs">
+                                {trend !== undefined && (
+                                    <span
+                                        className={cn(
+                                            "font-semibold",
+                                            isPositive && "text-urus-success",
+                                            isNegative && "text-urus-danger",
+                                            !isPositive && !isNegative && "text-muted-foreground"
+                                        )}
+                                    >
+                                        {isPositive ? "+" : ""}
+                                        {typeof trend === "number" ? `${trend}%` : trend}
+                                    </span>
                                 )}
-                            >
-                                {isPositive ? (
-                                    <ArrowUpRight className="h-3 w-3 mr-1" />
-                                ) : isNeutral ? (
-                                    <TrendingUp className="h-3 w-3 mr-1" />
-                                ) : (
-                                    <ArrowDownRight className="h-3 w-3 mr-1" />
-                                )}
-                                {Math.abs(trend)}%
-                            </span>
+                                <span className="text-muted-foreground">{Description || trendLabel}</span>
+                            </div>
                         )}
-                        <span className="opacity-70">{Description || trendLabel}</span>
                     </div>
-                )}
+                    {icon && (
+                        <div className="rounded-lg bg-muted p-2.5 text-muted-foreground">
+                            {icon}
+                        </div>
+                    )}
+                </div>
             </CardContent>
         </Card>
     );

@@ -69,7 +69,7 @@ function PropertyImage({ property }: { property: PropertyListItem }) {
           alt={property.titulo || property.ref || property.codigo}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
-          className="object-contain transition-transform duration-500 group-hover:scale-[1.02]"
+          className="object-contain transition-transform duration-500"
           onError={() => setErrored(true)}
           unoptimized
         />
@@ -138,9 +138,9 @@ export function PropertyCard({ property, className }: PropertyCardProps) {
   const content = (
     <Card
       className={cn(
-        "overflow-hidden rounded-xl border-border/50 bg-card/80 py-0 backdrop-blur-sm transition-all duration-300",
+        "overflow-hidden rounded-lg border-border/50 py-0 transition-all duration-300",
         isEligible
-          ? "pointer-events-none cursor-pointer group-hover:border-border/80 group-hover:bg-card group-hover:-translate-y-0.5 group-hover:shadow-lg group-hover:shadow-background/20"
+          ? "pointer-events-none cursor-pointer group-hover:border-border/80 group-hover:bg-card group-hover:-translate-y-0.5 group-hover:shadow-[var(--shadow-elevated)]"
           : "cursor-not-allowed opacity-70",
         className,
       )}
@@ -151,7 +151,7 @@ export function PropertyCard({ property, className }: PropertyCardProps) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <Tag className="h-4 w-4 shrink-0 text-secondary" />
+              <Tag className="h-4 w-4 shrink-0 text-muted-foreground" />
               <p className="truncate text-base font-semibold leading-tight">
                 {property.titulo || property.ref || property.codigo}
               </p>
@@ -177,7 +177,7 @@ export function PropertyCard({ property, className }: PropertyCardProps) {
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-foreground/80">
           <span className="inline-flex items-center gap-1.5">
-            <MapPin className="h-4 w-4 text-secondary" />
+            <MapPin className="h-4 w-4 text-muted-foreground" />
             <span className="font-medium">
               {property.zona || property.ciudad}
             </span>
@@ -236,7 +236,7 @@ export function PropertyCard({ property, className }: PropertyCardProps) {
     <div className="group relative">
       <Link
         href={informeHref}
-        className="absolute inset-0 z-[1] rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="absolute inset-0 z-[1] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         aria-label={informeLabel}
       />
       <div className="relative z-[2] pointer-events-none">{content}</div>

@@ -14,6 +14,7 @@ type Params = { params: Promise<{ id: string }> };
 const CreateItemSchema = z.object({
   texto: z.string().trim().min(1).max(CHECKLIST_ITEM_MAX_LENGTH),
   responsableComercialId: z.string().trim().min(1).nullable().optional(),
+  responsableColaboradorId: z.string().trim().min(1).nullable().optional(),
 });
 
 type ItemRow = {
@@ -23,6 +24,7 @@ type ItemRow = {
   completado: boolean;
   orden: number;
   responsableComercialId: string | null;
+  responsableColaboradorId: string | null;
   createdByUserId: string;
   completadoByUserId: string | null;
   completadoAt: Date | null;
@@ -38,13 +40,30 @@ async function toDTOs(items: ItemRow[]): Promise<PanelChecklistItemDTO[]> {
         .filter((id): id is string => Boolean(id)),
     ),
   );
-  const nombres = new Map<string, string>();
+  const colaboradorIds = Array.from(
+    new Set(
+      items
+        .map((i) => i.responsableColaboradorId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+
+  const nombresComercial = new Map<string, string>();
+  const nombresColaborador = new Map<string, string>();
+
   if (comercialIds.length > 0) {
     const comerciales = await prisma.comercial.findMany({
       where: { id: { in: comercialIds } },
       select: { id: true, nombre: true },
     });
-    for (const c of comerciales) nombres.set(c.id, c.nombre);
+    for (const c of comerciales) nombresComercial.set(c.id, c.nombre);
+  }
+  if (colaboradorIds.length > 0) {
+    const colaboradores = await prisma.colaborador.findMany({
+      where: { id: { in: colaboradorIds } },
+      select: { id: true, nombre: true },
+    });
+    for (const c of colaboradores) nombresColaborador.set(c.id, c.nombre);
   }
 
   return items.map((i) => ({
@@ -55,7 +74,11 @@ async function toDTOs(items: ItemRow[]): Promise<PanelChecklistItemDTO[]> {
     orden: i.orden,
     responsableComercialId: i.responsableComercialId,
     responsableNombre: i.responsableComercialId
-      ? nombres.get(i.responsableComercialId) ?? null
+      ? nombresComercial.get(i.responsableComercialId) ?? null
+      : null,
+    responsableColaboradorId: i.responsableColaboradorId,
+    responsableColaboradorNombre: i.responsableColaboradorId
+      ? nombresColaborador.get(i.responsableColaboradorId) ?? null
       : null,
     createdByUserId: i.createdByUserId,
     completadoByUserId: i.completadoByUserId,
@@ -137,6 +160,7 @@ const postHandler = async (request: Request, { params }: Params) => {
       texto: parsed.data.texto,
       orden: nextOrden,
       responsableComercialId: parsed.data.responsableComercialId ?? null,
+      responsableColaboradorId: parsed.data.responsableColaboradorId ?? null,
       createdByUserId: session.userId,
     },
   });

@@ -179,7 +179,7 @@ function PipelineContent() {
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
                         <PackageCheck className="h-5 w-5 text-secondary" />
                     </div>
                     <div>
@@ -193,7 +193,7 @@ function PipelineContent() {
 
             {/* KPI Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-secondary/15 p-2">
@@ -207,7 +207,7 @@ function PipelineContent() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-[var(--urus-success)]/15 p-2">
@@ -223,7 +223,7 @@ function PipelineContent() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-[var(--urus-info)]/15 p-2">
@@ -237,7 +237,7 @@ function PipelineContent() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-[var(--urus-warning)]/15 p-2">
@@ -253,7 +253,7 @@ function PipelineContent() {
             </div>
 
             {/* Filters */}
-            <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+            <Card className="border-border/50">
                 <CardContent className="p-4">
                     <div className="flex items-center gap-4 flex-wrap">
                         <div className="flex items-center gap-2">
@@ -351,7 +351,7 @@ function PipelineContent() {
                 </CardContent>
             </Card>
 
-            <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+            <Card className="border-border/50">
                 <CardContent className="p-3">
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs text-muted-foreground">Vista del pipeline:</span>
@@ -390,15 +390,15 @@ function PipelineContent() {
             )}
 
             {loading ? (
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardContent className="p-6 text-sm text-muted-foreground">
                         Cargando pipeline post-venta...
                     </CardContent>
                 </Card>
             ) : (
-            <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-4">
                 {filteredOps.length === 0 ? (
-                    <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                    <Card className="border-border/50">
                         <CardContent className="p-6 text-sm text-muted-foreground">
                             No hay operaciones para los filtros actuales.
                         </CardContent>

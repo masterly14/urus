@@ -44,7 +44,10 @@ function RegisterContent() {
             return;
         }
 
-        fetch(`/api/invitations/validate?token=${encodeURIComponent(token)}`)
+        const validateUrl = new URL("/api/invitations/validate", window.location.origin);
+        validateUrl.searchParams.set("token", token);
+
+        fetch(validateUrl.toString())
             .then((r) => r.json())
             .then((data) => {
                 if (data.ok) {
@@ -121,7 +124,7 @@ function RegisterContent() {
     if (tokenError) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-background p-4">
-                <Card className="w-full max-w-md border-border/50 bg-card/50 backdrop-blur-xl">
+                <Card className="w-full max-w-md border-border/50">
                     <CardHeader className="text-center">
                         <XCircle className="mx-auto h-12 w-12 text-destructive" />
                         <CardTitle className="mt-4 text-xl">Invitación inválida</CardTitle>
@@ -140,9 +143,9 @@ function RegisterContent() {
     if (success) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-background p-4">
-                <Card className="w-full max-w-md border-border/50 bg-card/50 backdrop-blur-xl">
+                <Card className="w-full max-w-md border-border/50">
                     <CardHeader className="text-center">
-                        <CheckCircle2 className="mx-auto h-12 w-12 text-green-500" />
+                        <CheckCircle2 className="mx-auto h-12 w-12 text-urus-success" />
                         <CardTitle className="mt-4 text-xl">Cuenta creada</CardTitle>
                         <CardDescription>Redirigiendo al login...</CardDescription>
                     </CardHeader>
@@ -162,7 +165,7 @@ function RegisterContent() {
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-background p-4">
-            <Card className="w-full max-w-md border-border/50 bg-card/50 backdrop-blur-xl">
+            <Card className="w-full max-w-md border-border/50">
                 <CardHeader className="space-y-1 text-center">
                     <CardTitle className="text-2xl font-bold tracking-tight text-primary">
                         URUS Capital Group

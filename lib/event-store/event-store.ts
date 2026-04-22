@@ -1,5 +1,6 @@
 import type { AggregateType, JobType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { invalidateCacheForEvent } from "@/lib/cache";
 import type {
   AppendEventInput,
   EventRecord,
@@ -24,6 +25,8 @@ export async function appendEvent(
       version: input.version,
     },
   });
+
+  invalidateCacheForEvent(event.type);
 
   return event;
 }
@@ -86,6 +89,8 @@ export async function appendEventAndEnqueueJob(
 
     return [created];
   });
+
+  invalidateCacheForEvent(event.type);
 
   return event;
 }

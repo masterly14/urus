@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
+import useSWR from "swr";
 
 export interface DashboardAlert {
   id: string;
@@ -51,56 +52,30 @@ function buildSearchParams(filters: DashboardAlertsFilters): string {
 }
 
 export function useDashboardAlerts(filters: DashboardAlertsFilters = {}) {
-  const [data, setData] = useState<AlertsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const qs = buildSearchParams(filters);
+  const url = `/api/dashboard/alerts${qs}`;
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const qs = buildSearchParams(filters);
-      const res = await fetch(`/api/dashboard/alerts${qs}`);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `HTTP ${res.status}`);
-      }
-      const json: AlertsResponse = await res.json();
-      setData(json);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [
-    filters.from,
-    filters.to,
-    filters.comercialId,
-    filters.severity,
-    filters.type,
-    filters.resolved,
-    filters.limit,
-    filters.offset,
-  ]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const { data, error, isLoading, mutate } = useSWR<AlertsResponse>(
+    url,
+    { keepPreviousData: true },
+  );
 
   const resolveAlert = useCallback(async (alertId: string) => {
-    try {
-      const res = await fetch(`/api/dashboard/alerts/${alertId}/resolve`, {
-        method: "PATCH",
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `HTTP ${res.status}`);
-      }
-      await fetchData();
-    } catch (err) {
-      throw err instanceof Error ? err : new Error(String(err));
+    const res = await fetch(`/api/dashboard/alerts/${alertId}/resolve`, {
+      method: "PATCH",
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error ?? `HTTP ${res.status}`);
     }
-  }, [fetchData]);
+    await mutate();
+  }, [mutate]);
 
-  return { data, loading, error, refetch: fetchData, resolveAlert };
+  return {
+    data: data ?? null,
+    loading: isLoading,
+    error: error?.message ?? null,
+    refetch: () => { mutate(); },
+    resolveAlert,
+  };
 }

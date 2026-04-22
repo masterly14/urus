@@ -14,7 +14,9 @@ import {
     Users,
     MessageCircle,
     Award,
+    Sparkles,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 const iconMap: Record<string, React.ElementType> = {
     check: CheckCircle2,
@@ -84,6 +86,11 @@ export function ActivityFeed({ events, maxItems = 8 }: ActivityFeedProps) {
                         <div className="flex-1 min-w-0">
                             <p className="text-sm leading-snug truncate">{event.text}</p>
                         </div>
+                        {(event.icon === "match" || event.icon === "price") && (
+                            <Badge variant="ai" className="shrink-0 text-[9px] h-4 gap-0.5 px-1.5">
+                                <Sparkles className="h-2.5 w-2.5" /> IA
+                            </Badge>
+                        )}
                         <span className="text-[10px] text-muted-foreground shrink-0 mt-0.5">
                             {timeAgo(event.timestamp)}
                         </span>

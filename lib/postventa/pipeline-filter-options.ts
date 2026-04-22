@@ -26,6 +26,7 @@ export const DEMAND_STATUS_NA = "N/A" as const;
  */
 export const PIPELINE_OPERACION_ESTADO_VALUES = [
   "EN_CURSO",
+  "OFERTA_FIRME",
   "RESERVA",
   "ARRAS",
   "PENDIENTE_FIRMA",
@@ -39,6 +40,7 @@ export type OperacionEstadoFilter = (typeof PIPELINE_OPERACION_ESTADO_VALUES)[nu
 
 export const operacionEstadoFilterLabels: Record<OperacionEstadoFilter, string> = {
   EN_CURSO: "En curso",
+  OFERTA_FIRME: "Oferta en firme",
   RESERVA: "Reserva",
   ARRAS: "Arras",
   PENDIENTE_FIRMA: "Pendiente firma",

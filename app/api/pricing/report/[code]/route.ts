@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
-import { getLatestPricingReport } from "@/lib/pricing";
+import { getCachedPricingReport } from "@/lib/pricing/cached-queries";
 import { withObservedRoute } from "@/lib/observability";
 
 
@@ -11,7 +11,7 @@ const getHandler = async (request: Request, context: { params: Promise<{ code: s
   if (!session) return unauthorized();
 
   const { code } = await context.params;
-  const report = await getLatestPricingReport(code);
+  const report = await getCachedPricingReport(code);
 
   if (!report) {
     return NextResponse.json(

@@ -66,7 +66,7 @@ export default function IndividualPerformancePage({ params }: { params: Promise<
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3 bg-card/50 p-2 rounded-lg border border-border/50">
+                <div className="flex items-center gap-3 p-2 rounded-lg border border-border/50">
                     <span className={cn("text-xs font-medium", !isCeoView ? "text-primary" : "text-muted-foreground")}>Vista Agente</span>
                     <Switch checked={isCeoView} onCheckedChange={setIsCeoView} />
                     <span className={cn("text-xs font-medium", isCeoView ? "text-primary" : "text-muted-foreground")}>Vista CEO</span>
@@ -124,7 +124,7 @@ export default function IndividualPerformancePage({ params }: { params: Promise<
                         trend={15}
                         trendLabel="Aumentando"
                         icon={<TrendingDown className="h-4 w-4" />}
-                        className="border-red-200 bg-red-50 dark:bg-red-900/10"
+                        className="border-urus-danger/30 bg-urus-danger/10"
                     />
                 ) : (
                     <KPICard
@@ -133,12 +133,12 @@ export default function IndividualPerformancePage({ params }: { params: Promise<
                         trend={12}
                         trendLabel="Completado"
                         icon={<ShieldCheck className="h-4 w-4" />}
-                        className="border-emerald-200 bg-emerald-50 dark:bg-emerald-900/10"
+                        className="border-urus-success/30 bg-urus-success/10"
                     />
                 )}
             </div>
 
-            <div className="grid gap-6 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-3">
                 {/* Trend Chart */}
                 <Card className="md:col-span-2">
                     <CardHeader>
@@ -157,7 +157,7 @@ export default function IndividualPerformancePage({ params }: { params: Promise<
                 </Card>
 
                 {/* Action / Comparison Panel */}
-                <div className="space-y-6">
+                <div className="space-y-4">
                     <Card>
                         <CardHeader>
                             <CardTitle className="text-base">
@@ -167,17 +167,17 @@ export default function IndividualPerformancePage({ params }: { params: Promise<
                         <CardContent className="space-y-4">
                             {member.archetype === "Top Performer" ? (
                                 <div className="space-y-2">
-                                    <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-100 dark:border-emerald-800 text-sm">
-                                        <p className="font-semibold text-emerald-800 dark:text-emerald-300">🎉 Mantener Ritmo</p>
-                                        <p className="text-emerald-700 dark:text-emerald-400 text-xs">Estás superando tus metas. Considera mentorizar a un junior.</p>
+                                    <div className="p-3 bg-urus-success/10 rounded-lg border border-urus-success/20 text-sm">
+                                        <p className="font-semibold text-urus-success">🎉 Mantener Ritmo</p>
+                                        <p className="text-urus-success/80 text-xs">Estás superando tus metas. Considera mentorizar a un junior.</p>
                                     </div>
                                     <Button className="w-full" variant="outline">Ver Programa Mentoring</Button>
                                 </div>
                             ) : (
                                 <div className="space-y-2">
-                                    <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-100 dark:border-amber-800 text-sm">
-                                        <p className="font-semibold text-amber-800 dark:text-amber-300">⚠️ Foco en Cierre</p>
-                                        <p className="text-amber-700 dark:text-amber-400 text-xs">Tienes muchos leads pero pocos cierres. Revisa tus guiones de ventas.</p>
+                                    <div className="p-3 bg-urus-warning/10 rounded-lg border border-urus-warning/20 text-sm">
+                                        <p className="font-semibold text-urus-warning">⚠️ Foco en Cierre</p>
+                                        <p className="text-urus-warning/80 text-xs">Tienes muchos leads pero pocos cierres. Revisa tus guiones de ventas.</p>
                                     </div>
                                     <Button className="w-full" variant="outline">Agendar 1:1 con Manager</Button>
                                 </div>

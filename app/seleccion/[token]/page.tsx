@@ -162,7 +162,7 @@ export default async function SeleccionPage({
           </div>
         ) : null}
         {properties.length === 0 ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
             <div className="text-lg font-semibold text-slate-900">Sin propiedades para mostrar</div>
             <div className="mt-2 text-sm text-slate-500 max-w-md mx-auto">
               Esta selección se generó sin resultados renderizables. Contacta con tu agente para más información.

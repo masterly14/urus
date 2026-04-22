@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
@@ -109,6 +110,8 @@ const postHandler = async (request: Request) => {
         notas,
       },
     });
+
+    revalidateTag("colaboradores-dashboard", { expire: 0 });
 
     return NextResponse.json({ ok: true, colaborador }, { status: 201 });
   } catch (error) {

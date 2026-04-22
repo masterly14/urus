@@ -233,13 +233,13 @@ function OperationalDashboardInner() {
             <p className="text-xs text-muted-foreground">estimada con comisión</p>
           </CardContent>
         </Card>
-        <Card className="border-amber-200/50 dark:border-amber-800/50">
+        <Card className="border-urus-warning/30 dark:border-urus-warning/30">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Coste Oportunidad</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <AlertTriangle className="h-4 w-4 text-urus-warning" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+            <div className="text-2xl font-bold text-urus-warning dark:text-urus-warning">
               {formatEur(totals.costeOportunidad)}
             </div>
             <p className="text-xs text-muted-foreground">dinero potencialmente perdido</p>
@@ -255,7 +255,7 @@ function OperationalDashboardInner() {
         </TabsList>
 
         {/* Tab: Ciudades */}
-        <TabsContent value="cities" className="space-y-6">
+        <TabsContent value="cities" className="space-y-4">
           {/* Comparativa gráfica */}
           <Card>
             <CardHeader>
@@ -318,10 +318,10 @@ function OperationalDashboardInner() {
                               className={cn(
                                 "w-[50px]",
                                 cargaRatio > 0.85
-                                  ? "bg-red-100"
+                                  ? "bg-urus-danger/10"
                                   : cargaRatio > 0.7
-                                    ? "bg-yellow-100"
-                                    : "bg-emerald-100",
+                                    ? "bg-urus-warning/10"
+                                    : "bg-urus-success/10",
                               )}
                             />
                             <span className="text-sm tabular-nums">{city.cargaMedia.toFixed(1)}</span>
@@ -334,7 +334,7 @@ function OperationalDashboardInner() {
                           <span className="font-medium">{formatEur(city.rentabilidadPorComercial)}</span>
                         </TableCell>
                         <TableCell className="text-right">
-                          <span className="text-amber-600 dark:text-amber-400 font-medium">
+                          <span className="text-urus-warning dark:text-urus-warning font-medium">
                             {formatEur(city.costeOportunidadTotal)}
                           </span>
                         </TableCell>
@@ -369,7 +369,7 @@ function OperationalDashboardInner() {
                   </div>
                   <div className="flex justify-between text-sm border-t pt-2">
                     <span className="text-muted-foreground">Coste por clientes perdidos</span>
-                    <span className="font-medium text-amber-600 dark:text-amber-400">
+                    <span className="font-medium text-urus-warning dark:text-urus-warning">
                       {formatEur(city.costeOportunidadLeadsPerdidos)}
                     </span>
                   </div>
@@ -383,13 +383,13 @@ function OperationalDashboardInner() {
                   </div>
                   <div className="flex justify-between text-sm border-t pt-2">
                     <span className="text-muted-foreground">Coste por capacidad</span>
-                    <span className="font-medium text-amber-600 dark:text-amber-400">
+                    <span className="font-medium text-urus-warning dark:text-urus-warning">
                       {formatEur(city.costeOportunidadCapacidadOciosa)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm font-bold border-t pt-2">
                     <span>Total oportunidad</span>
-                    <span className="text-amber-600 dark:text-amber-400">
+                    <span className="text-urus-warning dark:text-urus-warning">
                       {formatEur(city.costeOportunidadTotal)}
                     </span>
                   </div>
@@ -432,10 +432,10 @@ function OperationalDashboardInner() {
                             className={cn(
                               "w-[60px]",
                               agent.efficiency > 20
-                                ? "bg-emerald-100"
+                                ? "bg-urus-success/10"
                                 : agent.efficiency > 10
-                                  ? "bg-yellow-100"
-                                  : "bg-red-100",
+                                  ? "bg-urus-warning/10"
+                                  : "bg-urus-danger/10",
                             )}
                           />
                           <span className="text-sm font-bold tabular-nums">{agent.efficiency}%</span>
@@ -466,16 +466,16 @@ function OperationalDashboardInner() {
                 .map((agent) => (
                   <Card
                     key={agent.agentId}
-                    className="border-red-200 bg-red-50 dark:bg-red-900/10 dark:border-red-800/50"
+                    className="border-urus-danger/30 bg-urus-danger/10 dark:bg-urus-danger/10 dark:border-urus-danger/30"
                   >
                     <CardHeader className="flex flex-row items-center gap-2 pb-2">
-                      <TrendingDown className="h-5 w-5 text-red-600 dark:text-red-400" />
-                      <CardTitle className="text-sm font-medium text-red-900 dark:text-red-200">
+                      <TrendingDown className="h-5 w-5 text-urus-danger dark:text-urus-danger" />
+                      <CardTitle className="text-sm font-medium text-urus-danger dark:text-urus-danger">
                         Bajo Rendimiento
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-sm text-red-800 dark:text-red-300">
+                      <p className="text-sm text-urus-danger dark:text-urus-danger">
                         <span className="font-bold">{agent.agentName}</span> ({agent.city})
                         — eficiencia del {agent.efficiency}% con {agent.leads} clientes asignados.
                       </p>

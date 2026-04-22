@@ -357,8 +357,8 @@ export default function FirmaPage() {
   if (error && !meta) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="w-full max-w-md rounded-2xl border border-red-100 bg-white p-8 text-center shadow-lg">
-          <ShieldAlert className="mx-auto h-12 w-12 text-red-500 mb-4" />
+        <div className="w-full max-w-md rounded-lg border border-red-100 bg-white p-8 text-center shadow-lg">
+          <ShieldAlert className="mx-auto h-12 w-12 text-urus-danger mb-4" />
           <p className="text-lg font-semibold text-slate-900">{error}</p>
           <p className="mt-2 text-sm text-slate-500">
             El enlace de firma no es válido o ha expirado.
@@ -439,7 +439,7 @@ export default function FirmaPage() {
                       <h3>Verificación por SMS</h3>
                     </div>
                     {step === "otp_sending" ? (
-                      <div className="flex flex-col items-center justify-center gap-3 py-8 text-sm text-slate-500 bg-blue-50/50 rounded-xl border border-blue-100">
+                      <div className="flex flex-col items-center justify-center gap-3 py-8 text-sm text-slate-500 bg-blue-50/50 rounded-lg border border-blue-100">
                         <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
                         Enviando código al teléfono registrado…
                       </div>
@@ -466,7 +466,7 @@ export default function FirmaPage() {
                             disabled={step === "otp_verifying"}
                             autoFocus
                           />
-                          {otpError && <p className="text-sm font-medium text-red-600 text-center">{otpError}</p>}
+                          {otpError && <p className="text-sm font-medium text-urus-danger text-center">{otpError}</p>}
                         </div>
                         <Button
                           className="w-full h-12 text-base bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/20 transition-all"
@@ -504,11 +504,11 @@ export default function FirmaPage() {
 
                 {step === "review" && !otpVerified && (
                   <div className="space-y-6 animate-in fade-in duration-500">
-                    <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 text-sm leading-relaxed text-slate-600">
+                    <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100 text-sm leading-relaxed text-slate-600">
                       {CONSENT_TEXT}
                     </div>
                     {error && (
-                      <div className="rounded-lg bg-red-50 p-3 text-sm font-medium text-red-600 border border-red-100">{error}</div>
+                      <div className="rounded-lg bg-urus-danger-bg p-3 text-sm font-medium text-urus-danger border border-urus-danger/20">{error}</div>
                     )}
                     <div className="space-y-4">
                       <Button
@@ -529,7 +529,7 @@ export default function FirmaPage() {
                           Se enviará un código de un solo uso (SMS) a tu móvil. Tras verificarlo, podrás trazar tu firma manuscrita.
                         </p>
                       ) : (
-                        <p className="text-center text-xs text-amber-700 max-w-xs mx-auto">
+                        <p className="text-center text-xs text-urus-warning max-w-xs mx-auto">
                           Verificación OTP pausada temporalmente. Puedes continuar directamente con la firma manuscrita.
                         </p>
                       )}
@@ -545,12 +545,12 @@ export default function FirmaPage() {
 
                 {step === "review" && otpVerified && (
                   <div className="space-y-6 animate-in fade-in duration-500">
-                    <div className="flex flex-col items-center justify-center text-center p-6 bg-emerald-50 rounded-xl border border-emerald-100 space-y-3">
-                      <CheckCircle2 className="h-8 w-8 text-emerald-600" />
-                      <p className="text-sm font-medium text-emerald-800">
+                    <div className="flex flex-col items-center justify-center text-center p-6 bg-urus-success/10 rounded-lg border border-urus-success/20 space-y-3">
+                      <CheckCircle2 className="h-8 w-8 text-urus-success" />
+                      <p className="text-sm font-medium text-urus-success">
                         Identidad verificada
                       </p>
-                      <p className="text-xs text-emerald-600/80">
+                      <p className="text-xs text-urus-success/80">
                         Abre la ventana de firma para dibujar tu rúbrica y finalizar el acto.
                       </p>
                     </div>
@@ -593,7 +593,7 @@ export default function FirmaPage() {
         }}
       >
         <DialogContent
-          className="w-[95vw] max-w-lg gap-0 p-0 sm:max-w-lg rounded-2xl overflow-hidden border-0 shadow-2xl"
+          className="w-[95vw] max-w-lg gap-0 p-0 sm:max-w-lg rounded-lg overflow-hidden border-0 shadow-2xl"
           showCloseButton={step !== "signing"}
           onPointerDownOutside={(e) => step === "signing" && e.preventDefault()}
           onEscapeKeyDown={(e) => step === "signing" && e.preventDefault()}
@@ -610,7 +610,7 @@ export default function FirmaPage() {
             </DialogHeader>
           </div>
           <div className="bg-slate-50 px-5 py-5 sm:px-6 sm:py-6">
-            <div className="overflow-hidden rounded-xl border-2 border-dashed border-slate-300 bg-white shadow-inner transition-colors focus-within:border-blue-400">
+            <div className="overflow-hidden rounded-lg border-2 border-dashed border-slate-300 bg-white shadow-inner transition-colors focus-within:border-blue-400">
               <SignatureCanvas
                 key={otpId ?? "signature"}
                 ref={sigCanvasRef}
@@ -637,7 +637,7 @@ export default function FirmaPage() {
               </Button>
             </div>
             {error && (
-              <div className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm font-medium text-red-600 border border-red-100">{error}</div>
+              <div className="mt-4 rounded-lg bg-urus-danger-bg px-4 py-3 text-sm font-medium text-urus-danger border border-urus-danger/20">{error}</div>
             )}
           </div>
           <DialogFooter className="border-t border-slate-100 bg-white px-5 py-4 sm:px-6 sm:py-4 sm:justify-between items-center gap-3">

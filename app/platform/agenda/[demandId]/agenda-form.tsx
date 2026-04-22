@@ -254,7 +254,7 @@ export function AgendaForm({ demandId, demoMode = false }: AgendaFormProps) {
               </div>
 
               {error && (
-                <div className="text-sm font-medium text-red-500">{error}</div>
+                <div className="text-sm font-medium text-urus-danger">{error}</div>
               )}
             </CardContent>
             <CardFooter>

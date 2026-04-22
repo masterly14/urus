@@ -98,10 +98,10 @@ export default function FinancialDashboard() {
                                 className={cn(
                                     "w-32 h-32 rounded-full flex items-center justify-center text-4xl shadow-lg transition-colors border-8",
                                     healthStatus === "healthy"
-                                        ? "bg-emerald-100 text-emerald-600 border-emerald-500"
+                                        ? "bg-urus-success/10 text-urus-success border-urus-success"
                                         : healthStatus === "warning"
-                                            ? "bg-yellow-100 text-yellow-600 border-yellow-500"
-                                            : "bg-red-100 text-red-600 border-red-500"
+                                            ? "bg-urus-warning/10 text-urus-warning border-urus-warning"
+                                            : "bg-urus-danger/10 text-urus-danger border-urus-danger"
                                 )}
                             >
                                 {healthStatus === "healthy" ? "🟢" : healthStatus === "warning" ? "🟡" : "🔴"}
@@ -126,7 +126,7 @@ export default function FinancialDashboard() {
 
                         {/* Threshold Alerts */}
                         {healthStatus !== "healthy" && (
-                            <div className="mt-4 p-3 bg-accent/50 rounded-lg text-sm flex gap-3 items-start border border-accent">
+                            <div className="mt-4 p-3 bg-accent/50 rounded-lg text-sm flex gap-3 items-start border border-border">
                                 <AlertTriangle className="h-4 w-4 text-warning mt-0.5" />
                                 <div className="space-y-1">
                                     <p className="font-medium">Alertas Activas:</p>

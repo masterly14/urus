@@ -1,0 +1,2 @@
+-- AlterEnum: add COMPRADOR_ASOCIADO to EventType
+ALTER TYPE "EventType" ADD VALUE 'COMPRADOR_ASOCIADO';

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
-import { getDashboardColaboradores } from "@/lib/operacion/colaboradores/dashboard-queries";
+import { getCachedDashboardColaboradores } from "@/lib/operacion/colaboradores/cached-queries";
 import { prisma } from "@/lib/prisma";
 import type { ColaboradoresRecommendation } from "@/lib/operacion/colaboradores/recommendation-types";
 import { withObservedRoute } from "@/lib/observability";
@@ -16,7 +16,7 @@ const getHandler = async (request: Request) => {
   if (!session) return unauthorized();
   try {
     const [payload, lastRecoEvent] = await Promise.all([
-      getDashboardColaboradores(),
+      getCachedDashboardColaboradores(),
       prisma.event.findFirst({
         where: { type: "COLABORADOR_RECOMENDACION_GENERADA" },
         orderBy: { occurredAt: "desc" },

@@ -78,7 +78,7 @@ export default function OperacionDetallePage({ params }: { params: Promise<{ id:
                     <ArrowLeft className="h-4 w-4" />
                     Volver al Pipeline
                 </Link>
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardContent className="flex flex-col items-center justify-center py-20 text-center">
                         <p className="text-lg font-semibold mb-2">Operación no encontrada</p>
                         <p className="text-sm text-muted-foreground">La operación solicitada no existe en el sistema.</p>
@@ -109,7 +109,7 @@ export default function OperacionDetallePage({ params }: { params: Promise<{ id:
             </Link>
 
             {/* Header Card */}
-            <Card className="border-border/50 bg-card/60 backdrop-blur-sm overflow-hidden">
+            <Card className="border-border/50 overflow-hidden">
                 <div
                     className="h-1.5"
                     style={{
@@ -185,7 +185,7 @@ export default function OperacionDetallePage({ params }: { params: Promise<{ id:
             </Card>
 
             {/* Progress Steps */}
-            <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+            <Card className="border-border/50">
                 <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-semibold">Progreso por Etapas</CardTitle>
                 </CardHeader>
@@ -197,7 +197,7 @@ export default function OperacionDetallePage({ params }: { params: Promise<{ id:
             {/* Main content grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Left: Timeline */}
-                <Card className="lg:col-span-2 border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="lg:col-span-2 border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
@@ -235,7 +235,7 @@ export default function OperacionDetallePage({ params }: { params: Promise<{ id:
                 {/* Right column */}
                 <div className="space-y-4">
                     {/* Checklist */}
-                    <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                    <Card className="border-border/50">
                         <CardHeader className="pb-3">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
@@ -286,7 +286,7 @@ export default function OperacionDetallePage({ params }: { params: Promise<{ id:
                     </Card>
 
                     {/* Segmentation */}
-                    <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                    <Card className="border-border/50">
                         <CardHeader className="pb-3">
                             <div className="flex items-center gap-2">
                                 <Tag className="h-4 w-4 text-secondary" />
@@ -295,14 +295,14 @@ export default function OperacionDetallePage({ params }: { params: Promise<{ id:
                         </CardHeader>
                         <CardContent className="pt-0">
                             <div
-                                className="flex items-center gap-4 rounded-xl p-4 border"
+                                className="flex items-center gap-4 rounded-lg p-4 border"
                                 style={{
                                     borderColor: `color-mix(in oklch, ${tipoConfig.color} 25%, transparent)`,
                                     backgroundColor: `color-mix(in oklch, ${tipoConfig.color} 5%, transparent)`,
                                 }}
                             >
                                 <div
-                                    className="h-14 w-14 rounded-xl flex items-center justify-center text-2xl"
+                                    className="h-14 w-14 rounded-lg flex items-center justify-center text-2xl"
                                     style={{
                                         backgroundColor: `color-mix(in oklch, ${tipoConfig.color} 15%, transparent)`,
                                     }}
@@ -351,7 +351,7 @@ export default function OperacionDetallePage({ params }: { params: Promise<{ id:
                     </Card>
 
                     {/* Documents */}
-                    <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                    <Card className="border-border/50">
                         <CardHeader className="pb-3">
                             <div className="flex items-center gap-2">
                                 <FileText className="h-4 w-4 text-muted-foreground" />

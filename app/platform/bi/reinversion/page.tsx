@@ -104,22 +104,22 @@ const MOCK_GENERATED_AT = "2026-04-01T07:00:00.000Z";
 
 const SEMAFORO_STYLE: Record<SemaforoFinanciero, { bg: string; text: string; label: string; border: string }> = {
   verde: {
-    bg: "bg-emerald-100 dark:bg-emerald-900/30",
-    text: "text-emerald-700 dark:text-emerald-300",
+    bg: "bg-urus-success/10 dark:bg-urus-success/10",
+    text: "text-urus-success dark:text-urus-success",
     label: "Finanzas saludables",
-    border: "border-emerald-300 dark:border-emerald-700",
+    border: "border-urus-success/30 dark:border-urus-success/30",
   },
   amarillo: {
-    bg: "bg-amber-100 dark:bg-amber-900/30",
-    text: "text-amber-700 dark:text-amber-300",
+    bg: "bg-urus-warning/10 dark:bg-urus-warning/10",
+    text: "text-urus-warning dark:text-urus-warning",
     label: "Precaución financiera",
-    border: "border-amber-300 dark:border-amber-700",
+    border: "border-urus-warning/30 dark:border-urus-warning/30",
   },
   rojo: {
-    bg: "bg-red-100 dark:bg-red-900/30",
-    text: "text-red-700 dark:text-red-300",
+    bg: "bg-urus-danger/10 dark:bg-urus-danger/10",
+    text: "text-urus-danger dark:text-urus-danger",
     label: "Alerta financiera",
-    border: "border-red-300 dark:border-red-700",
+    border: "border-urus-danger/30 dark:border-urus-danger/30",
   },
 };
 
@@ -249,10 +249,10 @@ function AutomationTable({ items, roiTotal }: { items: AutomationRoi[]; roiTotal
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Zap className="h-5 w-5 text-amber-500" />
+            <Zap className="h-5 w-5 text-urus-warning" />
             ROI de Automatizaciones
           </CardTitle>
-          <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border-0">
+          <Badge className="bg-urus-success/10 text-urus-success dark:bg-urus-success/10 dark:text-urus-success border-0">
             ROI medio: {roiTotal.toFixed(0)}%
           </Badge>
         </div>
@@ -276,7 +276,7 @@ function AutomationTable({ items, roiTotal }: { items: AutomationRoi[]; roiTotal
                 <TableCell className="text-right text-muted-foreground">
                   {formatEur(a.coste_mensual_eur)}
                 </TableCell>
-                <TableCell className="text-right text-emerald-600 dark:text-emerald-400 font-medium">
+                <TableCell className="text-right text-urus-success dark:text-urus-success font-medium">
                   {formatEur(a.ahorro_mensual_eur)}
                 </TableCell>
                 <TableCell className="text-right">
@@ -284,10 +284,10 @@ function AutomationTable({ items, roiTotal }: { items: AutomationRoi[]; roiTotal
                     variant="outline"
                     className={cn(
                       a.roi_percent >= 500
-                        ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                        ? "border-urus-success text-urus-success dark:text-urus-success"
                         : a.roi_percent >= 200
-                          ? "border-amber-500 text-amber-600 dark:text-amber-400"
-                          : "border-red-500 text-red-600 dark:text-red-400",
+                          ? "border-urus-warning text-urus-warning dark:text-urus-warning"
+                          : "border-urus-danger text-urus-danger dark:text-urus-danger",
                     )}
                   >
                     {a.roi_percent.toFixed(0)}%
@@ -334,7 +334,7 @@ function ReinversionCards({
 
       <div className="grid gap-4 md:grid-cols-2">
         {recomendaciones.map((r, i) => (
-          <Card key={i} className="border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow">
+          <Card key={i} className="border-l-4 border-l-primary shadow-sm hover:shadow-[var(--shadow-elevated)] transition-shadow">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -372,7 +372,7 @@ function ConfidenceFooter({ confidence, reasoning }: { confidence: number; reaso
             <div
               className={cn(
                 "h-2 rounded-full",
-                confidence >= 0.7 ? "bg-emerald-500" : confidence >= 0.4 ? "bg-amber-500" : "bg-red-500",
+                confidence >= 0.7 ? "bg-urus-success" : confidence >= 0.4 ? "bg-urus-warning" : "bg-urus-danger",
               )}
               style={{ width: `${(confidence * 100).toFixed(0)}%` }}
             />
@@ -419,10 +419,10 @@ function ReinvestmentDashboardInner() {
 
   if (error && !useMock) {
     return (
-      <Card className="border-red-200 dark:border-red-800">
+      <Card className="border-urus-danger/30 dark:border-urus-danger/30">
         <CardContent className="py-8 text-center">
-          <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <AlertTriangle className="h-8 w-8 text-urus-danger mx-auto mb-2" />
+          <p className="text-sm text-urus-danger dark:text-urus-danger">{error}</p>
           <Button variant="outline" size="sm" className="mt-4" onClick={refetch}>
             Reintentar
           </Button>

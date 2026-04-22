@@ -134,7 +134,7 @@ export function VariablePanel({ documentKind, editor }: Props) {
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           {justInserted ? (
-                            <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                            <Check className="h-3.5 w-3.5 shrink-0 text-urus-success" />
                           ) : (
                             <span className="h-3.5 w-3.5 shrink-0" />
                           )}
@@ -143,7 +143,7 @@ export function VariablePanel({ documentKind, editor }: Props) {
                             <span className={cn(
                               "text-[13px] block truncate",
                               justInserted
-                                ? "text-emerald-600"
+                                ? "text-urus-success"
                                 : "text-neutral-700 group-hover:text-neutral-900",
                             )}>
                               {justInserted ? "Insertada" : entry.label}

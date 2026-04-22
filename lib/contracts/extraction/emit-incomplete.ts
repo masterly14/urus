@@ -2,7 +2,7 @@ import { appendEvent } from "@/lib/event-store/event-store";
 import { enqueueJob } from "@/lib/job-queue";
 import type { EventRecord } from "@/lib/event-store/types";
 import type { JobRecord } from "@/lib/job-queue/types";
-import type { ContractIncompleteValidationSignal } from "./arras-payload";
+import type { ContractIncompleteValidationSignal } from "./shared";
 
 export interface EmitIncompleteResult {
   event: EventRecord;

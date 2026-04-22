@@ -31,7 +31,7 @@ export function EvalCategoryChart({ data }: { data: CategoryData[] }) {
   }));
 
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+    <div className="rounded-lg border border-neutral-800 bg-neutral-900/40 p-4">
       <h3 className="mb-4 text-sm font-semibold text-neutral-300">Score por categoría</h3>
       <ResponsiveContainer width="100%" height={250}>
         <BarChart data={chartData} layout="vertical" margin={{ left: 80 }}>

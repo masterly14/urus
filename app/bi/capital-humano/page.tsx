@@ -27,7 +27,7 @@ export default function HumanCapitalDashboard() {
                         <Activity className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-yellow-600">Media</div>
+                        <div className="text-2xl font-bold text-urus-warning">Media</div>
                         <p className="text-xs text-muted-foreground">62/100 (Estable)</p>
                     </CardContent>
                 </Card>
@@ -37,7 +37,7 @@ export default function HumanCapitalDashboard() {
                         <HeartPulse className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-red-600">{highRiskZones.length} Zonas</div>
+                        <div className="text-2xl font-bold text-urus-danger">{highRiskZones.length} Zonas</div>
                         <p className="text-xs text-muted-foreground">Requieren atención inmediata</p>
                     </CardContent>
                 </Card>
@@ -91,10 +91,10 @@ export default function HumanCapitalDashboard() {
                                             className={cn(
                                                 "h-2",
                                                 zone.pressureLevel > 80
-                                                    ? "bg-red-100 [&>div]:bg-red-600"
+                                                    ? "bg-urus-danger/10 [&>div]:bg-urus-danger"
                                                     : zone.pressureLevel > 60
-                                                        ? "bg-yellow-100 [&>div]:bg-yellow-500"
-                                                        : "bg-emerald-100 [&>div]:bg-emerald-500"
+                                                        ? "bg-urus-warning/10 [&>div]:bg-urus-warning"
+                                                        : "bg-urus-success/10 [&>div]:bg-urus-success"
                                             )}
                                         />
                                     </div>

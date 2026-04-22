@@ -31,8 +31,8 @@ export function CeoSnapshotAlert() {
 
   return (
     <>
-      <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-800/50 dark:bg-amber-900/10">
-        <div className="flex items-center gap-2.5 text-amber-800 dark:text-amber-300">
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-urus-warning/30 bg-urus-warning-bg px-4 py-3 text-sm">
+        <div className="flex items-center gap-2.5 text-urus-warning">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>
             <span className="font-medium">Datos financieros incompletos: </span>
@@ -42,7 +42,7 @@ export function CeoSnapshotAlert() {
         <Button
           size="sm"
           variant="outline"
-          className="shrink-0 border-amber-300 bg-white text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-transparent dark:text-amber-300 dark:hover:bg-amber-900/30"
+          className="shrink-0 border-urus-warning/50 bg-card text-urus-warning hover:bg-urus-warning-bg"
           onClick={() => openModal()}
         >
           Rellenar datos

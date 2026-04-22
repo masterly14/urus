@@ -157,7 +157,7 @@ export default function CoachGuiaPage() {
     return (
         <div className="space-y-10 max-w-5xl">
             {/* ── Hero ── */}
-            <div className="relative rounded-2xl overflow-hidden border border-[var(--urus-info)]/20 bg-gradient-to-br from-[var(--urus-info)]/10 via-card/60 to-card/40 backdrop-blur-sm p-8">
+            <div className="relative rounded-2xl overflow-hidden border border-[var(--urus-info)]/20 bg-gradient-to-br from-[var(--urus-info)]/10 via-card/60 to-card/40 p-8">
                 <div
                     className="absolute inset-0 opacity-30 pointer-events-none"
                     style={{
@@ -216,7 +216,7 @@ export default function CoachGuiaPage() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Conversation demo */}
-                    <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                    <Card className="border-border/50">
                         <CardHeader className="pb-3">
                             <div className="flex items-center gap-2">
                                 <div className="relative">
@@ -255,9 +255,9 @@ export default function CoachGuiaPage() {
 
                     {/* Rules */}
                     <div className="space-y-3">
-                        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                        <Card className="border-border/50">
                             <CardContent className="p-4 flex items-start gap-3">
-                                <div className="h-9 w-9 shrink-0 rounded-xl bg-[var(--urus-info)]/15 flex items-center justify-center">
+                                <div className="h-9 w-9 shrink-0 rounded-lg bg-[var(--urus-info)]/15 flex items-center justify-center">
                                     <LogIn className="h-4 w-4 text-[var(--urus-info)]" />
                                 </div>
                                 <div>
@@ -273,9 +273,9 @@ export default function CoachGuiaPage() {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                        <Card className="border-border/50">
                             <CardContent className="p-4 flex items-start gap-3">
-                                <div className="h-9 w-9 shrink-0 rounded-xl bg-[var(--urus-success)]/15 flex items-center justify-center">
+                                <div className="h-9 w-9 shrink-0 rounded-lg bg-[var(--urus-success)]/15 flex items-center justify-center">
                                     <Timer className="h-4 w-4 text-[var(--urus-success)]" />
                                 </div>
                                 <div>
@@ -291,9 +291,9 @@ export default function CoachGuiaPage() {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                        <Card className="border-border/50">
                             <CardContent className="p-4 flex items-start gap-3">
-                                <div className="h-9 w-9 shrink-0 rounded-xl bg-[var(--urus-danger)]/15 flex items-center justify-center">
+                                <div className="h-9 w-9 shrink-0 rounded-lg bg-[var(--urus-danger)]/15 flex items-center justify-center">
                                     <LogOut className="h-4 w-4 text-[var(--urus-danger)]" />
                                 </div>
                                 <div>
@@ -311,9 +311,9 @@ export default function CoachGuiaPage() {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                        <Card className="border-border/50">
                             <CardContent className="p-4 flex items-start gap-3">
-                                <div className="h-9 w-9 shrink-0 rounded-xl bg-[var(--urus-warning)]/15 flex items-center justify-center">
+                                <div className="h-9 w-9 shrink-0 rounded-lg bg-[var(--urus-warning)]/15 flex items-center justify-center">
                                     <MessageCircle className="h-4 w-4 text-[var(--urus-warning)]" />
                                 </div>
                                 <div>
@@ -347,12 +347,12 @@ export default function CoachGuiaPage() {
                         return (
                             <Card
                                 key={flujo.label}
-                                className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 group"
+                                className="border-border/50 transition-all duration-300 group"
                             >
                                 <CardContent className="p-5">
                                     <div className="flex items-center gap-3 mb-2">
                                         <div
-                                            className="h-9 w-9 shrink-0 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
+                                            className="h-9 w-9 shrink-0 rounded-lg flex items-center justify-center transition-transform duration-300"
                                             style={{
                                                 background: `color-mix(in oklch, ${flujo.color} 15%, transparent)`,
                                             }}
@@ -397,7 +397,7 @@ export default function CoachGuiaPage() {
                     Al activarse, el Coach carga tu contexto del CRM en tiempo real. Lo usa de forma
                     natural — nunca te dirá «según mis datos» ni que tiene acceso a tus cifras.
                 </p>
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardContent className="p-6">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {[
@@ -428,7 +428,7 @@ export default function CoachGuiaPage() {
                             ].map((item) => (
                                 <div
                                     key={item.label}
-                                    className="flex items-start gap-3 rounded-xl p-3.5 border border-border/30 bg-accent/10"
+                                    className="flex items-start gap-3 rounded-lg p-3.5 border border-border/30 bg-accent/10"
                                 >
                                     <div
                                         className="h-2 w-2 rounded-full mt-1.5 shrink-0"
@@ -475,7 +475,7 @@ export default function CoachGuiaPage() {
                             ].map((phrase) => (
                                 <div
                                     key={phrase}
-                                    className="rounded-lg bg-card/60 border border-[var(--urus-success)]/15 px-3.5 py-2.5"
+                                    className="rounded-lg bg-card border border-urus-success/15 px-3.5 py-2.5"
                                 >
                                     <p className="text-sm text-muted-foreground italic">{phrase}</p>
                                 </div>
@@ -501,7 +501,7 @@ export default function CoachGuiaPage() {
                             ].map((phrase) => (
                                 <div
                                     key={phrase}
-                                    className="rounded-lg bg-card/60 border border-[var(--urus-danger)]/15 px-3.5 py-2.5"
+                                    className="rounded-lg bg-card border border-urus-danger/15 px-3.5 py-2.5"
                                 >
                                     <p className="text-sm text-muted-foreground italic line-through opacity-60">
                                         {phrase}
@@ -519,7 +519,7 @@ export default function CoachGuiaPage() {
                     <div className="h-1 w-4 rounded-full bg-secondary" />
                     <h2 className="text-lg font-semibold">Qué puede (y qué no puede) hacer</h2>
                 </div>
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardContent className="p-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-3">
                             {[
@@ -571,7 +571,7 @@ export default function CoachGuiaPage() {
                                 className="border-[var(--urus-success)]/20 bg-[var(--urus-success)]/5"
                             >
                                 <CardContent className="p-5">
-                                    <div className="h-10 w-10 rounded-xl bg-[var(--urus-success)]/15 flex items-center justify-center mb-3">
+                                    <div className="h-10 w-10 rounded-lg bg-[var(--urus-success)]/15 flex items-center justify-center mb-3">
                                         <Icon className="h-5 w-5 text-[var(--urus-success)]" />
                                     </div>
                                     <p className="text-sm font-semibold mb-1">{item.title}</p>
@@ -591,7 +591,7 @@ export default function CoachGuiaPage() {
                     <div className="h-1 w-4 rounded-full bg-[var(--urus-warning)]" />
                     <h2 className="text-lg font-semibold">Número de WhatsApp del Coach</h2>
                 </div>
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-start justify-between gap-4 flex-wrap">
                             <div>
@@ -627,14 +627,14 @@ export default function CoachGuiaPage() {
                                     value={contactNumber}
                                     onChange={(e) => setContactNumber(e.target.value)}
                                     placeholder="+34 612 345 678"
-                                    className="w-full bg-accent/30 border border-border/50 rounded-xl pl-10 pr-4 py-2.5 text-sm font-mono placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-[var(--urus-warning)]/30 focus:border-[var(--urus-warning)]/50 transition-all"
+                                    className="w-full bg-accent/30 border border-border/50 rounded-lg pl-10 pr-4 py-2.5 text-sm font-mono placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-[var(--urus-warning)]/30 focus:border-[var(--urus-warning)]/50 transition-all"
                                 />
                             </div>
                             <Button
                                 onClick={handleSave}
                                 disabled={!isDirty && !saved}
                                 className={cn(
-                                    "shrink-0 gap-2 rounded-xl transition-all duration-300",
+                                    "shrink-0 gap-2 rounded-lg transition-all duration-300",
                                     saved
                                         ? "bg-[var(--urus-success)] hover:bg-[var(--urus-success)]/90 text-white"
                                         : "bg-[var(--urus-warning)] hover:bg-[var(--urus-warning)]/90 text-black"
@@ -655,7 +655,7 @@ export default function CoachGuiaPage() {
                         </div>
 
                         {savedNumber && (
-                            <div className="mt-4 rounded-xl border border-[var(--urus-info)]/20 bg-[var(--urus-info)]/5 px-4 py-3 flex items-center gap-3">
+                            <div className="mt-4 rounded-lg border border-[var(--urus-info)]/20 bg-[var(--urus-info)]/5 px-4 py-3 flex items-center gap-3">
                                 <div className="h-8 w-8 shrink-0 rounded-lg bg-[var(--urus-info)]/15 flex items-center justify-center">
                                     <MessageCircle className="h-4 w-4 text-[var(--urus-info)]" />
                                 </div>

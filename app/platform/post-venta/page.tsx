@@ -3,5 +3,5 @@
 import { redirect } from "next/navigation";
 
 export default function PostVentaPage() {
-    redirect("/platform/post-venta/pipeline");
+    redirect("/platform/operaciones");
 }

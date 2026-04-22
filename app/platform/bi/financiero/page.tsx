@@ -103,10 +103,10 @@ export default function FinancialDashboard() {
                                 className={cn(
                                     "w-32 h-32 rounded-full flex items-center justify-center text-4xl shadow-lg transition-colors border-8",
                                     healthStatus === "healthy"
-                                        ? "bg-emerald-100 text-emerald-600 border-emerald-500"
+                                        ? "bg-urus-success/10 text-urus-success border-urus-success"
                                         : healthStatus === "warning"
-                                            ? "bg-yellow-100 text-yellow-600 border-yellow-500"
-                                            : "bg-red-100 text-red-600 border-red-500"
+                                            ? "bg-urus-warning/10 text-urus-warning border-urus-warning"
+                                            : "bg-urus-danger/10 text-urus-danger border-urus-danger"
                                 )}
                             >
                                 {healthStatus === "healthy" ? "🟢" : healthStatus === "warning" ? "🟡" : "🔴"}

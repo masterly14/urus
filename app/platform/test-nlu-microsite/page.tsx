@@ -175,19 +175,19 @@ function formatTime(iso: string): string {
 }
 
 function scoreColor(score: number): string {
-  if (score >= 0.85) return "text-emerald-400";
-  if (score >= 0.7) return "text-amber-400";
-  return "text-rose-400";
+  if (score >= 0.85) return "text-urus-success";
+  if (score >= 0.7) return "text-urus-warning";
+  return "text-urus-danger";
 }
 
 function intentionBadgeClasses(intention: string): string {
   switch (intention) {
     case "ME_ENCAJA":
-      return "border-emerald-800 bg-emerald-500/10 text-emerald-400";
+      return "border-emerald-800 bg-emerald-500/10 text-urus-success";
     case "NO_ME_ENCAJA":
-      return "border-rose-800 bg-rose-500/10 text-rose-400";
+      return "border-rose-800 bg-rose-500/10 text-urus-danger";
     case "BUSCO_DIFERENTE":
-      return "border-amber-800 bg-amber-500/10 text-amber-400";
+      return "border-amber-800 bg-amber-500/10 text-urus-warning";
     default:
       return "border-neutral-700 bg-neutral-800 text-neutral-300";
   }
@@ -195,15 +195,15 @@ function intentionBadgeClasses(intention: string): string {
 
 function sentimentBadgeClasses(sentiment: string): string {
   if (sentiment === "ME_INTERESA") {
-    return "border-emerald-800 bg-emerald-500/10 text-emerald-400";
+    return "border-emerald-800 bg-emerald-500/10 text-urus-success";
   }
-  return "border-rose-800 bg-rose-500/10 text-rose-400";
+  return "border-rose-800 bg-rose-500/10 text-urus-danger";
 }
 
 function eventBadgeClasses(type: string): string {
   if (type === "WHATSAPP_RECIBIDO") return "border-sky-800 bg-sky-500/10 text-sky-300";
   if (type === "SELECCION_COMPRADOR") return "border-violet-800 bg-violet-500/10 text-violet-300";
-  if (type === "DEMANDA_ACTUALIZADA") return "border-amber-800 bg-amber-500/10 text-amber-300";
+  if (type === "DEMANDA_ACTUALIZADA") return "border-urus-warning/30 bg-urus-warning/10 text-urus-warning";
   return "border-neutral-700 bg-neutral-800 text-neutral-300";
 }
 
@@ -510,7 +510,7 @@ export default function TestNluMicrositePage() {
 
       {error ? (
         <div className="mx-auto max-w-7xl px-4 pt-4">
-          <div className="rounded-lg border border-rose-800 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+          <div className="rounded-lg border border-rose-800 bg-rose-500/10 px-4 py-3 text-sm text-urus-danger">
             {error}
           </div>
         </div>
@@ -588,7 +588,7 @@ function SetupPanel({
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-6">
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-6">
+      <div className="rounded-lg border border-neutral-800 bg-neutral-900/40 p-6">
         <h2 className="text-lg font-semibold">1 · Elige el contexto del microsite</h2>
         <p className="mt-1 text-sm text-neutral-400">
           El set de propiedades que recibe el NLU. Al iniciar, se crean una Demand y un
@@ -628,7 +628,7 @@ function SetupPanel({
                 key={entry.id}
                 onClick={() => onSelect(entry.id)}
                 disabled={loading}
-                className={`flex flex-col rounded-xl border p-4 text-left transition ${
+                className={`flex flex-col rounded-lg border p-4 text-left transition ${
                   selectedId === entry.id
                     ? "border-neutral-100 bg-neutral-100/5"
                     : "border-neutral-800 bg-neutral-900/60 hover:border-neutral-700"
@@ -770,7 +770,7 @@ function SessionHeader({
   loading: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+    <div className="rounded-lg border border-neutral-800 bg-neutral-900/40 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-xs uppercase tracking-wide text-neutral-500">
@@ -786,7 +786,7 @@ function SessionHeader({
         <button
           onClick={onReset}
           disabled={loading}
-          className="shrink-0 rounded-lg border border-rose-900 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
+          className="shrink-0 rounded-lg border border-rose-900 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-urus-danger transition hover:bg-rose-500/20 disabled:opacity-50"
         >
           Reset · limpiar recursos sintéticos
         </button>
@@ -870,7 +870,7 @@ function ScenarioSummary({ session }: { session: ActiveSession }) {
 
 function MicrositePanel({ session }: { session: ActiveSession }) {
   return (
-    <div className="flex min-h-0 flex-col rounded-xl border border-neutral-800 bg-neutral-900/40">
+    <div className="flex min-h-0 flex-col rounded-lg border border-neutral-800 bg-neutral-900/40">
       <div className="border-b border-neutral-800 px-4 py-3">
         <div className="text-xs uppercase tracking-wide text-neutral-500">
           Microsite · propiedades vistas por el NLU
@@ -895,7 +895,7 @@ function MicrositePanel({ session }: { session: ActiveSession }) {
                 </div>
               </div>
               {p.price !== null ? (
-                <span className="shrink-0 rounded-full border border-emerald-900 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+                <span className="shrink-0 rounded-full border border-emerald-900 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-urus-success">
                   {formatPrice(p.price)}
                 </span>
               ) : null}
@@ -962,7 +962,7 @@ function ConversationPanel({
   const hasGroundTruth = Boolean(session.context.scenarioId);
 
   return (
-    <div className="flex min-h-0 flex-col rounded-xl border border-neutral-800 bg-neutral-900/40">
+    <div className="flex min-h-0 flex-col rounded-lg border border-neutral-800 bg-neutral-900/40">
       <div className="border-b border-neutral-800 px-4 py-3">
         <div className="text-xs uppercase tracking-wide text-neutral-500">
           Conversación con el comprador
@@ -1015,7 +1015,7 @@ function SeedTurn({
       <div
         className={`max-w-[80%] rounded-lg border px-3 py-2 text-sm ${
           isBuyer
-            ? "border-emerald-900 bg-emerald-500/5 text-emerald-100"
+            ? "border-emerald-900 bg-emerald-500/5 text-urus-success"
             : "border-neutral-800 bg-neutral-800/40 text-neutral-300"
         }`}
       >
@@ -1049,14 +1049,14 @@ function InboundTurn({
   return (
     <div className="space-y-2">
       <div className="flex justify-end">
-        <div className="max-w-[80%] rounded-lg border border-emerald-900 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
-          <div className="mb-0.5 flex items-center gap-2 text-[10px] uppercase tracking-wide text-emerald-300/70">
+        <div className="max-w-[80%] rounded-lg border border-emerald-900 bg-emerald-500/10 px-3 py-2 text-sm text-urus-success">
+          <div className="mb-0.5 flex items-center gap-2 text-[10px] uppercase tracking-wide text-urus-success/70">
             <span>Comprador</span>
             <span>{formatTime(turn.occurredAt)}</span>
           </div>
           <div>{turn.text}</div>
           {turn.syntheticReasoning ? (
-            <div className="mt-1 border-t border-emerald-900/50 pt-1 text-[10px] text-emerald-300/60">
+            <div className="mt-1 border-t border-emerald-900/50 pt-1 text-[10px] text-urus-success/60">
               sintético: {turn.syntheticReasoning}
             </div>
           ) : null}
@@ -1188,7 +1188,7 @@ function InboundTurn({
             ) : (
               <button
                 onClick={() => onJudge(turn)}
-                className="rounded border border-amber-900 bg-amber-500/10 px-2 py-1 text-[10px] font-medium text-amber-300 transition hover:bg-amber-500/20"
+                className="rounded border border-amber-900 bg-amber-500/10 px-2 py-1 text-[10px] font-medium text-urus-warning transition hover:bg-amber-500/20"
               >
                 Juzgar este turno contra expectedOutcome
               </button>
@@ -1225,13 +1225,13 @@ function JudgeResult({ judge }: { judge: NonNullable<TurnRecord["judge"]> }) {
           </span>
         ))}
         {judge.hallucinationPenalty > 0 ? (
-          <span className="rounded border border-rose-800 bg-rose-500/10 px-2 py-0.5 text-rose-300">
+          <span className="rounded border border-rose-800 bg-rose-500/10 px-2 py-0.5 text-urus-danger">
             halluc. {judge.hallucinationPenalty.toFixed(2)}
           </span>
         ) : null}
       </div>
       {judge.failures.length > 0 ? (
-        <ul className="ml-4 list-disc space-y-0.5 text-[11px] text-rose-300/90">
+        <ul className="ml-4 list-disc space-y-0.5 text-[11px] text-urus-danger/90">
           {judge.failures.map((f, i) => (
             <li key={i}>{f}</li>
           ))}
@@ -1282,7 +1282,7 @@ function InputPanel({
     (buyerMode === "synthetic" ? Boolean(personaId) : manualText.trim().length > 0);
 
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
+    <div className="rounded-lg border border-neutral-800 bg-neutral-900/40 p-3">
       <div className="flex flex-wrap items-center gap-2 border-b border-neutral-800 pb-2 text-xs">
         <span className="text-neutral-500">Modo:</span>
         <div className="flex overflow-hidden rounded-md border border-neutral-800">
@@ -1328,7 +1328,7 @@ function InputPanel({
             disabled={loading}
             className={`px-3 py-1 ${
               pipelineMode === "conversational"
-                ? "bg-emerald-600 text-white"
+                ? "bg-urus-success text-white"
                 : "bg-neutral-900 text-neutral-300 hover:bg-neutral-800"
             }`}
           >

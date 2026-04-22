@@ -18,10 +18,10 @@ export function PlaceholderPage({ title, description, section }: PlaceholderPage
                     En construcción
                 </Badge>
             </div>
-            <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+            <Card className="border-border/50">
                 <CardContent className="flex flex-col items-center justify-center py-20 text-center">
                     <div className="rounded-full bg-accent/50 p-4 mb-4">
-                        <Construction className="h-8 w-8 text-secondary" />
+                        <Construction className="h-8 w-8 text-muted-foreground" />
                     </div>
                     <h2 className="text-lg font-semibold mb-2">{section}</h2>
                     <p className="text-sm text-muted-foreground max-w-md">{description}</p>

@@ -67,7 +67,7 @@ export default function TeamPerformancePage() {
                     trend={-1}
                     icon={<TrendingDown className="h-4 w-4" />}
                     trendLabel="Agentes en riesgo"
-                    className="border-l-4 border-l-red-500"
+                    className="border-l-4 border-l-urus-danger"
                 />
             </div>
 
@@ -77,10 +77,10 @@ export default function TeamPerformancePage() {
                     const count = teamMembers.filter((m) => m.archetype === key).length;
                     return (
                         <Card key={key} className={cn("border-t-4",
-                            key === "Top Performer" ? "border-t-emerald-500" :
-                                key === "Productivo Ineficiente" ? "border-t-blue-500" :
-                                    key === "Dependiente del Lead" ? "border-t-yellow-500" :
-                                        "border-t-red-500"
+                            key === "Top Performer" ? "border-t-urus-success" :
+                                key === "Productivo Ineficiente" ? "border-t-urus-info" :
+                                    key === "Dependiente del Lead" ? "border-t-urus-warning" :
+                                        "border-t-urus-danger"
                         )}>
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-sm font-medium">{key}</CardTitle>
@@ -140,10 +140,10 @@ export default function TeamPerformancePage() {
                                             variant="outline"
                                             className={cn(
                                                 "text-[10px] font-normal border-opacity-50",
-                                                member.archetype === "Top Performer" ? "bg-emerald-50 text-emerald-700 border-emerald-300" :
-                                                    member.archetype === "Productivo Ineficiente" ? "bg-blue-50 text-blue-700 border-blue-300" :
-                                                        member.archetype === "Dependiente del Lead" ? "bg-yellow-50 text-yellow-700 border-yellow-300" :
-                                                            "bg-red-50 text-red-700 border-red-300"
+                                                member.archetype === "Top Performer" ? "bg-urus-success/10 text-urus-success border-urus-success/30" :
+                                                    member.archetype === "Productivo Ineficiente" ? "bg-urus-info/10 text-urus-info border-urus-info/30" :
+                                                        member.archetype === "Dependiente del Lead" ? "bg-urus-warning/10 text-urus-warning border-urus-warning/30" :
+                                                            "bg-urus-danger/10 text-urus-danger border-urus-danger/30"
                                             )}
                                         >
                                             {member.archetype}
@@ -187,7 +187,7 @@ export default function TeamPerformancePage() {
                                                 </DropdownMenuItem>
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuItem>Asignar Plan de Mejora</DropdownMenuItem>
-                                                <DropdownMenuItem className="text-red-600">Reportar Anomalía</DropdownMenuItem>
+                                                <DropdownMenuItem className="text-urus-danger">Reportar Anomalía</DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </TableCell>

@@ -43,8 +43,8 @@ export function FirmaPdfViewer({ pdfSrc }: FirmaPdfViewerProps) {
     >
       <div className="mx-auto flex max-w-4xl flex-col items-center gap-4 sm:gap-6 px-3 sm:px-4 py-4 sm:py-8">
         {loadError ? (
-          <div className="rounded-lg bg-red-50 p-4 border border-red-100 text-center">
-            <p className="text-sm font-medium text-red-600">{loadError}</p>
+          <div className="rounded-lg bg-urus-danger-bg p-4 border border-urus-danger/20 text-center">
+            <p className="text-sm font-medium text-urus-danger">{loadError}</p>
           </div>
         ) : (
           <Document

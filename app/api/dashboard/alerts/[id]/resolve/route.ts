@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { getSessionFromRequest, isCeoOrAdmin, unauthorized, forbidden } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
@@ -34,6 +35,8 @@ const patchHandler = async (request: Request, { params }: { params: Promise<{ id
       where: { id },
       data: { resolvedAt: new Date() },
     });
+
+    revalidateTag("platform-summary", { expire: 0 });
 
     return NextResponse.json({ ok: true, alert: updated });
   } catch (err) {

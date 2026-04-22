@@ -100,17 +100,17 @@ const STATUS_META: Record<LeadStatus, StatusMeta> = {
   EN_FIRMA: {
     label: "En Firma",
     className:
-      "bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-950/50 dark:text-amber-200 dark:border-amber-800",
+      "bg-urus-warning/10 text-urus-warning border-urus-warning/30 dark:bg-urus-warning/15 dark:text-urus-warning dark:border-urus-warning/30",
   },
   CERRADO: {
     label: "Cerrado",
     className:
-      "bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-800",
+      "bg-urus-success/10 text-urus-success border-urus-success/30 dark:bg-urus-success/15 dark:text-urus-success dark:border-urus-success/30",
   },
   PERDIDO: {
     label: "Perdido",
     className:
-      "bg-red-100 text-red-800 border-red-200 dark:bg-red-950/50 dark:text-red-200 dark:border-red-800",
+      "bg-urus-danger/10 text-urus-danger border-urus-danger/30 dark:bg-urus-danger/15 dark:text-urus-danger dark:border-urus-danger/30",
   },
 };
 
@@ -161,9 +161,9 @@ const STAT_GROUPS = [
   {
     label: "Cerrados / Perdidos",
     statuses: ["CERRADO", "PERDIDO"] as LeadStatus[],
-    colorClass: "text-emerald-600 dark:text-emerald-400",
+    colorClass: "text-urus-success dark:text-urus-success",
     bgClass:
-      "bg-emerald-50/90 border-emerald-100 dark:bg-emerald-950/35 dark:border-emerald-900/50",
+      "bg-urus-success/5 border-urus-success/20 dark:bg-urus-success/10 dark:border-urus-success/20",
   },
 ];
 
@@ -680,7 +680,7 @@ function StatsBar({
             type="button"
             onClick={() => onGroupClick(group.statuses)}
             className={cn(
-              "flex flex-col gap-1 rounded-xl border p-4 text-left transition-all hover:shadow-md hover:border-foreground/15",
+              "flex flex-col gap-1 rounded-lg border p-4 text-left transition-all hover:shadow-[var(--shadow-elevated)] hover:border-foreground/15",
               group.bgClass,
               isActive &&
                 "ring-2 ring-primary/35 ring-offset-2 ring-offset-background dark:ring-primary/45",
@@ -728,7 +728,7 @@ function FilterChips({
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all",
               active
-                ? cn(meta.className, "ring-1 ring-foreground/10 shadow-sm")
+                ? cn(meta.className, "border border-border shadow-sm")
                 : cn(
                     "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground",
                     count === 0 && "opacity-55",

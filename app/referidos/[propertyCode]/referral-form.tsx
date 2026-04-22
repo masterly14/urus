@@ -59,7 +59,7 @@ export function ReferralForm({ propertyCode, referrerName }: ReferralFormProps) 
 
   if (submitted) {
     return (
-      <Card className="border-border/50 bg-card/80 backdrop-blur-sm max-w-md mx-auto">
+      <Card className="max-w-md mx-auto">
         <CardContent className="p-8 text-center space-y-4">
           <div className="mx-auto h-16 w-16 rounded-full bg-[var(--urus-success)]/15 flex items-center justify-center">
             <CheckCircle2 className="h-8 w-8 text-[var(--urus-success)]" />
@@ -75,10 +75,10 @@ export function ReferralForm({ propertyCode, referrerName }: ReferralFormProps) 
   }
 
   return (
-    <Card className="border-border/50 bg-card/80 backdrop-blur-sm max-w-md mx-auto">
+    <Card className="max-w-md mx-auto">
       <CardHeader className="pb-4">
         <div className="flex items-center gap-3 mb-2">
-          <div className="h-10 w-10 rounded-xl bg-secondary/15 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-lg bg-secondary/15 flex items-center justify-center">
             <Users className="h-5 w-5 text-secondary" />
           </div>
           <div>

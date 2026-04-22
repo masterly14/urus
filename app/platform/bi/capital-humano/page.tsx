@@ -53,20 +53,20 @@ interface MentalHealthOverview {
 
 function energiaLabel(avg: number | null): { label: string; color: string } {
   if (avg === null) return { label: "Sin datos", color: "text-muted-foreground" };
-  if (avg >= 4) return { label: "Alta", color: "text-emerald-600" };
-  if (avg >= 3) return { label: "Media", color: "text-yellow-600" };
-  return { label: "Baja", color: "text-red-600" };
+  if (avg >= 4) return { label: "Alta", color: "text-urus-success" };
+  if (avg >= 3) return { label: "Media", color: "text-urus-warning" };
+  return { label: "Baja", color: "text-urus-danger" };
 }
 
 const FLUJO_META: Record<
   keyof FlujoDistribucion,
   { label: string; color: string }
 > = {
-  bloqueo: { label: "Bloqueo", color: "bg-red-500" },
+  bloqueo: { label: "Bloqueo", color: "bg-urus-danger" },
   preparacion: { label: "Preparación", color: "bg-blue-500" },
   descarga: { label: "Descarga emocional", color: "bg-orange-500" },
   enfoque: { label: "Enfoque", color: "bg-purple-500" },
-  crecimiento: { label: "Crecimiento", color: "bg-emerald-500" },
+  crecimiento: { label: "Crecimiento", color: "bg-urus-success" },
 };
 
 // ---------------------------------------------------------------------------
@@ -105,7 +105,7 @@ export default function HumanCapitalDashboard() {
 
   if (error || !data) {
     return (
-      <div className="flex items-center justify-center h-64 text-red-500 text-sm">
+      <div className="flex items-center justify-center h-64 text-urus-danger text-sm">
         No se pudieron cargar los datos. Inténtalo de nuevo.
       </div>
     );
@@ -187,7 +187,7 @@ export default function HumanCapitalDashboard() {
             <div
               className={cn(
                 "text-2xl font-bold",
-                totalAlertas > 0 ? "text-red-600" : "text-emerald-600",
+                totalAlertas > 0 ? "text-urus-danger" : "text-urus-success",
               )}
             >
               {totalAlertas}
@@ -240,7 +240,7 @@ export default function HumanCapitalDashboard() {
                         className={cn(
                           "h-2",
                           key === "bloqueo" &&
-                            "bg-red-100 [&>div]:bg-red-500",
+                            "bg-urus-danger/10 [&>div]:bg-urus-danger",
                           key === "preparacion" &&
                             "bg-blue-100 [&>div]:bg-blue-500",
                           key === "descarga" &&
@@ -248,7 +248,7 @@ export default function HumanCapitalDashboard() {
                           key === "enfoque" &&
                             "bg-purple-100 [&>div]:bg-purple-500",
                           key === "crecimiento" &&
-                            "bg-emerald-100 [&>div]:bg-emerald-500",
+                            "bg-urus-success/10 [&>div]:bg-urus-success",
                         )}
                       />
                     </div>
@@ -260,10 +260,10 @@ export default function HumanCapitalDashboard() {
         </Card>
 
         {/* Alertas de riesgo operativo */}
-        <Card className="md:col-span-3 border-l-4 border-l-red-500">
+        <Card className="md:col-span-3 border-l-4 border-l-urus-danger">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <BrainCircuit className="h-5 w-5 text-red-500" />
+              <BrainCircuit className="h-5 w-5 text-urus-danger" />
               Alertas de riesgo operativo
             </CardTitle>
             <CardDescription>
@@ -279,7 +279,7 @@ export default function HumanCapitalDashboard() {
             />
             <AlertRow
               icon={
-                <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                <AlertTriangle className="h-5 w-5 text-urus-danger shrink-0 mt-0.5" />
               }
               label="Bloqueo emocional recurrente"
               count={data.alertasActivas.recurrent_block}

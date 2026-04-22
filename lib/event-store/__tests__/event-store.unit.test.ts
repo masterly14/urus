@@ -15,6 +15,10 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+vi.mock("@/lib/cache", () => ({
+  invalidateCacheForEvent: vi.fn(),
+}));
+
 import {
   appendEvent,
   getEventsByAggregate,

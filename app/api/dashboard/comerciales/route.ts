@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import {
-  getComercialesDashboard,
   getDefaultDashboardRange,
-  getLeadScoreStatsByComercial,
 } from "@/lib/dashboard/comercial/queries";
+import {
+  getCachedComercialesDashboard,
+  getCachedLeadScoreStats,
+} from "@/lib/dashboard/comercial/cached-queries";
 import {
   classifyTeam,
   type ClassifiedRow,
@@ -93,8 +95,8 @@ const getHandler = async (request: Request) => {
 
   try {
     const [dashResult, leadScoreRows] = await Promise.all([
-      getComercialesDashboard(range, { includeInactive }),
-      getLeadScoreStatsByComercial(range),
+      getCachedComercialesDashboard(range, { includeInactive }),
+      getCachedLeadScoreStats(range),
     ]);
 
     const leadScoreMap = new Map<string, LeadScoreStats>(

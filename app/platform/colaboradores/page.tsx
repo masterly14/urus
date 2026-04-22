@@ -124,7 +124,7 @@ export default function ColaboradoresPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
             <Users className="h-5 w-5 text-secondary" />
           </div>
           <div>
@@ -168,7 +168,7 @@ export default function ColaboradoresPage() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+        <Card className="border-border/50 hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="rounded-lg bg-secondary/15 p-2">
@@ -182,7 +182,7 @@ export default function ColaboradoresPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+        <Card className="border-border/50 hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="rounded-lg bg-[var(--urus-success)]/15 p-2">
@@ -196,7 +196,7 @@ export default function ColaboradoresPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+        <Card className="border-border/50 hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="rounded-lg bg-[var(--urus-danger)]/15 p-2">
@@ -210,7 +210,7 @@ export default function ColaboradoresPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+        <Card className="border-border/50 hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="rounded-lg bg-[var(--urus-info)]/15 p-2">
@@ -225,7 +225,7 @@ export default function ColaboradoresPage() {
         </Card>
       </div>
 
-      <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+      <Card className="border-border/50">
         <CardContent className="p-4">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
@@ -286,7 +286,7 @@ export default function ColaboradoresPage() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+      <Card className="border-border/50">
         <CardContent className="p-0">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">

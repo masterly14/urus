@@ -52,7 +52,7 @@ export function StaticMapImage({
           {latitude.toFixed(5)}, {longitude.toFixed(5)}
         </span>
         {errorDetail ? (
-          <span className="text-xs text-red-400 mt-1">{errorDetail}</span>
+          <span className="text-xs text-urus-danger mt-1">{errorDetail}</span>
         ) : null}
       </div>
     );

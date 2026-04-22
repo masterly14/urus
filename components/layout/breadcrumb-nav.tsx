@@ -9,8 +9,8 @@ const labelMap: Record<string, string> = {
     coach: "Coach Emocional",
     chat: "Chat",
     metricas: "Métricas",
-    "post-venta": "Post-Venta",
-    pipeline: "Pipeline",
+    "post-venta": "Operaciones",
+    pipeline: "Seguimiento",
     operacion: "Operación",
     colaboradores: "Colaboradores",
     ranking: "Rankings",
@@ -34,6 +34,7 @@ const labelMap: Record<string, string> = {
     comercial: "Comercial",
     alertas: "Alertas",
     captacion: "Captación",
+    operaciones: "Operaciones",
     configuracion: "Configuración",
 };
 

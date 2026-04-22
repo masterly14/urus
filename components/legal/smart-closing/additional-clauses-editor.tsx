@@ -234,7 +234,7 @@ export function AdditionalClausesEditor({
   const hasContent = !isAdditionalClausesDocEmpty(latestDocRef.current);
 
   return (
-    <Card className="border-border/50 bg-card/60 backdrop-blur-sm overflow-hidden">
+    <Card className="overflow-hidden">
       <CardHeader className="py-2.5 pb-2">
         <button
           type="button"
@@ -279,7 +279,7 @@ export function AdditionalClausesEditor({
       {expanded && (
         <CardContent className="p-0 border-t border-border/30">
           {readOnly && (
-            <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 text-xs text-amber-700 dark:text-amber-400">
+            <div className="bg-urus-warning/10 border-b border-urus-warning/30 px-4 py-2 text-xs text-urus-warning">
               El contrato ya no está en borrador. Las cláusulas son solo de lectura.
             </div>
           )}
@@ -342,7 +342,7 @@ function Toolbar({
 }: ToolbarProps) {
   if (!editor) return null;
   return (
-    <div className="flex items-center gap-1 px-4 py-2 border-b border-border/30 bg-card/60 flex-wrap">
+    <div className="flex items-center gap-1 px-4 py-2 border-b border-border/30 bg-card flex-wrap">
       <ToolbarButton
         label="Negrita"
         active={isBoldActive}

@@ -251,6 +251,20 @@ registerHandler(
   ),
 );
 
+// --- Operaciones v2 (M11) ---
+registerHandler(
+  "OPERACION_CREADA",
+  auditOnlyHandler("trazabilidad: operación creada desde UI de operaciones"),
+);
+registerHandler(
+  "OPERACION_AVANZADA",
+  auditOnlyHandler("trazabilidad: avance manual de etapa desde UI de operaciones"),
+);
+registerHandler(
+  "COMPRADOR_ASOCIADO",
+  auditOnlyHandler("trazabilidad: comprador asociado a operación desde flujo de cierre"),
+);
+
 // --- Visit Scheduling (M4 rediseño) ---
 registerHandler("VISITA_SOLICITADA", handleVisitaSolicitada);
 registerHandler("VISITA_SLOTS_PROPUESTOS", handleVisitaSlotsPropuestos);

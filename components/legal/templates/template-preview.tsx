@@ -95,7 +95,7 @@ export function TemplatePreview({ templateId }: Props) {
 
         {error && (
           <>
-            <div className="w-full max-w-sm p-4 rounded-xl bg-destructive/5 border border-destructive/20">
+            <div className="w-full max-w-sm p-4 rounded-lg bg-destructive/5 border border-destructive/20">
               <p className="text-sm text-destructive font-medium mb-1">Error al generar</p>
               <p className="text-xs text-destructive/80">{error}</p>
             </div>
@@ -109,11 +109,11 @@ export function TemplatePreview({ templateId }: Props) {
         {base64 && !error && (
           <>
             <div className="h-16 w-16 rounded-2xl bg-emerald-50 flex items-center justify-center">
-              <FileCheck className="h-8 w-8 text-emerald-600" />
+              <FileCheck className="h-8 w-8 text-urus-success" />
             </div>
 
             <div className="text-center">
-              <p className="text-sm font-medium text-emerald-700">Documento listo</p>
+              <p className="text-sm font-medium text-urus-success">Documento listo</p>
               <p className="text-xs text-muted-foreground mt-1">{fileName}</p>
             </div>
 

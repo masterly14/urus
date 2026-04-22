@@ -179,7 +179,7 @@ function FeedbackContent() {
             <div className="space-y-6">
                 <div className="flex items-center justify-between flex-wrap gap-4">
                     <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[var(--urus-gold)]/20 to-[var(--urus-gold)]/5 flex items-center justify-center">
+                        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-[var(--urus-gold)]/20 to-[var(--urus-gold)]/5 flex items-center justify-center">
                             <Sparkles className="h-5 w-5 text-[var(--urus-gold)]" />
                         </div>
                         <div>
@@ -197,9 +197,9 @@ function FeedbackContent() {
                     </Link>
                 </div>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardContent className="p-8 text-center space-y-3">
-                        <div className="mx-auto h-12 w-12 rounded-xl bg-secondary/10 flex items-center justify-center">
+                        <div className="mx-auto h-12 w-12 rounded-lg bg-secondary/10 flex items-center justify-center">
                             <HelpCircle className="h-6 w-6 text-secondary" />
                         </div>
                         <div>
@@ -227,7 +227,7 @@ function FeedbackContent() {
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[var(--urus-gold)]/20 to-[var(--urus-gold)]/5 flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-[var(--urus-gold)]/20 to-[var(--urus-gold)]/5 flex items-center justify-center">
                         <Sparkles className="h-5 w-5 text-[var(--urus-gold)]" />
                     </div>
                     <div>
@@ -247,7 +247,7 @@ function FeedbackContent() {
 
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-[var(--urus-success)]/15 p-2">
@@ -261,7 +261,7 @@ function FeedbackContent() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-[var(--urus-gold)]/15 p-2">
@@ -275,7 +275,7 @@ function FeedbackContent() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-[var(--urus-danger)]/15 p-2">
@@ -289,7 +289,7 @@ function FeedbackContent() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-secondary/15 p-2">
@@ -308,7 +308,7 @@ function FeedbackContent() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Feedback Timeline */}
                 <div className="lg:col-span-2 space-y-4">
-                    <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                    <Card className="border-border/50">
                         <CardHeader className="pb-3">
                             <div className="flex items-center gap-2">
                                 <MessageSquare className="h-4 w-4 text-secondary" />
@@ -338,7 +338,7 @@ function FeedbackContent() {
                                                 <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: config.color }} />
                                             </div>
 
-                                            <div className="rounded-xl p-4 bg-accent/10 border border-border/20 hover:bg-accent/20 transition-all">
+                                            <div className="rounded-lg p-4 bg-accent/10 border border-border/20 hover:bg-accent/20 transition-all">
                                                 {/* Header */}
                                                 <div className="flex items-center justify-between mb-2">
                                                     <div className="flex items-center gap-2">
@@ -362,7 +362,7 @@ function FeedbackContent() {
                                                 </div>
 
                                                 {/* Response */}
-                                                <div className="bg-card/60 rounded-lg p-3 border border-border/20 mb-2">
+                                                <div className="rounded-lg p-3 border border-border/20 mb-2">
                                                     <p className="text-xs italic text-muted-foreground">&ldquo;{entry.respuesta}&rdquo;</p>
                                                 </div>
 
@@ -402,7 +402,7 @@ function FeedbackContent() {
 
                 {/* Learning Metrics */}
                 <div className="space-y-4">
-                    <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                    <Card className="border-border/50">
                         <CardHeader className="pb-3">
                             <div className="flex items-center gap-2">
                                 <BarChart3 className="h-4 w-4 text-secondary" />
@@ -482,7 +482,7 @@ function FeedbackContent() {
                                 ))}
                             </div>
 
-                            <div className="rounded-xl p-3 bg-secondary/5 border border-secondary/15">
+                            <div className="rounded-lg p-3 bg-secondary/5 border border-secondary/15">
                                 <div className="flex items-start gap-2">
                                     <TrendingUp className="h-3.5 w-3.5 text-secondary shrink-0 mt-0.5" />
                                     <div>
@@ -499,7 +499,7 @@ function FeedbackContent() {
             </div>
 
             {/* Validation Queue */}
-            <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+            <Card className="border-border/50">
                 <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -524,7 +524,7 @@ function FeedbackContent() {
                             return (
                                 <div
                                     key={item.id}
-                                    className={`rounded-xl p-4 border transition-all ${isValidated
+                                    className={`rounded-lg p-4 border transition-all ${isValidated
                                             ? decision === "si"
                                                 ? "bg-[var(--urus-success)]/3 border-[var(--urus-success)]/15 opacity-70"
                                                 : "bg-[var(--urus-danger)]/3 border-[var(--urus-danger)]/15 opacity-70"
@@ -554,7 +554,7 @@ function FeedbackContent() {
                                             </div>
 
                                             {/* IA reasoning */}
-                                            <div className="flex items-start gap-2 bg-card/40 rounded-lg p-2.5 border border-border/10">
+                                            <div className="flex items-start gap-2 bg-card rounded-lg p-2.5 border border-border/10">
                                                 <BrainCircuit className="h-3.5 w-3.5 text-secondary shrink-0 mt-0.5" />
                                                 <p className="text-[11px] text-muted-foreground leading-relaxed">{item.razonIA}</p>
                                             </div>

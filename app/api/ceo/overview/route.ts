@@ -5,7 +5,7 @@ import {
   unauthorized,
   forbidden,
 } from "@/lib/auth/session";
-import { getCeoOverview } from "@/lib/dashboard/ceo/queries";
+import { getCachedCeoOverview } from "@/lib/dashboard/ceo/cached-queries";
 import { withObservedRoute } from "@/lib/observability";
 
 
@@ -15,7 +15,7 @@ const getHandler = async (request: Request) => {
   if (!isCeoOrAdmin(session.role)) return forbidden();
 
   try {
-    const data = await getCeoOverview();
+    const data = await getCachedCeoOverview();
     return NextResponse.json({ ok: true, ...data });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

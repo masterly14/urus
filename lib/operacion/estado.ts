@@ -1,13 +1,17 @@
 import type { OperacionEstado } from "@prisma/client";
+import { isTerminal } from "./stages";
 
 /**
  * Mapea el texto de `estadoficha` de Inmovilla al enum `OperacionEstado` de Prisma.
  * Retorna `null` si el texto no corresponde a ningún estado conocido.
+ *
+ * Catálogo de referencia (33 valores): docs/operacion-cerrada.md
  */
 export function mapEstadoFichaToOperacionEstado(
   estadoFicha: string,
 ): OperacionEstado | null {
   const lower = estadoFicha.toLowerCase();
+  if (lower.includes("ofertad")) return "OFERTA_FIRME";
   if (lower.includes("reserv") || lower.includes("señal") || lower.includes("senal"))
     return "RESERVA";
   if (lower.includes("arras")) return "ARRAS";
@@ -19,13 +23,9 @@ export function mapEstadoFichaToOperacionEstado(
   return null;
 }
 
-const CLOSED_STATES: Set<OperacionEstado> = new Set([
-  "CERRADA_VENTA",
-  "CERRADA_ALQUILER",
-  "CERRADA_TRASPASO",
-  "CANCELADA",
-]);
-
+/**
+ * @deprecated Usar `isTerminal` de `lib/operacion/stages.ts` en su lugar.
+ */
 export function isEstadoCerrado(estado: OperacionEstado): boolean {
-  return CLOSED_STATES.has(estado);
+  return isTerminal(estado);
 }

@@ -280,7 +280,7 @@ export default function CrucesPage() {
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
                         <ArrowLeftRight className="h-5 w-5 text-secondary" />
                     </div>
                     <div>
@@ -293,7 +293,7 @@ export default function CrucesPage() {
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => setIsLiveActive(!isLiveActive)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${isLiveActive
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${isLiveActive
                             ? "bg-[var(--urus-success)]/10 border-[var(--urus-success)]/30 text-[var(--urus-success)]"
                             : "bg-accent/30 border-border/30 text-muted-foreground"
                             }`}
@@ -303,7 +303,7 @@ export default function CrucesPage() {
                     </button>
                     <button
                         onClick={() => fetchCruces(false)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-border/30 text-muted-foreground hover:bg-accent/30 transition-all"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border/30 text-muted-foreground hover:bg-accent/30 transition-all"
                     >
                         <RefreshCw className="h-3 w-3" />
                         Recargar
@@ -332,7 +332,7 @@ export default function CrucesPage() {
 
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-secondary/15 p-2">
@@ -346,7 +346,7 @@ export default function CrucesPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-[var(--urus-gold)]/15 p-2">
@@ -360,7 +360,7 @@ export default function CrucesPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-[var(--urus-success)]/15 p-2">
@@ -374,7 +374,7 @@ export default function CrucesPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-[var(--urus-info)]/15 p-2">
@@ -392,7 +392,7 @@ export default function CrucesPage() {
             {/* Distribution + Zones + Filters */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Score distribution */}
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
                             <BarChart3 className="h-4 w-4 text-secondary" />
@@ -429,7 +429,7 @@ export default function CrucesPage() {
                 </Card>
 
                 {/* Zone distribution */}
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
                             <MapPin className="h-4 w-4 text-[var(--urus-gold)]" />
@@ -466,7 +466,7 @@ export default function CrucesPage() {
                 </Card>
 
                 {/* Filters */}
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
                             <Filter className="h-4 w-4 text-muted-foreground" />
@@ -534,7 +534,7 @@ export default function CrucesPage() {
                     </div>
 
                     {filtered.length === 0 ? (
-                        <Card className="border-border/50 bg-card/60 border-dashed">
+                        <Card className="border-border/50 border-dashed">
                             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                                 <ArrowLeftRight className="h-10 w-10 text-muted-foreground/30 mb-3" />
                                 <p className="text-sm font-medium text-muted-foreground">Sin cruces registrados</p>
@@ -619,7 +619,7 @@ export default function CrucesPage() {
                     {selectedMatch ? (
                         <div className="space-y-3 sticky top-4">
                             <WhatsAppPreview match={selectedMatch} onSent={handleMatchSent} />
-                            <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                            <Card className="border-border/50">
                                 <CardContent className="p-3 space-y-2">
                                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Detalles del Cruce</p>
                                     <div className="grid grid-cols-2 gap-2 text-xs">
@@ -686,7 +686,7 @@ export default function CrucesPage() {
                             </Card>
                         </div>
                     ) : (
-                        <Card className="border-border/50 bg-card/60 backdrop-blur-sm border-dashed">
+                        <Card className="border-border/50 border-dashed">
                             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                                 <MessageCircle className="h-10 w-10 text-muted-foreground/30 mb-3" />
                                 <p className="text-sm font-medium text-muted-foreground">Selecciona un cruce</p>

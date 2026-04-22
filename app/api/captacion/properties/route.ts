@@ -45,7 +45,7 @@ export async function GET(request: Request) {
       metrosConstruidos: true,
     },
     orderBy: { updatedAt: "desc" },
-    take: 20,
+    take: q.length >= 2 ? 50 : 200,
   });
 
   return NextResponse.json({ properties });

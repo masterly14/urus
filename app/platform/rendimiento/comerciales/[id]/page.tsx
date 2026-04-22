@@ -35,10 +35,10 @@ import {
 import { useSession } from "@/lib/hooks/use-session";
 
 const PROFILE_CARD_STYLES: Record<ComercialProfile, { border: string; bg: string; text: string }> = {
-    top_performer: { border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-800" },
-    productivo_ineficiente: { border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-800" },
+    top_performer: { border: "border-urus-success/30", bg: "bg-urus-success/5", text: "text-urus-success" },
+    productivo_ineficiente: { border: "border-urus-warning/30", bg: "bg-urus-warning/5", text: "text-urus-warning" },
     dependiente_lead_caliente: { border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-800" },
-    bajo_rendimiento_estructural: { border: "border-red-200", bg: "bg-red-50", text: "text-red-800" },
+    bajo_rendimiento_estructural: { border: "border-urus-danger/30", bg: "bg-urus-danger/5", text: "text-urus-danger" },
     sin_datos_suficientes: { border: "border-gray-200", bg: "bg-gray-50", text: "text-gray-600" },
 };
 
@@ -84,7 +84,7 @@ export default function ComercialDetailPage({ params }: { params: Promise<{ id: 
             <div className="flex items-center justify-center h-64">
                 <Card className="max-w-md">
                     <CardContent className="p-6 text-center space-y-3">
-                        <ShieldAlert className="h-10 w-10 text-red-500 mx-auto" />
+                        <ShieldAlert className="h-10 w-10 text-urus-danger mx-auto" />
                         <p className="text-base font-semibold">Acceso denegado</p>
                         <p className="text-sm text-muted-foreground">
                             Solo puedes ver tu propio perfil de rendimiento.
@@ -105,9 +105,9 @@ export default function ComercialDetailPage({ params }: { params: Promise<{ id: 
             <div className="flex items-center justify-center h-64">
                 <Card className="max-w-md">
                     <CardContent className="p-6 text-center space-y-2">
-                        <AlertTriangle className="h-8 w-8 text-red-500 mx-auto" />
+                        <AlertTriangle className="h-8 w-8 text-urus-danger mx-auto" />
                         <p className="text-sm text-muted-foreground">Error al cargar datos</p>
-                        <p className="text-xs text-red-500">{error}</p>
+                        <p className="text-xs text-urus-danger">{error}</p>
                     </CardContent>
                 </Card>
             </div>
@@ -196,7 +196,7 @@ export default function ComercialDetailPage({ params }: { params: Promise<{ id: 
             {loading ? (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     {Array.from({ length: 4 }).map((_, i) => (
-                        <Skeleton key={i} className="h-[120px] rounded-xl" />
+                        <Skeleton key={i} className="h-[120px] rounded-lg" />
                     ))}
                 </div>
             ) : summary ? (
@@ -307,7 +307,7 @@ export default function ComercialDetailPage({ params }: { params: Promise<{ id: 
                                         <span className="text-muted-foreground">Tasa de Pérdida</span>
                                         <span className={cn(
                                             "font-bold",
-                                            summary.lostLeadRate > 0.3 ? "text-red-500" : "text-foreground"
+                                            summary.lostLeadRate > 0.3 ? "text-urus-danger" : "text-foreground"
                                         )}>
                                             {(summary.lostLeadRate * 100).toFixed(1)}%
                                         </span>
@@ -316,7 +316,7 @@ export default function ComercialDetailPage({ params }: { params: Promise<{ id: 
                                         <div
                                             className={cn(
                                                 "h-full rounded-full transition-all",
-                                                summary.lostLeadRate > 0.3 ? "bg-red-500" : "bg-primary"
+                                                summary.lostLeadRate > 0.3 ? "bg-urus-danger" : "bg-primary"
                                             )}
                                             style={{ width: `${Math.min(summary.lostLeadRate * 100, 100)}%` }}
                                         />
@@ -363,13 +363,13 @@ function MetricRow({
             <div className="flex items-center gap-2">
                 <Icon className={cn(
                     "h-4 w-4",
-                    variant === "danger" ? "text-red-500" : "text-muted-foreground"
+                    variant === "danger" ? "text-urus-danger" : "text-muted-foreground"
                 )} />
                 <span className="text-sm text-muted-foreground">{label}</span>
             </div>
             <span className={cn(
                 "text-sm font-semibold tabular-nums",
-                variant === "danger" && "text-red-500"
+                variant === "danger" && "text-urus-danger"
             )}>
                 {value}
             </span>

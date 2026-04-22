@@ -34,7 +34,7 @@ const severityColors: Record<string, string> = {
 };
 
 const sourceLabels: Record<string, string> = {
-    "post-venta": "Post-Venta",
+    "post-venta": "Operaciones",
     colaboradores: "Colaboradores",
     matching: "Matching",
     pricing: "Pricing",
@@ -99,8 +99,8 @@ function getNotificationHref(notification: AppNotification): string | null {
         case "OPERACION_CERRADA":
         case "INCIDENCIA_POSTVENTA_ABIERTA":
             return operationId
-                ? `/platform/post-venta/operacion/${encodeURIComponent(operationId)}`
-                : "/platform/post-venta/pipeline";
+                ? `/platform/operaciones?search=${encodeURIComponent(operationId)}`
+                : "/platform/operaciones";
         case "COLABORADOR_SLA_BREACH":
             return "/platform/colaboradores";
         case "CEO_DIAGNOSTICO_GENERADO":
@@ -118,7 +118,7 @@ function getNotificationHref(notification: AppNotification): string | null {
     }
 
     const sourceFallbackMap: Record<string, string> = {
-        "post-venta": "/platform/post-venta/pipeline",
+        "post-venta": "/platform/operaciones",
         colaboradores: "/platform/colaboradores",
         matching: "/platform/matching/cruces",
         pricing: "/platform/pricing",
@@ -161,7 +161,7 @@ export function TopBar({ logoSrc }: { logoSrc?: string }) {
     };
 
     return (
-        <header className="fixed top-0 left-0 right-0 z-50 flex h-16 items-center justify-between border-b border-border/50 bg-card/80 px-4 backdrop-blur-xl">
+        <header className="fixed top-0 left-0 right-0 z-50 flex h-12 items-center justify-between border-b border-border bg-white dark:bg-card px-4">
             {/* Logo */}
             <div className="flex min-w-0 shrink-0 items-center gap-3">
                 {logoSrc ? (

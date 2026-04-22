@@ -87,7 +87,7 @@ export function HitoKanban({
         return (
           <div key={col.estado} className="flex flex-col min-w-[220px] w-[220px] shrink-0">
             <div
-              className="rounded-xl px-3 py-2 mb-2 border"
+              className="rounded-lg px-3 py-2 mb-2 border"
               style={{
                 borderColor: `color-mix(in oklch, ${col.color} 25%, transparent)`,
                 backgroundColor: `color-mix(in oklch, ${col.color} 6%, transparent)`,
@@ -120,7 +120,7 @@ export function HitoKanban({
                 return (
                   <div
                     key={hito.id}
-                    className={`rounded-xl p-3 border bg-card/60 transition-all ${vencido ? "border-[var(--urus-danger)]/40" : "border-border/40"}`}
+                    className={`rounded-lg p-3 border transition-all ${vencido ? "border-[var(--urus-danger)]/40" : "border-border/40"}`}
                   >
                     <div className="flex items-start justify-between gap-1 mb-1.5">
                       <p className="text-xs font-medium leading-tight">{hito.nombre}</p>
@@ -180,7 +180,7 @@ export function HitoKanban({
               })}
 
               {col.hitos.length === 0 && (
-                <div className="rounded-xl border border-dashed border-border/30 p-4 flex items-center justify-center">
+                <div className="rounded-lg border border-dashed border-border/30 p-4 flex items-center justify-center">
                   <p className="text-[10px] text-muted-foreground">Sin hitos</p>
                 </div>
               )}

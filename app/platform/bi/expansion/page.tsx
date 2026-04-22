@@ -123,22 +123,22 @@ const MOCK_GENERATED_AT = "2026-04-01T07:00:00.000Z";
 
 const READINESS_STYLE: Record<ExpansionReadiness, { bg: string; text: string; label: string; border: string }> = {
   apto: {
-    bg: "bg-emerald-100 dark:bg-emerald-900/30",
-    text: "text-emerald-700 dark:text-emerald-300",
+    bg: "bg-urus-success/10 dark:bg-urus-success/10",
+    text: "text-urus-success dark:text-urus-success",
     label: "Apto para expansión",
-    border: "border-emerald-300 dark:border-emerald-700",
+    border: "border-urus-success/30 dark:border-urus-success/30",
   },
   parcial: {
-    bg: "bg-amber-100 dark:bg-amber-900/30",
-    text: "text-amber-700 dark:text-amber-300",
+    bg: "bg-urus-warning/10 dark:bg-urus-warning/10",
+    text: "text-urus-warning dark:text-urus-warning",
     label: "Readiness parcial",
-    border: "border-amber-300 dark:border-amber-700",
+    border: "border-urus-warning/30 dark:border-urus-warning/30",
   },
   no_apto: {
-    bg: "bg-red-100 dark:bg-red-900/30",
-    text: "text-red-700 dark:text-red-300",
+    bg: "bg-urus-danger/10 dark:bg-urus-danger/10",
+    text: "text-urus-danger dark:text-urus-danger",
     label: "No apto para expansión",
-    border: "border-red-300 dark:border-red-700",
+    border: "border-urus-danger/30 dark:border-urus-danger/30",
   },
 };
 
@@ -149,9 +149,9 @@ const CRITERIO_ICON: Record<CriterioEstado, typeof CheckCircle2> = {
 };
 
 const CRITERIO_COLOR: Record<CriterioEstado, string> = {
-  cumplido: "text-emerald-600 dark:text-emerald-400",
-  parcial: "text-amber-600 dark:text-amber-400",
-  no_cumplido: "text-red-500 dark:text-red-400",
+  cumplido: "text-urus-success dark:text-urus-success",
+  parcial: "text-urus-warning dark:text-urus-warning",
+  no_cumplido: "text-urus-danger dark:text-urus-danger",
 };
 
 
@@ -251,7 +251,7 @@ function CriteriosCard({ criterios }: { criterios: CriterioExpansion[] }) {
 
 function CiudadCard({ ciudad }: { ciudad: CiudadCandidata }) {
   return (
-    <Card className="border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow">
+    <Card className="border-l-4 border-l-primary shadow-sm hover:shadow-[var(--shadow-elevated)] transition-shadow">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -327,7 +327,7 @@ function PlanCard({ plan, confidence, reasoning }: {
             <div
               className={cn(
                 "h-2 rounded-full",
-                confidence >= 0.7 ? "bg-emerald-500" : confidence >= 0.4 ? "bg-amber-500" : "bg-red-500",
+                confidence >= 0.7 ? "bg-urus-success" : confidence >= 0.4 ? "bg-urus-warning" : "bg-urus-danger",
               )}
               style={{ width: `${(confidence * 100).toFixed(0)}%` }}
             />
@@ -374,10 +374,10 @@ function ExpansionDashboardInner() {
 
   if (error && !useMock) {
     return (
-      <Card className="border-red-200 dark:border-red-800">
+      <Card className="border-urus-danger/30 dark:border-urus-danger/30">
         <CardContent className="py-8 text-center">
-          <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <AlertTriangle className="h-8 w-8 text-urus-danger mx-auto mb-2" />
+          <p className="text-sm text-urus-danger dark:text-urus-danger">{error}</p>
           <Button variant="outline" size="sm" className="mt-4" onClick={refetch}>
             Reintentar
           </Button>
@@ -437,7 +437,7 @@ function ExpansionDashboardInner() {
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-1">
           <CriteriosCard criterios={expansion.criterios_evaluados} />
         </div>

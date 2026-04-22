@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils/format";
 import { MockBadge } from "@/components/bi/mock-badge";
+import { AiIndicator } from "@/components/ui/ai-indicator";
 import { useCeoDiagnostic, useRegenerateDiagnostic } from "@/lib/hooks/use-ceo-diagnostic";
 import type {
   CeoDiagnosticRecommendation,
@@ -144,19 +145,19 @@ const MOCK_GENERATED_AT = "2026-04-01T07:00:00.000Z";
 
 const TIPO_CONFIG: Record<CeoDiagnosticTipo, { label: string; icon: typeof Brain; color: string }> = {
   contratar: { label: "Contratación", icon: Users, color: "text-blue-600 dark:text-blue-400" },
-  expandir: { label: "Expansión", icon: TrendingUp, color: "text-emerald-600 dark:text-emerald-400" },
+  expandir: { label: "Expansión", icon: TrendingUp, color: "text-urus-success dark:text-urus-success" },
   intervenir_proceso: { label: "Intervenir Proceso", icon: AlertTriangle, color: "text-orange-600 dark:text-orange-400" },
   redistribuir_leads: { label: "Redistribución", icon: Target, color: "text-purple-600 dark:text-purple-400" },
   formacion: { label: "Formación", icon: GraduationCap, color: "text-cyan-600 dark:text-cyan-400" },
-  ajustar_incentivos: { label: "Incentivos", icon: Wallet, color: "text-amber-600 dark:text-amber-400" },
-  reducir_costes: { label: "Reducir Costes", icon: Coins, color: "text-red-600 dark:text-red-400" },
+  ajustar_incentivos: { label: "Incentivos", icon: Wallet, color: "text-urus-warning dark:text-urus-warning" },
+  reducir_costes: { label: "Reducir Costes", icon: Coins, color: "text-urus-danger dark:text-urus-danger" },
   investigar: { label: "Investigar", icon: Search, color: "text-gray-600 dark:text-gray-400" },
 };
 
 const SEMAFORO_STYLE: Record<CeoDiagnosticSemaforo, { bg: string; text: string; label: string }> = {
-  verde: { bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-300", label: "Buena salud" },
-  amarillo: { bg: "bg-amber-100 dark:bg-amber-900/30", text: "text-amber-700 dark:text-amber-300", label: "Atención necesaria" },
-  rojo: { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-700 dark:text-red-300", label: "Intervención urgente" },
+  verde: { bg: "bg-urus-success/10 dark:bg-urus-success/10", text: "text-urus-success dark:text-urus-success", label: "Buena salud" },
+  amarillo: { bg: "bg-urus-warning/10 dark:bg-urus-warning/10", text: "text-urus-warning dark:text-urus-warning", label: "Atención necesaria" },
+  rojo: { bg: "bg-urus-danger/10 dark:bg-urus-danger/10", text: "text-urus-danger dark:text-urus-danger", label: "Intervención urgente" },
 };
 
 const PRIORIDAD_VARIANT: Record<string, "destructive" | "secondary" | "outline"> = {
@@ -177,7 +178,7 @@ function SemaforoCard({ semaforo, resumen, generatedAt }: {
 }) {
   const style = SEMAFORO_STYLE[semaforo];
   return (
-    <Card className={cn("border-2", semaforo === "rojo" ? "border-red-300 dark:border-red-700" : semaforo === "amarillo" ? "border-amber-300 dark:border-amber-700" : "border-emerald-300 dark:border-emerald-700")}>
+    <Card className={cn("border-2", semaforo === "rojo" ? "border-urus-danger/30 dark:border-urus-danger/30" : semaforo === "amarillo" ? "border-urus-warning/30 dark:border-urus-warning/30" : "border-urus-success/30 dark:border-urus-success/30")}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-lg">
@@ -209,6 +210,7 @@ function DiagnosticoCard({ text }: { text: string }) {
         <CardTitle className="flex items-center gap-2 text-violet-700 dark:text-violet-300">
           <Brain className="h-5 w-5" />
           Diagnóstico General
+          <AiIndicator />
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -225,7 +227,7 @@ function RecommendationCard({ rec }: { rec: CeoDiagnosticItem }) {
   const Icon = config.icon;
 
   return (
-    <Card className="border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow">
+    <Card className="border-l-4 border-l-primary shadow-sm hover:shadow-[var(--shadow-elevated)] transition-shadow">
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <div className="space-y-1">
@@ -260,7 +262,7 @@ function RecommendationCard({ rec }: { rec: CeoDiagnosticItem }) {
             <span className="font-semibold text-muted-foreground flex items-center gap-1">
               <Coins className="h-3 w-3" /> Impacto esperado:
             </span>
-            <p className="font-bold text-emerald-600 dark:text-emerald-400">
+            <p className="font-bold text-urus-success dark:text-urus-success">
               {rec.impacto_esperado}
             </p>
           </div>
@@ -329,7 +331,7 @@ function ConfidenceCard({ confidence, reasoning }: { confidence: number; reasoni
             <div
               className={cn(
                 "h-2.5 rounded-full",
-                confidence >= 0.7 ? "bg-emerald-500" : confidence >= 0.4 ? "bg-amber-500" : "bg-red-500",
+                confidence >= 0.7 ? "bg-urus-success" : confidence >= 0.4 ? "bg-urus-warning" : "bg-urus-danger",
               )}
               style={{ width: `${(confidence * 100).toFixed(0)}%` }}
             />
@@ -376,10 +378,10 @@ function PrescriptiveDashboardInner() {
 
   if (error && !useMock) {
     return (
-      <Card className="border-red-200 dark:border-red-800">
+      <Card className="border-urus-danger/30 dark:border-urus-danger/30">
         <CardContent className="py-8 text-center">
-          <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <AlertTriangle className="h-8 w-8 text-urus-danger mx-auto mb-2" />
+          <p className="text-sm text-urus-danger dark:text-urus-danger">{error}</p>
           <Button variant="outline" size="sm" className="mt-4" onClick={refetch}>
             Reintentar
           </Button>
@@ -440,10 +442,11 @@ function PrescriptiveDashboardInner() {
         <DiagnosticoCard text={diagnostic.diagnostico_general} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
-          <h2 className="text-xl font-semibold tracking-tight">
+          <h2 className="text-xl font-semibold tracking-tight flex items-center gap-2">
             Recomendaciones ({sortedRecs.length})
+            <AiIndicator />
           </h2>
           <div className="grid gap-4">
             {sortedRecs.map((rec, i) => (

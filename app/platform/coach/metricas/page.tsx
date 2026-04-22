@@ -90,7 +90,7 @@ export default function CoachMetricasPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[var(--urus-info)]/20 to-[var(--urus-info)]/5 flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-[var(--urus-info)]/20 to-[var(--urus-info)]/5 flex items-center justify-center">
                         <BarChart3 className="h-5 w-5 text-[var(--urus-info)]" />
                     </div>
                     <div>
@@ -104,7 +104,7 @@ export default function CoachMetricasPage() {
 
             {/* Top KPI row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-5">
                         <div className="flex items-start justify-between">
                             <div className="space-y-1">
@@ -118,7 +118,7 @@ export default function CoachMetricasPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-5">
                         <div className="flex items-start justify-between">
                             <div className="space-y-1">
@@ -132,7 +132,7 @@ export default function CoachMetricasPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-5">
                         <div className="flex items-start justify-between">
                             <div className="space-y-1">
@@ -151,7 +151,7 @@ export default function CoachMetricasPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:scale-[1.02]">
+                <Card className="border-border/50 transition-all duration-300">
                     <CardContent className="p-5">
                         <div className="flex items-start justify-between">
                             <div className="space-y-1">
@@ -186,7 +186,7 @@ export default function CoachMetricasPage() {
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Weekly Usage */}
-                <Card className="lg:col-span-2 border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="lg:col-span-2 border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
@@ -207,7 +207,7 @@ export default function CoachMetricasPage() {
                                             {d.sessions}
                                         </span>
                                         <div
-                                            className="w-full rounded-t-xl transition-all duration-500 relative overflow-hidden group-hover:brightness-110"
+                                            className="w-full rounded-t-lg transition-all duration-500 relative overflow-hidden group-hover:brightness-110"
                                             style={{
                                                 height: `${heightPct}%`,
                                                 background: isLast
@@ -232,7 +232,7 @@ export default function CoachMetricasPage() {
                 </Card>
 
                 {/* Flujo Distribution */}
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
                             <Brain className="h-4 w-4 text-[var(--urus-info)]" />
@@ -283,7 +283,7 @@ export default function CoachMetricasPage() {
             {/* Highlights + Table */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Highlights */}
-                <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
                             <Award className="h-4 w-4 text-secondary" />
@@ -292,7 +292,7 @@ export default function CoachMetricasPage() {
                     </CardHeader>
                     <CardContent className="pt-0 space-y-4">
                         {topUser && (
-                            <div className="rounded-xl p-3 bg-gradient-to-br from-[var(--urus-success)]/10 to-transparent border border-[var(--urus-success)]/15">
+                            <div className="rounded-lg p-3 bg-gradient-to-br from-[var(--urus-success)]/10 to-transparent border border-[var(--urus-success)]/15">
                                 <div className="flex items-center gap-3">
                                     <div className="h-10 w-10 rounded-full bg-[var(--urus-success)]/15 flex items-center justify-center text-sm font-bold text-[var(--urus-success)]">
                                         {topUser.avatar}
@@ -316,7 +316,7 @@ export default function CoachMetricasPage() {
                         )}
 
                         {leastUser && leastUser !== topUser && (
-                            <div className="rounded-xl p-3 bg-gradient-to-br from-[var(--urus-danger)]/10 to-transparent border border-[var(--urus-danger)]/15">
+                            <div className="rounded-lg p-3 bg-gradient-to-br from-[var(--urus-danger)]/10 to-transparent border border-[var(--urus-danger)]/15">
                                 <div className="flex items-center gap-3">
                                     <div className="h-10 w-10 rounded-full bg-[var(--urus-danger)]/15 flex items-center justify-center text-sm font-bold text-[var(--urus-danger)]">
                                         {leastUser.avatar}
@@ -339,7 +339,7 @@ export default function CoachMetricasPage() {
                             </div>
                         )}
 
-                        <div className="rounded-xl p-3 bg-gradient-to-br from-[var(--urus-info)]/5 to-transparent border border-[var(--urus-info)]/15">
+                        <div className="rounded-lg p-3 bg-gradient-to-br from-[var(--urus-info)]/5 to-transparent border border-[var(--urus-info)]/15">
                             <div className="flex gap-2">
                                 <Brain className="h-4 w-4 text-[var(--urus-info)] shrink-0 mt-0.5" />
                                 <div>
@@ -356,7 +356,7 @@ export default function CoachMetricasPage() {
                 </Card>
 
                 {/* Full metrics table */}
-                <Card className="lg:col-span-2 border-border/50 bg-card/60 backdrop-blur-sm">
+                <Card className="lg:col-span-2 border-border/50">
                     <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">

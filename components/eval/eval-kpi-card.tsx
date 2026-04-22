@@ -18,11 +18,11 @@ export function EvalKpiCard({ label, value, format = "score", delta, invertDelta
   const isPositive = invertDelta ? delta! < 0 : delta! > 0;
 
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+    <div className="rounded-lg border border-neutral-800 bg-neutral-900/40 p-4">
       <div className="text-xs text-neutral-500">{label}</div>
       <div className="mt-1 text-2xl font-bold">{formatted}</div>
       {showDelta ? (
-        <div className={`mt-1 text-xs font-medium ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>
+        <div className={`mt-1 text-xs font-medium ${isPositive ? "text-urus-success" : "text-urus-danger"}`}>
           {delta! > 0 ? "+" : ""}{format === "percent" ? `${(delta! * 100).toFixed(1)}pp` : format === "ms" ? `${Math.round(delta!)}ms` : delta!.toFixed(3)}
         </div>
       ) : null}

@@ -95,6 +95,9 @@ enum EventType {
   NOTA_ENCARGO_FORMULARIO_COMPLETADO
   PARTE_VISITA_FORMULARIO_COMPLETADO
   PRICING_PRECIO_APLICADO
+  OPERACION_CREADA
+  OPERACION_AVANZADA
+  COMPRADOR_ASOCIADO
 }
 
 enum JobType {
@@ -141,6 +144,7 @@ enum JobType {
   SEND_WHATSAPP_MATCH
   EVALUATE_DEMAND_COVERAGE
   REBUILD_MATCHES_FOR_DEMAND
+  UPDATE_PROPERTY_STATUS_INMOVILLA
 }
 
 enum JobStatus {
@@ -1288,6 +1292,7 @@ model DashboardAlert {
 
 enum OperacionEstado {
   EN_CURSO
+  OFERTA_FIRME
   RESERVA
   ARRAS
   PENDIENTE_FIRMA
@@ -1353,22 +1358,25 @@ model OperacionNota {
 /// Ítem de checklist ad-hoc en una operación. Ordenable mediante `orden`.
 /// NO avanza el stage del pipeline automáticamente — es tracking operativo.
 model OperacionChecklistItem {
-  id                     String    @id @default(cuid())
-  operacionId            String
-  texto                  String
-  completado             Boolean   @default(false)
-  orden                  Int       @default(0)
-  responsableComercialId String?
-  createdByUserId        String
-  completadoByUserId     String?
-  completadoAt           DateTime?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  id                      String    @id @default(cuid())
+  operacionId             String
+  texto                   String
+  completado              Boolean   @default(false)
+  orden                   Int       @default(0)
+  responsableComercialId  String?
+  responsableColaboradorId String?
+  createdByUserId         String
+  completadoByUserId      String?
+  completadoAt            DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
-  operacion Operacion @relation(fields: [operacionId], references: [id], onDelete: Cascade)
+  operacion   Operacion    @relation(fields: [operacionId], references: [id], onDelete: Cascade)
+  colaborador Colaborador? @relation(fields: [responsableColaboradorId], references: [id], onDelete: SetNull)
 
   @@index([operacionId, orden])
   @@index([responsableComercialId])
+  @@index([responsableColaboradorId])
   @@map("operacion_checklist_items")
 }
 
@@ -1430,6 +1438,7 @@ model Colaborador {
 
   asignaciones       ColaboradorAsignacion[]
   configuracionesSla ColaboradorSlaConfig[]
+  checklistItems     OperacionChecklistItem[]
 
   @@index([tipo, ciudad, activo])
   @@index([activo])
