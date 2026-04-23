@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { X, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkspaceTabs } from "@/lib/stores/workspace-tabs";
+import { useKeepAlive } from "./keep-alive";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -52,6 +53,7 @@ export function WorkspaceTabsBar({ sidebarCollapsed }: { sidebarCollapsed: boole
     const router = useRouter();
     const pathname = usePathname();
     const { tabs, activeTabId, openTab, closeTab, setActive } = useWorkspaceTabs();
+    const { evict } = useKeepAlive();
 
     useEffect(() => {
         if (!pathname.startsWith("/platform")) return;
@@ -74,11 +76,10 @@ export function WorkspaceTabsBar({ sidebarCollapsed }: { sidebarCollapsed: boole
     const handleClose = (e: React.MouseEvent, tabId: string) => {
         e.stopPropagation();
         const tab = tabs.find((t) => t.id === tabId);
+        if (tab) evict(tab.href);
         closeTab(tabId);
         if (activeTabId === tabId) {
             router.push("/platform");
-        } else if (tab) {
-            // stay on current page
         }
     };
 

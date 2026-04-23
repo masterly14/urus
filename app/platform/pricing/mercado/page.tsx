@@ -90,7 +90,7 @@ export default function MercadoPage() {
     const [informe, setInforme] = useState<MarketReportRecord | null>(null);
     const [informeLoading, setInformeLoading] = useState(false);
     const [informeError, setInformeError] = useState<string | null>(null);
-    const [informeExpanded, setInformeExpanded] = useState(true);
+    const [informeExpanded, setInformeExpanded] = useState(false);
     const [informeFetched, setInformeFetched] = useState(false);
     const [copied, setCopied] = useState(false);
 

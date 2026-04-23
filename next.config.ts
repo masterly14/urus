@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["undici"],
+  devIndicators: false,
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "res.cloudinary.com" },

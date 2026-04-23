@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Search, ChevronLeft, ChevronRight, ArrowRight, CheckCircle, XCircle, Loader2, MoreHorizontal, Eye } from "lucide-react";
+import { Plus, Search, ChevronLeft, ChevronRight, ArrowRight, CheckCircle, XCircle, Loader2, MoreHorizontal, Eye, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,6 +27,7 @@ import { DetalleSheet } from "./detalle-sheet";
 import { AvanzarDialog } from "./avanzar-dialog";
 import { CerrarDialog } from "./cerrar-dialog";
 import { CancelarDialog } from "./cancelar-dialog";
+import { OperacionesGuiaDialog } from "./operaciones-guia-dialog";
 
 interface Operacion {
   id: string;
@@ -137,6 +138,7 @@ export function OperacionesClient() {
   const [avanzarOp, setAvanzarOp] = useState<Operacion | null>(null);
   const [cerrarOp, setCerrarOp] = useState<Operacion | null>(null);
   const [cancelarOp, setCancelarOp] = useState<Operacion | null>(null);
+  const [guiaOpen, setGuiaOpen] = useState(false);
 
   const fetchOperaciones = useCallback(async () => {
     setLoading(true);
@@ -180,7 +182,19 @@ export function OperacionesClient() {
       <Card>
         <CardContent className="p-3">
           <div className="flex items-center justify-between gap-3">
-            <h1 className="text-sm font-semibold shrink-0">Operaciones</h1>
+            <div className="flex items-center gap-2 shrink-0">
+              <h1 className="text-sm font-semibold">Operaciones</h1>
+              <Button
+                variant="outline"
+                size="icon-xs"
+                className="h-7 w-7"
+                onClick={() => setGuiaOpen(true)}
+                title="Como funciona Operaciones"
+                aria-label="Abrir guia de Operaciones"
+              >
+                <Info className="h-3.5 w-3.5" />
+              </Button>
+            </div>
             <div className="flex flex-1 items-center gap-2">
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -366,6 +380,8 @@ export function OperacionesClient() {
           onSuccess={refetch}
         />
       )}
+
+      <OperacionesGuiaDialog open={guiaOpen} onOpenChange={setGuiaOpen} />
     </div>
   );
 }
