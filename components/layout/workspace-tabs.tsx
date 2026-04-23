@@ -1,11 +1,10 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { X, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkspaceTabs } from "@/lib/stores/workspace-tabs";
-import { useKeepAlive } from "./keep-alive";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -53,7 +52,7 @@ export function WorkspaceTabsBar({ sidebarCollapsed }: { sidebarCollapsed: boole
     const router = useRouter();
     const pathname = usePathname();
     const { tabs, activeTabId, openTab, closeTab, setActive } = useWorkspaceTabs();
-    const { evict } = useKeepAlive();
+    const scrollPositions = useRef<Map<string, number>>(new Map());
 
     useEffect(() => {
         if (!pathname.startsWith("/platform")) return;
@@ -66,17 +65,21 @@ export function WorkspaceTabsBar({ sidebarCollapsed }: { sidebarCollapsed: boole
         } else {
             openTab({ label, href: pathname, closable: true });
         }
+
+        const saved = scrollPositions.current.get(pathname);
+        if (saved != null) {
+            requestAnimationFrame(() => window.scrollTo(0, saved));
+        }
     }, [pathname, openTab, setActive]);
 
     const handleTabClick = (tabId: string, href: string) => {
+        scrollPositions.current.set(pathname, window.scrollY);
         setActive(tabId);
         router.push(href);
     };
 
     const handleClose = (e: React.MouseEvent, tabId: string) => {
         e.stopPropagation();
-        const tab = tabs.find((t) => t.id === tabId);
-        if (tab) evict(tab.href);
         closeTab(tabId);
         if (activeTabId === tabId) {
             router.push("/platform");

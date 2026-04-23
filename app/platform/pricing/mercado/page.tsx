@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import useSWR from "swr";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -79,38 +80,33 @@ interface ZoneDetailState {
 }
 
 export default function MercadoPage() {
-    const [data, setData] = useState<MercadoResponse | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const { data, error: swrError, isLoading: swrLoading } = useSWR<MercadoResponse>(
+        "/api/pricing/mercado",
+        { revalidateOnMount: true, keepPreviousData: true },
+    );
+    const loading = swrLoading && !data;
+    const error = swrError
+        ? (swrError instanceof Error ? swrError.message : "Error cargando datos")
+        : null;
 
     const [selectedZone, setSelectedZone] = useState<string | null>(null);
     const [zoneDetails, setZoneDetails] = useState<Record<string, ZoneDetailState>>({});
     const detailPanelRef = useRef<HTMLDivElement | null>(null);
 
-    const [informe, setInforme] = useState<MarketReportRecord | null>(null);
+    const ciudad = data?.ciudad || "Todas";
+    const { data: informeSwr, mutate: mutateInforme } = useSWR<MarketReportRecord | null>(
+        data ? `/api/pricing/mercado/informe?ciudad=${encodeURIComponent(ciudad)}` : null,
+        {
+            revalidateOnMount: true,
+            keepPreviousData: true,
+            fallbackData: null,
+        },
+    );
+    const informe = informeSwr?.id ? informeSwr : null;
     const [informeLoading, setInformeLoading] = useState(false);
     const [informeError, setInformeError] = useState<string | null>(null);
     const [informeExpanded, setInformeExpanded] = useState(false);
-    const [informeFetched, setInformeFetched] = useState(false);
     const [copied, setCopied] = useState(false);
-
-    useEffect(() => {
-        async function fetchMercado() {
-            try {
-                const res = await fetch("/api/pricing/mercado");
-                if (!res.ok) {
-                    throw new Error(res.status === 401 ? "Sesión expirada" : `Error ${res.status}`);
-                }
-                const json: MercadoResponse = await res.json();
-                setData(json);
-            } catch (err) {
-                setError(err instanceof Error ? err.message : "Error cargando datos");
-            } finally {
-                setLoading(false);
-            }
-        }
-        fetchMercado();
-    }, []);
 
     const fetchZoneDetail = useCallback(async (zona: string) => {
         setZoneDetails((prev) => ({
@@ -139,41 +135,29 @@ export default function MercadoPage() {
         }
     }, []);
 
-    useEffect(() => {
-        if (informeFetched || !data) return;
-        setInformeFetched(true);
-        const ciudad = data.ciudad || "Todas";
-        fetch(`/api/pricing/mercado/informe?ciudad=${encodeURIComponent(ciudad)}`)
-            .then((r) => r.json())
-            .then((json) => {
-                if (json?.id) setInforme(json as MarketReportRecord);
-            })
-            .catch(() => {});
-    }, [data, informeFetched]);
-
     const handleGenerateInforme = useCallback(async () => {
         setInformeLoading(true);
         setInformeError(null);
         try {
-            const ciudad = data?.ciudad || "Todas";
+            const c = data?.ciudad || "Todas";
             const res = await fetch("/api/pricing/mercado/informe", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ciudad: ciudad === "Todas" ? undefined : ciudad }),
+                body: JSON.stringify({ ciudad: c === "Todas" ? undefined : c }),
             });
             if (!res.ok) {
                 const body = await res.json().catch(() => ({ error: `Error ${res.status}` }));
                 throw new Error(body.error || `Error ${res.status}`);
             }
             const record: MarketReportRecord = await res.json();
-            setInforme(record);
+            await mutateInforme(record, false);
             setInformeExpanded(true);
         } catch (err) {
             setInformeError(err instanceof Error ? err.message : "Error generando informe");
         } finally {
             setInformeLoading(false);
         }
-    }, [data]);
+    }, [data, mutateInforme]);
 
     const handleCopyInforme = useCallback(async () => {
         if (!informe) return;
@@ -268,7 +252,7 @@ export default function MercadoPage() {
                 <AlertTriangle className="h-6 w-6 text-[var(--urus-danger)]" />
                 <p className="text-sm">{error}</p>
                 <button
-                    onClick={() => { setError(null); setLoading(true); window.location.reload(); }}
+                    onClick={() => window.location.reload()}
                     className="text-xs text-secondary hover:underline"
                 >
                     Reintentar

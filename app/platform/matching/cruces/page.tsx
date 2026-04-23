@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import useSWR from "swr";
 import Link from "next/link";
 import {
     ArrowLeftRight,
@@ -61,6 +62,14 @@ export default function CrucesPage() {
         );
     }, []);
 
+    const { data: cachedInitial, mutate: mutateCrucesCache } = useSWR<ApiResponse>(
+        "/api/matching/cruces?limit=30",
+        { revalidateOnMount: false, revalidateOnFocus: false },
+    );
+    const mutateCacheRef = useRef(mutateCrucesCache);
+    mutateCacheRef.current = mutateCrucesCache;
+    const didSeedRef = useRef(false);
+
     const fetchCruces = useCallback(async (isPolling = false) => {
         try {
             const params = new URLSearchParams({ limit: "30" });
@@ -113,6 +122,7 @@ export default function CrucesPage() {
                 data.cruces.forEach((c) => knownIds.current.add(c.id));
                 setHasMore(data.hasMore);
                 setNextCursor(data.nextCursor);
+                mutateCacheRef.current(data, false);
             }
 
             if (data.zonas.length > 0) {
@@ -169,6 +179,20 @@ export default function CrucesPage() {
     }, [nextCursor, loadingMore]);
 
     useEffect(() => {
+        if (cachedInitial && !didSeedRef.current && allMatches.length === 0) {
+            didSeedRef.current = true;
+            setAllMatches(cachedInitial.cruces);
+            cachedInitial.cruces.forEach((c) => knownIds.current.add(c.id));
+            setHasMore(cachedInitial.hasMore);
+            setNextCursor(cachedInitial.nextCursor);
+            if (cachedInitial.zonas.length > 0) setZonas(cachedInitial.zonas.sort());
+            if (cachedInitial.cruces[0]) latestPosition.current = cachedInitial.cruces[0].position;
+            setLoading(false);
+        }
+    }, [cachedInitial, allMatches.length]);
+
+    useEffect(() => {
+        if (didSeedRef.current) return;
         fetchCruces(false);
     }, []);
 

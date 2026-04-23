@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
+import useSWR from "swr";
 import { Plus, Search, ChevronLeft, ChevronRight, ArrowRight, CheckCircle, XCircle, Loader2, MoreHorizontal, Eye, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -123,15 +124,33 @@ function formatDate(iso: string): string {
 export function OperacionesClient() {
   useSession();
 
-  const [operaciones, setOperaciones] = useState<Operacion[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   const [search, setSearch] = useState("");
   const [filterEstado, setFilterEstado] = useState("all");
   const [offset, setOffset] = useState(0);
   const limit = 20;
+
+  const swrKey = (() => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (filterEstado !== "all") params.set("estado", filterEstado);
+    params.set("limit", String(limit));
+    params.set("offset", String(offset));
+    params.set("orderBy", "updatedAt");
+    params.set("orderDir", "desc");
+    return `/api/operaciones?${params}`;
+  })();
+
+  const { data: swrData, error: swrError, isLoading, mutate } = useSWR<{
+    operaciones: Operacion[];
+    total: number;
+  }>(swrKey, { revalidateOnMount: true, keepPreviousData: true });
+
+  const operaciones = swrData?.operaciones ?? [];
+  const total = swrData?.total ?? 0;
+  const loading = isLoading && operaciones.length === 0;
+  const error = swrError
+    ? (swrError instanceof Error ? swrError.message : "Error al cargar operaciones")
+    : null;
 
   const [crearOpen, setCrearOpen] = useState(false);
   const [detalleId, setDetalleId] = useState<string | null>(null);
@@ -140,36 +159,7 @@ export function OperacionesClient() {
   const [cancelarOp, setCancelarOp] = useState<Operacion | null>(null);
   const [guiaOpen, setGuiaOpen] = useState(false);
 
-  const fetchOperaciones = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (search) params.set("search", search);
-      if (filterEstado !== "all") params.set("estado", filterEstado);
-      params.set("limit", String(limit));
-      params.set("offset", String(offset));
-      params.set("orderBy", "updatedAt");
-      params.set("orderDir", "desc");
-
-      const res = await fetch(`/api/operaciones?${params}`, { credentials: "same-origin" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error ?? `Error ${res.status}`);
-      }
-      const body = await res.json();
-      setOperaciones(body.operaciones ?? []);
-      setTotal(body.total ?? 0);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al cargar operaciones");
-    } finally {
-      setLoading(false);
-    }
-  }, [search, filterEstado, offset]);
-
-  useEffect(() => { fetchOperaciones(); }, [fetchOperaciones]);
-
-  const refetch = useCallback(() => { fetchOperaciones(); }, [fetchOperaciones]);
+  const refetch = useCallback(() => { mutate(); }, [mutate]);
 
   const isTerminal = (estado: string) =>
     estado.startsWith("CERRADA_") || estado === "CANCELADA";

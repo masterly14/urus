@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import useSWR from "swr";
 import {
   AlertTriangle,
   CalendarCheck2,
@@ -86,36 +87,16 @@ interface PlatformSummaryResponse {
 }
 
 export default function PlatformHomePage() {
-  const { sessionHeaders } = useSession();
-  const [data, setData] = useState<PlatformSummaryResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  useSession();
 
-  const headersJson = JSON.stringify(sessionHeaders);
-
-  const fetchSummary = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/platform/summary", {
-        headers: JSON.parse(headersJson) as Record<string, string>,
-      });
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        throw new Error(body.error ?? `HTTP ${response.status}`);
-      }
-      const json: PlatformSummaryResponse = await response.json();
-      setData(json);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [headersJson]);
-
-  useEffect(() => {
-    fetchSummary();
-  }, [fetchSummary]);
+  const { data, error: swrError, isLoading } = useSWR<PlatformSummaryResponse>(
+    "/api/platform/summary",
+    { revalidateOnMount: true, keepPreviousData: true },
+  );
+  const loading = isLoading && !data;
+  const error = swrError
+    ? (swrError instanceof Error ? swrError.message : String(swrError))
+    : null;
 
   const pipelineRows = useMemo(() => {
     const source = data?.pipeline ?? {};

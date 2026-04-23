@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import useSWR from "swr";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -151,9 +152,20 @@ function Pagination({ current, total, onChange }: PaginationProps) {
 }
 
 export default function PricingPage() {
-  const [properties, setProperties] = useState<PropertyListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const isMock =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("mock");
+
+  const { data: swrData, error: swrError, isLoading } = useSWR<{ properties: PropertyListItem[] }>(
+    isMock ? null : "/api/pricing/properties",
+    { revalidateOnMount: true, keepPreviousData: true },
+  );
+
+  const properties = isMock
+    ? propertiesListFixture
+    : (swrData?.properties ?? []);
+  const loading = !isMock && isLoading && properties.length === 0;
+  const error = swrError ? (swrError instanceof Error ? swrError.message : "Error cargando propiedades") : null;
 
   const [filterZona, setFilterZona] = useState<string>("all");
   const [filterEstado, setFilterEstado] = useState<string>("all");
@@ -161,34 +173,6 @@ export default function PricingPage() {
   const [onlyEligible, setOnlyEligible] = useState<boolean>(true);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [page, setPage] = useState(1);
-
-  const isMock =
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).has("mock");
-
-  useEffect(() => {
-    if (isMock) {
-      setProperties(propertiesListFixture);
-      setLoading(false);
-      return;
-    }
-
-    async function load() {
-      try {
-        const res = await fetch("/api/pricing/properties");
-        if (!res.ok) throw new Error(`Error ${res.status}`);
-        const body = await res.json();
-        setProperties(body.properties ?? []);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Error cargando propiedades",
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, [isMock]);
 
   const zonas = useMemo(
     () => [...new Set(properties.map((p) => p.zona).filter(Boolean))].sort(),
