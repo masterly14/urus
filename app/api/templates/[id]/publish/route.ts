@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { validateTemplateForPublishing } from "@/lib/contracts/templates/validate-bindings";
-import { requireTemplateWriteAccess } from "../_auth";
+import { requireTemplateWriteAccess } from "../../_auth";
 import type { TemplateStructure } from "@/types/contract-template";
 import type { ContractDocumentKind } from "@/types/contracts";
 
