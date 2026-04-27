@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { NextRequest } from "next/server";
 import type { AppSession } from "@/lib/auth/session";
 
 const mockGetSession = vi.fn<(req: Request) => Promise<AppSession | null>>();
@@ -49,8 +50,8 @@ const COMERCIAL_SESSION: AppSession = {
   email: "comercial@test.com",
 };
 
-function request(url: string, init?: RequestInit): Request {
-  return new Request(url, init);
+function request(url: string, init?: RequestInit): NextRequest {
+  return Object.assign(new Request(url, init), { nextUrl: new URL(url) }) as NextRequest;
 }
 
 describe("templates API auth", () => {
@@ -66,7 +67,7 @@ describe("templates API auth", () => {
     mockGetSession.mockResolvedValue(null);
 
     const { GET } = await import("@/app/api/templates/route");
-    const res = await GET(request("http://localhost/api/templates") as Parameters<typeof GET>[0]);
+    const res = await GET(request("http://localhost/api/templates"));
 
     expect(res.status).toBe(401);
     expect(mockFindTemplates).not.toHaveBeenCalled();
@@ -77,7 +78,7 @@ describe("templates API auth", () => {
     mockFindTemplates.mockResolvedValue([]);
 
     const { GET } = await import("@/app/api/templates/route");
-    const res = await GET(request("http://localhost/api/templates") as Parameters<typeof GET>[0]);
+    const res = await GET(request("http://localhost/api/templates"));
 
     expect(res.status).toBe(200);
     expect(mockFindTemplates).toHaveBeenCalledOnce();
@@ -94,7 +95,7 @@ describe("templates API auth", () => {
           documentKind: "arras",
           name: "Arras editable",
         }),
-      }) as Parameters<typeof POST>[0],
+      }),
     );
 
     expect(res.status).toBe(403);
@@ -113,7 +114,7 @@ describe("templates API auth", () => {
           documentKind: "arras",
           name: "Arras editable",
         }),
-      }) as Parameters<typeof POST>[0],
+      }),
     );
 
     expect(res.status).toBe(201);
@@ -128,7 +129,7 @@ describe("templates API auth", () => {
       request("http://localhost/api/templates/tpl-1", {
         method: "PATCH",
         body: JSON.stringify({ name: "Nueva version" }),
-      }) as Parameters<typeof PATCH>[0],
+      }),
       { params: Promise.resolve({ id: "tpl-1" }) },
     );
 
