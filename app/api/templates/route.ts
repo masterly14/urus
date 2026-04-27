@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createTemplateBodySchema } from "@/lib/contracts/templates/schema";
 import {
@@ -90,9 +89,9 @@ export async function POST(req: NextRequest) {
       version: resolvedVersion,
       name,
       isActive: false,
-      structure: structure as unknown as Prisma.InputJsonValue,
-      variableBindings: variableBindings as unknown as Prisma.InputJsonValue,
-      sharedClauseOverrides: sharedClauseOverrides as unknown as Prisma.InputJsonValue,
+      structure,
+      variableBindings,
+      sharedClauseOverrides,
     },
   });
 
