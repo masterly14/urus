@@ -71,6 +71,7 @@ const navGroups: NavGroup[] = [
             { label: "Panel", href: "/platform", icon: LayoutDashboard },
             { label: "Demandas", href: "/platform/demandas", icon: Users2 },
             { label: "Operaciones", href: "/platform/operaciones", icon: Briefcase },
+            { label: "Conversaciones", href: "/platform/conversaciones", icon: MessageSquare },
         ],
     },
     {

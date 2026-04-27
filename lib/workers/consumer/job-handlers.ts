@@ -906,11 +906,13 @@ import {
   handleNotaEncargoRecordatorio,
   handleNotaEncargoCheckConfirmacion,
   handleNotaEncargoEnviarFormulario,
+  handleNotaEncargoMatchingCheck,
 } from "./nota-encargo-handlers";
 
 registerJobHandler("NOTA_ENCARGO_RECORDATORIO", handleNotaEncargoRecordatorio);
 registerJobHandler("NOTA_ENCARGO_CHECK_CONFIRMACION", handleNotaEncargoCheckConfirmacion);
 registerJobHandler("NOTA_ENCARGO_ENVIAR_FORMULARIO", handleNotaEncargoEnviarFormulario);
+registerJobHandler("NOTA_ENCARGO_MATCHING_CHECK", handleNotaEncargoMatchingCheck);
 
 // --- Parte de Visita ---
 import { handleParteVisitaEnviarFormulario } from "./parte-visita-handlers";

@@ -28,10 +28,8 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
-import {
-  PropertySelector,
-  type PropertyOption,
-} from "@/components/captacion/property-selector";
+import { RefInput } from "@/components/captacion/ref-input";
+import { isValidRefFormat, normalizeRef } from "@/lib/routing/parse-ref-code";
 import {
   Plus,
   Loader2,
@@ -44,6 +42,7 @@ import {
 
 interface NotaEncargoSesion {
   id: string;
+  propertyCode: string | null;
   propertyRef: string;
   direccion: string;
   propietarioPhone: string;
@@ -55,6 +54,7 @@ interface NotaEncargoSesion {
 }
 
 const STATE_LABELS: Record<string, string> = {
+  PENDIENTE_PROPIEDAD: "Pendiente de propiedad",
   PENDING: "Pendiente",
   RECORDATORIO_ENVIADO: "Recordatorio enviado",
   CONFIRMADA: "Confirmada",
@@ -71,6 +71,7 @@ const STATE_VARIANT: Record<
   string,
   "default" | "secondary" | "outline" | "destructive"
 > = {
+  PENDIENTE_PROPIEDAD: "outline",
   PENDING: "outline",
   RECORDATORIO_ENVIADO: "secondary",
   CONFIRMADA: "default",
@@ -137,6 +138,19 @@ function isDateTimeInPast(fecha: string, hora: string): boolean {
 const MOCK_SESIONES: NotaEncargoSesion[] = [
   {
     id: "mock-1",
+    propertyCode: null,
+    propertyRef: "URUS09VFEDE",
+    direccion: "",
+    propietarioPhone: "34666111222",
+    visitDateTime: new Date(Date.now() + 86400000).toISOString(),
+    state: "PENDIENTE_PROPIEDAD",
+    tipoOperacion: "VENTA",
+    precio: 0,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "mock-2",
+    propertyCode: "mock-property-2",
     propertyRef: "URUS01DEMO",
     direccion: "Calle Ejemplo 1, Madrid",
     propietarioPhone: "34666111222",
@@ -147,7 +161,8 @@ const MOCK_SESIONES: NotaEncargoSesion[] = [
     createdAt: new Date().toISOString(),
   },
   {
-    id: "mock-2",
+    id: "mock-3",
+    propertyCode: "mock-property-3",
     propertyRef: "URUS02DEMO",
     direccion: "Av. Libertad 42, Zaragoza",
     propietarioPhone: "34600333444",
@@ -158,7 +173,8 @@ const MOCK_SESIONES: NotaEncargoSesion[] = [
     createdAt: new Date(Date.now() - 86400000).toISOString(),
   },
   {
-    id: "mock-3",
+    id: "mock-4",
+    propertyCode: "mock-property-4",
     propertyRef: "URUS03DEMO",
     direccion: "Plaza Mayor 5, Valencia",
     propietarioPhone: "34611555666",
@@ -185,7 +201,7 @@ function CaptacionPageContent() {
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const sheetContentRef = useRef<HTMLDivElement>(null);
-  const [property, setProperty] = useState<PropertyOption | null>(null);
+  const [propertyRef, setPropertyRef] = useState("");
   const [phone, setPhone] = useState("");
   const [fecha, setFecha] = useState(getTomorrow());
   const [hora, setHora] = useState("10:00");
@@ -225,7 +241,7 @@ function CaptacionPageContent() {
   }, [fetchSesiones]);
 
   function resetForm() {
-    setProperty(null);
+    setPropertyRef("");
     setPhone("");
     setFecha(getTomorrow());
     setHora("10:00");
@@ -243,7 +259,7 @@ function CaptacionPageContent() {
   );
 
   const canSubmit =
-    property !== null &&
+    isValidRefFormat(propertyRef) &&
     phone.replace(/\s/g, "").length >= 9 &&
     fecha &&
     hora &&
@@ -252,7 +268,7 @@ function CaptacionPageContent() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit || !property) return;
+    if (!canSubmit) return;
 
     setSubmitting(true);
     setFormError(null);
@@ -264,7 +280,7 @@ function CaptacionPageContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          propertyCode: property.codigo,
+          propertyRef: normalizeRef(propertyRef),
           propietarioPhone: phone.replace(/\s/g, ""),
           visitDateTime,
         }),
@@ -366,7 +382,7 @@ function CaptacionPageContent() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Ref</TableHead>
+                  <TableHead>Propiedad</TableHead>
                   <TableHead>Dirección</TableHead>
                   <TableHead>Visita</TableHead>
                   <TableHead>Precio</TableHead>
@@ -378,7 +394,15 @@ function CaptacionPageContent() {
                 {filtered.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell className="font-medium">
-                      {s.propertyRef}
+                      <div className="flex flex-col gap-1">
+                        <span>{s.propertyRef}</span>
+                        <Badge
+                          variant={s.propertyCode ? "secondary" : "outline"}
+                          className="w-fit"
+                        >
+                          {s.propertyCode ? "Vinculada" : "Pendiente"}
+                        </Badge>
+                      </div>
                     </TableCell>
                     <TableCell className="max-w-[220px] truncate">
                       {s.direccion || "\u2014"}
@@ -418,14 +442,10 @@ function CaptacionPageContent() {
           </SheetHeader>
 
           <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-6 px-4 pb-6">
-            {/* Propiedad */}
+            {/* Referencia futura de propiedad */}
             <div className="space-y-2">
-              <Label>Propiedad *</Label>
-              <PropertySelector
-                value={property}
-                onChange={setProperty}
-                portalContainer={sheetContentRef}
-              />
+              <Label htmlFor="sheet-property-ref">Código de referencia *</Label>
+              <RefInput value={propertyRef} onChange={setPropertyRef} />
             </div>
 
             {/* Teléfono */}

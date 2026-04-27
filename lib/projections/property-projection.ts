@@ -24,6 +24,11 @@ type PropertyPayloadSnapshot = {
   numFotos: number;
   agente: string;
   mainPhotoUrl?: string | null;
+  propietarioNombre?: string | null;
+  propietarioDni?: string | null;
+  propietarioPhone?: string | null;
+  propietarioDomicilioFiscal?: string | null;
+  propietarioRegisteredAt?: Date | string | null;
 };
 
 type PropertyModifiedAfter = {
@@ -48,6 +53,24 @@ async function snapshotToUpsertData(
     comercial = await resolveComercialFromRef(snapshot.ref);
   }
 
+  const ownerFields: Prisma.PropertyCurrentUpdateInput = {
+    ...(str(snapshot.propietarioNombre)
+      ? { propietarioNombre: str(snapshot.propietarioNombre) }
+      : {}),
+    ...(str(snapshot.propietarioDni)
+      ? { propietarioDni: str(snapshot.propietarioDni) }
+      : {}),
+    ...(str(snapshot.propietarioPhone)
+      ? { propietarioPhone: str(snapshot.propietarioPhone) }
+      : {}),
+    ...(str(snapshot.propietarioDomicilioFiscal)
+      ? { propietarioDomicilioFiscal: str(snapshot.propietarioDomicilioFiscal) }
+      : {}),
+    ...(snapshot.propietarioRegisteredAt
+      ? { propietarioRegisteredAt: new Date(snapshot.propietarioRegisteredAt) }
+      : {}),
+  };
+
   const base = {
     ref: str(snapshot.ref),
     titulo: str(snapshot.titulo),
@@ -67,6 +90,7 @@ async function snapshotToUpsertData(
     agente: comercial?.nombre ?? str(snapshot.agente),
     comercialId: comercial?.id ?? null,
     mainPhotoUrl: snapshot.mainPhotoUrl ?? null,
+    ...ownerFields,
     lastEventId: event.id,
     lastEventPosition: event.position,
     lastEventAt: event.occurredAt,

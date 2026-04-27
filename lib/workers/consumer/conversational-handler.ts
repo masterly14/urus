@@ -168,6 +168,15 @@ export async function handleConversationalFlow(
       await sendTextMessage(
         waId,
         "Perdona, he tenido un problema procesando tu mensaje. ¿Puedes intentarlo de nuevo?",
+        {
+          trace: {
+            source: "conversational_agent",
+            kind: "agent_error_fallback",
+            causationId: event.id,
+            correlationId: event.correlationId,
+            payload: { demandId: ctx.demandId, selectionId: ctx.selectionId ?? null },
+          },
+        },
       );
     } catch { /* best-effort */ }
 
@@ -181,8 +190,10 @@ export async function handleConversationalFlow(
   );
 
   // 5. Enviar respuesta al comprador
+  let messageId: string | null = null;
   try {
-    await sendTextMessage(waId, output.responseText);
+    const sendResult = await sendTextMessage(waId, output.responseText);
+    messageId = sendResult.messages?.[0]?.id ?? null;
   } catch (err) {
     console.error(
       `[conversational-handler] sendTextMessage failed waId=${waId}: ${err instanceof Error ? err.message : err}`,
@@ -195,6 +206,7 @@ export async function handleConversationalFlow(
     aggregateType: "WHATSAPP_CONVERSATION",
     aggregateId: waId,
     payload: {
+      messageId,
       body: output.responseText,
       source: "conversational_agent",
       demandId: ctx.demandId,

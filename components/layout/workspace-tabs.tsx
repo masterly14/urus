@@ -15,6 +15,7 @@ import {
 const QUICK_LINKS = [
     { label: "Operaciones", href: "/platform/operaciones" },
     { label: "Demandas", href: "/platform/demandas" },
+    { label: "Conversaciones", href: "/platform/conversaciones" },
     { label: "Cruces", href: "/platform/matching/cruces" },
     { label: "Colaboradores", href: "/platform/colaboradores" },
     { label: "Legal", href: "/platform/legal/contratos" },
@@ -27,6 +28,7 @@ function labelFromPathname(pathname: string): string {
         platform: "Inicio",
         operaciones: "Operaciones",
         demandas: "Demandas",
+        conversaciones: "Conversaciones",
         matching: "Cruces",
         cruces: "Cruces",
         feedback: "Ciclo de Mejora",

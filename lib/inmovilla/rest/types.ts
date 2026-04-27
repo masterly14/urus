@@ -222,6 +222,48 @@ export type SearchClientParams = {
   email?: string;
 };
 
+// --- Propietarios ---
+
+/** Propietario devuelto por GET /propietarios/?cod_ofer=, ?ref= o ?cod_cli=. */
+export type Propietario = {
+  cod_cli?: number | string;
+  nombre?: string;
+  apellidos?: string;
+  nif?: string;
+  email?: string;
+  calle?: string;
+  numero?: string | number;
+  planta?: string | number;
+  puerta?: string;
+  escalera?: string;
+  cp?: string;
+  localidad?: string;
+  provincia?: string;
+  pais?: string;
+  nacionalidad?: string;
+  telefono1?: number | string;
+  telefono2?: number | string;
+  telefono3?: number | string;
+  prefijotel1?: number | string;
+  prefijotel2?: number | string;
+  prefijotel3?: number | string;
+  fechanacimiento?: string | null;
+  altacliente?: string | null;
+  conyuge?: string;
+  conemail?: string;
+  connif?: string;
+  disponible?: boolean;
+  [key: string]: unknown;
+};
+
+export type PropertyOwnerPatch = {
+  propietarioNombre?: string;
+  propietarioDni?: string;
+  propietarioPhone?: string;
+  propietarioDomicilioFiscal?: string;
+  propietarioRegisteredAt?: Date;
+};
+
 // --- Enums / Catálogos (GET /enums/?...) ---
 
 /**

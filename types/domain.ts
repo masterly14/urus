@@ -31,6 +31,11 @@ export interface Property {
   agente: string;
   /** URL absoluta de la foto principal (thumbnail); `null` si no hay fotos. */
   mainPhotoUrl?: string | null;
+  propietarioNombre?: string | null;
+  propietarioDni?: string | null;
+  propietarioPhone?: string | null;
+  propietarioDomicilioFiscal?: string | null;
+  propietarioRegisteredAt?: Date | string | null;
   raw?: Record<string, unknown>;
 }
 

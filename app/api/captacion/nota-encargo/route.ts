@@ -6,14 +6,27 @@ import {
   extractDireccionFromRaw,
   resolveOperationType,
 } from "@/lib/nota-encargo/utils";
+import {
+  extractRefCode,
+  getOperationTypeFromRef,
+  isValidRefFormat,
+  normalizeRef,
+} from "@/lib/routing/parse-ref-code";
 import { normalizePhoneES } from "@/lib/whatsapp/phone";
 
 const NOTA_ENCARGO_MAX_FUTURE_DAYS = Number(
   process.env.NOTA_ENCARGO_MAX_FUTURE_DAYS || "180",
 );
+const NOTA_ENCARGO_MATCHING_DEADLINE_DAYS = Number(
+  process.env.NOTA_ENCARGO_MATCHING_DEADLINE_DAYS || "7",
+);
 
 const bodySchema = z.object({
-  propertyCode: z.string().min(1),
+  propertyRef: z
+    .string()
+    .min(5)
+    .transform(normalizeRef)
+    .refine(isValidRefFormat, "Formato URUS inválido"),
   propietarioPhone: z.string().regex(/^\d{9,15}$/, "Teléfono inválido"),
   visitDateTime: z.string().datetime(),
 });
@@ -60,10 +73,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const { propertyCode, visitDateTime } = parsed.data;
+  const { propertyRef, visitDateTime } = parsed.data;
   const propietarioPhone = normalizePhoneES(parsed.data.propietarioPhone);
   const visitDate = new Date(visitDateTime);
   const now = Date.now();
+  const warnings: string[] = [];
 
   if (visitDate.getTime() <= now) {
     return NextResponse.json(
@@ -93,46 +107,97 @@ export async function POST(request: Request) {
     );
   }
 
-  const propertyCurrent = await prisma.propertyCurrent.findUnique({
-    where: { codigo: propertyCode },
-  });
-
-  if (!propertyCurrent) {
+  const refCode = extractRefCode(propertyRef);
+  const operationTypeFromRef = getOperationTypeFromRef(propertyRef);
+  if (!refCode || !operationTypeFromRef) {
     return NextResponse.json(
-      { ok: false, error: "Propiedad no encontrada" },
-      { status: 404 },
+      { ok: false, error: "Formato URUS inválido" },
+      { status: 400 },
     );
   }
 
-  if (propertyCurrent.nodisponible) {
+  let sessionComercialRefCode: string | null = null;
+  if (session.comercialId) {
+    const comercial = await prisma.comercial.findUnique({
+      where: { id: session.comercialId },
+      select: { inmovillaRefCode: true },
+    });
+    sessionComercialRefCode = comercial?.inmovillaRefCode ?? null;
+  }
+
+  if (
+    sessionComercialRefCode &&
+    sessionComercialRefCode.toUpperCase() !== refCode
+  ) {
+    warnings.push(
+      `La referencia pertenece al código ${refCode}, distinto del comercial autenticado (${sessionComercialRefCode.toUpperCase()}).`,
+    );
+  }
+
+  const requestComercialId = session.comercialId ?? session.userId;
+
+  const existingActiveByRef = await prisma.notaEncargoSession.findFirst({
+    where: {
+      propertyRef,
+      state: { notIn: ["CANCELADA", "FIRMADA", "DOCUMENTO_ENVIADO"] },
+      NOT: {
+        visitDateTime: visitDate,
+        comercialId: requestComercialId,
+      },
+    },
+    select: { id: true },
+  });
+
+  if (existingActiveByRef) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Ya existe una nota de encargo activa para esta referencia",
+        sessionId: existingActiveByRef.id,
+      },
+      { status: 409 },
+    );
+  }
+
+  const propertyCurrent = await prisma.propertyCurrent.findFirst({
+    where: { ref: { equals: propertyRef, mode: "insensitive" } },
+  });
+
+  if (propertyCurrent?.nodisponible) {
     return NextResponse.json(
       { ok: false, error: "La propiedad no está disponible" },
       { status: 400 },
     );
   }
 
-  const propertySnapshot = await prisma.propertySnapshot.findUnique({
-    where: { codigo: propertyCode },
-  });
+  const propertySnapshot = propertyCurrent
+    ? await prisma.propertySnapshot.findUnique({
+        where: { codigo: propertyCurrent.codigo },
+      })
+    : null;
   const raw = (propertySnapshot?.raw ?? {}) as Record<string, unknown>;
 
-  const direccion = extractDireccionFromRaw(raw, propertyCurrent);
-  if (!direccion) {
+  const direccion = propertyCurrent
+    ? extractDireccionFromRaw(raw, propertyCurrent)
+    : "";
+  if (propertyCurrent && !direccion) {
     console.warn(
-      `[captacion/nota-encargo] Empty direccion for property ${propertyCode} — using city/zone fallback`,
+      `[captacion/nota-encargo] Empty direccion for property ${propertyCurrent.codigo} — using city/zone fallback`,
     );
   }
 
-  const tipoOperacion = resolveOperationType(propertyCurrent.tipoOfer);
-  const precio = propertyCurrent.precio;
+  const tipoOperacion = propertyCurrent
+    ? resolveOperationType(propertyCurrent.tipoOfer)
+    : operationTypeFromRef;
+  const precio = propertyCurrent?.precio ?? 0;
 
   const comercialId =
-    session.comercialId ?? propertyCurrent.comercialId ?? session.userId;
+    session.comercialId ?? propertyCurrent?.comercialId ?? session.userId;
 
   // --- Idempotency: check for existing active session with same key ---
   const existingSession = await prisma.notaEncargoSession.findFirst({
     where: {
-      propertyCode,
+      propertyRef,
       visitDateTime: visitDate,
       comercialId,
       state: { not: "CANCELADA" },
@@ -141,7 +206,12 @@ export async function POST(request: Request) {
 
   if (existingSession) {
     return NextResponse.json(
-      { ok: true, sessionId: existingSession.id, deduplicated: true },
+      {
+        ok: true,
+        sessionId: existingSession.id,
+        deduplicated: true,
+        warnings,
+      },
       { status: 200 },
     );
   }
@@ -152,13 +222,15 @@ export async function POST(request: Request) {
     notaSessionId = await prisma.$transaction(async (tx) => {
       const notaSession = await tx.notaEncargoSession.create({
         data: {
-          propertyCode,
-          propertyRef: propertyCurrent.ref,
+          propertyCode: propertyCurrent?.codigo ?? null,
+          propertyRef,
           comercialId,
           propietarioPhone,
           visitDateTime: visitDate,
-          state: "PENDING",
-          direccion: direccion || `${propertyCurrent.zona}, ${propertyCurrent.ciudad}`,
+          state: propertyCurrent ? "PENDING" : "PENDIENTE_PROPIEDAD",
+          direccion: propertyCurrent
+            ? direccion || `${propertyCurrent.zona}, ${propertyCurrent.ciudad}`
+            : "",
           tipoOperacion,
           precio,
         },
@@ -168,10 +240,11 @@ export async function POST(request: Request) {
         data: {
           type: "NOTA_ENCARGO_DETECTADA",
           aggregateType: "PROPERTY",
-          aggregateId: propertyCode,
+          aggregateId: propertyCurrent?.codigo ?? propertyRef,
           payload: {
             sessionId: notaSession.id,
-            propertyRef: propertyCurrent.ref,
+            propertyRef,
+            propertyCode: propertyCurrent?.codigo ?? null,
             comercialId,
             source: "platform",
           },
@@ -194,6 +267,21 @@ export async function POST(request: Request) {
         },
       });
 
+      if (!propertyCurrent) {
+        const matchingDeadline = new Date(
+          visitDate.getTime() +
+            NOTA_ENCARGO_MATCHING_DEADLINE_DAYS * 24 * 60 * 60 * 1000,
+        );
+        await tx.jobQueue.create({
+          data: {
+            type: "NOTA_ENCARGO_MATCHING_CHECK",
+            payload: { sessionId: notaSession.id },
+            availableAt: matchingDeadline,
+            idempotencyKey: `nota_encargo_matching:${notaSession.id}`,
+          },
+        });
+      }
+
       return notaSession.id;
     });
   } catch (err: unknown) {
@@ -205,7 +293,7 @@ export async function POST(request: Request) {
     ) {
       const fallback = await prisma.notaEncargoSession.findFirst({
         where: {
-          propertyCode,
+          propertyRef,
           visitDateTime: visitDate,
           comercialId,
           state: { not: "CANCELADA" },
@@ -213,7 +301,12 @@ export async function POST(request: Request) {
       });
       if (fallback) {
         return NextResponse.json(
-          { ok: true, sessionId: fallback.id, deduplicated: true },
+          {
+            ok: true,
+            sessionId: fallback.id,
+            deduplicated: true,
+            warnings,
+          },
           { status: 200 },
         );
       }
@@ -222,7 +315,12 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json(
-    { ok: true, sessionId: notaSessionId },
+    {
+      ok: true,
+      sessionId: notaSessionId,
+      linked: Boolean(propertyCurrent),
+      warnings,
+    },
     { status: 201 },
   );
 }

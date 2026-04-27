@@ -93,6 +93,9 @@ enum EventType {
   NOTA_ENCARGO_CONFIRMADA
   NOTA_ENCARGO_NO_CONFIRMADA
   NOTA_ENCARGO_FORMULARIO_COMPLETADO
+  NOTA_ENCARGO_VINCULADA_A_PROPIEDAD
+  NOTA_ENCARGO_PROPIETARIO_REGISTRADO
+  NOTA_ENCARGO_SIN_PROPIEDAD_DEADLINE
   PARTE_VISITA_FORMULARIO_COMPLETADO
   PRICING_PRECIO_APLICADO
   OPERACION_CREADA
@@ -139,6 +142,7 @@ enum JobType {
   NOTA_ENCARGO_RECORDATORIO
   NOTA_ENCARGO_CHECK_CONFIRMACION
   NOTA_ENCARGO_ENVIAR_FORMULARIO
+  NOTA_ENCARGO_MATCHING_CHECK
   PARTE_VISITA_ENVIAR_FORMULARIO
   AUTO_VALIDATE_MICROSITE
   SEND_WHATSAPP_MATCH
@@ -335,6 +339,14 @@ model PropertyCurrent {
   portalName         String?
   /// Última vez que el worker de extrainfo sincronizó portalUrl/portalName (null si nunca).
   portalSyncedAt     DateTime?
+  /// Datos de propietario capturados desde Nota de Encargo cuando la propiedad aún no existía en Inmovilla.
+  propietarioNombre          String?
+  propietarioDni             String?
+  propietarioPhone           String?
+  propietarioDomicilioFiscal String?
+  propietarioRegisteredAt    DateTime?
+  /// Sesión de Nota de Encargo desde la que se copiaron los datos del propietario.
+  notaEncargoSessionId       String?
   lastEventId        String
   lastEventPosition  BigInt
   lastEventAt        DateTime
@@ -346,6 +358,7 @@ model PropertyCurrent {
   @@index([comercialId])
   @@index([lastEventPosition])
   @@index([portalSyncedAt])
+  @@index([notaEncargoSessionId])
   @@map("properties_current")
 }
 
@@ -1738,6 +1751,7 @@ model DevProgramExercise {
 // --- Nota de Encargo ---
 
 enum NotaEncargoState {
+  PENDIENTE_PROPIEDAD
   PENDING
   RECORDATORIO_ENVIADO
   CONFIRMADA
@@ -1752,7 +1766,7 @@ enum NotaEncargoState {
 
 model NotaEncargoSession {
   id                  String           @id @default(cuid())
-  propertyCode        String
+  propertyCode        String?
   propertyRef         String
   comercialId         String
   propietarioPhone    String
@@ -1778,6 +1792,7 @@ model NotaEncargoSession {
 
   @@index([state])
   @@index([propertyCode])
+  @@index([propertyRef])
   @@index([propietarioPhone, state])
   @@map("nota_encargo_sessions")
 }

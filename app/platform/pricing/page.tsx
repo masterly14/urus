@@ -48,6 +48,10 @@ export interface PropertyListItem {
   portalUrl?: string | null;
   /** Nombre del portal destino (ej. "idealista", "fotocasa"). */
   portalName?: string | null;
+  propietarioNombre?: string | null;
+  propietarioDni?: string | null;
+  propietarioPhone?: string | null;
+  propietarioDomicilioFiscal?: string | null;
 }
 
 const PAGE_SIZE_GRID = 12;

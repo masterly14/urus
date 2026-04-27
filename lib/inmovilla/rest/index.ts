@@ -7,6 +7,11 @@ export { createInmovillaRestClient } from "./client";
 export type { InmovillaRestClient, InmovillaRestClientConfig } from "./client";
 export { getProperty, createProperty } from "./properties";
 export {
+  getOwnerByPropertyCode,
+  getOwnerByRef,
+  mapOwnerToPropertyOwnerPatch,
+} from "./owners";
+export {
   safeUpdateProperty,
   resolveCodOferByRef,
   READONLY_PROPERTY_FIELDS,
@@ -44,6 +49,8 @@ export type {
   Cliente,
   ClienteAgente,
   SearchClientParams,
+  Propietario,
+  PropertyOwnerPatch,
   EnumCalidadItem,
   EnumTipoItem,
   EnumTiposResponse,

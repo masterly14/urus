@@ -53,7 +53,7 @@ export async function handleNotaEncargoButtonReply(
     await appendEvent({
       type: "NOTA_ENCARGO_CONFIRMADA",
       aggregateType: "PROPERTY",
-      aggregateId: session.propertyCode,
+      aggregateId: session.propertyCode ?? session.propertyRef,
       payload: { sessionId: session.id },
     });
 

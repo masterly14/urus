@@ -4,6 +4,9 @@
  */
 
 import { createWhatsAppClient } from "./client";
+import { appendEvent } from "@/lib/event-store";
+import { prisma } from "@/lib/prisma";
+import type { JsonValue } from "@/lib/event-store";
 import type {
   WhatsAppClientConfig,
   TemplateObject,
@@ -12,9 +15,22 @@ import type {
   SendMessageSuccess,
 } from "./types";
 
+export type WhatsAppTraceOptions = {
+  source: string;
+  kind?: string;
+  aggregateId?: string;
+  correlationId?: string | null;
+  causationId?: string | null;
+  metadata?: Record<string, unknown>;
+  payload?: Record<string, unknown>;
+  disabled?: boolean;
+};
+
 type SendOptions = Partial<WhatsAppClientConfig> & {
   /** WAMID del mensaje previo (para replies contextualizados). */
   contextMessageId?: string;
+  /** Registro explicito en Event Store para trazabilidad comercial. */
+  trace?: WhatsAppTraceOptions;
 };
 
 /** Código de idioma de plantillas Meta; debe coincidir con la traducción aprobada (p. ej. `es` o `es_ES`). */
@@ -86,6 +102,71 @@ function testId(): string {
   return `wamid.test_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function resultMessageId(result: SendMessageSuccess): string | null {
+  return result.messages[0]?.id ?? null;
+}
+
+function resultWaId(result: SendMessageSuccess, fallback: string): string {
+  return result.contacts?.[0]?.wa_id ?? fallback;
+}
+
+async function recordSentMessage(params: {
+  to: string;
+  result: SendMessageSuccess;
+  messageType: "text" | "template" | "interactive" | "document";
+  content: Record<string, unknown>;
+  options?: SendOptions;
+}) {
+  const trace = params.options?.trace;
+  if (!trace || trace.disabled) return;
+
+  const messageId = resultMessageId(params.result);
+  const waId = trace.aggregateId ?? resultWaId(params.result, params.to);
+
+  try {
+    if (messageId) {
+      const existing = await prisma.event.findFirst({
+        where: {
+          type: "WHATSAPP_ENVIADO",
+          aggregateType: "WHATSAPP_CONVERSATION",
+          aggregateId: waId,
+          payload: { path: ["messageId"], equals: messageId },
+        },
+        select: { id: true },
+      });
+      if (existing) return;
+    }
+
+    await appendEvent({
+      type: "WHATSAPP_ENVIADO",
+      aggregateType: "WHATSAPP_CONVERSATION",
+      aggregateId: waId,
+      payload: {
+        messageId,
+        to: params.to,
+        waId,
+        messageType: params.messageType,
+        source: trace.source,
+        kind: trace.kind ?? params.messageType,
+        contextMessageId: params.options?.contextMessageId ?? null,
+        ...params.content,
+        ...(trace.payload ?? {}),
+      } as JsonValue,
+      metadata: {
+        source: trace.source,
+        ...(trace.metadata ?? {}),
+      } as JsonValue,
+      correlationId: trace.correlationId ?? undefined,
+      causationId: trace.causationId ?? undefined,
+    });
+  } catch (err) {
+    console.error(
+      `[whatsapp] no se pudo registrar WHATSAPP_ENVIADO source=${trace.source} to=${params.to}:`,
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
 /**
  * Envía un mensaje de texto libre.
  * Solo válido dentro de una ventana de 24h de conversación iniciada por el usuario.
@@ -97,10 +178,18 @@ export async function sendTextMessage(
 ): Promise<SendMessageSuccess> {
   if (_testSendInterceptor) {
     _testSendInterceptor({ to, type: "text", payload: { body } });
-    return { messages: [{ id: testId() }] } as SendMessageSuccess;
+    const result = { messages: [{ id: testId() }] } as SendMessageSuccess;
+    await recordSentMessage({
+      to,
+      result,
+      messageType: "text",
+      content: { body, text: { body, preview_url: options?.previewUrl ?? false } },
+      options,
+    });
+    return result;
   }
   const client = createWhatsAppClient(options);
-  return client.sendMessage({
+  const result = await client.sendMessage({
     to,
     type: "text",
     text: { body, preview_url: options?.previewUrl ?? false },
@@ -108,6 +197,14 @@ export async function sendTextMessage(
       ? { context: { message_id: options.contextMessageId } }
       : {}),
   });
+  await recordSentMessage({
+    to,
+    result,
+    messageType: "text",
+    content: { body, text: { body, preview_url: options?.previewUrl ?? false } },
+    options,
+  });
+  return result;
 }
 
 /**
@@ -121,10 +218,18 @@ export async function sendTemplateMessage(
 ): Promise<SendMessageSuccess> {
   if (_testSendInterceptor) {
     _testSendInterceptor({ to, type: "template", payload: template });
-    return { messages: [{ id: testId() }] } as SendMessageSuccess;
+    const result = { messages: [{ id: testId() }] } as SendMessageSuccess;
+    await recordSentMessage({
+      to,
+      result,
+      messageType: "template",
+      content: { template },
+      options,
+    });
+    return result;
   }
   const client = createWhatsAppClient(options);
-  return client.sendMessage({
+  const result = await client.sendMessage({
     to,
     type: "template",
     template,
@@ -132,6 +237,14 @@ export async function sendTemplateMessage(
       ? { context: { message_id: options.contextMessageId } }
       : {}),
   });
+  await recordSentMessage({
+    to,
+    result,
+    messageType: "template",
+    content: { template },
+    options,
+  });
+  return result;
 }
 
 /**
@@ -146,10 +259,18 @@ export async function sendDocumentMessage(
 ): Promise<SendMessageSuccess> {
   if (_testSendInterceptor) {
     _testSendInterceptor({ to, type: "text", payload: { document } });
-    return { messages: [{ id: testId() }] } as SendMessageSuccess;
+    const result = { messages: [{ id: testId() }] } as SendMessageSuccess;
+    await recordSentMessage({
+      to,
+      result,
+      messageType: "document",
+      content: { document },
+      options,
+    });
+    return result;
   }
   const client = createWhatsAppClient(options);
-  return client.sendMessage({
+  const result = await client.sendMessage({
     to,
     type: "document",
     document,
@@ -157,6 +278,14 @@ export async function sendDocumentMessage(
       ? { context: { message_id: options.contextMessageId } }
       : {}),
   });
+  await recordSentMessage({
+    to,
+    result,
+    messageType: "document",
+    content: { document },
+    options,
+  });
+  return result;
 }
 
 /**
@@ -169,10 +298,18 @@ export async function sendInteractiveMessage(  to: string,
 ): Promise<SendMessageSuccess> {
   if (_testSendInterceptor) {
     _testSendInterceptor({ to, type: "interactive", payload: interactive });
-    return { messages: [{ id: testId() }] } as SendMessageSuccess;
+    const result = { messages: [{ id: testId() }] } as SendMessageSuccess;
+    await recordSentMessage({
+      to,
+      result,
+      messageType: "interactive",
+      content: { interactive },
+      options,
+    });
+    return result;
   }
   const client = createWhatsAppClient(options);
-  return client.sendMessage({
+  const result = await client.sendMessage({
     to,
     type: "interactive",
     interactive,
@@ -180,6 +317,14 @@ export async function sendInteractiveMessage(  to: string,
       ? { context: { message_id: options.contextMessageId } }
       : {}),
   });
+  await recordSentMessage({
+    to,
+    result,
+    messageType: "interactive",
+    content: { interactive },
+    options,
+  });
+  return result;
 }
 
 /**

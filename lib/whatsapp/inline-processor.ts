@@ -41,7 +41,6 @@ import {
 } from "@/lib/agents/visit-intent-classifier";
 import { sendTextMessage } from "@/lib/whatsapp/send";
 import { enqueueJob } from "@/lib/job-queue";
-import type { EnqueueJobInput } from "@/lib/job-queue/types";
 
 const INLINE_TIMEOUT_MS = 25_000;
 
@@ -106,7 +105,7 @@ export async function tryInlineProcessing(
     return { processed: false };
   }
 
-  const category = await classifyCategory(waId, messageText, payload);
+  const category = await classifyCategory(waId, messageText);
   if (!category) {
     return { processed: false };
   }
@@ -150,7 +149,6 @@ type CategoryClassification = {
 async function classifyCategory(
   waId: string,
   messageText: string,
-  _payload: WhatsAppPayload,
 ): Promise<CategoryClassification | null> {
   if (isExerciseRequest(messageText)) {
     return { handler: "dev-exercise" };
@@ -218,6 +216,17 @@ async function executeInline(
           await sendTextMessage(
             category.visitSession.comercialWaId,
             `No se pudo clasificar automáticamente el mensaje del comprador (${waId}). Mensaje: "${messageText}". Revísalo manualmente.`,
+            {
+              trace: {
+                source: "inline_visit_intent_fallback",
+                kind: "manual_review_alert",
+                causationId: event.id,
+                payload: {
+                  buyerWaId: waId,
+                  visitSessionId: category.visitSession.id,
+                },
+              },
+            },
           );
           return { success: true };
         }

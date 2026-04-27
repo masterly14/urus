@@ -10,6 +10,10 @@ vi.mock("@/lib/prisma", () => ({
     propertyCurrent: {
       upsert: upsertMock,
     },
+    comercial: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
   },
 }));
 
@@ -80,6 +84,30 @@ describe("applyPropertyProjection", () => {
     expect(call.create.ciudad).toBe("Córdoba");
     expect(call.create.lastEventId).toBe("evt-prop-001");
     expect(call.update.precio).toBe(150000);
+  });
+
+  it("PROPIEDAD_CREADA: preserva datos de propietario en PropertyCurrent", async () => {
+    const event = makeEvent("PROPIEDAD_CREADA", {
+      snapshot: {
+        ...FULL_SNAPSHOT,
+        propietarioNombre: "Laura Propietaria",
+        propietarioDni: "12345678A",
+        propietarioPhone: "34600111222",
+        propietarioDomicilioFiscal: "Mayor, 1, Córdoba",
+        propietarioRegisteredAt: "2026-04-27T10:00:00.000Z",
+      },
+      detectedAt: "2026-03-14T10:00:00Z",
+    });
+
+    const result = await applyPropertyProjection(event);
+
+    expect(result.success).toBe(true);
+    const call = upsertMock.mock.calls[0][0];
+    expect(call.create.propietarioNombre).toBe("Laura Propietaria");
+    expect(call.create.propietarioDni).toBe("12345678A");
+    expect(call.create.propietarioPhone).toBe("34600111222");
+    expect(call.create.propietarioDomicilioFiscal).toBe("Mayor, 1, Córdoba");
+    expect(call.update.propietarioNombre).toBe("Laura Propietaria");
   });
 
   it("PROPIEDAD_MODIFICADA: debe actualizar solo los campos del after", async () => {

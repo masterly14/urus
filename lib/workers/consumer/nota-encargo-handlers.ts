@@ -36,7 +36,12 @@ export async function handleNotaEncargoRecordatorio(
     where: { id: sessionId },
   });
 
-  if (session.state !== "PENDING") return { success: true };
+  if (
+    session.state !== "PENDING" &&
+    session.state !== "PENDIENTE_PROPIEDAD"
+  ) {
+    return { success: true };
+  }
 
   await sendNotaEncargoRecordatorio(session.propietarioPhone, {
     propertyRef: session.propertyRef,
@@ -107,7 +112,7 @@ export async function handleNotaEncargoCheckConfirmacion(
   await appendEvent({
     type: "NOTA_ENCARGO_NO_CONFIRMADA",
     aggregateType: "PROPERTY",
-    aggregateId: session.propertyCode,
+    aggregateId: session.propertyCode ?? session.propertyRef,
     payload: { sessionId },
   });
 
@@ -139,6 +144,43 @@ export async function handleNotaEncargoEnviarFormulario(
   await prisma.notaEncargoSession.update({
     where: { id: sessionId },
     data: { state: "FORMULARIO_ENVIADO" },
+  });
+
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Job: NOTA_ENCARGO_MATCHING_CHECK
+// ---------------------------------------------------------------------------
+
+export async function handleNotaEncargoMatchingCheck(
+  job: JobRecord,
+): Promise<HandlerResult> {
+  const { sessionId } = job.payload as { sessionId: string };
+  const session = await prisma.notaEncargoSession.findUnique({
+    where: { id: sessionId },
+  });
+
+  if (!session || session.propertyCode || session.state === "CANCELADA") {
+    return { success: true };
+  }
+
+  const daysElapsed = Math.max(
+    0,
+    Math.floor(
+      (Date.now() - session.visitDateTime.getTime()) / (24 * 60 * 60 * 1000),
+    ),
+  );
+
+  await appendEvent({
+    type: "NOTA_ENCARGO_SIN_PROPIEDAD_DEADLINE",
+    aggregateType: "PROPERTY",
+    aggregateId: session.propertyRef,
+    payload: {
+      sessionId: session.id,
+      propertyRef: session.propertyRef,
+      daysElapsed,
+    },
   });
 
   return { success: true };

@@ -6,6 +6,10 @@ import {
   getProperty,
   normalizePropertyFromRest,
 } from "@/lib/inmovilla/rest/properties";
+import {
+  getOwnerByPropertyCode,
+  mapOwnerToPropertyOwnerPatch,
+} from "@/lib/inmovilla/rest/owners";
 import type { PropiedadListadoItem } from "@/lib/inmovilla/rest/types";
 import type { InmovillaRestClient } from "@/lib/inmovilla/rest/client";
 import type { PropiedadCompleta } from "@/lib/inmovilla/rest/types";
@@ -214,6 +218,23 @@ async function getPropertyWithRetry(
   }
 }
 
+async function getOwnerPatchForProperty(
+  client: InmovillaRestClient,
+  codigo: string,
+  log: ReturnType<typeof propertiesLogger.child>,
+): Promise<Partial<InmovillaProperty>> {
+  try {
+    const owner = await getOwnerByPropertyCode(client, codigo);
+    return mapOwnerToPropertyOwnerPatch(owner);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.warn(`cod_ofer=${codigo} — no se pudo sincronizar propietario`, {
+      error: message,
+    });
+    return {};
+  }
+}
+
 /**
  * Obtiene propiedades vía API REST:
  *   1. GET /propiedades/?listado → listado por fechaact
@@ -307,7 +328,11 @@ async function fetchPropertiesViaRest(
       totalRetries += retries;
 
       if (result) {
-        const normalized = normalizePropertyFromRest(result, enumMaps);
+        const ownerPatch = await getOwnerPatchForProperty(client, codigo, log);
+        const normalized = {
+          ...normalizePropertyFromRest(result, enumMaps),
+          ...ownerPatch,
+        };
         if (normalized.estado === "Libre") {
           currentProperties.push(normalized);
         } else {

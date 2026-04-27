@@ -13,6 +13,9 @@ import {
   Bath,
   ImageOff,
   ExternalLink,
+  UserRound,
+  Phone,
+  IdCard,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -134,6 +137,11 @@ export function PropertyCard({ property, className }: PropertyCardProps) {
       ? Math.round(property.precio / property.metrosConstruidos)
       : 0;
   const isEligible = isEligibleForSmartPricing(property);
+  const ownerName = property.propietarioNombre?.trim() || "Sin propietario";
+  const ownerDni = property.propietarioDni?.trim() || "Sin DNI";
+  const ownerPhone = property.propietarioPhone?.trim() || "Sin teléfono";
+  const ownerAddress =
+    property.propietarioDomicilioFiscal?.trim() || "Sin domicilio fiscal";
 
   const content = (
     <Card
@@ -204,6 +212,29 @@ export function PropertyCard({ property, className }: PropertyCardProps) {
               <span className="text-xs text-muted-foreground">baños</span>
             </span>
           )}
+        </div>
+
+        <div className="space-y-1.5 rounded-md border border-border/40 bg-muted/20 p-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Propietario
+          </p>
+          <p className="inline-flex items-center gap-1.5 text-sm font-medium">
+            <UserRound className="h-3.5 w-3.5 text-muted-foreground" />
+            {ownerName}
+          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <IdCard className="h-3.5 w-3.5" />
+              {ownerDni}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Phone className="h-3.5 w-3.5" />
+              {ownerPhone}
+            </span>
+          </div>
+          <p className="truncate text-xs text-muted-foreground" title={ownerAddress}>
+            {ownerAddress}
+          </p>
         </div>
 
         <div className="flex items-center justify-between border-t border-border/30 pt-2.5">

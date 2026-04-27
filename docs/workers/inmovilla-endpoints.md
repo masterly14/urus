@@ -1310,6 +1310,24 @@ Usar POST /new/app/api/v1/paginacion/ con paramjson (ver § 7.3):
 4. Si datos.length === paginacion, incrementar posicion += paginacion y repetir.
 5. Para detección de cambios, comparar fechaact de cada cod_ofer entre polls.
 
+### Propietarios de propiedades (REST)
+
+La API REST documentada permite consultar el propietario vinculado a una propiedad:
+
+```
+GET /propietarios/?cod_ofer={cod_ofer}
+GET /propietarios/?ref={ref}
+GET /propietarios/?cod_cli={cod_cli}
+```
+
+Uso en el sistema:
+
+- `lib/inmovilla/rest/owners.ts` encapsula `GET /propietarios`.
+- `scripts/backfill-property-owners.ts` recorre `PropertyCurrent` y rellena `propietario*`.
+- `lib/workers/ingestion/properties-worker.ts` consulta propietario para cada ficha REST cambiada.
+
+Rate limit documentado: 20 propietarios/minuto, 100 propietarios/10 minutos.
+
 ### Listado de demandas
 
 Usar POST /new/app/api/v1/paginacion/ con paramjson (ver § 7.4):

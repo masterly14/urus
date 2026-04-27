@@ -50,5 +50,10 @@ export type InmovillaProperty = {
    * propiedad no tiene fotos o falta alguno de esos parámetros.
    */
   mainPhotoUrl?: string | null;
+  propietarioNombre?: string | null;
+  propietarioDni?: string | null;
+  propietarioPhone?: string | null;
+  propietarioDomicilioFiscal?: string | null;
+  propietarioRegisteredAt?: Date | string | null;
   raw: Record<string, unknown>;
 };

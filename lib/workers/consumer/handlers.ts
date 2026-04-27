@@ -33,6 +33,7 @@ import {
   handleVisitaReprogramada,
 } from "./visit-scheduling-event-handlers";
 import { handleNotaEncargoFormularioCompletado } from "./nota-encargo-handlers";
+import { handleNotaEncargoLinkOnPropertyCreated } from "./nota-encargo-link-handler";
 
 const registry = new Map<EventType, EventHandler>();
 
@@ -191,7 +192,11 @@ async function handlePropertyRemovedWithCoverage(event: Event): Promise<HandlerR
 
 // --- Property handlers ---
 // PROPIEDAD_CREADA dispara cruce de demandas + projection (matching-handler.ts)
-registerHandler("PROPIEDAD_CREADA", handlePropertyMatching);
+registerHandler("PROPIEDAD_CREADA", async (event) => {
+  const linkResult = await handleNotaEncargoLinkOnPropertyCreated(event);
+  if (!linkResult.success) return linkResult;
+  return handlePropertyMatching(event);
+});
 registerHandler("PROPIEDAD_MODIFICADA", handlePropertyMatching);
 registerHandler("PROPIEDAD_ELIMINADA", handlePropertyRemovedWithCoverage);
 registerHandler("ESTADO_CAMBIADO", handleEstadoCambiado);

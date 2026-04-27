@@ -256,7 +256,12 @@ export function OperacionesClient() {
                 <TableRow
                   key={op.id}
                   className="cursor-pointer"
-                  onClick={() => setDetalleId(op.id)}
+                  onClick={(event) => {
+                    const target = event.target as HTMLElement;
+                    // Prevent opening the detail drawer when the click comes from row actions.
+                    if (target.closest("button, a, [role='menuitem']")) return;
+                    setDetalleId(op.id);
+                  }}
                 >
                   <TableCell className="font-mono text-xs font-medium">{op.codigo}</TableCell>
                   <TableCell className="text-xs">{op.propertyCode}</TableCell>
@@ -282,6 +287,7 @@ export function OperacionesClient() {
                           variant="ghost"
                           size="icon-xs"
                           className="h-6 w-6"
+                          onPointerDown={(e) => e.stopPropagation()}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <MoreHorizontal className="h-3.5 w-3.5" />

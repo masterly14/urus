@@ -16,7 +16,6 @@ import type { Event } from "@/types/domain";
 import type { HandlerResult } from "./types";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import { appendEvent } from "@/lib/event-store";
-import { updateDemandLeadStatus } from "@/lib/projections/update-lead-status";
 import type { JsonValue } from "@/lib/event-store/types";
 import { prisma } from "@/lib/prisma";
 import { classifyBuyerFeedback } from "@/lib/agents";
@@ -48,7 +47,6 @@ import {
   initiateVisitScheduling,
 } from "@/lib/visit-scheduling/orchestrator";
 import { ComposioNotConnectedError } from "@/lib/visit-scheduling/types";
-import { TERMINAL_STATES } from "@/lib/visit-scheduling/constants";
 
 type WhatsAppReceivedPayload = {
   messageId?: string;
@@ -425,6 +423,17 @@ async function routeToVisitSchedulingIfApplicable(
           await sendTextMessage(
             activeSession.comercialWaId,
             `No se pudo clasificar automáticamente el mensaje del comprador (${waId}) en la sesión de visita ${activeSession.id}. Mensaje recibido: "${messageText}". Revísalo manualmente.`,
+            {
+              trace: {
+                source: "visit_intent_fallback",
+                kind: "manual_review_alert",
+                causationId: event.id,
+                payload: {
+                  buyerWaId: waId,
+                  visitSessionId: activeSession.id,
+                },
+              },
+            },
           );
         } catch (notifyErr) {
           console.error(
@@ -565,7 +574,13 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
       `[consumer:whatsapp] WHATSAPP_RECIBIDO waId=${waId} sin demandId resolvible — no-op`,
     );
     try {
-      await sendTextMessage(waId, GENERIC_MARKETING_MESSAGE);
+      await sendTextMessage(waId, GENERIC_MARKETING_MESSAGE, {
+        trace: {
+          source: "whatsapp_nlu_handler",
+          kind: "generic_marketing_fallback",
+          causationId: event.id,
+        },
+      });
     } catch (err) {
       console.error(
         `[consumer:whatsapp] Error enviando mensaje de marketing waId=${waId}: ${err instanceof Error ? err.message : err}`,
@@ -645,6 +660,14 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
       await sendTextMessage(
         waId,
         "Perdona, no he entendido bien tu mensaje. ¿Puedes reformularlo o darme más detalles sobre lo que buscas?",
+        {
+          trace: {
+            source: "whatsapp_nlu_handler",
+            kind: "nlu_error_fallback",
+            causationId: event.id,
+            payload: { demandId: ctx.demandId, selectionId: ctx.selectionId ?? null },
+          },
+        },
       );
     } catch (notifyErr) {
       console.error(

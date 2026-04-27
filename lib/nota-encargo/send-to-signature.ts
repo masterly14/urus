@@ -72,14 +72,19 @@ export async function handleNotaEncargoFlowResponse(
     agente: agenteName,
   });
 
+  // Si la propiedad aún no existe en Inmovilla, la firma se crea contra un
+  // identificador provisional. El matcher lo reemplaza por el código real.
+  const effectiveOperationId = session.propertyCode ?? `NOTA:${session.id}`;
+  const effectivePropertyCode = session.propertyCode ?? `NOTA:${session.id}`;
+
   // 3. Upload to Cloudinary
   const uploadResult = await uploadContractDocument({
     buffer: pdfBuffer,
     fileName: `nota_encargo_${session.propertyRef}.pdf`,
-    folder: `nota-encargo/${session.propertyCode}`,
+    folder: `nota-encargo/${effectivePropertyCode}`,
     tags: ["nota_encargo", session.propertyRef],
     context: {
-      propertyCode: session.propertyCode,
+      propertyCode: effectivePropertyCode,
       sessionId: session.id,
     },
   });
@@ -92,8 +97,8 @@ export async function handleNotaEncargoFlowResponse(
 
   const signatureRequest = await prisma.signatureRequest.create({
     data: {
-      operationId: session.propertyCode,
-      propertyCode: session.propertyCode,
+      operationId: effectiveOperationId,
+      propertyCode: effectivePropertyCode,
       documentKind: "NOTA_ENCARGO",
       cloudinaryUrl: uploadResult.secureUrl,
       signingUrl,
@@ -113,13 +118,13 @@ export async function handleNotaEncargoFlowResponse(
   const legalDocument = await prisma.legalDocument.upsert({
     where: {
       operationId_documentKind: {
-        operationId: session.propertyCode,
+        operationId: effectiveOperationId,
         documentKind: "NOTA_ENCARGO",
       },
     },
     create: {
-      operationId: session.propertyCode,
-      propertyCode: session.propertyCode,
+      operationId: effectiveOperationId,
+      propertyCode: effectivePropertyCode,
       documentKind: "NOTA_ENCARGO",
       status: "SENT_TO_SIGNATURE",
       cloudinaryUrl: uploadResult.secureUrl,
@@ -129,6 +134,7 @@ export async function handleNotaEncargoFlowResponse(
       status: "SENT_TO_SIGNATURE",
       cloudinaryUrl: uploadResult.secureUrl,
       signatureRequestId: signatureRequest.id,
+      propertyCode: effectivePropertyCode,
     },
   });
 
@@ -169,10 +175,10 @@ export async function handleNotaEncargoFlowResponse(
   const firmaEvent = await appendEvent({
     type: "FIRMA_ENVIADA",
     aggregateType: "PROPERTY",
-    aggregateId: session.propertyCode,
+    aggregateId: effectivePropertyCode,
     payload: {
       signatureRequestId: signatureRequest.id,
-      operationId: session.propertyCode,
+      operationId: effectiveOperationId,
       documentKind: "NOTA_ENCARGO",
       signingUrl,
       signerPhone: session.propietarioPhone,

@@ -76,13 +76,24 @@ const postHandler = async (request: NextRequest) => {
     if (body.type === "text") {
       result = await sendTextMessage(body.to, body.text.body, {
         previewUrl: body.text.preview_url ?? false,
+        trace: {
+          source: "manual_platform_api",
+          kind: "manual_text",
+          payload: { initiatedBy: session.userId },
+        },
       });
     } else if (body.type === "template") {
       const template = body.template as TemplateObject;
       if (!template?.name) {
         return NextResponse.json({ error: "Campo obligatorio: template.name" }, { status: 400 });
       }
-      result = await sendTemplateMessage(body.to, template);
+      result = await sendTemplateMessage(body.to, template, {
+        trace: {
+          source: "manual_platform_api",
+          kind: "manual_template",
+          payload: { initiatedBy: session.userId },
+        },
+      });
     } else {
       const interactive = body.interactive as InteractiveObject;
       if (!interactive?.type) {
@@ -91,7 +102,13 @@ const postHandler = async (request: NextRequest) => {
           { status: 400 },
         );
       }
-      result = await sendInteractiveMessage(body.to, interactive);
+      result = await sendInteractiveMessage(body.to, interactive, {
+        trace: {
+          source: "manual_platform_api",
+          kind: "manual_interactive",
+          payload: { initiatedBy: session.userId },
+        },
+      });
     }
 
     return NextResponse.json(

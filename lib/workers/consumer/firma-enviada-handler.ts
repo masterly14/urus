@@ -80,6 +80,14 @@ export async function handleFirmaEnviada(
         documentKind,
         operationRef: operationId,
         signingUrl,
+      }, {
+        trace: {
+          source: "firma_enviada_handler",
+          kind: "signature_initial",
+          causationId: event.id,
+          correlationId: event.correlationId,
+          payload: { signatureRequestId, operationId, documentKind },
+        },
       });
       sent++;
       console.log(
@@ -101,6 +109,14 @@ export async function handleFirmaEnviada(
         documentKind,
         operationRef: operationId,
         signingUrl,
+      }, {
+        trace: {
+          source: "firma_enviada_handler",
+          kind: "signature_initial_fallback",
+          causationId: event.id,
+          correlationId: event.correlationId,
+          payload: { signatureRequestId, operationId, documentKind },
+        },
       });
       console.log(
         `[firma-enviada] WA fallback enviado a ${fallbackPhone} para ${operationId}`,

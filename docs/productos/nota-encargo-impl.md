@@ -5,6 +5,8 @@
 Sistema que automatiza la "Nota de Encargo Inmobiliaria": desde que el comercial agenda una visita de captación en la plataforma (`/platform/captacion/nueva`), hasta que el propietario firma digitalmente el documento — todo por WhatsApp.
 
 > **Nota (abril 2026):** El trigger original era un cron que detectaba tareas en Inmovilla (tasks ingestion worker). Se refactorizó a un formulario local en la plataforma para eliminar la dependencia de Inmovilla como punto de entrada, reducir la latencia de 20 min a inmediata, y simplificar la superficie de mantenimiento. La creación de prospecto en Inmovilla al final del flujo también se eliminó.
+>
+> **Nota (abril 2026 — matching diferido):** La creación desde plataforma ya no selecciona una propiedad existente. El comercial introduce la referencia futura (`URUS09VFEDE`); si la propiedad ya está sincronizada se vincula al instante, y si no existe todavía la sesión queda en `PENDIENTE_PROPIEDAD`. Cuando el worker de ingesta emite `PROPIEDAD_CREADA` para una propiedad con esa misma referencia, `lib/nota-encargo/ref-matcher.ts` completa `propertyCode`, dirección, precio y tipo de operación, copia los datos de propietario a `PropertyCurrent` y rebindea documentos/firma que se hubieran creado con `operationId = NOTA:<sessionId>`. Detalle operativo en `docs/nota-encargo-matching-diferido.md`.
 
 ---
 
@@ -15,14 +17,16 @@ Sistema que automatiza la "Nota de Encargo Inmobiliaria": desde que el comercial
 │  PLATAFORMA URUS (/platform/captacion/nueva)                 │
 │                                                              │
 │  Comercial:                                                  │
-│    1. Busca y selecciona la propiedad (Combobox)             │
+│    1. Introduce la referencia futura URUS...                 │
 │    2. Introduce teléfono del propietario                     │
 │    3. Selecciona fecha + hora de visita                      │
 │    4. Clic en "Agendar Nota de Encargo"                      │
 │                                                              │
 │  → POST /api/captacion/nota-encargo                          │
-│    1. Crea NotaEncargoSession (state: PENDING)               │
-│    2. Prellenar dirección, precio, tipo desde PropertySnapshot│
+│    1. Crea NotaEncargoSession                                │
+│       (PENDING o PENDIENTE_PROPIEDAD)                        │
+│    2. Si existe PropertyCurrent: prellenar dirección/precio   │
+│       Si no existe: mantener datos de inmueble pendientes     │
 │    3. Emite NOTA_ENCARGO_DETECTADA                           │
 │    4. Programa job NOTA_ENCARGO_RECORDATORIO                 │
 │       con availableAt = visitDateTime - 2h                   │
