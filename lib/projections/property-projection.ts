@@ -28,7 +28,7 @@ type PropertyPayloadSnapshot = {
   propietarioDni?: string | null;
   propietarioPhone?: string | null;
   propietarioDomicilioFiscal?: string | null;
-  propietarioRegisteredAt?: Date | string | null;
+  propietarioRegisteredAt?: string | null;
 };
 
 type PropertyModifiedAfter = {
@@ -53,7 +53,7 @@ async function snapshotToUpsertData(
     comercial = await resolveComercialFromRef(snapshot.ref);
   }
 
-  const ownerFields: Prisma.PropertyCurrentUpdateInput = {
+  const ownerFields = {
     ...(str(snapshot.propietarioNombre)
       ? { propietarioNombre: str(snapshot.propietarioNombre) }
       : {}),
@@ -97,7 +97,7 @@ async function snapshotToUpsertData(
   };
 
   return {
-    create: { codigo: str(snapshot.codigo), ...base },
+    create: { ...base, codigo: str(snapshot.codigo) },
     update: base,
   };
 }

@@ -261,7 +261,7 @@ export type PropertyOwnerPatch = {
   propietarioDni?: string;
   propietarioPhone?: string;
   propietarioDomicilioFiscal?: string;
-  propietarioRegisteredAt?: Date;
+  propietarioRegisteredAt?: string;
 };
 
 // --- Enums / Catálogos (GET /enums/?...) ---

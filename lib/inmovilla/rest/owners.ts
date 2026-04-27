@@ -77,7 +77,7 @@ export function mapOwnerToPropertyOwnerPatch(
     ...(phone ? { propietarioPhone: phone } : {}),
     ...(address ? { propietarioDomicilioFiscal: address } : {}),
     ...(fullName || owner.nif || phone || address
-      ? { propietarioRegisteredAt: syncedAt }
+      ? { propietarioRegisteredAt: syncedAt.toISOString() }
       : {}),
   };
 }

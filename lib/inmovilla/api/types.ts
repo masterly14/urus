@@ -54,6 +54,6 @@ export type InmovillaProperty = {
   propietarioDni?: string | null;
   propietarioPhone?: string | null;
   propietarioDomicilioFiscal?: string | null;
-  propietarioRegisteredAt?: Date | string | null;
+  propietarioRegisteredAt?: string | null;
   raw: Record<string, unknown>;
 };

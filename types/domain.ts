@@ -35,7 +35,7 @@ export interface Property {
   propietarioDni?: string | null;
   propietarioPhone?: string | null;
   propietarioDomicilioFiscal?: string | null;
-  propietarioRegisteredAt?: Date | string | null;
+  propietarioRegisteredAt?: string | null;
   raw?: Record<string, unknown>;
 }
 

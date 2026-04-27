@@ -31,7 +31,7 @@ describe("owners REST helpers", () => {
       propietarioDni: "12345678A",
       propietarioPhone: "34600111222",
       propietarioDomicilioFiscal: "Mayor, 1, 14001, Córdoba, Córdoba",
-      propietarioRegisteredAt: syncedAt,
+      propietarioRegisteredAt: syncedAt.toISOString(),
     });
   });
 
