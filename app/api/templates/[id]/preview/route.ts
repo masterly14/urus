@@ -2,14 +2,18 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { compileTemplate } from "@/lib/contracts/templates/engine";
 import { buildMockPayload } from "@/lib/contracts/templates/mock-payload";
+import { requireTemplateReadAccess } from "../../_auth";
 import type { TemplateStructure } from "@/types/contract-template";
 import type { ContractDocumentKind } from "@/types/contracts";
 import { Packer } from "docx";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireTemplateReadAccess(req);
+  if (auth.response) return auth.response;
+
   const { id } = await params;
 
   const template = await prisma.contractTemplate.findUnique({ where: { id } });
