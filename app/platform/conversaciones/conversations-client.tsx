@@ -173,7 +173,7 @@ export function ConversationsClient() {
   const hasContextData = Boolean(context.demand) || context.selections.length > 0;
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col gap-3">
+    <div className="flex min-h-0 h-[calc(100vh-8rem)] flex-col gap-3">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -237,7 +237,7 @@ export function ConversationsClient() {
 
       <Card className="flex min-h-0 flex-1 flex-row gap-0 overflow-hidden p-0">
         {!listCollapsed ? (
-          <aside className="flex h-full w-[320px] shrink-0 flex-col border-r border-border bg-muted/20">
+          <aside className="flex min-h-0 w-[320px] shrink-0 flex-col overflow-hidden border-r border-border bg-muted/20">
             <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background/60 px-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">Conversaciones</p>
@@ -257,10 +257,14 @@ export function ConversationsClient() {
             </div>
 
             {listError ? (
-              <p className="px-3 py-2 text-xs text-destructive">{listError}</p>
+              <p className="shrink-0 px-3 py-2 text-xs text-destructive">{listError}</p>
             ) : null}
 
-            <ScrollArea className="flex-1">
+            <div
+              className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]"
+              role="region"
+              aria-label="Lista de conversaciones"
+            >
               {!loadingList && conversations.length === 0 ? (
                 <p className="px-3 py-6 text-center text-xs text-muted-foreground">
                   No hay conversaciones con los filtros actuales.
@@ -348,11 +352,11 @@ export function ConversationsClient() {
                   })}
                 </ul>
               )}
-            </ScrollArea>
+            </div>
           </aside>
         ) : null}
 
-        <section className="flex min-w-0 flex-1 flex-col">
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-background/60 px-3">
             {listCollapsed ? (
               <button
@@ -418,7 +422,7 @@ export function ConversationsClient() {
           </div>
 
           <div className="flex min-h-0 flex-1">
-            <div className="flex min-w-0 flex-1 flex-col bg-muted/10">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-muted/10">
               {detailError ? (
                 <p className="border-b border-destructive/20 bg-destructive/5 px-4 py-2 text-xs text-destructive">
                   {detailError}
@@ -433,7 +437,7 @@ export function ConversationsClient() {
                   </p>
                 </div>
               ) : (
-                <ScrollArea className="flex-1">
+                <ScrollArea className="min-h-0 flex-1 overflow-hidden">
                   {loadingMessages ? (
                     <p className="px-4 py-6 text-sm text-muted-foreground">
                       Cargando mensajes...
@@ -494,7 +498,7 @@ export function ConversationsClient() {
             </div>
 
             {selected && contextOpen && hasContextData ? (
-              <aside className="flex h-full w-[320px] shrink-0 flex-col border-l border-border bg-background">
+              <aside className="flex min-h-0 w-[320px] shrink-0 flex-col overflow-hidden border-l border-border bg-background">
                 <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
                   <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     Contexto
@@ -509,8 +513,12 @@ export function ConversationsClient() {
                     <PanelRightClose className="size-3.5" />
                   </button>
                 </div>
-                <ScrollArea className="flex-1">
-                  <div className="flex flex-col gap-3 p-3">
+                <div
+                  className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]"
+                  role="region"
+                  aria-label="Contexto de la conversacion"
+                >
+                  <div className="flex flex-col gap-3 p-3 pb-4">
                     {context.demand ? (
                       <section className="rounded-lg border border-border bg-card p-3">
                         <div className="flex items-start justify-between gap-2">
@@ -614,7 +622,7 @@ export function ConversationsClient() {
                                   {selection.properties.length}
                                 </Badge>
                               </div>
-                              <div className="mt-2 grid grid-cols-2 gap-2">
+                              <div className="mt-2 grid grid-cols-1 gap-2">
                                 {selection.properties.slice(0, 6).map((property) => (
                                   <article
                                     key={`${selection.id}-${property.propertyId}`}
@@ -677,7 +685,7 @@ export function ConversationsClient() {
                       )}
                     </section>
                   </div>
-                </ScrollArea>
+                </div>
               </aside>
             ) : null}
           </div>
