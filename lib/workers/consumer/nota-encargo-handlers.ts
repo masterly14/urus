@@ -43,8 +43,9 @@ export async function handleNotaEncargoRecordatorio(
     return { success: true };
   }
 
+  const displayRef = session.propertyRef ?? session.refCatastral ?? session.id;
   await sendNotaEncargoRecordatorio(session.propietarioPhone, {
-    propertyRef: session.propertyRef,
+    propertyRef: displayRef,
     direccion: session.direccion,
     visitTime: session.visitDateTime,
   });
@@ -97,8 +98,9 @@ export async function handleNotaEncargoCheckConfirmacion(
   });
 
   if (comercial?.telefono) {
+    const displayRef = session.propertyRef ?? session.refCatastral ?? session.id;
     await sendNotaEncargoNoConfirmada(comercial.telefono, {
-      propertyRef: session.propertyRef,
+      propertyRef: displayRef,
       direccion: session.direccion,
       visitTime: session.visitDateTime,
     });
@@ -112,8 +114,12 @@ export async function handleNotaEncargoCheckConfirmacion(
   await appendEvent({
     type: "NOTA_ENCARGO_NO_CONFIRMADA",
     aggregateType: "PROPERTY",
-    aggregateId: session.propertyCode ?? session.propertyRef,
-    payload: { sessionId },
+    aggregateId: session.propertyCode ?? session.refCatastral ?? session.id,
+    payload: {
+      sessionId,
+      propertyRef: session.propertyRef,
+      refCatastral: session.refCatastral,
+    },
   });
 
   return { success: true };
@@ -133,12 +139,14 @@ export async function handleNotaEncargoEnviarFormulario(
 
   if (session.state !== "CONFIRMADA") return { success: true };
 
+  const displayRef = session.propertyRef ?? session.refCatastral ?? session.id;
   await sendNotaEncargoFlow(session.propietarioPhone, {
     sessionId: session.id,
     direccion: session.direccion,
     tipoOperacion: session.tipoOperacion,
     precio: session.precio,
-    propertyRef: session.propertyRef,
+    propertyRef: displayRef,
+    refCatastral: session.refCatastral,
   });
 
   await prisma.notaEncargoSession.update({
@@ -175,10 +183,11 @@ export async function handleNotaEncargoMatchingCheck(
   await appendEvent({
     type: "NOTA_ENCARGO_SIN_PROPIEDAD_DEADLINE",
     aggregateType: "PROPERTY",
-    aggregateId: session.propertyRef,
+    aggregateId: session.refCatastral ?? session.id,
     payload: {
       sessionId: session.id,
       propertyRef: session.propertyRef,
+      refCatastral: session.refCatastral,
       daysElapsed,
     },
   });

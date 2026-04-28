@@ -29,6 +29,7 @@ export type InmovillaPaginationResponse = {
 export type InmovillaProperty = {
   codigo: string;
   ref: string;
+  refCatastral?: string | null;
   titulo: string;
   tipoOfer: string;
   precio: number;

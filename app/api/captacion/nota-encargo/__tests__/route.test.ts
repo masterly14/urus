@@ -21,6 +21,9 @@ import { POST } from "../route";
 const TEST_PREFIX = `nota-api-${Date.now()}`;
 const PENDING_REF = "URUS999999VZZTEST";
 const EXISTING_REF = "URUS999998VZZTEST";
+const TEST_CATASTRAL_SUFFIX = Date.now().toString(36).toUpperCase();
+const PENDING_CATASTRAL_REF = `TESTPENDING${TEST_CATASTRAL_SUFFIX}`;
+const EXISTING_CATASTRAL_REF = `TESTEXISTING${TEST_CATASTRAL_SUFFIX}`;
 const VISIT_DATE = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 const EPOCH = new Date("2026-01-01T00:00:00.000Z");
 
@@ -45,6 +48,8 @@ async function cleanup() {
         { aggregateId: { startsWith: TEST_PREFIX } },
         { aggregateId: PENDING_REF },
         { aggregateId: EXISTING_REF },
+        { aggregateId: PENDING_CATASTRAL_REF },
+        { aggregateId: EXISTING_CATASTRAL_REF },
       ],
     },
   });
@@ -101,10 +106,10 @@ afterAll(async () => {
 });
 
 describe("POST /api/captacion/nota-encargo", () => {
-  it("crea sesión pendiente cuando la referencia aún no existe", async () => {
+  it("crea sesión pendiente cuando la referencia catastral aún no existe", async () => {
     const response = await POST(
       request({
-        propertyRef: PENDING_REF,
+        refCatastral: PENDING_CATASTRAL_REF,
         propietarioPhone: "600111222",
         visitDateTime: VISIT_DATE,
       }),
@@ -118,7 +123,8 @@ describe("POST /api/captacion/nota-encargo", () => {
       where: { id: body.sessionId },
     });
     expect(session.propertyCode).toBeNull();
-    expect(session.propertyRef).toBe(PENDING_REF);
+    expect(session.propertyRef).toBeNull();
+    expect(session.refCatastral).toBe(PENDING_CATASTRAL_REF);
     expect(session.state).toBe("PENDIENTE_PROPIEDAD");
 
     const matchingJob = await prisma.jobQueue.findFirst({
@@ -130,11 +136,12 @@ describe("POST /api/captacion/nota-encargo", () => {
     expect(matchingJob).not.toBeNull();
   });
 
-  it("vincula inmediatamente si la referencia ya existe en PropertyCurrent", async () => {
+  it("vincula inmediatamente si la referencia catastral ya existe en PropertyCurrent", async () => {
     await prisma.propertyCurrent.create({
       data: {
         codigo: `${TEST_PREFIX}-prop`,
         ref: EXISTING_REF,
+        refCatastral: EXISTING_CATASTRAL_REF,
         tipoOfer: "Venta",
         precio: 300000,
         ciudad: "Córdoba",
@@ -149,7 +156,7 @@ describe("POST /api/captacion/nota-encargo", () => {
 
     const response = await POST(
       request({
-        propertyRef: EXISTING_REF,
+        refCatastral: EXISTING_CATASTRAL_REF,
         propietarioPhone: "600111222",
         visitDateTime: VISIT_DATE,
       }),
@@ -163,19 +170,47 @@ describe("POST /api/captacion/nota-encargo", () => {
       where: { id: body.sessionId },
     });
     expect(session.propertyCode).toBe(`${TEST_PREFIX}-prop`);
+    expect(session.propertyRef).toBe(EXISTING_REF);
+    expect(session.refCatastral).toBe(EXISTING_CATASTRAL_REF);
     expect(session.state).toBe("PENDING");
     expect(session.precio).toBe(300000);
   });
 
-  it("rechaza formato de referencia inválido", async () => {
+  it("rechaza duplicado activo por referencia catastral", async () => {
+    await prisma.notaEncargoSession.create({
+      data: {
+        comercialId: `${TEST_PREFIX}-comercial`,
+        propertyCode: null,
+        propertyRef: null,
+        refCatastral: PENDING_CATASTRAL_REF,
+        propietarioPhone: "34600111222",
+        visitDateTime: new Date(VISIT_DATE),
+        state: "PENDIENTE_PROPIEDAD",
+      },
+    });
+
     const response = await POST(
       request({
-        propertyRef: "ABC123",
+        refCatastral: PENDING_CATASTRAL_REF,
+        propietarioPhone: "600111222",
+        visitDateTime: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
+      }),
+    );
+
+    expect(response.status).toBe(409);
+  });
+
+  it("permite formato no estándar con warning no bloqueante", async () => {
+    const response = await POST(
+      request({
+        refCatastral: "ABC123",
         propietarioPhone: "600111222",
         visitDateTime: VISIT_DATE,
       }),
     );
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(201);
+    const body = await response.json();
+    expect(body.warnings[0]).toContain("se guardará igualmente");
   });
 });

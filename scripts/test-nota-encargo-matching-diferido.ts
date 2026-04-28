@@ -6,6 +6,7 @@ const RUN_ID = `nota-live-${Date.now()}`;
 const propertyCode = `${RUN_ID}-prop`;
 const sessionId = `${RUN_ID}-session`;
 const propertyRef = "URUS09VFEDE";
+const refCatastral = "9872023VH5797S0006XS";
 const now = new Date();
 
 async function cleanup() {
@@ -14,6 +15,7 @@ async function cleanup() {
       OR: [
         { aggregateId: propertyCode },
         { aggregateId: propertyRef },
+        { aggregateId: refCatastral },
       ],
     },
   });
@@ -40,6 +42,7 @@ function event(): EventRecord {
       snapshot: {
         codigo: propertyCode,
         ref: propertyRef,
+        refCatastral,
         tipoOfer: "Venta",
         precio: 275000,
         ciudad: "Córdoba",
@@ -61,6 +64,7 @@ async function main() {
     data: {
       codigo: propertyCode,
       ref: propertyRef,
+      refCatastral,
       tipoOfer: "Venta",
       precio: 275000,
       ciudad: "Córdoba",
@@ -75,6 +79,7 @@ async function main() {
     data: {
       codigo: propertyCode,
       ref: propertyRef,
+      refCatastral,
       tipoOfer: "Venta",
       precio: 275000,
       ciudad: "Córdoba",
@@ -86,7 +91,8 @@ async function main() {
   await prisma.notaEncargoSession.create({
     data: {
       id: sessionId,
-      propertyRef,
+      propertyRef: null,
+      refCatastral,
       propertyCode: null,
       comercialId: `${RUN_ID}-comercial`,
       propietarioPhone: "34600111222",
@@ -114,6 +120,9 @@ async function main() {
 
   if (session.propertyCode !== propertyCode) {
     throw new Error(`propertyCode inesperado: ${session.propertyCode}`);
+  }
+  if (session.propertyRef !== propertyRef) {
+    throw new Error(`propertyRef no backfilleado: ${session.propertyRef}`);
   }
   if (property.propietarioNombre !== "Propietario Demo") {
     throw new Error("No se copiaron los datos del propietario a PropertyCurrent");

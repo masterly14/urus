@@ -34,6 +34,10 @@ vi.mock("@/lib/routing/resolve-property-agent", () => ({
   resolveAgentPhoneByProperty: vi.fn(),
 }));
 
+vi.mock("@/lib/routing/property-whatsapp-context", () => ({
+  getPricingNotifyPropertyContext: vi.fn(),
+}));
+
 vi.mock("@/lib/microsite/app-url", () => ({
   getPublicAppUrl: () => "https://app.urus.es",
 }));
@@ -48,12 +52,14 @@ import {
 import { enqueueJob } from "@/lib/job-queue";
 import { sendPricingReportToCommercial } from "@/lib/whatsapp/send";
 import { resolveAgentPhoneByProperty } from "@/lib/routing/resolve-property-agent";
+import { getPricingNotifyPropertyContext } from "@/lib/routing/property-whatsapp-context";
 import type { JobRecord } from "@/lib/job-queue/types";
 
 const mockRunPricing = vi.mocked(runPricingAnalysis);
 const mockEnqueue = vi.mocked(enqueueJob);
 const mockSendPricing = vi.mocked(sendPricingReportToCommercial);
 const mockResolveAgent = vi.mocked(resolveAgentPhoneByProperty);
+const mockPropertyCtx = vi.mocked(getPricingNotifyPropertyContext);
 
 function makeJob(
   type: string,
@@ -85,6 +91,11 @@ function makeJob(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockPropertyCtx.mockResolvedValue({
+    propertyRef: "REF-PROP-001",
+    propertyAddress: "Calle Falsa 123 · Madrid",
+    mainPhotoUrl: "https://cdn.example.com/foto.jpg",
+  });
 });
 
 // ── RUN_PRICING_ANALYSIS ──────────────────────────────────────────────────────
@@ -200,11 +211,14 @@ describe("handleNotifyPricingWhatsApp (NOTIFY_PRICING_WHATSAPP)", () => {
 
     expect(result.success).toBe(true);
     expect(mockResolveAgent).toHaveBeenCalledWith("PROP-001");
+    expect(mockPropertyCtx).toHaveBeenCalledWith("PROP-001");
     expect(mockSendPricing).toHaveBeenCalledWith(
       "34612345678",
       expect.objectContaining({
         comercialNombre: "Ana García",
-        propertyCode: "PROP-001",
+        propertyRef: "REF-PROP-001",
+        propertyAddress: "Calle Falsa 123 · Madrid",
+        mainPhotoUrl: "https://cdn.example.com/foto.jpg",
         semaforo: "VERDE",
         gapPorcentaje: "+3.4%",
         informeUrl: "https://app.urus.es/platform/pricing/informe/PROP-001",

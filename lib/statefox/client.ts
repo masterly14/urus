@@ -43,6 +43,44 @@ const HOUSING_TYPES: StatefoxHousing[] = [
   "room",
 ];
 
+function summarizeImageShape(value: unknown): Record<string, unknown> {
+  if (Array.isArray(value)) {
+    return {
+      type: "array",
+      length: value.length,
+      sampleTypes: value.slice(0, 3).map((item) => typeof item),
+      firstObjectKeys:
+        value.find((item) => item && typeof item === "object" && !Array.isArray(item))
+          ? Object.keys(value.find((item) => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>).slice(0, 8)
+          : [],
+    };
+  }
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const first = Object.values(obj).find((item) => item && typeof item === "object" && !Array.isArray(item));
+    return {
+      type: "object",
+      keys: Object.keys(obj).slice(0, 8),
+      firstObjectKeys: first ? Object.keys(first as Record<string, unknown>).slice(0, 8) : [],
+    };
+  }
+  return { type: typeof value, present: value != null };
+}
+
+function debugStatefoxSnapshotShape(response: GetSnapshotResponse, params: GetSnapshotParams): void {
+  const entries = Object.entries(response.result ?? {});
+  const samples = entries.slice(0, 3).map(([id, prop]) => ({
+    id,
+    propertyKeys: Object.keys(prop as Record<string, unknown>).slice(0, 20),
+    hasPropertyMainImage: typeof (prop as Record<string, unknown>).propertyMainImage === "string",
+    hasImagesField: Object.prototype.hasOwnProperty.call(prop as Record<string, unknown>, "images"),
+    pImages: summarizeImageShape((prop as Record<string, unknown>).pImages),
+  }));
+  // #region agent log
+  fetch("http://127.0.0.1:7478/ingest/3a86774c-7051-4ca6-b6e8-a92160972b21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "bfe3e0" }, body: JSON.stringify({ sessionId: "bfe3e0", runId: "initial", hypothesisId: "H1,H2", location: "lib/statefox/client.ts:getSnapshot", message: "Statefox snapshot response image shape", data: { params: { items: params.items, status: params.status, type: params.type, hasNext: Boolean(params.next) }, topLevelKeys: Object.keys(response as Record<string, unknown>), resultCount: entries.length, metaKeys: Object.keys(response.meta ?? {}), samples }, timestamp: Date.now() }) }).catch(() => {});
+  // #endregion
+}
+
 export type StatefoxClientConfig = {
   token: string;
   baseUrl?: string;
@@ -193,5 +231,7 @@ export async function getSnapshot(
     next: params.next ?? undefined,
   };
 
-  return client.get<GetSnapshotResponse>("/snapshot", query);
+  const response = await client.get<GetSnapshotResponse>("/snapshot", query);
+  debugStatefoxSnapshotShape(response, params);
+  return response;
 }

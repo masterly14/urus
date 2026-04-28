@@ -12,23 +12,64 @@ import { enqueueJob } from "@/lib/job-queue";
 import { extractPropertyDataFromRaw } from "@/lib/nota-encargo/utils";
 import type { VisitSchedulingSession } from "@prisma/client";
 
+export type ParteVisitaScheduleDetails = {
+  visitSessionId: string;
+  propertyCode: string;
+  propertyRef: string;
+  comercialId: string;
+  buyerPhone: string;
+  visitDateTime: Date;
+  direccion: string;
+  tipoOperacion: string;
+  precio: number;
+};
+
+export async function scheduleParteVisitaFromDetails(
+  details: ParteVisitaScheduleDetails,
+): Promise<void> {
+  const existing = await prisma.parteVisitaSession.findUnique({
+    where: { visitSessionId: details.visitSessionId },
+    select: { id: true },
+  });
+  if (existing) {
+    console.log(
+      `[parte-visita] ParteVisitaSession already exists for visit ${details.visitSessionId} — skipping`,
+    );
+    return;
+  }
+
+  const session = await prisma.parteVisitaSession.create({
+    data: {
+      visitSessionId: details.visitSessionId,
+      propertyCode: details.propertyCode,
+      propertyRef: details.propertyRef,
+      comercialId: details.comercialId,
+      buyerPhone: details.buyerPhone,
+      visitDateTime: details.visitDateTime,
+      direccion: details.direccion,
+      tipoOperacion: details.tipoOperacion,
+      precio: details.precio,
+    },
+  });
+
+  await enqueueJob({
+    type: "PARTE_VISITA_ENVIAR_FORMULARIO",
+    payload: { sessionId: session.id },
+    availableAt: details.visitDateTime,
+    idempotencyKey: `parte_visita_formulario:${session.id}`,
+  });
+
+  console.log(
+    `[parte-visita] Scheduled for visit ${details.visitSessionId} — session=${session.id} at=${details.visitDateTime.toISOString()}`,
+  );
+}
+
 export async function scheduleParteVisita(
   visitSession: VisitSchedulingSession,
 ): Promise<void> {
   if (!visitSession.confirmedSlotStart) {
     console.warn(
       `[parte-visita] Cannot schedule: session ${visitSession.id} has no confirmedSlotStart`,
-    );
-    return;
-  }
-
-  const existing = await prisma.parteVisitaSession.findUnique({
-    where: { visitSessionId: visitSession.id },
-    select: { id: true },
-  });
-  if (existing) {
-    console.log(
-      `[parte-visita] ParteVisitaSession already exists for visit ${visitSession.id} — skipping`,
     );
     return;
   }
@@ -68,28 +109,15 @@ export async function scheduleParteVisita(
     precio = property.precio;
   }
 
-  const session = await prisma.parteVisitaSession.create({
-    data: {
-      visitSessionId: visitSession.id,
-      propertyCode: visitSession.propertyCode,
-      propertyRef: property.ref,
-      comercialId: visitSession.comercialId,
-      buyerPhone: visitSession.buyerWaId,
-      visitDateTime: visitSession.confirmedSlotStart,
-      direccion,
-      tipoOperacion,
-      precio,
-    },
+  await scheduleParteVisitaFromDetails({
+    visitSessionId: visitSession.id,
+    propertyCode: visitSession.propertyCode,
+    propertyRef: property.ref,
+    comercialId: visitSession.comercialId,
+    buyerPhone: visitSession.buyerWaId,
+    visitDateTime: visitSession.confirmedSlotStart,
+    direccion,
+    tipoOperacion,
+    precio,
   });
-
-  await enqueueJob({
-    type: "PARTE_VISITA_ENVIAR_FORMULARIO",
-    payload: { sessionId: session.id },
-    availableAt: visitSession.confirmedSlotStart,
-    idempotencyKey: `parte_visita_formulario:${session.id}`,
-  });
-
-  console.log(
-    `[parte-visita] Scheduled for visit ${visitSession.id} — session=${session.id} at=${visitSession.confirmedSlotStart.toISOString()}`,
-  );
 }

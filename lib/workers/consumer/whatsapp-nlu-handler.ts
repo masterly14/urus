@@ -43,10 +43,6 @@ import {
   getActiveSessionForComercial,
 } from "@/lib/visit-scheduling/session-manager";
 import { handleVisitMessage } from "@/lib/visit-scheduling/handle-visit-message";
-import {
-  initiateVisitScheduling,
-} from "@/lib/visit-scheduling/orchestrator";
-import { ComposioNotConnectedError } from "@/lib/visit-scheduling/types";
 
 type WhatsAppReceivedPayload = {
   messageId?: string;
@@ -736,57 +732,6 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
     console.log(
       `[consumer:whatsapp] Emitidos ${nlu.propertyFeedback.length} SELECCION_COMPRADOR waId=${waId} demandId=${ctx.demandId}`,
     );
-  }
-
-  // --- Inicio automático de visita si intención = ME_ENCAJA ---
-
-  if (nlu.intention === "ME_ENCAJA") {
-    const interestedProperties = nlu.propertyFeedback.filter(
-      (fb) => fb.sentiment === "ME_INTERESA",
-    );
-
-    const firstInterested = interestedProperties[0];
-    if (firstInterested) {
-      const existingVisitSession = await getActiveSessionForBuyer(
-        waId,
-        firstInterested.propertyId,
-      );
-
-      if (!existingVisitSession) {
-        try {
-          const session = await initiateVisitScheduling(
-            ctx.demandId,
-            firstInterested.propertyId,
-            waId,
-            event.correlationId ?? undefined,
-          );
-
-          if (session) {
-            console.log(
-              `[consumer:whatsapp] Visita iniciada automáticamente sessionId=${session.id} demandId=${ctx.demandId} propertyId=${firstInterested.propertyId}`,
-            );
-          } else {
-            console.warn(
-              `[consumer:whatsapp] initiateVisitScheduling retornó null — comercial sin configurar para propertyId=${firstInterested.propertyId}`,
-            );
-          }
-        } catch (err) {
-          if (err instanceof ComposioNotConnectedError) {
-            console.warn(
-              `[consumer:whatsapp] Visita no iniciada — comercial sin calendario (Composio) para propertyId=${firstInterested.propertyId}`,
-            );
-          } else {
-            console.error(
-              `[consumer:whatsapp] Error iniciando visita automática para propertyId=${firstInterested.propertyId}: ${err instanceof Error ? err.message : err}`,
-            );
-          }
-        }
-      } else {
-        console.log(
-          `[consumer:whatsapp] Visita ya activa sessionId=${existingVisitSession.id} para waId=${waId} propertyId=${firstInterested.propertyId} — no se crea otra`,
-        );
-      }
-    }
   }
 
   // --- Emitir DEMANDA_ACTUALIZADA si hay ajuste de demanda ---

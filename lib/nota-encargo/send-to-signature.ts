@@ -59,6 +59,7 @@ export async function handleNotaEncargoFlowResponse(
     telefono,
     domicilioFiscal,
     direccion: session.direccion,
+    refCatastral: session.refCatastral,
     tipoOperacion: session.tipoOperacion as "VENTA" | "ALQUILER",
     precio: session.precio,
     duracionMeses,
@@ -76,15 +77,17 @@ export async function handleNotaEncargoFlowResponse(
   // identificador provisional. El matcher lo reemplaza por el código real.
   const effectiveOperationId = session.propertyCode ?? `NOTA:${session.id}`;
   const effectivePropertyCode = session.propertyCode ?? `NOTA:${session.id}`;
+  const documentRef = session.propertyRef ?? session.refCatastral ?? session.id;
 
   // 3. Upload to Cloudinary
   const uploadResult = await uploadContractDocument({
     buffer: pdfBuffer,
-    fileName: `nota_encargo_${session.propertyRef}.pdf`,
+    fileName: `nota_encargo_${documentRef}.pdf`,
     folder: `nota-encargo/${effectivePropertyCode}`,
-    tags: ["nota_encargo", session.propertyRef],
+    tags: ["nota_encargo", documentRef],
     context: {
       propertyCode: effectivePropertyCode,
+      refCatastral: session.refCatastral ?? "",
       sessionId: session.id,
     },
   });

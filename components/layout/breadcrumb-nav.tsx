@@ -17,7 +17,7 @@ const labelMap: Record<string, string> = {
     matching: "Matching",
     cruces: "Cruces Automáticos",
     feedback: "Feedback Loop",
-    pricing: "Smart Pricing",
+    pricing: "Análisis de mercado",
     analisis: "Análisis",
     mercado: "Mercado",
     legal: "Legal",

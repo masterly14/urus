@@ -13,6 +13,13 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+const mockNotifyCommercialVisitInterest = vi.fn().mockResolvedValue({ sent: true });
+
+vi.mock("@/lib/visitas/notify-commercial", () => ({
+  notifyCommercialVisitInterest: (...args: unknown[]) =>
+    mockNotifyCommercialVisitInterest(...args),
+}));
+
 function makeEvent(overrides: Partial<EventRecord> = {}): EventRecord {
   return {
     id: "evt-sc-001",
@@ -42,12 +49,17 @@ describe("handleSeleccionComprador", () => {
     vi.clearAllMocks();
   });
 
-  it("persiste feedback ME_INTERESA sin follow-up jobs", async () => {
+  it("persiste feedback ME_INTERESA y notifica paquete de visita", async () => {
     const event = makeEvent();
     const result = await handleSeleccionComprador(event);
 
     expect(result.success).toBe(true);
     expect(result.followUpJobs).toBeUndefined();
+    expect(mockNotifyCommercialVisitInterest).toHaveBeenCalledWith({
+      demandId: "DEM-001",
+      causationId: "evt-sc-001",
+      correlationId: null,
+    });
   });
 
   it("persiste feedback NO_ME_ENCAJA sin follow-up jobs (demand update is handled by DEMANDA_ACTUALIZADA)", async () => {
@@ -64,6 +76,7 @@ describe("handleSeleccionComprador", () => {
 
     expect(result.success).toBe(true);
     expect(result.followUpJobs).toBeUndefined();
+    expect(mockNotifyCommercialVisitInterest).not.toHaveBeenCalled();
   });
 
   it("skip graceful si payload incompleto (sin selectionId)", async () => {

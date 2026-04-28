@@ -39,6 +39,7 @@ function pickDiffFields(
     prospecto: snapshot.prospecto,
     fechaActualizacion: snapshot.fechaActualizacion,
     agente: snapshot.agente,
+    refCatastral: snapshot.refCatastral ?? null,
   };
 }
 

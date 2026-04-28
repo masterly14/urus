@@ -63,7 +63,7 @@ const postHandler = async (request: Request) => {
     if (err instanceof PricingNotEligibleError) {
       return NextResponse.json(
         {
-          error: "Propiedad no elegible para Smart Pricing",
+          error: "Propiedad no elegible para Análisis de mercado",
           reasons: err.reasons,
           message: err.message,
         },

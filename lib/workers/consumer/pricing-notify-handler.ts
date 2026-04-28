@@ -1,13 +1,15 @@
 /**
  * Job handler: NOTIFY_PRICING_WHATSAPP
  *
- * Resuelve el teléfono del comercial asignado a la propiedad
- * y envía la plantilla WhatsApp con el enlace al informe de pricing.
+ * Resuelve el teléfono del comercial asignado a la propiedad, carga ref/dirección/foto
+ * desde la proyección y envía WhatsApp (texto libre + imagen si hay URL HTTPS pública;
+ * `sendPricingReportToCommercial` admite plantilla Meta con `useTemplate` si se usa en otro flujo).
  */
 
 import type { JobRecord } from "@/lib/job-queue/types";
 import type { HandlerResult } from "./types";
 import { resolveAgentPhoneByProperty } from "@/lib/routing/resolve-property-agent";
+import { getPricingNotifyPropertyContext } from "@/lib/routing/property-whatsapp-context";
 import { sendPricingReportToCommercial } from "@/lib/whatsapp/send";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
 
@@ -49,10 +51,14 @@ export async function handleNotifyPricingWhatsApp(
   const gapStr = `${gapPorcentaje > 0 ? "+" : ""}${gapPorcentaje}%`;
   const semaforoLabel = SEMAFORO_LABELS[semaforo] ?? semaforo.toUpperCase();
 
+  const propertyCtx = await getPricingNotifyPropertyContext(propertyCode);
+
   try {
     await sendPricingReportToCommercial(agent.telefono, {
       comercialNombre: agent.nombre,
-      propertyCode,
+      propertyRef: propertyCtx.propertyRef,
+      propertyAddress: propertyCtx.propertyAddress,
+      mainPhotoUrl: propertyCtx.mainPhotoUrl,
       semaforo: semaforoLabel,
       gapPorcentaje: gapStr,
       informeUrl,

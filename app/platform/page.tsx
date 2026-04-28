@@ -38,7 +38,7 @@ const quickLinks = [
     icon: Users,
   },
   {
-    title: "Smart Pricing",
+    title: "Análisis de mercado",
     description: "Semáforo y mercado",
     href: "/platform/pricing",
     icon: DollarSign,

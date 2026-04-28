@@ -260,6 +260,7 @@ model KvStore {
 model PropertySnapshot {
   codigo             String   @id
   ref                String
+  refCatastral       String?
   titulo             String   @default("")
   tipoOfer           String   @default("")
   precio             Float    @default(0)
@@ -310,6 +311,7 @@ model DemandSnapshot {
 model PropertyCurrent {
   codigo             String   @id
   ref                String   @default("")
+  refCatastral       String?
   titulo             String   @default("")
   tipoOfer           String   @default("")
   precio             Float    @default(0)
@@ -356,6 +358,7 @@ model PropertyCurrent {
   @@index([estado])
   @@index([ciudad, zona])
   @@index([comercialId])
+  @@index([refCatastral])
   @@index([lastEventPosition])
   @@index([portalSyncedAt])
   @@index([notaEncargoSessionId])
@@ -1767,7 +1770,7 @@ enum NotaEncargoState {
 model NotaEncargoSession {
   id                  String           @id @default(cuid())
   propertyCode        String?
-  propertyRef         String
+  propertyRef         String?
   comercialId         String
   propietarioPhone    String
   visitDateTime       DateTime
@@ -1793,6 +1796,7 @@ model NotaEncargoSession {
   @@index([state])
   @@index([propertyCode])
   @@index([propertyRef])
+  @@index([refCatastral])
   @@index([propietarioPhone, state])
   @@map("nota_encargo_sessions")
 }

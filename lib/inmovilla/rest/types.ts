@@ -38,6 +38,7 @@ export type PropiedadCompleta = {
   key_loca?: number;
   key_zona?: number;
   key_tipo?: number;
+  rcatastral?: string;
   calle?: string;
   planta?: number;
   numero?: number;

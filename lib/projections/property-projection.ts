@@ -8,6 +8,7 @@ import { resolveComercialFromAgente, resolveComercialFromRef } from "@/lib/routi
 type PropertyPayloadSnapshot = {
   codigo: string;
   ref: string;
+  refCatastral?: string | null;
   titulo: string;
   tipoOfer: string;
   precio: number;
@@ -42,6 +43,7 @@ type PropertyModifiedAfter = {
   nodisponible?: boolean;
   prospecto?: boolean;
   fechaActualizacion: string;
+  refCatastral?: string | null;
 };
 
 async function snapshotToUpsertData(
@@ -73,6 +75,7 @@ async function snapshotToUpsertData(
 
   const base = {
     ref: str(snapshot.ref),
+    refCatastral: str(snapshot.refCatastral) || null,
     titulo: str(snapshot.titulo),
     tipoOfer: str(snapshot.tipoOfer),
     precio: num(snapshot.precio),
@@ -174,6 +177,7 @@ export async function applyPropertyProjection(
           nodisponible: Boolean(after.nodisponible),
           prospecto: Boolean(after.prospecto),
           fechaActualizacion: str(after.fechaActualizacion),
+          refCatastral: str(after.refCatastral) || null,
           mainPhotoUrl,
           lastEventId: event.id,
           lastEventPosition: event.position,
@@ -190,6 +194,9 @@ export async function applyPropertyProjection(
           nodisponible: Boolean(after.nodisponible),
           prospecto: Boolean(after.prospecto),
           fechaActualizacion: str(after.fechaActualizacion),
+          ...(after.refCatastral !== undefined
+            ? { refCatastral: str(after.refCatastral) || null }
+            : {}),
           mainPhotoUrl,
           lastEventId: event.id,
           lastEventPosition: event.position,

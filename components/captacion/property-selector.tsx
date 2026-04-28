@@ -23,6 +23,7 @@ import {
 export interface PropertyOption {
   codigo: string;
   ref: string;
+  refCatastral?: string | null;
   titulo: string;
   mainPhotoUrl: string | null;
   ciudad: string;

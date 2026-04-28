@@ -12,6 +12,7 @@ import type {
   TemplateObject,
   InteractiveObject,
   DocumentObject,
+  ImageObject,
   SendMessageSuccess,
 } from "./types";
 
@@ -71,7 +72,7 @@ export const WHATSAPP_TEMPLATES = {
   CONTRATO_FIRMA_RECORDATORIO_D3: process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D3 ?? "contrato_firma_recordatorio_d3", // body: 4 vars
   CONTRATO_FIRMA_RECORDATORIO_D5: process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_D5 ?? "contrato_firma_recordatorio_d5", // body: 4 vars
   CONTRATO_FIRMA_SLA_ESCALADO: process.env.WHATSAPP_TEMPLATE_CONTRATO_FIRMA_SLA_ESCALADO ?? "contrato_firma_sla_escalado", // body: 3 vars
-  PRICING_INFORME: process.env.WHATSAPP_TEMPLATE_PRICING_INFORME ?? "pricing_informe_listo",           // body: 5 vars
+  PRICING_INFORME: process.env.WHATSAPP_TEMPLATE_PRICING_INFORME ?? "pricing_informe_listo",           // body: 6 vars (nombre, ref, dirección, semáforo, gap, URL)
   POSTVENTA_AGRADECIMIENTO: process.env.WHATSAPP_TEMPLATE_POSTVENTA_AGRADECIMIENTO ?? "postventa_agradecimiento", // body: 3 vars
   POSTVENTA_RESENA: process.env.WHATSAPP_TEMPLATE_POSTVENTA_RESENA ?? "postventa_resena",             // body: 2 vars
   POSTVENTA_REFERIDOS: process.env.WHATSAPP_TEMPLATE_POSTVENTA_REFERIDOS ?? "postventa_referidos",       // body: 2 vars
@@ -79,6 +80,7 @@ export const WHATSAPP_TEMPLATES = {
   POSTVENTA_CUMPLEANOS: process.env.WHATSAPP_TEMPLATE_POSTVENTA_CUMPLEANOS ?? "postventa_cumpleanos",     // body: 2 vars
   POSTVENTA_NAVIDAD: process.env.WHATSAPP_TEMPLATE_POSTVENTA_NAVIDAD ?? "postventa_navidad",           // body: 2 vars
   DEV_EJERCICIO: process.env.WHATSAPP_TEMPLATE_DEV_EXERCISE ?? "dev_ejercicio_diario",               // body: 3 vars
+  VISITA_PAQUETE_COMERCIAL: process.env.WHATSAPP_TEMPLATE_VISITA_PAQUETE_COMERCIAL ?? "visita_paquete_comercial", // body: 4 vars (demanda, comprador, propiedades, acción)
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -113,7 +115,7 @@ function resultWaId(result: SendMessageSuccess, fallback: string): string {
 async function recordSentMessage(params: {
   to: string;
   result: SendMessageSuccess;
-  messageType: "text" | "template" | "interactive" | "document";
+  messageType: "text" | "template" | "interactive" | "document" | "image";
   content: Record<string, unknown>;
   options?: SendOptions;
 }) {
@@ -283,6 +285,49 @@ export async function sendDocumentMessage(
     result,
     messageType: "document",
     content: { document },
+    options,
+  });
+  return result;
+}
+
+/**
+ * Envía una imagen por URL pública HTTPS (Cloud API).
+ * Solo válido dentro de una ventana de 24h de conversación activa.
+ */
+export async function sendImageMessage(
+  to: string,
+  image: ImageObject,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  if (_testSendInterceptor) {
+    _testSendInterceptor({ to, type: "text", payload: { image } });
+    const result = { messages: [{ id: testId() }] } as SendMessageSuccess;
+    await recordSentMessage({
+      to,
+      result,
+      messageType: "image",
+      content: { image },
+      options,
+    });
+    return result;
+  }
+  const client = createWhatsAppClient(options);
+  const result = await client.sendMessage({
+    to,
+    type: "image",
+    image: {
+      link: image.link,
+      ...(image.caption ? { caption: image.caption } : {}),
+    },
+    ...(options?.contextMessageId
+      ? { context: { message_id: options.contextMessageId } }
+      : {}),
+  });
+  await recordSentMessage({
+    to,
+    result,
+    messageType: "image",
+    content: { image },
     options,
   });
   return result;
@@ -1090,9 +1135,44 @@ export async function sendFirmaRechazadaNotification(
 // Motor de Pricing — informe generado (M7)
 // ---------------------------------------------------------------------------
 
+function isPublicHttpsImageUrl(url: string | null | undefined): url is string {
+  if (!url?.trim()) return false;
+  try {
+    return new URL(url.trim()).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function buildPricingReportWhatsAppBody(params: {
+  propertyRef: string;
+  propertyAddress: string;
+  semaforo: string;
+  gapPorcentaje: string;
+  informeUrl: string;
+}): string {
+  const lines = [
+    `📊 *Informe de pricing generado*`,
+    ``,
+    `• Referencia: ${params.propertyRef}`,
+    `• Dirección: ${params.propertyAddress}`,
+    `• Semáforo: ${params.semaforo}`,
+    `• Gap vs mercado: ${params.gapPorcentaje}`,
+    ``,
+    `Consulta el informe completo:`,
+    params.informeUrl,
+  ];
+  return lines.join("\n");
+}
+
 export type PricingReportParams = {
   comercialNombre: string;
-  propertyCode: string;
+  /** Referencia de catálogo (Inmovilla `ref`), no el código interno. */
+  propertyRef: string;
+  /** Dirección o titular descriptivo (calle/número del raw, titulo o ciudad·zona). */
+  propertyAddress: string;
+  /** URL HTTPS pública de la foto principal; opcional. */
+  mainPhotoUrl?: string | null;
   semaforo: string;
   gapPorcentaje: string;
   informeUrl: string;
@@ -1118,7 +1198,8 @@ export async function sendPricingReportToCommercial(
           type: "body",
           parameters: [
             { type: "text", text: params.comercialNombre },
-            { type: "text", text: params.propertyCode },
+            { type: "text", text: params.propertyRef },
+            { type: "text", text: params.propertyAddress },
             { type: "text", text: params.semaforo },
             { type: "text", text: params.gapPorcentaje },
             { type: "text", text: params.informeUrl },
@@ -1129,17 +1210,23 @@ export async function sendPricingReportToCommercial(
     return sendTemplateMessage(to, template, options);
   }
 
-  const lines = [
-    `📊 *Informe de pricing generado*`,
-    ``,
-    `• Inmueble: ${params.propertyCode}`,
-    `• Semáforo: ${params.semaforo}`,
-    `• Gap vs mercado: ${params.gapPorcentaje}`,
-    ``,
-    `Consulta el informe completo:`,
-    params.informeUrl,
-  ];
-  return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
+  const body = buildPricingReportWhatsAppBody({
+    propertyRef: params.propertyRef,
+    propertyAddress: params.propertyAddress,
+    semaforo: params.semaforo,
+    gapPorcentaje: params.gapPorcentaje,
+    informeUrl: params.informeUrl,
+  });
+
+  const imageLink = isPublicHttpsImageUrl(params.mainPhotoUrl)
+    ? params.mainPhotoUrl.trim()
+    : null;
+
+  if (imageLink) {
+    await sendImageMessage(to, { link: imageLink }, options);
+  }
+
+  return sendTextMessage(to, body, { ...options, previewUrl: true });
 }
 
 // ---------------------------------------------------------------------------

@@ -8,6 +8,8 @@ import { prisma } from "@/lib/prisma";
 import { MICROSITE_VALIDATION_SLA_MS } from "@/lib/microsite/constants";
 import { getMicrositeMockSelection } from "@/lib/microsite/mock-selection";
 import { coerceMicrositeCuratedProperties } from "@/lib/microsite/selection";
+import { isExpiredStatefoxImageUrl } from "@/lib/statefox/image-expiry";
+import { proxiedStatefoxImageUrl } from "@/lib/statefox/image-url";
 import { PropertyDescriptionEditor } from "./property-description-editor";
 import { ValidarAcciones } from "./validar-acciones";
 
@@ -186,17 +188,18 @@ export default async function ValidarSeleccionPage({
             </div>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {properties.map((p) => {
-                const hero = p.images[0] ?? null;
+                const hero = p.images.find((url) => !isExpiredStatefoxImageUrl(url)) ?? null;
+                const heroSrc = hero ? proxiedStatefoxImageUrl(hero) : null;
                 return (
                   <article
                     key={p.propertyId}
                     className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-blue-300 hover:shadow-md"
                   >
                     <div className="aspect-[4/3] bg-slate-100 relative">
-                      {hero ? (
+                      {heroSrc ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={hero}
+                          src={heroSrc}
                           alt={p.title}
                           className="h-full w-full object-cover"
                           loading="lazy"

@@ -16,6 +16,7 @@ import type {
 import type { InmovillaProperty } from "@/lib/inmovilla/api/types";
 import type { EnumLookupMaps } from "./enum-lookup";
 import { buildMainPhotoUrlFromRaw } from "./photo-url";
+import { normalizeCadastralRef } from "@/lib/nota-encargo/cadastral-ref";
 
 /**
  * Obtiene el listado de propiedades/prospectos ordenado por fecha de actualización.
@@ -85,6 +86,9 @@ export function normalizePropertyFromRest(
   return {
     codigo: raw.cod_ofer != null ? String(raw.cod_ofer) : "",
     ref: String(raw.ref ?? ""),
+    refCatastral: raw.rcatastral
+      ? normalizeCadastralRef(String(raw.rcatastral))
+      : null,
     titulo: String(raw.tituloes ?? raw.descripciones ?? ""),
     tipoOfer:
       (raw.key_tipo != null && enumMaps

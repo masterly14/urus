@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { isExpiredStatefoxImageUrl } from "@/lib/statefox/image-expiry";
+import { proxiedStatefoxImageUrl } from "@/lib/statefox/image-url";
 
 type ImageCarouselProps = {
   images: string[];
@@ -10,7 +12,8 @@ type ImageCarouselProps = {
 export function ImageCarousel({ images, alt }: ImageCarouselProps) {
   const [current, setCurrent] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
-  const count = images.length;
+  const visibleImages = images.filter((url) => !isExpiredStatefoxImageUrl(url));
+  const count = visibleImages.length;
 
   const prev = useCallback(() => {
     setCurrent((c) => (c === 0 ? count - 1 : c - 1));
@@ -28,6 +31,8 @@ export function ImageCarousel({ images, alt }: ImageCarouselProps) {
     );
   }
 
+  const currentSrc = proxiedStatefoxImageUrl(visibleImages[current]);
+
   const carousel = (
     <div className="relative">
       <div
@@ -39,7 +44,7 @@ export function ImageCarousel({ images, alt }: ImageCarouselProps) {
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={images[current]}
+          src={currentSrc}
           alt={`${alt} — ${current + 1}/${count}`}
           className={
             fullscreen
@@ -92,7 +97,7 @@ export function ImageCarousel({ images, alt }: ImageCarouselProps) {
         {carousel}
         {count > 1 ? (
           <div className="mt-4 flex gap-3 overflow-x-auto pb-2 px-4 sm:px-6">
-            {images.map((src, i) => (
+            {visibleImages.map((src, i) => (
               <button
                 key={i}
                 type="button"
@@ -105,7 +110,7 @@ export function ImageCarousel({ images, alt }: ImageCarouselProps) {
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={src}
+                  src={proxiedStatefoxImageUrl(src)}
                   alt={`Miniatura ${i + 1}`}
                   className="h-full w-full object-cover"
                   loading="lazy"
@@ -136,7 +141,7 @@ export function ImageCarousel({ images, alt }: ImageCarouselProps) {
       </div>
       <div className="flex-1">{carousel}</div>
       <div className="flex gap-2 overflow-x-auto p-4 sm:p-6 justify-center">
-        {images.map((src, i) => (
+        {visibleImages.map((src, i) => (
           <button
             key={i}
             type="button"
@@ -149,7 +154,7 @@ export function ImageCarousel({ images, alt }: ImageCarouselProps) {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={src}
+              src={proxiedStatefoxImageUrl(src)}
               alt={`Miniatura ${i + 1}`}
               className="h-full w-full object-cover"
               loading="lazy"

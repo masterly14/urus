@@ -276,7 +276,7 @@ export default function PricingPage() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold tracking-tight">Smart Pricing</h1>
+              <h1 className="text-2xl font-bold tracking-tight">Análisis de mercado</h1>
               <AiIndicator label="Valoración IA" />
             </div>
             <p className="text-sm text-muted-foreground">
@@ -383,7 +383,7 @@ export default function PricingPage() {
                 onChange={(e) => setOnlyEligible(e.target.checked)}
                 className="h-3.5 w-3.5 accent-[var(--color-secondary)]"
               />
-              Solo elegibles Smart Pricing
+              Solo elegibles Análisis de mercado
             </label>
 
             <div className="flex items-center gap-2 ml-auto">

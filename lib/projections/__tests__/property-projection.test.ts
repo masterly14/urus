@@ -44,6 +44,7 @@ function makeEvent(
 const FULL_SNAPSHOT = {
   codigo: "prop-123",
   ref: "REF-123",
+  refCatastral: "9872023VH5797S0006XS",
   titulo: "Piso centro",
   tipoOfer: "Piso",
   precio: 150000,
@@ -82,6 +83,7 @@ describe("applyPropertyProjection", () => {
     expect(call.create.codigo).toBe("prop-123");
     expect(call.create.precio).toBe(150000);
     expect(call.create.ciudad).toBe("Córdoba");
+    expect(call.create.refCatastral).toBe("9872023VH5797S0006XS");
     expect(call.create.lastEventId).toBe("evt-prop-001");
     expect(call.update.precio).toBe(150000);
   });
@@ -113,8 +115,8 @@ describe("applyPropertyProjection", () => {
   it("PROPIEDAD_MODIFICADA: debe actualizar solo los campos del after", async () => {
     const event = makeEvent("PROPIEDAD_MODIFICADA", {
       before: { precio: 150000, metrosConstruidos: 90, habitaciones: 3, banyos: 2, ciudad: "Córdoba", zona: "Centro", estado: "Activo", fechaActualizacion: "2026-03-10" },
-      after: { precio: 140000, metrosConstruidos: 90, habitaciones: 3, banyos: 2, ciudad: "Córdoba", zona: "Centro", estado: "Activo", fechaActualizacion: "2026-03-14" },
-      changedFields: ["precio"],
+      after: { precio: 140000, metrosConstruidos: 90, habitaciones: 3, banyos: 2, ciudad: "Córdoba", zona: "Centro", estado: "Activo", fechaActualizacion: "2026-03-14", refCatastral: "1111111AA1111A0001AA" },
+      changedFields: ["precio", "refCatastral"],
       detectedAt: "2026-03-14T10:00:00Z",
     });
 
@@ -125,6 +127,7 @@ describe("applyPropertyProjection", () => {
 
     const call = upsertMock.mock.calls[0][0];
     expect(call.update.precio).toBe(140000);
+    expect(call.update.refCatastral).toBe("1111111AA1111A0001AA");
     expect(call.update.lastEventId).toBe("evt-prop-001");
   });
 

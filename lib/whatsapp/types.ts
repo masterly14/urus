@@ -136,7 +136,21 @@ export type DocumentObject = {
   caption?: string;
 };
 
+// ---- Objeto de imagen ----
+
+export type ImageObject = {
+  link: string;
+  caption?: string;
+};
+
 // ---- Payload de envío (discriminado por type) ----
+
+export type SendMessagePayloadImage = {
+  to: string;
+  type: "image";
+  image: ImageObject;
+  context?: { message_id: string };
+};
 
 export type SendMessagePayloadDocument = {
   to: string;
@@ -170,7 +184,8 @@ export type SendMessagePayload =
   | SendMessagePayloadText
   | SendMessagePayloadTemplate
   | SendMessagePayloadInteractive
-  | SendMessagePayloadDocument;
+  | SendMessagePayloadDocument
+  | SendMessagePayloadImage;
 
 // ---- Respuesta de envío ----
 

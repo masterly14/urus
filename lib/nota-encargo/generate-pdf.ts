@@ -11,6 +11,7 @@ export interface NotaEncargoData {
   telefono: string;
   domicilioFiscal: string;
   direccion: string;
+  refCatastral?: string | null;
   tipoOperacion: "VENTA" | "ALQUILER";
   precio: number;
   duracionMeses: number;
@@ -196,6 +197,9 @@ export async function generateNotaEncargoPdf(
       : "DATOS DEL INMUEBLE A LA VENTA";
   y = drawSectionHeader(page, inmuebleTitle, MARGIN, y, width, helveticaBold, GOLD);
   y = drawField(page, "Dirección", data.direccion, MARGIN, y, helvetica, helveticaBold, BODY_SIZE, DARK);
+  if (data.refCatastral) {
+    y = drawField(page, "Referencia catastral", data.refCatastral, MARGIN, y, helvetica, helveticaBold, BODY_SIZE, DARK);
+  }
   y = drawField(page, "Operación", data.tipoOperacion, MARGIN, y, helvetica, helveticaBold, BODY_SIZE, DARK);
   y = drawField(
     page,

@@ -14,6 +14,7 @@ import type { StatefoxProperty as StatefoxPropertyIntegration } from "@/lib/stat
 export interface Property {
   codigo: string;
   ref: string;
+  refCatastral?: string | null;
   titulo: string;
   tipoOfer: string;
   precio: number;

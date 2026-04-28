@@ -80,6 +80,7 @@ function buildCandidates(
         prospecto: change.property.prospecto,
         fechaActualizacion: change.property.fechaActualizacion,
         agente: change.property.agente,
+        refCatastral: change.property.refCatastral ?? null,
       },
       mainPhotoUrl: change.property.mainPhotoUrl ?? null,
       changedFields: change.changedFields,

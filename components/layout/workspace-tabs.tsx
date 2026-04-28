@@ -15,11 +15,12 @@ import {
 const QUICK_LINKS = [
     { label: "Operaciones", href: "/platform/operaciones" },
     { label: "Demandas", href: "/platform/demandas" },
+    { label: "Visitas", href: "/platform/visitas" },
     { label: "Conversaciones", href: "/platform/conversaciones" },
     { label: "Cruces", href: "/platform/matching/cruces" },
     { label: "Colaboradores", href: "/platform/colaboradores" },
     { label: "Legal", href: "/platform/legal/contratos" },
-    { label: "Smart Pricing", href: "/platform/pricing" },
+    { label: "Análisis de mercado", href: "/platform/pricing" },
 ] as const;
 
 function labelFromPathname(pathname: string): string {
@@ -28,13 +29,14 @@ function labelFromPathname(pathname: string): string {
         platform: "Inicio",
         operaciones: "Operaciones",
         demandas: "Demandas",
+        visitas: "Visitas",
         conversaciones: "Conversaciones",
         matching: "Cruces",
         cruces: "Cruces",
         feedback: "Ciclo de Mejora",
         colaboradores: "Colaboradores",
         ranking: "Clasificación",
-        pricing: "Smart Pricing",
+        pricing: "Análisis de mercado",
         mercado: "Mercado",
         captacion: "Captación",
         coach: "Coach",

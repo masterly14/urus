@@ -13,6 +13,7 @@ export const DIFF_FIELDS = [
   "prospecto",
   "fechaActualizacion",
   "agente",
+  "refCatastral",
 ] as const satisfies readonly (keyof Property)[];
 
 export type DiffField = (typeof DIFF_FIELDS)[number];
@@ -130,6 +131,7 @@ export type PropertySnapshotData = Pick<
   Property,
   | "codigo"
   | "ref"
+  | "refCatastral"
   | "titulo"
   | "tipoOfer"
   | "precio"

@@ -5,6 +5,7 @@ import type { EventRecord } from "@/lib/event-store/types";
 
 const TEST_PREFIX = `nota-ref-${Date.now()}`;
 const EPOCH = new Date("2026-01-01T00:00:00.000Z");
+const REF_CATASTRAL = "9872023VH5797S0006XS";
 
 async function cleanup() {
   await prisma.event.deleteMany({
@@ -12,6 +13,7 @@ async function cleanup() {
       OR: [
         { aggregateId: { startsWith: TEST_PREFIX } },
         { aggregateId: "URUS09VFEDE" },
+        { aggregateId: REF_CATASTRAL },
       ],
     },
   });
@@ -60,6 +62,7 @@ function propertyCreatedEvent(propertyCode: string): EventRecord {
       snapshot: {
         codigo: propertyCode,
         ref: "URUS09VFEDE",
+        refCatastral: REF_CATASTRAL,
         tipoOfer: "Venta",
         precio: 275000,
         ciudad: "Córdoba",
@@ -84,6 +87,7 @@ describe("linkNotaEncargoOnPropertyCreated", () => {
       data: {
         codigo: propertyCode,
         ref: "URUS09VFEDE",
+        refCatastral: REF_CATASTRAL,
         tipoOfer: "Venta",
         precio: 275000,
         ciudad: "Córdoba",
@@ -111,7 +115,8 @@ describe("linkNotaEncargoOnPropertyCreated", () => {
       data: {
         id: sessionId,
         propertyCode: null,
-        propertyRef: "URUS09VFEDE",
+        propertyRef: null,
+        refCatastral: REF_CATASTRAL,
         comercialId: `${TEST_PREFIX}-comercial`,
         propietarioPhone: "34600111222",
         visitDateTime: new Date("2026-05-01T10:00:00.000Z"),
@@ -170,6 +175,8 @@ describe("linkNotaEncargoOnPropertyCreated", () => {
       where: { id: sessionId },
     });
     expect(linkedSession.propertyCode).toBe(propertyCode);
+    expect(linkedSession.propertyRef).toBe("URUS09VFEDE");
+    expect(linkedSession.refCatastral).toBe(REF_CATASTRAL);
     expect(linkedSession.state).toBe("PENDING");
     expect(linkedSession.direccion).toContain("Calle Mayor, 1");
     expect(linkedSession.precio).toBe(275000);
@@ -194,10 +201,25 @@ describe("linkNotaEncargoOnPropertyCreated", () => {
     expect(reboundDocument.propertyCode).toBe(propertyCode);
   });
 
-  it("no hace nada cuando no hay sesión pendiente para la referencia", async () => {
+  it("no hace nada cuando no hay sesión pendiente para la referencia catastral", async () => {
     const result = await linkNotaEncargoOnPropertyCreated(
       propertyCreatedEvent(`${TEST_PREFIX}-unmatched`),
     );
+
+    expect(result.linked).toBe(false);
+  });
+
+  it("no vincula si la propiedad creada no trae referencia catastral", async () => {
+    const event = propertyCreatedEvent(`${TEST_PREFIX}-without-catastro`);
+    event.payload = {
+      snapshot: {
+        codigo: `${TEST_PREFIX}-without-catastro`,
+        ref: "URUS09VFEDE",
+        tipoOfer: "Venta",
+      },
+    } as EventRecord["payload"];
+
+    const result = await linkNotaEncargoOnPropertyCreated(event);
 
     expect(result.linked).toBe(false);
   });

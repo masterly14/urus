@@ -22,6 +22,7 @@ export async function GET() {
       id: true,
       propertyCode: true,
       propertyRef: true,
+      refCatastral: true,
       direccion: true,
       propietarioPhone: true,
       visitDateTime: true,

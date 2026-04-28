@@ -44,6 +44,7 @@ function toSnapshotData(p: InmovillaProperty): PropertySnapshotData {
   return {
     codigo: str(p.codigo),
     ref: str(p.ref),
+    refCatastral: p.refCatastral ? str(p.refCatastral) : null,
     titulo: str(p.titulo),
     tipoOfer: str(p.tipoOfer),
     precio: Number(p.precio) || 0,
@@ -86,6 +87,7 @@ export async function loadPreviousSnapshot(): Promise<SnapshotMap> {
     map.set(row.codigo, {
       codigo: row.codigo,
       ref: row.ref,
+      refCatastral: row.refCatastral ?? null,
       titulo: row.titulo,
       tipoOfer: row.tipoOfer,
       precio: row.precio,
@@ -145,6 +147,7 @@ export async function saveCurrentSnapshot(
           const snapshotFieldsWithoutRaw: Omit<PropertySnapshotData, "raw"> = {
             codigo: data.codigo,
             ref: data.ref,
+            refCatastral: data.refCatastral ?? null,
             titulo: data.titulo,
             tipoOfer: data.tipoOfer,
             precio: data.precio,

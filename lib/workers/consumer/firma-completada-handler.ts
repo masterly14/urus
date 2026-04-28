@@ -83,7 +83,8 @@ export async function handleFirmaCompletada(
     if (notaSession && signedUrl) {
       try {
         await sendNotaEncargoDocumentoFirmado(notaSession.propietarioPhone, {
-          propertyRef: notaSession.propertyRef,
+          propertyRef:
+            notaSession.propertyRef ?? notaSession.refCatastral ?? notaSession.id,
           signedDocumentUrl: signedUrl,
         });
 

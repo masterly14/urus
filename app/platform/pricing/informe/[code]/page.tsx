@@ -38,6 +38,8 @@ import {
 } from "@/components/pricing/semaforo-indicator";
 import type { PricingAnalysisResult, PricingComparable } from "@/lib/pricing/types";
 import type { PricingRecommendation } from "@/lib/pricing/recommendation-types";
+import { isExpiredStatefoxImageUrl } from "@/lib/statefox/image-expiry";
+import { proxiedStatefoxImageUrl } from "@/lib/statefox/image-url";
 import { pricingFixture } from "@/lib/mock-data/pricing-fixture";
 
 type ViewState =
@@ -313,7 +315,7 @@ function InformeError({
         href="/platform/pricing"
         className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
-        <ArrowLeft className="h-3 w-3" /> Volver a Smart Pricing
+        <ArrowLeft className="h-3 w-3" /> Volver a Análisis de mercado
       </Link>
       <Card className="border-[var(--urus-danger)]/30">
         <CardContent className="p-8 text-center space-y-4">
@@ -726,12 +728,44 @@ function isValidImageUrl(url: string): boolean {
   return url.startsWith("http://") || url.startsWith("https://");
 }
 
+function imageDebugHost(url: string): string | null {
+  try {
+    return new URL(url).host;
+  } catch {
+    return null;
+  }
+}
+
+function debugPricingImageRender(
+  message: string,
+  data: Record<string, unknown>,
+  hypothesisId = "H3",
+): void {
+  // #region agent log
+  fetch("http://127.0.0.1:7478/ingest/3a86774c-7051-4ca6-b6e8-a92160972b21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "bfe3e0" }, body: JSON.stringify({ sessionId: "bfe3e0", runId: "initial", hypothesisId, location: "app/platform/pricing/informe/[code]/page.tsx:ComparablePhotoCarousel", message, data, timestamp: Date.now() }) }).catch(() => {});
+  // #endregion
+}
+
 function ComparablePhotoCarousel({ fotos, alt }: { fotos: string[]; alt: string }) {
-  const validFotos = fotos.filter(isValidImageUrl);
+  const validFotos = fotos.filter((url) => isValidImageUrl(url) && !isExpiredStatefoxImageUrl(url));
   const [idx, setIdx] = useState(0);
   const [failedUrls, setFailedUrls] = useState<Set<string>>(new Set());
 
   const visibleFotos = validFotos.filter((u) => !failedUrls.has(u));
+
+  useEffect(() => {
+    debugPricingImageRender(
+      "Pricing carousel image URL validation",
+      {
+        rawCount: fotos.length,
+        validCount: validFotos.length,
+        firstRawType: typeof fotos[0],
+        firstValidHost: validFotos[0] ? imageDebugHost(validFotos[0]) : null,
+      },
+      "H1,H3",
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (visibleFotos.length === 0) {
     return (
@@ -745,18 +779,26 @@ function ComparablePhotoCarousel({ fotos, alt }: { fotos: string[]; alt: string 
   }
 
   const safeIdx = idx % visibleFotos.length;
+  const currentOriginalUrl = visibleFotos[safeIdx];
+  const currentDisplayUrl = proxiedStatefoxImageUrl(currentOriginalUrl);
 
   return (
     <div className="relative w-full h-44 rounded-lg overflow-hidden bg-black/5">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={visibleFotos[safeIdx]}
+        src={currentDisplayUrl}
         alt={`${alt} - foto ${safeIdx + 1}`}
         className="w-full h-full object-cover"
         loading="lazy"
         referrerPolicy="no-referrer"
         onError={() => {
-          setFailedUrls((prev) => new Set(prev).add(visibleFotos[safeIdx]));
+          debugPricingImageRender("Pricing carousel image load failed", {
+            host: imageDebugHost(currentOriginalUrl),
+            proxied: currentDisplayUrl !== currentOriginalUrl,
+            visibleCount: visibleFotos.length,
+            failedCount: failedUrls.size + 1,
+          });
+          setFailedUrls((prev) => new Set(prev).add(currentOriginalUrl));
         }}
       />
       {visibleFotos.length > 1 && (
@@ -1333,7 +1375,7 @@ export default function InformePricingPage({
     return (
       <div className="space-y-6">
         <Link href="/platform/pricing" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="h-3 w-3" /> Volver a Smart Pricing
+          <ArrowLeft className="h-3 w-3" /> Volver a Análisis de mercado
         </Link>
         <div className="flex items-center gap-3 mb-2">
           <Loader2 className="h-5 w-5 animate-spin text-secondary" />
@@ -1384,7 +1426,7 @@ function InformeContent({ data, onRefresh }: { data: PricingAnalysisResult; onRe
       {/* Nav bar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <Link href="/platform/pricing" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="h-3 w-3" /> Volver a Smart Pricing
+          <ArrowLeft className="h-3 w-3" /> Volver a Análisis de mercado
         </Link>
         <button
           onClick={onRefresh}

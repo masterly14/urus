@@ -4,9 +4,8 @@
  * Persiste feedback individual del comprador sobre una propiedad del microsite
  * en MicrositeSelectionFeedback (idempotente por selectionId+propertyId).
  *
- * Avanza leadStatus a EN_SELECCION cuando el comprador expresa ME_INTERESA.
- * Si la NLU indica intención ME_ENCAJA, inicia automáticamente el flujo de
- * visita (idempotente: no crea sesión si ya existe una activa).
+ * Avanza leadStatus a VISITA_PENDIENTE cuando el comprador expresa ME_INTERESA
+ * y notifica al comercial para que coordine la visita con propietario/agencia.
  *
  * No dispara actualización de demanda ni regeneración de microsite:
  * eso lo maneja DEMANDA_ACTUALIZADA (emitido por whatsapp-nlu-handler
@@ -18,9 +17,7 @@ import type { HandlerResult } from "./types";
 import type { MicrositeSelectionDecision } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { updateDemandLeadStatus } from "@/lib/projections/update-lead-status";
-import { initiateVisitScheduling } from "@/lib/visit-scheduling/orchestrator";
-import { ComposioNotConnectedError } from "@/lib/visit-scheduling/types";
-import { getActiveSessionForBuyer } from "@/lib/visit-scheduling/session-manager";
+import { notifyCommercialVisitInterest } from "@/lib/visitas/notify-commercial";
 
 type SeleccionCompradorPayload = {
   demandId?: string;
@@ -76,51 +73,16 @@ export async function handleSeleccionComprador(event: Event): Promise<HandlerRes
   });
 
   if (decision === "ME_INTERESA") {
-    await updateDemandLeadStatus(demandId, "EN_SELECCION");
-  }
-
-  // --- Inicio automático de visita cuando NLU indica ME_ENCAJA ---
-
-  const nluIntention = p.nlu?.intention;
-  const buyerWaId = p.source?.waId;
-
-  if (
-    decision === "ME_INTERESA" &&
-    nluIntention === "ME_ENCAJA" &&
-    buyerWaId &&
-    propertyId
-  ) {
-    const existingSession = await getActiveSessionForBuyer(buyerWaId, propertyId);
-
-    if (!existingSession) {
-      try {
-        const session = await initiateVisitScheduling(
-          demandId,
-          propertyId,
-          buyerWaId,
-          event.correlationId ?? undefined,
-        );
-
-        if (session) {
-          console.log(
-            `[consumer:seleccion] Visita iniciada automáticamente sessionId=${session.id} demandId=${demandId} propertyId=${propertyId}`,
-          );
-        } else {
-          console.warn(
-            `[consumer:seleccion] initiateVisitScheduling retornó null — comercial sin configurar para propertyId=${propertyId}`,
-          );
-        }
-      } catch (err) {
-        if (err instanceof ComposioNotConnectedError) {
-          console.warn(
-            `[consumer:seleccion] Visita no iniciada — comercial sin calendario (Composio) para propertyId=${propertyId}`,
-          );
-        } else {
-          console.error(
-            `[consumer:seleccion] Error iniciando visita para propertyId=${propertyId}: ${err instanceof Error ? err.message : err}`,
-          );
-        }
-      }
+    await updateDemandLeadStatus(demandId, "VISITA_PENDIENTE");
+    const notification = await notifyCommercialVisitInterest({
+      demandId,
+      causationId: event.id,
+      correlationId: event.correlationId ?? null,
+    });
+    if (!notification.sent) {
+      console.warn(
+        `[consumer:seleccion] No se notificó paquete de visita demandId=${demandId}: ${notification.reason ?? "unknown"}`,
+      );
     }
   }
 

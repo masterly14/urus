@@ -29,13 +29,14 @@ import {
   sendInteractiveMessage,
   shouldSendWhatsAppToCommercials,
 } from "./send";
+import type { WhatsAppTraceOptions } from "./send";
 import type {
   TemplateObject,
   InteractiveObject,
   SendMessageSuccess,
 } from "./types";
 
-type BaseOptions = { contextMessageId?: string };
+type BaseOptions = { contextMessageId?: string; trace?: WhatsAppTraceOptions };
 
 const LANG = process.env.WHATSAPP_TEMPLATE_LANGUAGE?.trim() || "es";
 
@@ -390,6 +391,96 @@ export async function sendVisitConfirmedToCommercial(
 
   return sendTemplateMessage(comercialWaId, template, {
     contextMessageId: options?.contextMessageId,
+    trace: options?.trace,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 5b. sendVisitInterestPackageToCommercial
+// ---------------------------------------------------------------------------
+
+export interface VisitInterestTemplateProperty {
+  title: string;
+  reference: string;
+  cadastralReference: string | null;
+  address: string;
+  contactLabel: string;
+  phones: string[];
+  source: "internal" | "external";
+  missingContactPhone: boolean;
+}
+
+export interface VisitInterestPackageToCommercialData {
+  demandLabel: string;
+  buyerPhone: string;
+  properties: VisitInterestTemplateProperty[];
+}
+
+function truncateForTemplate(input: string, max = 950): string {
+  if (input.length <= max) return input;
+  return `${input.slice(0, Math.max(0, max - 1))}…`;
+}
+
+function compactPropertyLine(
+  property: VisitInterestTemplateProperty,
+  index: number,
+): string {
+  const phones = property.phones.length > 0
+    ? property.phones.join(", ")
+    : "PENDIENTE";
+  const contact = `${property.contactLabel}: ${phones}`;
+  const cat = property.cadastralReference ?? "N/D";
+  const cartera = property.source === "internal" ? "interna" : "externa";
+  return `${index + 1}) ${property.title} | Ref:${property.reference} | Cat:${cat} | ${property.address} | ${contact} | cartera:${cartera}${property.missingContactPhone ? " (sin teléfono)" : ""}`;
+}
+
+/**
+ * Plantilla ejecutiva para comercial con propiedades de interés.
+ * Variables:
+ *  {{1}} demanda
+ *  {{2}} teléfono comprador
+ *  {{3}} resumen propiedades/interlocutores
+ *  {{4}} siguiente acción
+ */
+export async function sendVisitInterestPackageToCommercial(
+  comercialWaId: string,
+  data: VisitInterestPackageToCommercialData,
+  options?: BaseOptions,
+): Promise<SendMessageSuccess> {
+  if (!shouldSendWhatsAppToCommercials()) {
+    return { messages: [{ id: `wamid.skipped_commercial_${Date.now()}` }] } as SendMessageSuccess;
+  }
+
+  const propertiesSummary = data.properties.length > 0
+    ? truncateForTemplate(
+        data.properties.map((property, index) => compactPropertyLine(property, index)).join("\n"),
+      )
+    : "Sin propiedades de interés disponibles.";
+
+  const nextAction = "Llama a propietario/agencia para coordinar visita y registra día/hora en Urus > Visitas.";
+
+  const template: TemplateObject = {
+    name: tpl(
+      "WHATSAPP_TEMPLATE_VISITA_PAQUETE_COMERCIAL",
+      "visita_paquete_comercial",
+    ),
+    language: { code: LANG },
+    components: [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: data.demandLabel },
+          { type: "text", text: data.buyerPhone || "sin teléfono" },
+          { type: "text", text: propertiesSummary },
+          { type: "text", text: nextAction },
+        ],
+      },
+    ],
+  };
+
+  return sendTemplateMessage(comercialWaId, template, {
+    contextMessageId: options?.contextMessageId,
+    trace: options?.trace,
   });
 }
 

@@ -28,8 +28,8 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
-import { RefInput } from "@/components/captacion/ref-input";
-import { isValidRefFormat, normalizeRef } from "@/lib/routing/parse-ref-code";
+import { CadastralRefInput } from "@/components/captacion/cadastral-ref-input";
+import { normalizeCadastralRef } from "@/lib/nota-encargo/cadastral-ref";
 import {
   Plus,
   Loader2,
@@ -43,7 +43,8 @@ import {
 interface NotaEncargoSesion {
   id: string;
   propertyCode: string | null;
-  propertyRef: string;
+  propertyRef: string | null;
+  refCatastral: string | null;
   direccion: string;
   propietarioPhone: string;
   visitDateTime: string;
@@ -139,7 +140,8 @@ const MOCK_SESIONES: NotaEncargoSesion[] = [
   {
     id: "mock-1",
     propertyCode: null,
-    propertyRef: "URUS09VFEDE",
+    propertyRef: null,
+    refCatastral: "9872023VH5797S0006XS",
     direccion: "",
     propietarioPhone: "34666111222",
     visitDateTime: new Date(Date.now() + 86400000).toISOString(),
@@ -152,6 +154,7 @@ const MOCK_SESIONES: NotaEncargoSesion[] = [
     id: "mock-2",
     propertyCode: "mock-property-2",
     propertyRef: "URUS01DEMO",
+    refCatastral: "1234567AB1234C0001DE",
     direccion: "Calle Ejemplo 1, Madrid",
     propietarioPhone: "34666111222",
     visitDateTime: new Date(Date.now() + 86400000).toISOString(),
@@ -164,6 +167,7 @@ const MOCK_SESIONES: NotaEncargoSesion[] = [
     id: "mock-3",
     propertyCode: "mock-property-3",
     propertyRef: "URUS02DEMO",
+    refCatastral: "2345678AB1234C0001DE",
     direccion: "Av. Libertad 42, Zaragoza",
     propietarioPhone: "34600333444",
     visitDateTime: new Date(Date.now() + 172800000).toISOString(),
@@ -176,6 +180,7 @@ const MOCK_SESIONES: NotaEncargoSesion[] = [
     id: "mock-4",
     propertyCode: "mock-property-4",
     propertyRef: "URUS03DEMO",
+    refCatastral: "3456789AB1234C0001DE",
     direccion: "Plaza Mayor 5, Valencia",
     propietarioPhone: "34611555666",
     visitDateTime: new Date(Date.now() - 86400000).toISOString(),
@@ -201,7 +206,7 @@ function CaptacionPageContent() {
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const sheetContentRef = useRef<HTMLDivElement>(null);
-  const [propertyRef, setPropertyRef] = useState("");
+  const [refCatastral, setRefCatastral] = useState("");
   const [phone, setPhone] = useState("");
   const [fecha, setFecha] = useState(getTomorrow());
   const [hora, setHora] = useState("10:00");
@@ -241,7 +246,7 @@ function CaptacionPageContent() {
   }, [fetchSesiones]);
 
   function resetForm() {
-    setPropertyRef("");
+    setRefCatastral("");
     setPhone("");
     setFecha(getTomorrow());
     setHora("10:00");
@@ -259,7 +264,7 @@ function CaptacionPageContent() {
   );
 
   const canSubmit =
-    isValidRefFormat(propertyRef) &&
+    normalizeCadastralRef(refCatastral).length > 0 &&
     phone.replace(/\s/g, "").length >= 9 &&
     fecha &&
     hora &&
@@ -280,7 +285,7 @@ function CaptacionPageContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          propertyRef: normalizeRef(propertyRef),
+          refCatastral: normalizeCadastralRef(refCatastral),
           propietarioPhone: phone.replace(/\s/g, ""),
           visitDateTime,
         }),
@@ -395,7 +400,12 @@ function CaptacionPageContent() {
                   <TableRow key={s.id}>
                     <TableCell className="font-medium">
                       <div className="flex flex-col gap-1">
-                        <span>{s.propertyRef}</span>
+                        <span>{s.refCatastral ?? "—"}</span>
+                        {s.propertyRef && (
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {s.propertyRef}
+                          </span>
+                        )}
                         <Badge
                           variant={s.propertyCode ? "secondary" : "outline"}
                           className="w-fit"
@@ -444,8 +454,11 @@ function CaptacionPageContent() {
           <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-6 px-4 pb-6">
             {/* Referencia futura de propiedad */}
             <div className="space-y-2">
-              <Label htmlFor="sheet-property-ref">Código de referencia *</Label>
-              <RefInput value={propertyRef} onChange={setPropertyRef} />
+              <Label htmlFor="sheet-ref-catastral">Referencia catastral *</Label>
+              <CadastralRefInput
+                value={refCatastral}
+                onChange={setRefCatastral}
+              />
             </div>
 
             {/* Teléfono */}

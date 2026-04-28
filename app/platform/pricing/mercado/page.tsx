@@ -265,7 +265,7 @@ export default function MercadoPage() {
         return (
             <div className="space-y-6">
                 <Link href="/platform/pricing" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                    <ArrowLeft className="h-3 w-3" /> Volver a Smart Pricing
+                    <ArrowLeft className="h-3 w-3" /> Volver a Análisis de mercado
                 </Link>
                 <div className="flex flex-col items-center justify-center min-h-[300px] gap-3 text-muted-foreground">
                     <BarChart3 className="h-8 w-8 opacity-30" />
@@ -290,7 +290,7 @@ export default function MercadoPage() {
     return (
         <div className="space-y-6">
             <Link href="/platform/pricing" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                <ArrowLeft className="h-3 w-3" /> Volver a Smart Pricing
+                <ArrowLeft className="h-3 w-3" /> Volver a Análisis de mercado
             </Link>
 
             <div className="flex items-center gap-3">

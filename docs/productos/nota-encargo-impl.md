@@ -6,7 +6,7 @@ Sistema que automatiza la "Nota de Encargo Inmobiliaria": desde que el comercial
 
 > **Nota (abril 2026):** El trigger original era un cron que detectaba tareas en Inmovilla (tasks ingestion worker). Se refactorizó a un formulario local en la plataforma para eliminar la dependencia de Inmovilla como punto de entrada, reducir la latencia de 20 min a inmediata, y simplificar la superficie de mantenimiento. La creación de prospecto en Inmovilla al final del flujo también se eliminó.
 >
-> **Nota (abril 2026 — matching diferido):** La creación desde plataforma ya no selecciona una propiedad existente. El comercial introduce la referencia futura (`URUS09VFEDE`); si la propiedad ya está sincronizada se vincula al instante, y si no existe todavía la sesión queda en `PENDIENTE_PROPIEDAD`. Cuando el worker de ingesta emite `PROPIEDAD_CREADA` para una propiedad con esa misma referencia, `lib/nota-encargo/ref-matcher.ts` completa `propertyCode`, dirección, precio y tipo de operación, copia los datos de propietario a `PropertyCurrent` y rebindea documentos/firma que se hubieran creado con `operationId = NOTA:<sessionId>`. Detalle operativo en `docs/nota-encargo-matching-diferido.md`.
+> **Nota (abril 2026 — matching diferido):** La creación desde plataforma ya no selecciona una propiedad existente ni pide la referencia interna URUS. El comercial introduce la referencia catastral; si ya existe una propiedad sincronizada con `PropertyCurrent.refCatastral` se vincula al instante, y si no existe todavía la sesión queda en `PENDIENTE_PROPIEDAD`. Cuando el worker de ingesta emite `PROPIEDAD_CREADA` para una propiedad con esa misma referencia catastral (`raw.rcatastral`), `lib/nota-encargo/ref-matcher.ts` completa `propertyCode`, `propertyRef`, dirección, precio y tipo de operación, copia los datos de propietario a `PropertyCurrent` y rebindea documentos/firma que se hubieran creado con `operationId = NOTA:<sessionId>`. Detalle operativo en `docs/nota-encargo-matching-diferido.md`.
 
 ---
 
@@ -17,7 +17,7 @@ Sistema que automatiza la "Nota de Encargo Inmobiliaria": desde que el comercial
 │  PLATAFORMA URUS (/platform/captacion/nueva)                 │
 │                                                              │
 │  Comercial:                                                  │
-│    1. Introduce la referencia futura URUS...                 │
+│    1. Introduce la referencia catastral del inmueble         │
 │    2. Introduce teléfono del propietario                     │
 │    3. Selecciona fecha + hora de visita                      │
 │    4. Clic en "Agendar Nota de Encargo"                      │
@@ -93,8 +93,8 @@ Sistema que automatiza la "Nota de Encargo Inmobiliaria": desde que el comercial
 │    - [Enviar] (Footer complete)                               │
 │                                                              │
 │  flow_action_data inicial (prellenado):                       │
-│    { direccion, tipoOperacion, precio, propertyRef,         │
-│      referenciaCatastral }                                    │
+│    { direccion, tipoOperacion, precio, refCatastral,        │
+│      propertyRef cuando ya exista }                           │
 └──────────────────┬──────────────────────────────────────────┘
                    │
                    ▼
@@ -150,8 +150,9 @@ enum NotaEncargoState {
 
 model NotaEncargoSession {
   id                  String            @id @default(cuid())
-  propertyCode        String
-  propertyRef         String
+  propertyCode        String?
+  propertyRef         String?
+  refCatastral        String?
   comercialId         String
   propietarioPhone    String
   visitDateTime       DateTime
@@ -177,13 +178,14 @@ model NotaEncargoSession {
   signatureRequestId  String?
   documentUrl         String?
   signedDocumentUrl   String?
-  refCatastral        String?
 
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
   @@index([state])
   @@index([propertyCode])
+  @@index([propertyRef])
+  @@index([refCatastral])
   @@index([propietarioPhone, state])
   @@map("nota_encargo_sessions")
 }
@@ -1579,7 +1581,7 @@ Plantillas a crear y aprobar:
 
 - **Categoría:** UTILITY
 - **Body:** "Hola, soy de URUS Capital Group. Le recordamos que tiene una visita programada para hoy a las {{1}} en la propiedad {{2}}. ¿Confirma su asistencia?"
-- **Variables:** `{{1}}` = hora de la visita. `{{2}}` = **dirección del inmueble** (`NotaEncargoSession.direccion`); si está vacía, se usa la ref Inmovilla (`propertyRef`) como respaldo.
+- **Variables:** `{{1}}` = hora de la visita. `{{2}}` = **dirección del inmueble** (`NotaEncargoSession.direccion`); si está vacía, se usa la referencia interna Inmovilla (`propertyRef`) o, antes del matching, la referencia catastral (`refCatastral`) como respaldo.
 - **Botones:** Quick Reply
   - Botón 1: "Confirmo" (id: `nota_encargo_confirmo`)
   - Botón 2: "No puedo" (id: `nota_encargo_no_puedo`)

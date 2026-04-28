@@ -6,11 +6,12 @@ import {
   extractDireccionFromRaw,
   resolveOperationType,
 } from "@/lib/nota-encargo/utils";
-import { normalizeRef } from "@/lib/routing/parse-ref-code";
+import { normalizeCadastralRef } from "@/lib/nota-encargo/cadastral-ref";
 
 type PropertyCreatedSnapshot = {
   codigo: string;
-  ref: string;
+  ref?: string | null;
+  refCatastral?: string | null;
   tipoOfer: string;
   precio: number;
   ciudad: string;
@@ -27,10 +28,11 @@ export interface NotaEncargoLinkResult {
 function snapshotFromEvent(event: EventRecord): PropertyCreatedSnapshot | null {
   const payload = event.payload as { snapshot?: Partial<PropertyCreatedSnapshot> } | null;
   const snapshot = payload?.snapshot;
-  if (!snapshot?.codigo || !snapshot.ref) return null;
+  if (!snapshot?.codigo || !snapshot.refCatastral) return null;
   return {
     codigo: String(snapshot.codigo),
-    ref: normalizeRef(String(snapshot.ref)),
+    ref: snapshot.ref ? String(snapshot.ref).trim().toUpperCase() : null,
+    refCatastral: normalizeCadastralRef(String(snapshot.refCatastral)),
     tipoOfer: String(snapshot.tipoOfer ?? ""),
     precio: Number(snapshot.precio) || 0,
     ciudad: String(snapshot.ciudad ?? ""),
@@ -64,7 +66,7 @@ export async function linkNotaEncargoOnPropertyCreated(
 
   const session = await prisma.notaEncargoSession.findFirst({
     where: {
-      propertyRef: snapshot.ref,
+      refCatastral: snapshot.refCatastral,
       propertyCode: null,
       state: { not: "CANCELADA" },
     },
@@ -90,6 +92,7 @@ export async function linkNotaEncargoOnPropertyCreated(
       where: { id: session.id },
       data: {
         propertyCode: snapshot.codigo,
+        propertyRef: snapshot.ref,
         direccion,
         tipoOperacion,
         precio: snapshot.precio,
@@ -142,6 +145,7 @@ export async function linkNotaEncargoOnPropertyCreated(
     payload: {
       sessionId: session.id,
       propertyRef: snapshot.ref,
+      refCatastral: snapshot.refCatastral,
       propertyCode: snapshot.codigo,
       linkedAt: new Date().toISOString(),
       sourceEventId: event.id,
@@ -159,6 +163,7 @@ export async function linkNotaEncargoOnPropertyCreated(
         sessionId: session.id,
         propertyCode: snapshot.codigo,
         propertyRef: snapshot.ref,
+        refCatastral: snapshot.refCatastral,
         registeredAt: new Date().toISOString(),
         sourceEventId: event.id,
       } as unknown as JsonValue,

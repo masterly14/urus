@@ -70,6 +70,7 @@ const navGroups: NavGroup[] = [
         items: [
             { label: "Panel", href: "/platform", icon: LayoutDashboard },
             { label: "Demandas", href: "/platform/demandas", icon: Users2 },
+            { label: "Visitas", href: "/platform/visitas", icon: CalendarCheck },
             { label: "Operaciones", href: "/platform/operaciones", icon: Briefcase },
             { label: "Conversaciones", href: "/platform/conversaciones", icon: MessageSquare },
         ],
@@ -89,7 +90,7 @@ const navGroups: NavGroup[] = [
                 ],
             },
             {
-                label: "Smart Pricing",
+                label: "Análisis de mercado",
                 href: "/platform/pricing",
                 icon: DollarSign,
                 badge: "IA",

@@ -292,7 +292,7 @@ export async function generateMarketReportPdf(
     color: GRAY,
   });
   ctx.page.drawText(
-    `Generado automáticamente por URUS Smart Pricing · ${new Date(record.generatedAt).toISOString()}`,
+    `Generado automáticamente por URUS Análisis de mercado · ${new Date(record.generatedAt).toISOString()}`,
     {
       x: MARGIN,
       y: ctx.y - SMALL_SIZE - 2,

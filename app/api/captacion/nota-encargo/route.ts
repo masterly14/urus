@@ -7,11 +7,9 @@ import {
   resolveOperationType,
 } from "@/lib/nota-encargo/utils";
 import {
-  extractRefCode,
-  getOperationTypeFromRef,
-  isValidRefFormat,
-  normalizeRef,
-} from "@/lib/routing/parse-ref-code";
+  buildCadastralRefWarning,
+  normalizeCadastralRef,
+} from "@/lib/nota-encargo/cadastral-ref";
 import { normalizePhoneES } from "@/lib/whatsapp/phone";
 
 const NOTA_ENCARGO_MAX_FUTURE_DAYS = Number(
@@ -22,11 +20,10 @@ const NOTA_ENCARGO_MATCHING_DEADLINE_DAYS = Number(
 );
 
 const bodySchema = z.object({
-  propertyRef: z
+  refCatastral: z
     .string()
-    .min(5)
-    .transform(normalizeRef)
-    .refine(isValidRefFormat, "Formato URUS inválido"),
+    .min(1, "Referencia catastral obligatoria")
+    .transform(normalizeCadastralRef),
   propietarioPhone: z.string().regex(/^\d{9,15}$/, "Teléfono inválido"),
   visitDateTime: z.string().datetime(),
 });
@@ -73,11 +70,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const { propertyRef, visitDateTime } = parsed.data;
+  const { refCatastral, visitDateTime } = parsed.data;
   const propietarioPhone = normalizePhoneES(parsed.data.propietarioPhone);
   const visitDate = new Date(visitDateTime);
   const now = Date.now();
   const warnings: string[] = [];
+  const cadastralWarning = buildCadastralRefWarning(refCatastral);
+  if (cadastralWarning) warnings.push(cadastralWarning);
 
   if (visitDate.getTime() <= now) {
     return NextResponse.json(
@@ -107,38 +106,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const refCode = extractRefCode(propertyRef);
-  const operationTypeFromRef = getOperationTypeFromRef(propertyRef);
-  if (!refCode || !operationTypeFromRef) {
-    return NextResponse.json(
-      { ok: false, error: "Formato URUS inválido" },
-      { status: 400 },
-    );
-  }
-
-  let sessionComercialRefCode: string | null = null;
-  if (session.comercialId) {
-    const comercial = await prisma.comercial.findUnique({
-      where: { id: session.comercialId },
-      select: { inmovillaRefCode: true },
-    });
-    sessionComercialRefCode = comercial?.inmovillaRefCode ?? null;
-  }
-
-  if (
-    sessionComercialRefCode &&
-    sessionComercialRefCode.toUpperCase() !== refCode
-  ) {
-    warnings.push(
-      `La referencia pertenece al código ${refCode}, distinto del comercial autenticado (${sessionComercialRefCode.toUpperCase()}).`,
-    );
-  }
-
   const requestComercialId = session.comercialId ?? session.userId;
 
   const existingActiveByRef = await prisma.notaEncargoSession.findFirst({
     where: {
-      propertyRef,
+      refCatastral,
       state: { notIn: ["CANCELADA", "FIRMADA", "DOCUMENTO_ENVIADO"] },
       NOT: {
         visitDateTime: visitDate,
@@ -152,7 +124,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: "Ya existe una nota de encargo activa para esta referencia",
+        error: "Ya existe una nota de encargo activa para esta referencia catastral",
         sessionId: existingActiveByRef.id,
       },
       { status: 409 },
@@ -160,7 +132,7 @@ export async function POST(request: Request) {
   }
 
   const propertyCurrent = await prisma.propertyCurrent.findFirst({
-    where: { ref: { equals: propertyRef, mode: "insensitive" } },
+    where: { refCatastral: { equals: refCatastral, mode: "insensitive" } },
   });
 
   if (propertyCurrent?.nodisponible) {
@@ -188,7 +160,7 @@ export async function POST(request: Request) {
 
   const tipoOperacion = propertyCurrent
     ? resolveOperationType(propertyCurrent.tipoOfer)
-    : operationTypeFromRef;
+    : "";
   const precio = propertyCurrent?.precio ?? 0;
 
   const comercialId =
@@ -197,7 +169,7 @@ export async function POST(request: Request) {
   // --- Idempotency: check for existing active session with same key ---
   const existingSession = await prisma.notaEncargoSession.findFirst({
     where: {
-      propertyRef,
+      refCatastral,
       visitDateTime: visitDate,
       comercialId,
       state: { not: "CANCELADA" },
@@ -223,7 +195,8 @@ export async function POST(request: Request) {
       const notaSession = await tx.notaEncargoSession.create({
         data: {
           propertyCode: propertyCurrent?.codigo ?? null,
-          propertyRef,
+          propertyRef: propertyCurrent?.ref ?? null,
+          refCatastral,
           comercialId,
           propietarioPhone,
           visitDateTime: visitDate,
@@ -240,10 +213,11 @@ export async function POST(request: Request) {
         data: {
           type: "NOTA_ENCARGO_DETECTADA",
           aggregateType: "PROPERTY",
-          aggregateId: propertyCurrent?.codigo ?? propertyRef,
+          aggregateId: propertyCurrent?.codigo ?? refCatastral,
           payload: {
             sessionId: notaSession.id,
-            propertyRef,
+            propertyRef: propertyCurrent?.ref ?? null,
+            refCatastral,
             propertyCode: propertyCurrent?.codigo ?? null,
             comercialId,
             source: "platform",
@@ -275,7 +249,7 @@ export async function POST(request: Request) {
         await tx.jobQueue.create({
           data: {
             type: "NOTA_ENCARGO_MATCHING_CHECK",
-            payload: { sessionId: notaSession.id },
+            payload: { sessionId: notaSession.id, refCatastral },
             availableAt: matchingDeadline,
             idempotencyKey: `nota_encargo_matching:${notaSession.id}`,
           },
@@ -293,7 +267,7 @@ export async function POST(request: Request) {
     ) {
       const fallback = await prisma.notaEncargoSession.findFirst({
         where: {
-          propertyRef,
+          refCatastral,
           visitDateTime: visitDate,
           comercialId,
           state: { not: "CANCELADA" },

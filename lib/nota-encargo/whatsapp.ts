@@ -115,6 +115,7 @@ export async function sendNotaEncargoFlow(
     tipoOperacion: string;
     precio: number;
     propertyRef: string;
+    refCatastral?: string | null;
     propietarioNombre?: string;
   },
 ): Promise<SendMessageSuccess> {
@@ -151,6 +152,7 @@ export async function sendNotaEncargoFlow(
               flow_action_data: {
                 flow_token: params.sessionId,
                 direccion_inmueble: params.direccion,
+                referencia_catastral: params.refCatastral ?? "",
                 tipo_operacion: params.tipoOperacion,
                 precio_inmueble: precioFmt,
               },
@@ -176,6 +178,7 @@ async function sendNotaEncargoFlowInteractive(
     tipoOperacion: string;
     precio: number;
     propertyRef: string;
+    refCatastral?: string | null;
   },
   precioFmt: string,
 ): Promise<SendMessageSuccess> {
@@ -199,6 +202,7 @@ async function sendNotaEncargoFlowInteractive(
           data: JSON.stringify({
             flow_token: params.sessionId,
             direccion_inmueble: params.direccion,
+            referencia_catastral: params.refCatastral ?? "",
             tipo_operacion: params.tipoOperacion,
             precio_inmueble: precioFmt,
           }),
