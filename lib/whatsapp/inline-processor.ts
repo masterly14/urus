@@ -118,6 +118,10 @@ export async function tryInlineProcessing(
 
     const elapsedMs = Date.now() - startMs;
 
+    if (!result.success) {
+      throw new Error(result.error ?? `${category.handler} retornó success=false`);
+    }
+
     if (result.followUpJobs?.length) {
       for (const job of result.followUpJobs) {
         await enqueueJob(job);
