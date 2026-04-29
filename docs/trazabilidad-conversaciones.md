@@ -2,7 +2,7 @@
 
 La sección `/platform/conversaciones` permite revisar, en modo solo lectura, las conversaciones de WhatsApp guardadas en Neon. Su objetivo es que el equipo pueda auditar qué mensajes recibió el sistema, qué respuestas emitió y cuándo intervino la IA, antes de escalar el uso con clientes reales.
 
-La fuente de verdad es el Event Store. Los mensajes entrantes se leen desde eventos `WHATSAPP_RECIBIDO` y los salientes desde `WHATSAPP_ENVIADO`, siempre bajo `aggregateType = WHATSAPP_CONVERSATION` y `aggregateId = waId`.
+La fuente de verdad es el Event Store. Los mensajes operativos entrantes se leen desde eventos `WHATSAPP_RECIBIDO` y los salientes desde `WHATSAPP_ENVIADO`, bajo `aggregateType = WHATSAPP_CONVERSATION` y `aggregateId = waId`. Las conversaciones del Coach emocional se leen desde `MENTAL_MSG_RECIBIDO` / `MENTAL_MSG_ENVIADO`, bajo `aggregateType = MENTAL_CONVERSATION` y el mismo `aggregateId = waId`.
 
 Cada conversacion se enriquece con el mejor contexto disponible para evitar que el equipo vea solo numeros de telefono:
 
@@ -10,14 +10,15 @@ Cada conversacion se enriquece con el mejor contexto disponible para evitar que 
 - `DemandCurrent` / `DemandSnapshot` para mostrar nombre de demanda, telefono, agente y codigo.
 - `MicrositeSelection` para conversaciones de compradores que vienen de un microsite.
 - `VisitSchedulingSession` para distinguir comprador en visita y comercial en visita.
-- `Comercial` para identificar conversaciones internas de comerciales.
+- `Comercial` para identificar conversaciones internas de comerciales y sesiones del Coach emocional.
+- `MentalHealthSession` para marcar las conversaciones del bot de soporte mental como `Coach emocional`.
 - `PostventaSurveySession` y `ParteVisitaSession` como fallback de nombre/operacion cuando no hay demanda enlazada.
 
 ## Alcance y privacidad
 
-- Incluye conversaciones operativas y comerciales de WhatsApp.
+- Incluye conversaciones operativas y comerciales de WhatsApp, además de los mensajes persistidos del Coach emocional.
 - Es visible para cualquier usuario autenticado de la plataforma.
-- No incluye `MENTAL_CONVERSATION` ni mensajes del bot de soporte mental.
+- Los mensajes del Coach emocional se muestran como trazabilidad porque están persistidos en el Event Store. La pantalla sigue siendo de solo lectura.
 - La pantalla no permite responder mensajes; solo consulta trazabilidad.
 - Los mensajes salientes históricos que no fueron registrados en Neon no se reconstruyen desde Meta.
 

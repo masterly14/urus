@@ -12,7 +12,10 @@ import type {
   ConversationSummary,
 } from "./types";
 
-const MESSAGE_TYPES = ["WHATSAPP_RECIBIDO", "WHATSAPP_ENVIADO"] as const;
+const CONVERSATION_AGGREGATE_TYPES = ["WHATSAPP_CONVERSATION", "MENTAL_CONVERSATION"] as const;
+const INBOUND_MESSAGE_TYPES = ["WHATSAPP_RECIBIDO", "MENTAL_MSG_RECIBIDO"] as const;
+const OUTBOUND_MESSAGE_TYPES = ["WHATSAPP_ENVIADO", "MENTAL_MSG_ENVIADO"] as const;
+const MESSAGE_TYPES = [...INBOUND_MESSAGE_TYPES, ...OUTBOUND_MESSAGE_TYPES] as const;
 const DEFAULT_LIST_LIMIT = 30;
 const MAX_LIST_LIMIT = 100;
 const DEFAULT_DETAIL_LIMIT = 100;
@@ -62,8 +65,8 @@ function clamp(value: number | undefined, fallback: number, max: number): number
 }
 
 function messageTypeFilter(direction: DirectionFilter | undefined) {
-  if (direction === "inbound") return ["WHATSAPP_RECIBIDO"] as const;
-  if (direction === "outbound") return ["WHATSAPP_ENVIADO"] as const;
+  if (direction === "inbound") return INBOUND_MESSAGE_TYPES;
+  if (direction === "outbound") return OUTBOUND_MESSAGE_TYPES;
   return MESSAGE_TYPES;
 }
 
@@ -91,7 +94,12 @@ function includesSearch(summary: ConversationSummary, search: string | null | un
 
 function sourceLooksAgent(message: ConversationMessage): boolean {
   const source = message.source?.toLowerCase() ?? "";
-  return source.includes("agent") || source.includes("nlu") || source.includes("conversational");
+  return (
+    source.includes("agent") ||
+    source.includes("nlu") ||
+    source.includes("conversational") ||
+    source.includes("coach")
+  );
 }
 
 function lastNine(value: string): string {
@@ -263,6 +271,7 @@ async function loadRelations(params: {
     visitSessions,
     comercialesByWa,
     comercialesByPhone,
+    mentalSessions,
     postventaSessions,
     parteVisitaSessions,
   ] = await Promise.all([
@@ -321,6 +330,10 @@ async function loadRelations(params: {
       where: phoneWaOr.length > 0 ? { OR: phoneWaOr } : { id: "__none__" },
       select: { id: true, nombre: true, telefono: true, waId: true },
     }),
+    prisma.mentalHealthSession.findMany({
+      where: { waId: { in: waIds } },
+      select: { waId: true, comercialId: true },
+    }),
     prisma.postventaSurveySession.findMany({
       where: phoneSuffixes.length > 0
         ? { OR: phoneSuffixes.map((suffix) => ({ buyerPhone: { endsWith: suffix } })) }
@@ -364,6 +377,10 @@ async function loadRelations(params: {
     const suffix = lastNine(comercial.telefono);
     if (suffix.length >= 9) commercialByWaId.set(suffix, comercial);
   }
+  const commercialById = new Map(
+    [...comercialesByWa, ...comercialesByPhone].map((comercial) => [comercial.id, comercial]),
+  );
+  const mentalSessionByWaId = new Map(mentalSessions.map((session) => [session.waId, session]));
 
   const relationByWaId = new Map<string, ConversationRelation>();
   for (const waId of waIds) {
@@ -373,13 +390,19 @@ async function loadRelations(params: {
       ?? selectionByPhoneSuffix.get(suffix)
       ?? null;
     const visit = visitSessions.find((item) => item.buyerWaId === waId || item.comercialWaId === waId) ?? null;
-    const commercial = commercialByWaId.get(waId) ?? commercialByWaId.get(suffix) ?? null;
+    const mentalSession = mentalSessionByWaId.get(waId) ?? null;
+    const mentalCommercial = mentalSession?.comercialId
+      ? commercialById.get(mentalSession.comercialId) ?? null
+      : null;
+    const commercial = mentalCommercial ?? commercialByWaId.get(waId) ?? commercialByWaId.get(suffix) ?? null;
     const postventa = postventaSessions.find((item) => lastNine(item.buyerPhone) === suffix) ?? null;
     const parteVisita = parteVisitaSessions.find((item) => lastNine(item.buyerPhone) === suffix) ?? null;
 
     const demandId = session?.demandId ?? selection?.demandId ?? visit?.demandId ?? null;
     const demand = demandId ? demandById.get(demandId) : demandByPhoneSuffix.get(suffix);
-    const relationLabel = commercial
+    const relationLabel = mentalSession
+      ? "Coach emocional"
+      : commercial
       ? "Comercial interno"
       : visit?.comercialWaId === waId
         ? "Comercial en visita"
@@ -429,7 +452,7 @@ export async function listConversations(
 
   const events = await prisma.event.findMany({
     where: {
-      aggregateType: "WHATSAPP_CONVERSATION",
+      aggregateType: { in: [...CONVERSATION_AGGREGATE_TYPES] },
       type: { in: [...typeFilter] },
       ...(options.cursor ? { occurredAt: { lt: new Date(options.cursor) } } : {}),
       ...(options.from || options.to
@@ -448,6 +471,7 @@ export async function listConversations(
       id: true,
       position: true,
       type: true,
+      aggregateType: true,
       aggregateId: true,
       payload: true,
       metadata: true,
@@ -484,7 +508,7 @@ export async function listConversations(
   const counts = await prisma.event.groupBy({
     by: ["aggregateId", "type"],
     where: {
-      aggregateType: "WHATSAPP_CONVERSATION",
+      aggregateType: { in: [...CONVERSATION_AGGREGATE_TYPES] },
       aggregateId: { in: waIds },
       type: { in: [...MESSAGE_TYPES] },
     },
@@ -493,8 +517,12 @@ export async function listConversations(
   const countByWaId = new Map<string, { inbound: number; outbound: number }>();
   for (const row of counts) {
     const current = countByWaId.get(row.aggregateId) ?? { inbound: 0, outbound: 0 };
-    if (row.type === "WHATSAPP_RECIBIDO") current.inbound = row._count._all;
-    if (row.type === "WHATSAPP_ENVIADO") current.outbound = row._count._all;
+    if ((INBOUND_MESSAGE_TYPES as readonly string[]).includes(row.type)) {
+      current.inbound += row._count._all;
+    }
+    if ((OUTBOUND_MESSAGE_TYPES as readonly string[]).includes(row.type)) {
+      current.outbound += row._count._all;
+    }
     countByWaId.set(row.aggregateId, current);
   }
 
@@ -556,7 +584,7 @@ export async function getConversation(
 
   const events = await prisma.event.findMany({
     where: {
-      aggregateType: "WHATSAPP_CONVERSATION",
+      aggregateType: { in: [...CONVERSATION_AGGREGATE_TYPES] },
       aggregateId: waId,
       type: { in: [...typeFilter] },
     },
@@ -567,6 +595,7 @@ export async function getConversation(
       id: true,
       position: true,
       type: true,
+      aggregateType: true,
       aggregateId: true,
       payload: true,
       metadata: true,

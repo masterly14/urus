@@ -1,4 +1,4 @@
-import type { EventType } from "@prisma/client";
+import type { AggregateType, EventType } from "@prisma/client";
 import type {
   ConversationDirection,
   ConversationMessage,
@@ -9,6 +9,7 @@ type NormalizableEvent = {
   id: string;
   position: bigint;
   type: EventType;
+  aggregateType: AggregateType;
   aggregateId: string;
   payload: unknown;
   metadata: unknown;
@@ -90,15 +91,24 @@ function inferKind(payload: Record<string, unknown>): ConversationMessageKind {
 }
 
 export function normalizeConversationEvent(event: NormalizableEvent): ConversationMessage | null {
-  if (event.type !== "WHATSAPP_RECIBIDO" && event.type !== "WHATSAPP_ENVIADO") {
+  const isWhatsAppEvent =
+    event.aggregateType === "WHATSAPP_CONVERSATION" &&
+    (event.type === "WHATSAPP_RECIBIDO" || event.type === "WHATSAPP_ENVIADO");
+  const isMentalHealthEvent =
+    event.aggregateType === "MENTAL_CONVERSATION" &&
+    (event.type === "MENTAL_MSG_RECIBIDO" || event.type === "MENTAL_MSG_ENVIADO");
+
+  if (!isWhatsAppEvent && !isMentalHealthEvent) {
     return null;
   }
 
   const payload = asRecord(event.payload);
   const metadata = asRecord(event.metadata);
   const direction: ConversationDirection =
-    event.type === "WHATSAPP_RECIBIDO" ? "inbound" : "outbound";
-  const kind = inferKind(payload);
+    event.type === "WHATSAPP_RECIBIDO" || event.type === "MENTAL_MSG_RECIBIDO"
+      ? "inbound"
+      : "outbound";
+  const kind = isMentalHealthEvent ? "text" : inferKind(payload);
   const textObject = asRecord(payload.text);
   const document = asRecord(payload.document);
   const text =
@@ -114,7 +124,9 @@ export function normalizeConversationEvent(event: NormalizableEvent): Conversati
     ) ?? "[Mensaje sin texto visible]";
 
   const messageId = firstString(payload.messageId, payload.waMessageId, metadata.waMessageId);
-  const source = firstString(payload.source, metadata.source);
+  const source = isMentalHealthEvent
+    ? firstString(payload.source, metadata.source) ?? "coach_mental"
+    : firstString(payload.source, metadata.source);
 
   return {
     id: `${event.aggregateId}:${event.position.toString()}`,

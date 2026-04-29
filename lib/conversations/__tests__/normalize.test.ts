@@ -6,6 +6,7 @@ function event(overrides: Partial<Parameters<typeof normalizeConversationEvent>[
     id: "evt_1",
     position: 1n,
     type: "WHATSAPP_RECIBIDO" as const,
+    aggregateType: "WHATSAPP_CONVERSATION" as const,
     aggregateId: "34600000000",
     payload: {},
     metadata: null,
@@ -86,15 +87,37 @@ describe("normalizeConversationEvent", () => {
     expect(message?.text).toContain("Ana");
   });
 
-  it("ignora eventos que no son de conversacion WhatsApp", () => {
+  it("ignora eventos que no son conversaciones trazables", () => {
     const message = normalizeConversationEvent(
       event({
         type: "DEMANDA_ACTUALIZADA",
+        aggregateType: "DEMAND",
         payload: { body: "no aplica" },
       }),
     );
 
     expect(message).toBeNull();
+  });
+
+  it("normaliza mensajes salientes del Coach emocional", () => {
+    const message = normalizeConversationEvent(
+      event({
+        type: "MENTAL_MSG_ENVIADO",
+        aggregateType: "MENTAL_CONVERSATION",
+        payload: {
+          text: "Vamos paso a paso. ¿Qué cierre tienes delante?",
+          sessionId: "mh_1",
+        },
+      }),
+    );
+
+    expect(message).toMatchObject({
+      direction: "outbound",
+      kind: "text",
+      text: "Vamos paso a paso. ¿Qué cierre tienes delante?",
+      source: "coach_mental",
+      waId: "34600000000",
+    });
   });
 });
 

@@ -182,8 +182,8 @@ export function ConversationsClient() {
           <h1 className="text-xl font-semibold tracking-tight">Conversaciones</h1>
         </div>
         <p className="max-w-md text-xs text-muted-foreground">
-          Consulta de solo lectura sobre los mensajes reales guardados en Neon. No incluye el bot de
-          soporte mental.
+          Consulta de solo lectura sobre los mensajes reales guardados en Neon, incluyendo trazas
+          operativas y Coach emocional.
         </p>
       </header>
 
