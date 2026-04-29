@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
+import { getSessionFromRequest, forbidden, unauthorized } from "@/lib/auth/session";
 import {
   runPricingAnalysis,
   PricingDataIncompleteError,
   PricingNotEligibleError,
 } from "@/lib/pricing";
+import { canAccessPricingProperty } from "@/lib/pricing/access-control";
 import { withObservedRoute } from "@/lib/observability";
 
 
@@ -42,6 +43,10 @@ const postHandler = async (request: Request) => {
   const { propertyCode, priceRangePercent, metersRangePercent, maxPages, minComparables, generateRecommendation } = parsed.data;
 
   try {
+    if (!(await canAccessPricingProperty(session, propertyCode))) {
+      return forbidden();
+    }
+
     const result = await runPricingAnalysis(propertyCode, {
       priceRangePercent,
       metersRangePercent,

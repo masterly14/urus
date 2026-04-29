@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
+import { getSessionFromRequest, isCeoOrAdmin, unauthorized } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 import type {
@@ -26,6 +26,12 @@ const getHandler = async (request: Request) => {
 
   const where: Record<string, unknown> = { nodisponible: false };
   if (ciudad) where.ciudad = ciudad;
+  if (!isCeoOrAdmin(session.role)) {
+    if (!session.comercialId) {
+      return NextResponse.json({ zones: [], competitors: [], ciudad: ciudad || "Todas", generatedAt: new Date().toISOString() });
+    }
+    where.comercialId = session.comercialId;
+  }
 
   const properties = await prisma.propertyCurrent.findMany({
     where,

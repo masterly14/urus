@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
+import { getSessionFromRequest, isCeoOrAdmin, unauthorized } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 import type {
@@ -40,6 +40,12 @@ const getHandler = async (
     zona,
   };
   if (ciudad) where.ciudad = ciudad;
+  if (!isCeoOrAdmin(session.role)) {
+    if (!session.comercialId) {
+      return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+    }
+    where.comercialId = session.comercialId;
+  }
 
   const properties = await prisma.propertyCurrent.findMany({
     where,

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store";
 import { createInmovillaRestClient } from "@/lib/inmovilla/rest/client";
 import { safeUpdateProperty } from "@/lib/inmovilla/rest/safe-update";
+import { canAccessPricingProperty } from "@/lib/pricing/access-control";
 import type { JsonValue } from "@/lib/event-store/types";
 
 export const runtime = "nodejs";
@@ -36,6 +37,10 @@ export async function POST(request: Request) {
   }
 
   const { propertyCode, newPrice, previousPrice, source } = parsed.data;
+
+  if (!(await canAccessPricingProperty(session, propertyCode))) {
+    return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+  }
 
   const token = process.env.INMOVILLA_API_TOKEN;
   if (!token) {
