@@ -17,7 +17,6 @@ import { mapTiposToHousing } from "@/lib/statefox/query-builder";
 import type {
   StatefoxSnapshotProperty,
   StatefoxSnapshotPropertyExtras,
-  StatefoxPropertyCity,
   StatefoxPropertyZone,
 } from "@/lib/statefox/types";
 import { isExpiredStatefoxImageUrl } from "@/lib/statefox/image-expiry";

@@ -11,6 +11,31 @@ import type {
 
 export const runtime = "nodejs";
 
+type MercadoPropertyRow = {
+  codigo: string;
+  titulo: string;
+  precio: number;
+  metrosConstruidos: number;
+  zona: string;
+  ciudad: string;
+  fechaAlta: string | null;
+};
+
+type MercadoPricingReportRow = {
+  propertyCode: string;
+  semaforo: string;
+  gapPorcentaje: number;
+  totalComparables: number;
+  comparables: unknown;
+  analyzedAt: Date;
+};
+
+type MercadoWhere = {
+  nodisponible: boolean;
+  ciudad?: string;
+  comercialId?: string;
+};
+
 function classifyDemand(propCount: number, avgGap: number): DemandLevel {
   if (propCount >= 15 && avgGap <= 0) return "alta";
   if (propCount >= 8 || avgGap <= 3) return "media";
@@ -24,7 +49,7 @@ const getHandler = async (request: Request) => {
   const { searchParams } = new URL(request.url);
   const ciudad = searchParams.get("ciudad")?.trim() || undefined;
 
-  const where: Record<string, unknown> = { nodisponible: false };
+  const where: MercadoWhere = { nodisponible: false };
   if (ciudad) where.ciudad = ciudad;
   if (!isCeoOrAdmin(session.role)) {
     if (!session.comercialId) {
@@ -46,7 +71,7 @@ const getHandler = async (request: Request) => {
     },
     orderBy: { updatedAt: "desc" },
     take: 500,
-  });
+  }) as MercadoPropertyRow[];
 
   const reportCodes = properties.map((p) => p.codigo);
   const reports = await prisma.pricingReport.findMany({
@@ -59,7 +84,7 @@ const getHandler = async (request: Request) => {
       comparables: true,
       analyzedAt: true,
     },
-  });
+  }) as MercadoPricingReportRow[];
 
   const reportMap = new Map(reports.map((r) => [r.propertyCode, r]));
 

@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppSession } from "@/lib/auth/session";
 
-const propertyFindFirst = vi.fn();
+const { propertyFindFirst } = vi.hoisted(() => ({
+  propertyFindFirst: vi.fn(),
+}));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {

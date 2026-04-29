@@ -11,6 +11,29 @@ export const runtime = "nodejs";
 
 type SemaforoValue = ZonePropertyDetail["semaforo"];
 
+type ZonePropertyRow = {
+  codigo: string;
+  titulo: string;
+  precio: number;
+  metrosConstruidos: number;
+  habitaciones: number;
+  banyos: number;
+  ciudad: string;
+  zona: string;
+  estado: string;
+  mainPhotoUrl: string | null;
+  numFotos: number;
+  portalUrl: string | null;
+  portalName: string | null;
+};
+
+type ZonePricingReportRow = {
+  propertyCode: string;
+  semaforo: string;
+  gapPorcentaje: number;
+  analyzedAt: Date;
+};
+
 function normalizeSemaforo(value: string | null | undefined): SemaforoValue {
   if (!value) return null;
   if (value === "verde" || value === "amarillo" || value === "rojo" || value === "sin_datos") {
@@ -66,7 +89,7 @@ const getHandler = async (
     },
     orderBy: [{ updatedAt: "desc" }],
     take: 60,
-  });
+  }) as ZonePropertyRow[];
 
   const codigos = properties.map((p) => p.codigo);
   const reports = codigos.length
@@ -78,7 +101,7 @@ const getHandler = async (
           gapPorcentaje: true,
           analyzedAt: true,
         },
-      })
+      }) as ZonePricingReportRow[]
     : [];
 
   const reportMap = new Map(reports.map((r) => [r.propertyCode, r]));
