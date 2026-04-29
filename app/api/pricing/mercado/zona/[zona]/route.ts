@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
+import { getSessionFromRequest, isCeoOrAdmin, unauthorized } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 import type {
@@ -10,6 +10,29 @@ import type {
 export const runtime = "nodejs";
 
 type SemaforoValue = ZonePropertyDetail["semaforo"];
+
+type ZonePropertyRow = {
+  codigo: string;
+  titulo: string;
+  precio: number;
+  metrosConstruidos: number;
+  habitaciones: number;
+  banyos: number;
+  ciudad: string;
+  zona: string;
+  estado: string;
+  mainPhotoUrl: string | null;
+  numFotos: number;
+  portalUrl: string | null;
+  portalName: string | null;
+};
+
+type ZonePricingReportRow = {
+  propertyCode: string;
+  semaforo: string;
+  gapPorcentaje: number;
+  analyzedAt: Date;
+};
 
 function normalizeSemaforo(value: string | null | undefined): SemaforoValue {
   if (!value) return null;
@@ -40,6 +63,12 @@ const getHandler = async (
     zona,
   };
   if (ciudad) where.ciudad = ciudad;
+  if (!isCeoOrAdmin(session.role)) {
+    if (!session.comercialId) {
+      return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+    }
+    where.comercialId = session.comercialId;
+  }
 
   const properties = await prisma.propertyCurrent.findMany({
     where,
@@ -60,7 +89,7 @@ const getHandler = async (
     },
     orderBy: [{ updatedAt: "desc" }],
     take: 60,
-  });
+  }) as ZonePropertyRow[];
 
   const codigos = properties.map((p) => p.codigo);
   const reports = codigos.length
@@ -72,7 +101,7 @@ const getHandler = async (
           gapPorcentaje: true,
           analyzedAt: true,
         },
-      })
+      }) as ZonePricingReportRow[]
     : [];
 
   const reportMap = new Map(reports.map((r) => [r.propertyCode, r]));

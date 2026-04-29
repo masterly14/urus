@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
+import { getSessionFromRequest, isCeoOrAdmin, unauthorized } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 import type {
@@ -10,6 +10,31 @@ import type {
 } from "@/lib/pricing/mercado-types";
 
 export const runtime = "nodejs";
+
+type MercadoPropertyRow = {
+  codigo: string;
+  titulo: string;
+  precio: number;
+  metrosConstruidos: number;
+  zona: string;
+  ciudad: string;
+  fechaAlta: string | null;
+};
+
+type MercadoPricingReportRow = {
+  propertyCode: string;
+  semaforo: string;
+  gapPorcentaje: number;
+  totalComparables: number;
+  comparables: unknown;
+  analyzedAt: Date;
+};
+
+type MercadoWhere = {
+  nodisponible: boolean;
+  ciudad?: string;
+  comercialId?: string;
+};
 
 function classifyDemand(propCount: number, avgGap: number): DemandLevel {
   if (propCount >= 15 && avgGap <= 0) return "alta";
@@ -24,8 +49,14 @@ const getHandler = async (request: Request) => {
   const { searchParams } = new URL(request.url);
   const ciudad = searchParams.get("ciudad")?.trim() || undefined;
 
-  const where: Record<string, unknown> = { nodisponible: false };
+  const where: MercadoWhere = { nodisponible: false };
   if (ciudad) where.ciudad = ciudad;
+  if (!isCeoOrAdmin(session.role)) {
+    if (!session.comercialId) {
+      return NextResponse.json({ zones: [], competitors: [], ciudad: ciudad || "Todas", generatedAt: new Date().toISOString() });
+    }
+    where.comercialId = session.comercialId;
+  }
 
   const properties = await prisma.propertyCurrent.findMany({
     where,
@@ -40,7 +71,7 @@ const getHandler = async (request: Request) => {
     },
     orderBy: { updatedAt: "desc" },
     take: 500,
-  });
+  }) as MercadoPropertyRow[];
 
   const reportCodes = properties.map((p) => p.codigo);
   const reports = await prisma.pricingReport.findMany({
@@ -53,7 +84,7 @@ const getHandler = async (request: Request) => {
       comparables: true,
       analyzedAt: true,
     },
-  });
+  }) as MercadoPricingReportRow[];
 
   const reportMap = new Map(reports.map((r) => [r.propertyCode, r]));
 

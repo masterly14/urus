@@ -17,7 +17,6 @@ import { mapTiposToHousing } from "@/lib/statefox/query-builder";
 import type {
   StatefoxSnapshotProperty,
   StatefoxSnapshotPropertyExtras,
-  StatefoxPropertyCity,
   StatefoxPropertyZone,
 } from "@/lib/statefox/types";
 import { isExpiredStatefoxImageUrl } from "@/lib/statefox/image-expiry";
@@ -28,7 +27,6 @@ const DEFAULT_METERS_RANGE_PERCENT = 20;
 const DEFAULT_MAX_PAGES = 30;
 const DEFAULT_MIN_COMPARABLES = 5;
 const ITEMS_PER_PAGE = 250;
-let pricingImageDebugLogs = 0;
 
 export interface FetchComparablesOptions {
   priceRangePercent?: number;
@@ -120,42 +118,12 @@ function resolveZoneName(pZone: string | StatefoxPropertyZone | undefined): stri
   return pZone.name ?? "";
 }
 
-function summarizeImageShape(value: unknown): Record<string, unknown> {
-  if (Array.isArray(value)) {
-    return {
-      type: "array",
-      length: value.length,
-      sampleTypes: value.slice(0, 3).map((item) => typeof item),
-      firstObjectKeys:
-        value.find((item) => item && typeof item === "object" && !Array.isArray(item))
-          ? Object.keys(value.find((item) => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>).slice(0, 8)
-          : [],
-    };
-  }
-  if (value && typeof value === "object") {
-    const obj = value as Record<string, unknown>;
-    const first = Object.values(obj).find((item) => item && typeof item === "object" && !Array.isArray(item));
-    return {
-      type: "object",
-      keys: Object.keys(obj).slice(0, 8),
-      firstObjectKeys: first ? Object.keys(first as Record<string, unknown>).slice(0, 8) : [],
-    };
-  }
-  return { type: typeof value, present: value != null };
-}
-
 function toComparable(id: string, prop: StatefoxSnapshotProperty): PricingComparable {
   const advertiserType = mapAdvertiserType(prop);
   const rawFotos = Array.isArray(prop.pImages)
     ? prop.pImages.filter((u) => typeof u === "string" && (u.startsWith("http://") || u.startsWith("https://")))
     : [];
   const fotos = rawFotos.filter((u) => !isExpiredStatefoxImageUrl(u));
-  if (pricingImageDebugLogs < 5) {
-    pricingImageDebugLogs++;
-    // #region agent log
-    fetch("http://127.0.0.1:7478/ingest/3a86774c-7051-4ca6-b6e8-a92160972b21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "bfe3e0" }, body: JSON.stringify({ sessionId: "bfe3e0", runId: "post-fix", hypothesisId: "H8", location: "lib/pricing/fetch-comparables.ts:toComparable", message: "Pricing comparable image extraction filtered expired URLs", data: { statefoxId: id, rawImageShape: summarizeImageShape((prop as Record<string, unknown>).pImages), hasPropertyMainImage: typeof (prop as Record<string, unknown>).propertyMainImage === "string", hasImagesField: Object.prototype.hasOwnProperty.call(prop as Record<string, unknown>, "images"), rawFotosCount: rawFotos.length, expiredFotosCount: rawFotos.length - fotos.length, extractedFotosCount: fotos.length }, timestamp: Date.now() }) }).catch(() => {});
-    // #endregion
-  }
   return {
     statefoxId: id,
     precio: prop.pPrice ?? 0,

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
-import { getCachedPricingProperties } from "@/lib/pricing/cached-queries";
+import { getCachedPricingPropertiesForSession } from "@/lib/pricing/cached-queries";
 import { withObservedRoute } from "@/lib/observability";
 
 
@@ -14,7 +14,7 @@ const getHandler = async (request: Request) => {
   const ciudad = searchParams.get("ciudad")?.trim() || undefined;
   const estado = searchParams.get("estado")?.trim() || undefined;
 
-  const properties = await getCachedPricingProperties(ciudad, estado);
+  const properties = await getCachedPricingPropertiesForSession(session, ciudad, estado);
 
   return NextResponse.json({ properties });
 };
