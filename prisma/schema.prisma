@@ -1923,6 +1923,32 @@ model InmovillaSessionStore {
   @@map("inmovilla_session_store")
 }
 
+// ---------------------------------------------------------------------------
+// WhatsApp templates (Meta WABA cache)
+// ---------------------------------------------------------------------------
+
+/// Caché local de plantillas aprobadas/configuradas en Meta WABA.
+/// Permite renderizar en `/platform/conversaciones` el texto real enviado
+/// sustituyendo variables `{{1}}`, `{{2}}`, etc. con el payload histórico
+/// guardado en eventos `WHATSAPP_ENVIADO`.
+model WhatsAppTemplate {
+  id             String   @id @default(cuid())
+  wabaTemplateId String
+  name           String
+  language       String
+  status         String
+  category       String?
+  components     Json
+  raw            Json
+  syncedAt       DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([name, language])
+  @@index([status])
+  @@map("whatsapp_templates")
+}
+
 // ── M5: Rematch masivo por demanda ──────────────────────────────────────────
 
 enum RematchRunStatus {
