@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { getCachedPricingReport } from "@/lib/pricing/cached-queries";
 import { withObservedRoute } from "@/lib/observability";
+import { discoverPortalImageCandidates } from "@/lib/statefox/portal-image-refresh";
+import { isExpiredStatefoxImageUrl } from "@/lib/statefox/image-expiry";
 
 
 export const runtime = "nodejs";
@@ -71,6 +73,18 @@ const getHandler = async (request: Request, context: { params: Promise<{ code: s
     const probe = await probeImageUrl(firstImageUrl);
     // #region agent log
     fetch("http://127.0.0.1:7478/ingest/3a86774c-7051-4ca6-b6e8-a92160972b21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "bfe3e0" }, body: JSON.stringify({ sessionId: "bfe3e0", runId: "initial", hypothesisId: "H5,H6,H7", location: "app/api/pricing/report/[code]/route.ts:probeImageUrl", message: "Server-side probe of first comparable image", data: { propertyCode: code, probe }, timestamp: Date.now() }) }).catch(() => {});
+    // #endregion
+  }
+  const firstWithoutImages = report.comparables.find((c) => {
+    const usableFotos = Array.isArray(c.fotos)
+      ? c.fotos.filter((url) => !isExpiredStatefoxImageUrl(url))
+      : [];
+    return usableFotos.length === 0 && typeof c.link === "string" && c.link.trim();
+  });
+  if (firstWithoutImages?.link) {
+    const discovery = await discoverPortalImageCandidates(firstWithoutImages.link);
+    // #region agent log
+    fetch("http://127.0.0.1:7478/ingest/3a86774c-7051-4ca6-b6e8-a92160972b21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "bfe3e0" }, body: JSON.stringify({ sessionId: "bfe3e0", runId: "portal-probe", hypothesisId: "H9,H10,H11,H12", location: "app/api/pricing/report/[code]/route.ts:discoverPortalImageCandidates", message: "Portal image candidate discovery for comparable without usable Statefox images", data: { propertyCode: code, statefoxId: firstWithoutImages.statefoxId, hasPortalLink: Boolean(firstWithoutImages.link), discovery: { ok: discovery.ok, portalHost: discovery.portalHost, status: discovery.status, contentType: discovery.contentType, htmlLength: discovery.htmlLength, candidateCount: discovery.candidateCount, usableCount: discovery.usableCount, expiredCount: discovery.expiredCount, candidateHosts: discovery.candidateHosts, hasFirstUsableImageUrl: Boolean(discovery.firstUsableImageUrl), error: discovery.error } }, timestamp: Date.now() }) }).catch(() => {});
     // #endregion
   }
 

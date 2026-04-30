@@ -21,6 +21,7 @@ import type {
   StatefoxPropertyZone,
 } from "@/lib/statefox/types";
 import { isExpiredStatefoxImageUrl } from "@/lib/statefox/image-expiry";
+import { discoverPortalImageCandidates } from "@/lib/statefox/portal-image-refresh";
 import type { PricingPropertyInput, PricingComparable, PricingPropertyExtras } from "./types";
 
 const DEFAULT_PRICE_RANGE_PERCENT = 20;
@@ -244,6 +245,19 @@ export async function fetchPricingComparables(
     if (comparables.length >= minComparables) break;
 
     cursor = nextCursor;
+  }
+
+  const withoutUsableImages = comparables.filter((c) => c.fotos.length === 0);
+  const firstWithPortalLink = withoutUsableImages.find((c) => typeof c.link === "string" && c.link.trim());
+  if (firstWithPortalLink?.link) {
+    const discovery = await discoverPortalImageCandidates(firstWithPortalLink.link);
+    // #region agent log
+    fetch("http://127.0.0.1:7478/ingest/3a86774c-7051-4ca6-b6e8-a92160972b21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "bfe3e0" }, body: JSON.stringify({ sessionId: "bfe3e0", runId: "portal-probe", hypothesisId: "H9,H10,H11,H12", location: "lib/pricing/fetch-comparables.ts:fetchPricingComparables", message: "Portal image candidate discovery during pricing analysis", data: { comparableCount: comparables.length, withoutUsableImagesCount: withoutUsableImages.length, withPortalLinkCount: withoutUsableImages.filter((c) => typeof c.link === "string" && c.link.trim()).length, statefoxId: firstWithPortalLink.statefoxId, discovery: { ok: discovery.ok, portalHost: discovery.portalHost, status: discovery.status, contentType: discovery.contentType, htmlLength: discovery.htmlLength, candidateCount: discovery.candidateCount, usableCount: discovery.usableCount, expiredCount: discovery.expiredCount, candidateHosts: discovery.candidateHosts, hasFirstUsableImageUrl: Boolean(discovery.firstUsableImageUrl), error: discovery.error } }, timestamp: Date.now() }) }).catch(() => {});
+    // #endregion
+  } else {
+    // #region agent log
+    fetch("http://127.0.0.1:7478/ingest/3a86774c-7051-4ca6-b6e8-a92160972b21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "bfe3e0" }, body: JSON.stringify({ sessionId: "bfe3e0", runId: "portal-probe", hypothesisId: "H12", location: "lib/pricing/fetch-comparables.ts:fetchPricingComparables", message: "No portal link available for comparables without usable images", data: { comparableCount: comparables.length, withoutUsableImagesCount: withoutUsableImages.length, withPortalLinkCount: withoutUsableImages.filter((c) => typeof c.link === "string" && c.link.trim()).length }, timestamp: Date.now() }) }).catch(() => {});
+    // #endregion
   }
 
   return { comparables, totalResultsFromAPI, pagesScanned };
