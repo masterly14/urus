@@ -78,6 +78,28 @@ beforeEach(() => {
 });
 
 describe("fetchPricingComparables (snapshot)", () => {
+  it("no consulta portales externos al construir comparables", async () => {
+    mockGetSnapshot.mockResolvedValue(
+      makeSnapshotResponse({
+        "id-with-link": makeSnapshotProp({
+          pCity: { cityName: "Murcia" },
+          pImages: [],
+          pLink: "https://www.idealista.com/inmueble/123/",
+        }),
+      }),
+    );
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    const { comparables } = await fetchPricingComparables(makeInput(), {
+      maxPages: 1,
+      minComparables: 1,
+    });
+
+    expect(comparables).toHaveLength(1);
+    expect(comparables[0].link).toBe("https://www.idealista.com/inmueble/123/");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("filtra correctamente por ciudad", async () => {
     mockGetSnapshot.mockResolvedValue(
       makeSnapshotResponse({
@@ -89,6 +111,21 @@ describe("fetchPricingComparables (snapshot)", () => {
     const { comparables } = await fetchPricingComparables(makeInput(), { maxPages: 1 });
     expect(comparables.length).toBe(1);
     expect(comparables[0].ciudad).toBe("Murcia");
+  });
+
+  it("no consulta páginas de portales al construir comparables", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    mockGetSnapshot.mockResolvedValue(
+      makeSnapshotResponse({
+        "id-1": makeSnapshotProp({ pImages: [], pLink: "https://www.idealista.com/inmueble/123/" }),
+      }),
+    );
+
+    const { comparables } = await fetchPricingComparables(makeInput(), { maxPages: 1, minComparables: 1 });
+
+    expect(comparables.length).toBe(1);
+    expect(comparables[0].link).toBe("https://www.idealista.com/inmueble/123/");
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("filtra por housing type", async () => {
@@ -259,6 +296,27 @@ describe("fetchPricingComparables (snapshot)", () => {
     const types = comparables.map((c) => c.advertiserType);
     expect(types).toContain("private");
     expect(types).toContain("professional");
+  });
+
+  it("no solicita páginas de portales al construir comparables de pricing", async () => {
+    mockGetSnapshot.mockResolvedValue(
+      makeSnapshotResponse({
+        "id-no-images": makeSnapshotProp({
+          pImages: [],
+          pLink: "https://www.idealista.com/inmueble/12345/",
+        }),
+      }),
+    );
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    const { comparables } = await fetchPricingComparables(makeInput(), {
+      maxPages: 1,
+      minComparables: 1,
+    });
+
+    expect(comparables).toHaveLength(1);
+    expect(comparables[0].link).toBe("https://www.idealista.com/inmueble/12345/");
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("se detiene si una página falla (no hay cursor siguiente)", async () => {
