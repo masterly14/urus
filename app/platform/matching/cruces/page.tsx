@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { MatchCard, getMatchColor } from "@/components/matching/match-card";
 import type { CruceMatch } from "@/components/matching/match-card";
 import { WhatsAppPreview } from "@/components/matching/whatsapp-preview";
+import { MATCHING_PAUSED, MATCHING_PAUSED_REASON } from "@/lib/matching/pause";
 
 const POLL_INTERVAL_MS = 10_000;
 const ITEMS_PER_PAGE = 10;
@@ -350,6 +351,18 @@ export default function CrucesPage() {
                     <CardContent className="p-3 flex items-center gap-2">
                         <AlertTriangle className="h-4 w-4 text-[var(--urus-danger)]" />
                         <p className="text-sm text-[var(--urus-danger)]">{error}</p>
+                    </CardContent>
+                </Card>
+            )}
+
+            {MATCHING_PAUSED && (
+                <Card className="border-[var(--urus-warning)]/30 bg-[var(--urus-warning)]/5">
+                    <CardContent className="p-3 flex items-start gap-2">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 text-[var(--urus-warning)]" />
+                        <div>
+                            <p className="text-sm font-medium text-foreground">Cruces pausados temporalmente</p>
+                            <p className="text-xs text-muted-foreground">{MATCHING_PAUSED_REASON}</p>
+                        </div>
                     </CardContent>
                 </Card>
             )}

@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
+import { MATCHING_PAUSED, MATCHING_PAUSED_REASON } from "@/lib/matching/pause";
 import {
   Dialog,
   DialogContent,
@@ -152,6 +153,10 @@ export function RematchPanel({
   }, []);
 
   const handleLaunch = async () => {
+    if (MATCHING_PAUSED) {
+      setLaunchError(MATCHING_PAUSED_REASON);
+      return;
+    }
     setLaunching(true);
     setLaunchError(null);
     try {
@@ -209,7 +214,7 @@ export function RematchPanel({
     }
   };
 
-  const canLaunch = mode === "all" || selectedDemand != null;
+  const canLaunch = !MATCHING_PAUSED && (mode === "all" || selectedDemand != null);
   /** Bloquea un nuevo lanzamiento mientras hay un run activo en curso o aún no llegó el primer GET. */
   const launchBlocked =
     activeRunId != null &&
@@ -229,12 +234,15 @@ export function RematchPanel({
           <Button
             variant="secondary"
             size="sm"
+            disabled={MATCHING_PAUSED}
             className={cn(
               "gap-1.5 border border-secondary/25 shadow-sm",
               className,
             )}
           >
-            {launchBlocked ? (
+            {MATCHING_PAUSED ? (
+              <Ban className="h-3.5 w-3.5 text-muted-foreground" />
+            ) : launchBlocked ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin text-secondary-foreground" />
             ) : (
               <Zap className="h-3.5 w-3.5 text-secondary-foreground" />
@@ -256,6 +264,12 @@ export function RematchPanel({
           </DialogHeader>
 
           <div className="space-y-3">
+            {MATCHING_PAUSED && (
+              <div className="text-xs text-[var(--urus-warning)] flex items-start gap-2 rounded-md border border-[var(--urus-warning)]/30 bg-[var(--urus-warning)]/10 px-3 py-2">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{MATCHING_PAUSED_REASON}</span>
+              </div>
+            )}
             {launchBlocked && (
               <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 rounded-md border border-border/40 bg-background/40 px-2.5 py-2">
                 <Loader2 className="h-3 w-3 animate-spin text-secondary" />

@@ -17,6 +17,7 @@ import { enqueueJob } from "@/lib/job-queue";
 import { withObservedRoute } from "@/lib/observability";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { ACTIVE_DEMAND_STATES } from "@/lib/matching";
+import { isMatchingPaused, MATCHING_PAUSED_REASON } from "@/lib/matching/pause";
 
 const BATCH_SIZE = 10;
 const MAX_DEMANDS_PER_RUN = 10;
@@ -28,6 +29,15 @@ const postHandler = async (request: Request) => {
     return NextResponse.json(
       { error: "Solo el CEO puede disparar un rematch masivo" },
       { status: 403 },
+    );
+  }
+  if (isMatchingPaused()) {
+    return NextResponse.json(
+      {
+        error: MATCHING_PAUSED_REASON,
+        paused: true,
+      },
+      { status: 503 },
     );
   }
 

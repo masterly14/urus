@@ -17,6 +17,7 @@ import type { PropertyForMatching } from "@/lib/matching";
 import { matchDemandsToPropertyById, matchDemandsToProperty } from "@/lib/matching";
 import { appendEvent } from "@/lib/event-store";
 import { prisma } from "@/lib/prisma";
+import { isMatchingPaused, MATCHING_PAUSED_REASON } from "@/lib/matching/pause";
 
 type PropertySnapshot = {
   codigo?: string;
@@ -173,6 +174,13 @@ export async function handlePropertyMatching(event: Event): Promise<HandlerResul
         sourceEventId: event.id,
       });
     }
+  }
+
+  if (isMatchingPaused()) {
+    console.warn(
+      `[consumer:matching] ${event.type} propertyId=${propertyId} — cruce pausado: ${MATCHING_PAUSED_REASON}`,
+    );
+    return { success: true, followUpJobs };
   }
 
   try {

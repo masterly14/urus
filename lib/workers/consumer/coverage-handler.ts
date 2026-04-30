@@ -12,6 +12,7 @@ import { evaluateDemandCoverage, COVERAGE_MIN_SCORE } from "@/lib/matching";
 import { hasRecentCoverageSelection } from "@/lib/microsite/coverage-dedup";
 import { resolveComercialByDemand } from "@/lib/routing/resolve-comercial";
 import type { JsonValue } from "@/lib/job-queue/types";
+import { isMatchingPaused, MATCHING_PAUSED_REASON } from "@/lib/matching/pause";
 
 export async function handleEvaluateDemandCoverage(
   job: JobRecord,
@@ -31,6 +32,13 @@ export async function handleEvaluateDemandCoverage(
     typeof payload.sourceEventId === "string"
       ? payload.sourceEventId
       : job.sourceEventId ?? undefined;
+
+  if (isMatchingPaused()) {
+    console.warn(
+      `[coverage] job ${job.id} demandId=${demandId} — cobertura/Statefox pausado: ${MATCHING_PAUSED_REASON}`,
+    );
+    return { success: true };
+  }
 
   const result = await evaluateDemandCoverage(demandId);
 

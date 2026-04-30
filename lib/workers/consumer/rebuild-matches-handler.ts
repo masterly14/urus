@@ -24,6 +24,7 @@ import { matchPropertiesToDemand } from "@/lib/matching/match-properties";
 import { appendEvent } from "@/lib/event-store";
 import { ACTIVE_DEMAND_STATES } from "@/lib/matching/match-demands";
 import type { DemandForMatching } from "@/lib/matching";
+import { isMatchingPaused, MATCHING_PAUSED_REASON } from "@/lib/matching/pause";
 
 const SCORE_DELTA_THRESHOLD = 5;
 const BATCH_SIZE = 10;
@@ -61,6 +62,19 @@ export async function handleRebuildMatchesForDemand(
   }
 
   const { demandId, runId, isLastInBatch, batchIndex } = payload;
+
+  if (isMatchingPaused()) {
+    console.warn(
+      `[rematch] Job ${job.id} demandId=${demandId} — rematch pausado: ${MATCHING_PAUSED_REASON}`,
+    );
+    await incrementRunCounters(runId, 1, 0, 0);
+    return {
+      success: true,
+      followUpJobs: isLastInBatch
+        ? await buildNextBatchJobs(runId, batchIndex)
+        : [],
+    };
+  }
 
   const run = await prisma.rematchRun.findUnique({
     where: { id: runId },
