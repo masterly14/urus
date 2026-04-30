@@ -1,4 +1,5 @@
 import type { EventType } from "@prisma/client";
+import type { ConversationTemplateRender } from "@/lib/whatsapp/templates/types";
 
 export type ConversationDirection = "inbound" | "outbound";
 
@@ -23,6 +24,7 @@ export interface ConversationMessage {
   createdAt: string;
   source: string | null;
   messageId: string | null;
+  templateRender?: ConversationTemplateRender | null;
   correlationId: string | null;
   causationId: string | null;
   metadata: unknown;

@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { TemplateMessageCard } from "@/components/conversations/template-message-card";
 import { useConversation, useConversations } from "@/lib/hooks/use-conversations";
 import { cn } from "@/lib/utils";
 
@@ -466,9 +467,13 @@ export function ConversationsClient() {
                                   : "rounded-bl-sm bg-background text-foreground ring-border",
                               )}
                             >
-                              <p className="whitespace-pre-wrap leading-relaxed">
-                                {message.text}
-                              </p>
+                              {message.templateRender ? (
+                                <TemplateMessageCard template={message.templateRender} />
+                              ) : (
+                                <p className="whitespace-pre-wrap leading-relaxed">
+                                  {message.text}
+                                </p>
+                              )}
                               <div
                                 className={cn(
                                   "mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px]",

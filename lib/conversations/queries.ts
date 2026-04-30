@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizeWhatsAppDigits } from "@/lib/microsite/buyer-phone";
 import { coerceMicrositeCuratedProperties } from "@/lib/microsite/selection";
 import { normalizeConversationEvent, previewText } from "./normalize";
+import { renderWhatsAppTemplate, type CachedWhatsAppTemplate } from "@/lib/whatsapp/templates/render";
 import type {
   ConversationContext,
   ConversationDetailResult,
@@ -22,6 +23,12 @@ const DEFAULT_DETAIL_LIMIT = 100;
 const MAX_DETAIL_LIMIT = 500;
 
 type DirectionFilter = "all" | "inbound" | "outbound";
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
 
 type DemandInfo = {
   codigo: string;
@@ -68,6 +75,63 @@ function messageTypeFilter(direction: DirectionFilter | undefined) {
   if (direction === "inbound") return INBOUND_MESSAGE_TYPES;
   if (direction === "outbound") return OUTBOUND_MESSAGE_TYPES;
   return MESSAGE_TYPES;
+}
+
+function templateLookupKey(name: string, language: string): string {
+  return `${name}::${language}`;
+}
+
+function sentTemplateInfo(message: ConversationMessage): { name: string; language: string; template: unknown } | null {
+  if (message.kind !== "template") return null;
+  const payload = asRecord(message.rawPayload);
+  const template = asRecord(payload.template);
+  const name = typeof template.name === "string" ? template.name.trim() : "";
+  const languageObj = asRecord(template.language);
+  const language = typeof languageObj.code === "string" ? languageObj.code.trim() : "";
+  if (!name || !language) return null;
+  return { name, language, template };
+}
+
+async function enrichTemplateMessages(messages: ConversationMessage[]): Promise<ConversationMessage[]> {
+  const templateInfos = messages
+    .map(sentTemplateInfo)
+    .filter((info): info is NonNullable<typeof info> => Boolean(info));
+  if (templateInfos.length === 0) return messages;
+
+  const uniqueKeys = new Set(templateInfos.map((info) => templateLookupKey(info.name, info.language)));
+  const templates = await prisma.whatsAppTemplate.findMany({
+    where: {
+      OR: Array.from(uniqueKeys).map((key) => {
+        const [name, language] = key.split("::");
+        return { name, language };
+      }),
+    },
+    select: {
+      name: true,
+      language: true,
+      status: true,
+      category: true,
+      components: true,
+    },
+  });
+  const templateByKey = new Map<string, CachedWhatsAppTemplate>(
+    templates.map((template) => [
+      templateLookupKey(template.name, template.language),
+      template,
+    ]),
+  );
+
+  return messages.map((message) => {
+    const info = sentTemplateInfo(message);
+    if (!info) return message;
+    const cached = templateByKey.get(templateLookupKey(info.name, info.language));
+    const templateRender = renderWhatsAppTemplate(info.template, cached);
+    return {
+      ...message,
+      text: templateRender?.previewText ?? message.text,
+      templateRender,
+    };
+  });
 }
 
 function includesSearch(summary: ConversationSummary, search: string | null | undefined): boolean {
@@ -482,10 +546,14 @@ export async function listConversations(
     },
   });
 
+  const normalizedMessages = await enrichTemplateMessages(
+    events
+      .map((event) => normalizeConversationEvent(event))
+      .filter((message): message is ConversationMessage => Boolean(message)),
+  );
+
   const grouped = new Map<string, ConversationMessage[]>();
-  for (const event of events) {
-    const message = normalizeConversationEvent(event);
-    if (!message) continue;
+  for (const message of normalizedMessages) {
     const messages = grouped.get(message.waId) ?? [];
     messages.push(message);
     grouped.set(message.waId, messages);
@@ -606,10 +674,12 @@ export async function getConversation(
     },
   });
 
-  const normalized = events
-    .slice(0, limit)
-    .map((event) => normalizeConversationEvent(event))
-    .filter((message): message is ConversationMessage => Boolean(message));
+  const normalized = await enrichTemplateMessages(
+    events
+      .slice(0, limit)
+      .map((event) => normalizeConversationEvent(event))
+      .filter((message): message is ConversationMessage => Boolean(message)),
+  );
   const context = await loadConversationContext(waId);
 
   return {

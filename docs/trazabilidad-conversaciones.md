@@ -27,8 +27,11 @@ Cada conversacion se enriquece con el mejor contexto disponible para evitar que 
 - `lib/conversations/normalize.ts`: normaliza payloads heterogeneos de WhatsApp a mensajes renderizables.
 - `lib/conversations/queries.ts`: lista conversaciones y recupera transcripts desde `events`.
 - `lib/conversations/types.ts`: define los campos de relacion visibles en la UI (`ownerName`, `relationLabel`, `demandName`, `commercialName`, etc.).
+- `lib/whatsapp/templates/`: sincroniza plantillas aprobadas desde WABA y renderiza `{{1}}`, `{{2}}`, etc. con los valores guardados en cada evento.
+- `components/conversations/template-message-card.tsx`: tarjeta visual para plantillas con header, body, footer, botones y variables.
 - `app/api/conversations/route.ts`: API autenticada para listar conversaciones.
 - `app/api/conversations/[waId]/route.ts`: API autenticada para consultar una conversacion.
+- `app/api/admin/whatsapp/templates/sync/route.ts`: endpoint admin para refrescar la caché de plantillas desde Meta.
 - `app/platform/conversaciones/page.tsx`: ruta interna de la UI.
 - `app/platform/conversaciones/conversations-client.tsx`: lista, filtros y panel de chat.
 - `lib/whatsapp/send.ts`: soporte de trazabilidad explicita para registrar salientes.
@@ -45,6 +48,26 @@ La pantalla usa un layout de altura fija tipo bandeja de correo con tres paneles
   - Propiedades enviadas dentro de cada seleccion, con la primera imagen de la ficha, titulo, zona/ciudad, precio, metros, habitaciones y enlace de ficha cuando existe.
 
 Esto permite revisar en la misma pantalla que propiedades vio el cliente y en que punto del pipeline esta la demanda, sin depender solo del numero de telefono.
+
+## Renderizado de plantillas WhatsApp
+
+Los mensajes salientes enviados con plantillas Meta se guardan en Event Store con `messageType = template` y el objeto `template` enviado a Meta. Ese objeto contiene el nombre, idioma y los valores de las variables, pero no contiene el texto completo aprobado de la plantilla.
+
+Para poder ver el mensaje real en la trazabilidad, Urus mantiene una caché local en Neon (`whatsapp_templates`) sincronizada desde WABA:
+
+- Script operativo: `npm run whatsapp:templates:sync`.
+- Endpoint admin: `POST /api/admin/whatsapp/templates/sync`.
+- Variables necesarias: `WHATSAPP_ACCESS_TOKEN` con permiso `whatsapp_business_management` y `WHATSAPP_BUSINESS_ID`.
+
+La UI resuelve cada plantilla por `(name, language)` y renderiza:
+
+- `HEADER`, incluyendo texto o referencia al media enviado.
+- `BODY`, sustituyendo placeholders `{{1}}`, `{{2}}`, etc. con los parámetros históricos.
+- `FOOTER`, si existe.
+- `BUTTONS`, incluyendo URLs dinámicas interpoladas cuando el botón usa variables.
+- Tabla de variables por componente para auditar qué valor se inyectó en cada placeholder.
+
+Si la plantilla todavía no está cacheada, el chat mantiene un fallback legible con el nombre de la plantilla y los valores enviados, sin bloquear la carga del transcript.
 
 ## Endpoints
 
@@ -66,6 +89,10 @@ Query params:
 - `limit`: maximo de mensajes.
 - `offset`: desplazamiento para paginacion.
 
+### `POST /api/admin/whatsapp/templates/sync`
+
+Sincroniza desde Meta las plantillas del WABA configurado en `WHATSAPP_BUSINESS_ID` y actualiza la tabla `whatsapp_templates`. Requiere usuario autenticado con rol `ceo` o `admin`.
+
 ## Registro de salientes
 
 Los helpers de envio de WhatsApp aceptan `options.trace`. Cuando se informa, el envio exitoso crea `WHATSAPP_ENVIADO` con:
@@ -80,6 +107,8 @@ La escritura del evento es idempotente por `messageId` dentro de la conversacion
 ## Como probar
 
 - Tests unitarios de normalizacion: `npm test -- lib/conversations/__tests__/normalize.test.ts`.
+- Tests unitarios de render de plantillas: `npm test -- lib/whatsapp/templates/__tests__/render.test.ts`.
+- Sincronizar plantillas en entorno configurado: `npm run whatsapp:templates:sync`.
 - Revision manual: abrir `/platform/conversaciones` con una sesion autenticada y verificar lista, filtros y transcript.
 - Para validar una conversacion concreta, consultar `GET /api/conversations/{waId}` desde la sesion de plataforma.
 
