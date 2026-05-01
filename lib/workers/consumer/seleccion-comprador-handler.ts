@@ -76,6 +76,7 @@ export async function handleSeleccionComprador(event: Event): Promise<HandlerRes
     await updateDemandLeadStatus(demandId, "VISITA_PENDIENTE");
     const notification = await notifyCommercialVisitInterest({
       demandId,
+      propertyIds: [propertyId],
       causationId: event.id,
       correlationId: event.correlationId ?? null,
     });

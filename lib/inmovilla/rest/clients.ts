@@ -40,7 +40,7 @@ export async function createClient(
 export async function updateClient(
   client: InmovillaRestClient,
   cod_cli: number,
-  patch: Partial<Pick<CreateClientPayload, "nombre" | "apellidos" | "telefono1" | "telefono2" | "email">>,
+  patch: Partial<Pick<CreateClientPayload, "nombre" | "apellidos" | "telefono1" | "telefono2" | "prefijotel1" | "prefijotel2" | "email">>,
 ): Promise<Cliente> {
   return client.put<Cliente>("/clientes/", { cod_cli, ...patch });
 }

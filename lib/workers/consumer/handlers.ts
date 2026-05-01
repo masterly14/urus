@@ -16,6 +16,8 @@ import { handleContratoBorradorGenerado } from "./contrato-borrador-handler";
 import { handleFirmaEnviada } from "./firma-enviada-handler";
 import { handleSeleccionComprador } from "./seleccion-comprador-handler";
 import { handleMatchGenerado } from "./match-generado-handler";
+import { handleDemandaReperfiladoSolicitado } from "./demanda-reperfilado-handler";
+import { handleDemandaCreadaNluInitialContact } from "./nlu-initial-contact-handler";
 import { handleContratoAprobado } from "./contrato-aprobado-handler";
 import { handleContratoVersionado } from "./contrato-versionado-handler";
 import { handleFirmaSlaEscalado } from "./firma-sla-escalado-handler";
@@ -202,7 +204,20 @@ registerHandler("PROPIEDAD_ELIMINADA", handlePropertyRemovedWithCoverage);
 registerHandler("ESTADO_CAMBIADO", handleEstadoCambiado);
 
 // --- Demand handlers ---
-registerHandler("DEMANDA_CREADA", demandHandler("UPDATE_DEMAND_PROJECTION"));
+registerHandler("DEMANDA_CREADA", async (event) => {
+  const projection = await demandHandler("UPDATE_DEMAND_PROJECTION")(event);
+  if (!projection.success) return projection;
+  const nlu = await handleDemandaCreadaNluInitialContact(event);
+  return {
+    success: nlu.success,
+    error: nlu.error,
+    permanent: nlu.permanent,
+    followUpJobs: [
+      ...(projection.followUpJobs ?? []),
+      ...(nlu.followUpJobs ?? []),
+    ],
+  };
+});
 registerHandler("DEMANDA_MODIFICADA", demandHandler("UPDATE_DEMAND_PROJECTION"));
 registerHandler("DEMANDA_ESTADO_CAMBIADO", demandHandler("UPDATE_DEMAND_PROJECTION"));
 registerHandler("DEMANDA_ELIMINADA", demandHandler("UPDATE_DEMAND_PROJECTION"));
@@ -217,6 +232,9 @@ registerHandler("DEMANDA_ACTUALIZADA", handleDemandaActualizada);
 // --- Micro-frontends (M4) ---
 registerHandler("VISITA_EVALUADA", handleVisitaEvaluada);
 registerHandler("VISITA_AGENDADA", handleVisitaAgendada);
+registerHandler("POST_VISITA_DECIDIDA", auditOnlyHandler("decision post-visita registrada desde /api/visitas/[id]/decision"));
+registerHandler("DEMANDA_REPERFILADO_SOLICITADO", handleDemandaReperfiladoSolicitado);
+registerHandler("DEMANDA_BAJA_SOLICITADA", auditOnlyHandler("baja ejecutada por servicio de decision post-visita"));
 registerHandler("SELECCION_COMPRADOR", handleSeleccionComprador);
 registerHandler("SELECCION_VALIDADA", auditOnlyHandler("side effects en API route /validar-seleccion: DB update + job SEND_MICROSITE_TO_BUYER"));
 registerHandler("SELECCION_RECHAZADA", auditOnlyHandler("side effects en API route /validar-seleccion: DB update a REJECTED"));

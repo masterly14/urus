@@ -346,13 +346,25 @@ function EditBuyerModal({
 
   const hasChanges = nombre.trim() || apellidos.trim() || telefono.trim() || email.trim();
 
+  function normalizePhoneForInmovillaClientUpdate(phone: string): { telefono1: number; prefijotel1?: number } | null {
+    const digits = phone.replace(/\D/g, "");
+    if (!digits) return null;
+    if (digits.length === 11 && digits.startsWith("34")) {
+      return { telefono1: Number(digits.slice(2)), prefijotel1: 34 };
+    }
+    if (digits.length === 9) {
+      return { telefono1: Number(digits), prefijotel1: 34 };
+    }
+    return { telefono1: Number(digits) };
+  }
+
   function buildBody(force = false): Record<string, unknown> {
     const body: Record<string, unknown> = {};
     if (nombre.trim()) body.nombre = nombre.trim();
     if (apellidos.trim()) body.apellidos = apellidos.trim();
     if (telefono.trim()) {
-      const digits = telefono.replace(/\D/g, "");
-      if (digits) body.telefono1 = Number(digits);
+      const phonePatch = normalizePhoneForInmovillaClientUpdate(telefono);
+      if (phonePatch) Object.assign(body, phonePatch);
     }
     if (email.trim()) body.email = email.trim();
     if (force) body.force = true;

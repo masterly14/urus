@@ -57,6 +57,7 @@ describe("handleSeleccionComprador", () => {
     expect(result.followUpJobs).toBeUndefined();
     expect(mockNotifyCommercialVisitInterest).toHaveBeenCalledWith({
       demandId: "DEM-001",
+      propertyIds: ["prop-sfx-123"],
       causationId: "evt-sc-001",
       correlationId: null,
     });

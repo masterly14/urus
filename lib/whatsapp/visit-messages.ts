@@ -414,6 +414,7 @@ export interface VisitInterestPackageToCommercialData {
   demandLabel: string;
   buyerPhone: string;
   properties: VisitInterestTemplateProperty[];
+  nextActionText?: string;
 }
 
 function truncateForTemplate(input: string, max = 950): string {
@@ -457,7 +458,8 @@ export async function sendVisitInterestPackageToCommercial(
       )
     : "Sin propiedades de interés disponibles.";
 
-  const nextAction = "Llama a propietario/agencia para coordinar visita y registra día/hora en Urus > Visitas.";
+  const nextAction = data.nextActionText ??
+    "Llama a propietario/agencia para coordinar visita y registra día/hora en Urus > Visitas.";
 
   const template: TemplateObject = {
     name: tpl(

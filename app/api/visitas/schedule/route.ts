@@ -8,10 +8,12 @@ import {
 } from "@/lib/auth/session";
 import { withObservedRoute } from "@/lib/observability";
 import { scheduleManualVisit } from "@/lib/visitas/manual-schedule";
+import { getVisitWorkItem } from "@/lib/visitas/work-items";
 
 const BodySchema = z.object({
-  demandId: z.string().min(1),
-  propertyId: z.string().min(1),
+  visitId: z.string().min(1).optional(),
+  demandId: z.string().min(1).optional(),
+  propertyId: z.string().min(1).optional(),
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   horaInicio: z.string().regex(/^\d{2}:\d{2}$/),
   horaFin: z.string().regex(/^\d{2}:\d{2}$/),
@@ -32,7 +34,36 @@ const postHandler = async (request: Request) => {
     );
   }
 
-  const effectiveComercialId = parsed.data.comercialId ?? session.comercialId;
+  const workItem = parsed.data.visitId
+    ? await getVisitWorkItem(parsed.data.visitId)
+    : null;
+  if (parsed.data.visitId && !workItem) {
+    return NextResponse.json(
+      { ok: false, error: "Visita pre-creada no encontrada" },
+      { status: 404 },
+    );
+  }
+
+  const demandId = parsed.data.demandId ?? workItem?.demandId;
+  const propertyId = parsed.data.propertyId ?? workItem?.propertyId;
+  if (!demandId || !propertyId) {
+    return NextResponse.json(
+      { ok: false, error: "Debe indicar demandId/propertyId o un visitId válido" },
+      { status: 400 },
+    );
+  }
+  if (
+    workItem &&
+    ((parsed.data.demandId && parsed.data.demandId !== workItem.demandId) ||
+      (parsed.data.propertyId && parsed.data.propertyId !== workItem.propertyId))
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "La visita pre-creada no coincide con la demanda o propiedad indicada" },
+      { status: 400 },
+    );
+  }
+
+  const effectiveComercialId = parsed.data.comercialId ?? workItem?.comercialId ?? session.comercialId;
   if (!effectiveComercialId) {
     return NextResponse.json(
       { ok: false, error: "Sin comercial asociado para agendar la visita" },
@@ -47,8 +78,15 @@ const postHandler = async (request: Request) => {
     );
   }
 
+  if (!isCeoOrAdmin(session.role) && workItem && workItem.comercialId !== session.comercialId) {
+    return NextResponse.json(
+      { ok: false, error: "No puedes agendar visitas para otro comercial" },
+      { status: 403 },
+    );
+  }
+
   const demand = await prisma.demandCurrent.findUnique({
-    where: { codigo: parsed.data.demandId },
+    where: { codigo: demandId },
     select: { comercialId: true },
   });
   if (!demand) {
@@ -67,6 +105,9 @@ const postHandler = async (request: Request) => {
   try {
     const result = await scheduleManualVisit({
       ...parsed.data,
+      visitWorkItemId: workItem?.id,
+      demandId,
+      propertyId,
       comercialId: effectiveComercialId,
     });
     return NextResponse.json({ ok: true, ...result });

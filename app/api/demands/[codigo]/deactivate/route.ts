@@ -13,25 +13,9 @@ import {
   isCeoOrAdmin,
 } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
-import { appendEvent } from "@/lib/event-store";
-import { enqueueJob } from "@/lib/job-queue";
-import type { JsonValue } from "@/lib/event-store/types";
+import { deactivateDemand } from "@/lib/demands/deactivate";
 
 export const runtime = "nodejs";
-
-const KEYSITU_DESCARTADA = "23";
-
-function pickString(
-  raw: Record<string, unknown>,
-  keys: string[],
-): string | null {
-  for (const k of keys) {
-    const v = raw[k];
-    if (typeof v === "string" && v.trim()) return v.trim();
-    if (typeof v === "number" && v > 0) return String(v);
-  }
-  return null;
-}
 
 export async function POST(
   request: Request,
@@ -65,61 +49,17 @@ export async function POST(
     );
   }
 
-  await prisma.demandCurrent.update({
-    where: { codigo },
-    data: { leadStatus: "PERDIDO" },
+  const result = await deactivateDemand({
+    demandId: codigo,
+    source: "platform-deactivate",
+    updatedBy: session.nombre ?? session.email ?? "unknown",
   });
 
-  const event = await appendEvent({
-    type: "DEMANDA_ACTUALIZADA",
-    aggregateType: "DEMAND",
-    aggregateId: codigo,
-    payload: {
-      source: "platform-deactivate",
-      leadStatus: "PERDIDO",
-      updatedBy: session.nombre ?? session.email ?? "unknown",
-    } as unknown as JsonValue,
-  });
-
-  const snapshot = await prisma.demandSnapshot.findUnique({
-    where: { codigo },
-    select: { ref: true, raw: true },
-  });
-
-  if (snapshot) {
-    const raw = (snapshot.raw ?? {}) as Record<string, unknown>;
-    const clientId = pickString(raw, ["keycli", "cod_cli", "clientes-cod_cli", "clientes-cod_clipriclave"]);
-    const agentId = pickString(raw, ["keyagente", "demandas-keyagente", "idUsuario", "agente"]);
-    const propertyTypes = pickString(raw, ["tipopropiedad", "tipos"]) ?? "";
-    const demandRef = snapshot.ref?.trim() || codigo;
-
-    if (clientId && agentId) {
-      await enqueueJob({
-        type: "WRITE_TO_INMOVILLA",
-        payload: {
-          operation: "updateDemandStatus",
-          args: {
-            demandId: codigo,
-            demandRef,
-            clientId,
-            agentId,
-            propertyTypes,
-            keysitu: KEYSITU_DESCARTADA,
-          },
-        },
-        idempotencyKey: `write_to_inmovilla:updateDemandStatus:deactivate:${event.id}`,
-        sourceEventId: event.id,
-      });
-
-      console.log(
-        `[deactivate] demanda=${codigo} → PERDIDO + keysitu=${KEYSITU_DESCARTADA} por ${session.email ?? "unknown"}`,
-      );
-    } else {
-      console.warn(
-        `[deactivate] demanda=${codigo} → PERDIDO (local only, missing clientId/agentId for Inmovilla sync)`,
-      );
-    }
+  if (!result.inmovillaSyncQueued) {
+    console.warn(
+      `[deactivate] demanda=${codigo} → PERDIDO (local only, reason=${result.reason ?? "unknown"})`,
+    );
   }
 
-  return NextResponse.json({ ok: true, leadStatus: "PERDIDO" });
+  return NextResponse.json(result);
 }

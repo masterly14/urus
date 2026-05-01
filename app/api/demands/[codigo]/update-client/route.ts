@@ -23,12 +23,15 @@ const PatchSchema = z
     apellidos: z.string().min(1).optional(),
     telefono1: z.number().int().positive().optional(),
     telefono2: z.number().int().positive().optional(),
+    prefijotel1: z.number().int().positive().optional(),
+    prefijotel2: z.number().int().positive().optional(),
     email: z.string().email().optional(),
     force: z.boolean().optional(),
   })
   .refine(
     (d) => {
-      const { force: _f, ...fields } = d;
+      const { force, ...fields } = d;
+      void force;
       return Object.values(fields).some((v) => v !== undefined);
     },
     { message: "Debe enviar al menos un campo a actualizar" },
@@ -44,6 +47,37 @@ function pickString(
     if (typeof v === "number" && v > 0) return String(v);
   }
   return null;
+}
+
+function normalizeSpanishInmovillaPhone(
+  phone: number | undefined,
+  prefix: number | undefined,
+): { phone?: number; prefix?: number; raw?: string } {
+  if (phone === undefined) return {};
+  const digits = String(phone).replace(/\D/g, "");
+  if (!digits) return {};
+
+  if (digits.length === 11 && digits.startsWith("34")) {
+    return {
+      phone: Number(digits.slice(2)),
+      prefix: prefix ?? 34,
+      raw: digits,
+    };
+  }
+
+  if (digits.length === 9) {
+    return {
+      phone: Number(digits),
+      prefix: prefix ?? 34,
+      raw: `${prefix ?? 34}${digits}`,
+    };
+  }
+
+  return {
+    phone: Number(digits),
+    prefix,
+    raw: prefix ? `${prefix}${digits}` : digits,
+  };
 }
 
 export async function POST(
@@ -116,11 +150,13 @@ export async function POST(
   }
 
   const restClient = createInmovillaRestClient({ token });
+  const normalizedPhone1 = normalizeSpanishInmovillaPhone(patch.telefono1, patch.prefijotel1);
+  const normalizedPhone2 = normalizeSpanishInmovillaPhone(patch.telefono2, patch.prefijotel2);
 
   if ((patch.telefono1 || patch.email) && !patch.force) {
     try {
       const duplicates = await searchClient(restClient, {
-        telefono: patch.telefono1 ? String(patch.telefono1) : undefined,
+        telefono: normalizedPhone1.phone ? String(normalizedPhone1.phone) : undefined,
         email: patch.email,
       });
 
@@ -156,8 +192,10 @@ export async function POST(
     const inmoPatch: Record<string, unknown> = {};
     if (patch.nombre !== undefined) inmoPatch.nombre = patch.nombre;
     if (patch.apellidos !== undefined) inmoPatch.apellidos = patch.apellidos;
-    if (patch.telefono1 !== undefined) inmoPatch.telefono1 = patch.telefono1;
-    if (patch.telefono2 !== undefined) inmoPatch.telefono2 = patch.telefono2;
+    if (normalizedPhone1.phone !== undefined) inmoPatch.telefono1 = normalizedPhone1.phone;
+    if (normalizedPhone1.prefix !== undefined) inmoPatch.prefijotel1 = normalizedPhone1.prefix;
+    if (normalizedPhone2.phone !== undefined) inmoPatch.telefono2 = normalizedPhone2.phone;
+    if (normalizedPhone2.prefix !== undefined) inmoPatch.prefijotel2 = normalizedPhone2.prefix;
     if (patch.email !== undefined) inmoPatch.email = patch.email;
 
     await updateClient(restClient, codCli, inmoPatch as Parameters<typeof updateClient>[2]);
@@ -178,7 +216,7 @@ export async function POST(
       localPatch.nombre = fullName;
     }
     if (patch.telefono1 !== undefined) {
-      localPatch.telefono = String(patch.telefono1);
+      localPatch.telefono = normalizedPhone1.raw ?? String(patch.telefono1);
     }
 
     if (Object.keys(localPatch).length > 0) {

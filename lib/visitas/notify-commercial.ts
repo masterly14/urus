@@ -4,6 +4,7 @@ import { shouldSendWhatsAppToCommercials } from "@/lib/whatsapp/send";
 import { updateDemandLeadStatus } from "@/lib/projections/update-lead-status";
 import type { VisitInterestPackage, VisitInterestProperty } from "./interest-package";
 import { getVisitInterestPackageByDemand } from "./interest-package";
+import { createOrUpdateVisitWorkItemsForDemandInterest } from "./work-items";
 
 function formatMoney(value: number | null): string {
   if (value === null) return "precio no disponible";
@@ -74,8 +75,21 @@ function mapContactLabel(property: VisitInterestProperty): string {
   return property.contact.name ? "Contacto" : "Interlocutor";
 }
 
+function appUrl(): string {
+  return process.env.NEXT_PUBLIC_APP_URL?.trim() || "http://localhost:3000";
+}
+
+function buildNextActionText(visitWorkItemIds: string[]): string {
+  const base = "Llama a propietario/agencia para coordinar visita.";
+  if (visitWorkItemIds.length === 1) {
+    return `${base} Abre ${appUrl()}/platform/visitas?visitId=${encodeURIComponent(visitWorkItemIds[0])}`;
+  }
+  return `${base} Abre ${appUrl()}/platform/visitas`;
+}
+
 export async function notifyCommercialVisitInterest(input: {
   demandId: string;
+  propertyIds?: string[];
   causationId?: string | null;
   correlationId?: string | null;
 }): Promise<{ sent: boolean; reason?: string }> {
@@ -87,6 +101,13 @@ export async function notifyCommercialVisitInterest(input: {
   if (!pkg.demand.comercialId) {
     return { sent: false, reason: "demanda_sin_comercial" };
   }
+
+  const workItems = await createOrUpdateVisitWorkItemsForDemandInterest({
+    demandId: input.demandId,
+    propertyIds: input.propertyIds,
+    causationId: input.causationId,
+    correlationId: input.correlationId,
+  });
 
   const comercial = await prisma.comercial.findUnique({
     where: { id: pkg.demand.comercialId },
@@ -108,16 +129,19 @@ export async function notifyCommercialVisitInterest(input: {
   await sendVisitInterestPackageToCommercial(to, {
     demandLabel: pkg.demand.demandName || pkg.demand.demandId,
     buyerPhone: pkg.demand.buyerPhone,
-    properties: pkg.properties.map((property) => ({
-      title: property.title,
-      reference: property.reference,
-      cadastralReference: property.cadastralReference,
-      address: property.address,
-      contactLabel: mapContactLabel(property),
-      phones: property.contact.phones,
-      source: property.source,
-      missingContactPhone: property.missingContactPhone,
-    })),
+    properties: pkg.properties
+      .filter((property) => !input.propertyIds?.length || input.propertyIds.includes(property.propertyId))
+      .map((property) => ({
+        title: property.title,
+        reference: property.reference,
+        cadastralReference: property.cadastralReference,
+        address: property.address,
+        contactLabel: mapContactLabel(property),
+        phones: property.contact.phones,
+        source: property.source,
+        missingContactPhone: property.missingContactPhone,
+      })),
+    nextActionText: buildNextActionText(workItems.map(({ workItem }) => workItem.id)),
   }, {
     trace: {
       source: "visitas",
@@ -129,6 +153,7 @@ export async function notifyCommercialVisitInterest(input: {
         demandId: input.demandId,
         selectionId: pkg.selectionId,
         propertyIds: pkg.properties.map((property) => property.propertyId),
+        visitWorkItemIds: workItems.map(({ workItem }) => workItem.id),
       },
     },
   });

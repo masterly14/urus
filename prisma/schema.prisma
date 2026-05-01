@@ -42,6 +42,11 @@ enum EventType {
   WHATSAPP_ENVIADO
   VISITA_EVALUADA
   VISITA_AGENDADA
+  VISITA_PRECREADA
+  POST_VISITA_DECIDIDA
+  DEMANDA_REPERFILADO_SOLICITADO
+  DEMANDA_BAJA_SOLICITADA
+  NLU_CONTACTO_INICIADO
   SELECCION_COMPRADOR
   SELECCION_VALIDADA
   SELECCION_RECHAZADA
@@ -613,6 +618,17 @@ enum VisitSessionState {
   ESCALATED_MANUAL
 }
 
+enum VisitWorkItemStatus {
+  INCOMPLETE
+  PENDING_SCHEDULE
+  SCHEDULED
+  COMPLETED
+  DECIDED_GREEN
+  DECIDED_YELLOW
+  DECIDED_RED
+  CANCELLED
+}
+
 model VisitSchedulingSession {
   id              String            @id @default(cuid())
   demandId        String
@@ -645,6 +661,32 @@ model VisitSchedulingSession {
   @@index([comercialWaId, state])
   @@index([propertyCode, state])
   @@map("visit_scheduling_sessions")
+}
+
+model VisitWorkItem {
+  id                 String              @id @default(cuid())
+  demandId           String
+  selectionId        String              @default("")
+  propertyId         String
+  propertySource     String
+  comercialId        String
+  buyerName          String              @default("")
+  buyerPhone         String              @default("")
+  propertySnapshot   Json
+  contactSnapshot    Json
+  nluSummary         String              @default("")
+  status             VisitWorkItemStatus @default(PENDING_SCHEDULE)
+  scheduledSessionId String?
+  missingContactPhone Boolean            @default(false)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@unique([demandId, selectionId, propertyId])
+  @@index([comercialId, status])
+  @@index([demandId])
+  @@index([selectionId])
+  @@index([propertyId])
+  @@map("visit_work_items")
 }
 
 model VisitSlotLock {

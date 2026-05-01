@@ -10,8 +10,10 @@ import {
   getVisitInterestPackageByDemand,
   type VisitInterestProperty,
 } from "./interest-package";
+import { getVisitWorkItem, markVisitWorkItemScheduled } from "./work-items";
 
 export type ManualVisitScheduleInput = {
+  visitWorkItemId?: string;
   demandId: string;
   propertyId: string;
   fecha: string;
@@ -75,15 +77,58 @@ function buildCalendarInput(input: {
   };
 }
 
+function propertyFromWorkItem(workItem: NonNullable<Awaited<ReturnType<typeof getVisitWorkItem>>>): VisitInterestProperty {
+  const property = workItem.propertySnapshot as unknown as {
+    title?: string;
+    reference?: string;
+    cadastralReference?: string | null;
+    address?: string;
+    city?: string | null;
+    zone?: string | null;
+    price?: number | null;
+    rooms?: number | null;
+    metersBuilt?: number | null;
+    portalUrl?: string | null;
+  };
+  const contact = workItem.contactSnapshot as unknown as {
+    kind?: VisitInterestProperty["contact"]["kind"];
+    name?: string | null;
+    phones?: string[];
+    source?: VisitInterestProperty["contact"]["source"];
+    missingContactPhone?: boolean;
+  };
+  return {
+    propertyId: workItem.propertyId,
+    source: workItem.propertySource === "internal" ? "internal" : "external",
+    title: property.title ?? workItem.propertyId,
+    reference: property.reference ?? workItem.propertyId,
+    cadastralReference: property.cadastralReference ?? null,
+    address: property.address ?? "Direccion no disponible",
+    city: property.city ?? null,
+    zone: property.zone ?? null,
+    price: property.price ?? null,
+    rooms: property.rooms ?? null,
+    metersBuilt: property.metersBuilt ?? null,
+    portalUrl: property.portalUrl ?? null,
+    contact: {
+      kind: contact.kind ?? "desconocido",
+      name: contact.name ?? null,
+      phones: contact.phones ?? [],
+      source: contact.source ?? "property_current",
+    },
+    missingContactPhone: contact.missingContactPhone ?? workItem.missingContactPhone,
+    interestedAt: workItem.createdAt.toISOString(),
+  };
+}
+
 export async function scheduleManualVisit(
   input: ManualVisitScheduleInput,
 ): Promise<ManualVisitScheduleResult> {
-  const pkg = await getVisitInterestPackageByDemand(input.demandId);
-  if (!pkg) {
-    throw new Error(`Demanda ${input.demandId} no encontrada`);
-  }
-
-  const property = pkg.properties.find((item) => item.propertyId === input.propertyId);
+  const workItem = input.visitWorkItemId ? await getVisitWorkItem(input.visitWorkItemId) : null;
+  const pkg = workItem ? null : await getVisitInterestPackageByDemand(input.demandId);
+  const demandName = workItem?.buyerName || pkg?.demand.demandName || input.demandId;
+  const buyerPhone = workItem?.buyerPhone || pkg?.demand.buyerPhone || "";
+  const property = workItem ? propertyFromWorkItem(workItem) : pkg?.properties.find((item) => item.propertyId === input.propertyId);
   if (!property) {
     throw new Error(`La propiedad ${input.propertyId} no consta como interés de la demanda ${input.demandId}`);
   }
@@ -120,7 +165,7 @@ export async function scheduleManualVisit(
 
   const calendarResult = await createCalendarEvent(
     buildCalendarInput({
-      demandName: pkg.demand.demandName || pkg.demand.demandId,
+      demandName,
       property,
       fecha: input.fecha,
       horaInicio: input.horaInicio,
@@ -135,15 +180,15 @@ export async function scheduleManualVisit(
       demandId: input.demandId,
       propertyCode: input.propertyId,
       comercialId: input.comercialId,
-      buyerWaId: pkg.demand.buyerPhone,
+      buyerWaId: buyerPhone,
       comercialWaId: comercial.waId || comercial.telefono || "",
       state: "VISIT_CONFIRMED",
       currentRound: 0,
       maxRounds: 0,
       confirmedSlotStart: slotStart,
       confirmedSlotEnd: slotEnd,
-      visitorName: pkg.demand.demandName,
-      visitorPhone: pkg.demand.buyerPhone,
+      visitorName: demandName,
+      visitorPhone: buyerPhone,
       calendarEventId: calendarResult.eventId ?? null,
       calendarLink: calendarResult.link ?? null,
       completedAt: new Date(),
@@ -173,8 +218,8 @@ export async function scheduleManualVisit(
       fecha: input.fecha,
       horaInicio: input.horaInicio,
       horaFin: input.horaFin,
-      visitorName: pkg.demand.demandName,
-      visitorPhone: pkg.demand.buyerPhone,
+      visitorName: demandName,
+      visitorPhone: buyerPhone,
       calendarEventId: calendarResult.eventId || null,
       calendarLink: calendarResult.link || null,
       calendarSuccess: calendarResult.success,
@@ -191,12 +236,19 @@ export async function scheduleManualVisit(
   });
 
   await updateDemandLeadStatus(input.demandId, "VISITA_CONFIRMADA");
+  if (input.visitWorkItemId) {
+    await markVisitWorkItemScheduled({
+      id: input.visitWorkItemId,
+      scheduledSessionId: visitSession.id,
+    });
+  }
+
   await scheduleParteVisitaFromDetails({
     visitSessionId: visitSession.id,
     propertyCode: input.propertyId,
     propertyRef: property.reference,
     comercialId: input.comercialId,
-    buyerPhone: pkg.demand.buyerPhone,
+    buyerPhone,
     visitDateTime: slotStart,
     direccion: property.address,
     tipoOperacion: "VENTA",
