@@ -10,7 +10,7 @@ echo "✅ Pre-commit OK"
 branch=$(git rev-parse --abbrev-ref HEAD)
 pattern="^(feat|fix|refactor|docs|test|chore)\/[A-Z0-9]+-[a-z0-9-]+$"
 
-if ! echo "$branch" | grep -qE "$pattern"; then
+if [ "$branch" != "main" ] && [ "$branch" != "develop" ] && ! echo "$branch" | grep -qE "$pattern"; then
   echo "❌ Nombre de rama inválido: '$branch'"
   echo "   Formato esperado: feat/M1-descripcion-kebab-case"
   exit 1
