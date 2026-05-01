@@ -1,4 +1,5 @@
 import { AggregateType, EventType } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { fromZonedTime } from "date-fns-tz";
 import { appendEvent } from "@/lib/event-store/event-store";
 import { enqueueJob } from "@/lib/job-queue";
@@ -36,11 +37,13 @@ function toDate(fecha: string, hora: string): Date {
 }
 
 function assertNoOverlap(input: {
+  tx?: Prisma.TransactionClient;
   propertyCode: string;
   slotStart: Date;
   slotEnd: Date;
 }) {
-  return prisma.propertyVisitSlot.count({
+  const client = input.tx ?? prisma;
+  return client.propertyVisitSlot.count({
     where: {
       propertyCode: input.propertyCode,
       cancelled: false,
@@ -73,6 +76,18 @@ function buildCalendarInput(input: {
     horaFin: input.horaFin,
     ubicacion: input.property.address,
   };
+}
+
+function isVisitOverlapWriteError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const candidate = err as Error & { code?: string; meta?: Record<string, unknown> };
+  const meta = JSON.stringify(candidate.meta ?? {});
+  return (
+    candidate.code === "P2002" ||
+    candidate.code === "P2004" ||
+    meta.includes("property_visit_slots_no_active_overlap") ||
+    meta.includes("23P01")
+  );
 }
 
 export async function scheduleManualVisit(
@@ -109,54 +124,82 @@ export async function scheduleManualVisit(
     throw new Error("La hora de fin debe ser posterior a la hora de inicio");
   }
 
-  const overlapping = await assertNoOverlap({
-    propertyCode: input.propertyId,
-    slotStart,
-    slotEnd,
-  });
-  if (overlapping > 0) {
-    throw new Error("La propiedad ya tiene una visita confirmada en ese horario");
+  let visitSession;
+  try {
+    visitSession = await prisma.$transaction(async (tx) => {
+      const overlapping = await assertNoOverlap({
+        tx,
+        propertyCode: input.propertyId,
+        slotStart,
+        slotEnd,
+      });
+      if (overlapping > 0) {
+        throw new Error("La propiedad ya tiene una visita confirmada en ese horario");
+      }
+
+      const createdSession = await tx.visitSchedulingSession.create({
+        data: {
+          demandId: input.demandId,
+          propertyCode: input.propertyId,
+          comercialId: input.comercialId,
+          buyerWaId: pkg.demand.buyerPhone,
+          comercialWaId: comercial.waId || comercial.telefono || "",
+          state: "VISIT_CONFIRMED",
+          currentRound: 0,
+          maxRounds: 0,
+          confirmedSlotStart: slotStart,
+          confirmedSlotEnd: slotEnd,
+          visitorName: pkg.demand.demandName,
+          visitorPhone: pkg.demand.buyerPhone,
+          completedAt: new Date(),
+        },
+      });
+
+      await tx.propertyVisitSlot.create({
+        data: {
+          propertyCode: input.propertyId,
+          slotStart,
+          slotEnd,
+          sessionId: createdSession.id,
+          comercialId: input.comercialId,
+        },
+      });
+
+      return createdSession;
+    });
+  } catch (err) {
+    if (isVisitOverlapWriteError(err)) {
+      throw new Error("La propiedad ya tiene una visita confirmada en ese horario");
+    }
+    throw err;
   }
 
-  const calendarResult = await createCalendarEvent(
-    buildCalendarInput({
-      demandName: pkg.demand.demandName || pkg.demand.demandId,
-      property,
-      fecha: input.fecha,
-      horaInicio: input.horaInicio,
-      horaFin: input.horaFin,
-      notas: input.notas,
-    }),
-    comercial.composioConnectionId,
-  );
+  let calendarResult;
+  try {
+    calendarResult = await createCalendarEvent(
+      buildCalendarInput({
+        demandName: pkg.demand.demandName || pkg.demand.demandId,
+        property,
+        fecha: input.fecha,
+        horaInicio: input.horaInicio,
+        horaFin: input.horaFin,
+        notas: input.notas,
+      }),
+      comercial.composioConnectionId,
+    );
+  } catch (err) {
+    await prisma.$transaction([
+      prisma.propertyVisitSlot.deleteMany({ where: { sessionId: visitSession.id } }),
+      prisma.visitSchedulingSession.delete({ where: { id: visitSession.id } }),
+    ]);
+    throw err;
+  }
 
-  const visitSession = await prisma.visitSchedulingSession.create({
+  await prisma.visitSchedulingSession.update({
+    where: { id: visitSession.id },
     data: {
-      demandId: input.demandId,
-      propertyCode: input.propertyId,
-      comercialId: input.comercialId,
-      buyerWaId: pkg.demand.buyerPhone,
-      comercialWaId: comercial.waId || comercial.telefono || "",
-      state: "VISIT_CONFIRMED",
-      currentRound: 0,
-      maxRounds: 0,
-      confirmedSlotStart: slotStart,
-      confirmedSlotEnd: slotEnd,
-      visitorName: pkg.demand.demandName,
-      visitorPhone: pkg.demand.buyerPhone,
       calendarEventId: calendarResult.eventId ?? null,
       calendarLink: calendarResult.link ?? null,
-      completedAt: new Date(),
-    },
-  });
-
-  await prisma.propertyVisitSlot.create({
-    data: {
-      propertyCode: input.propertyId,
-      slotStart,
-      slotEnd,
-      sessionId: visitSession.id,
-      comercialId: input.comercialId,
     },
   });
 
