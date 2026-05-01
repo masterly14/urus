@@ -81,6 +81,7 @@ export const WHATSAPP_TEMPLATES = {
   POSTVENTA_NAVIDAD: process.env.WHATSAPP_TEMPLATE_POSTVENTA_NAVIDAD ?? "postventa_navidad",           // body: 2 vars
   DEV_EJERCICIO: process.env.WHATSAPP_TEMPLATE_DEV_EXERCISE ?? "dev_ejercicio_diario",               // body: 3 vars
   VISITA_PAQUETE_COMERCIAL: process.env.WHATSAPP_TEMPLATE_VISITA_PAQUETE_COMERCIAL ?? "visita_paquete_comercial", // body: 4 vars (demanda, comprador, propiedades, acción)
+  NLU_DEMANDA_CONTACTO_INICIAL: process.env.WHATSAPP_TEMPLATE_NLU_DEMANDA_CONTACTO_INICIAL ?? "nlu_demanda_contacto_inicial", // body: 2 vars (nombre, mensaje)
 } as const;
 
 // ---------------------------------------------------------------------------
