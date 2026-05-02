@@ -107,6 +107,17 @@ async function createOrReuseOperacion(input: {
         `Ya existe una operación activa para esta propiedad: ${existing.codigo} (${existing.estado})`,
       );
     }
+    if (!existing.demandId) {
+      const linked = await prisma.operacion.update({
+        where: { id: existing.id },
+        data: {
+          demandId: input.workItem.demandId,
+          comercialId: input.workItem.comercialId,
+        },
+        select: { id: true, codigo: true },
+      });
+      return { ...linked, existing: true };
+    }
     return { ...existing, existing: true };
   }
 
