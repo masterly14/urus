@@ -98,10 +98,15 @@ async function createOrReuseOperacion(input: {
       propertyCode: input.workItem.propertyId,
       estado: { notIn: ["CERRADA_VENTA", "CERRADA_ALQUILER", "CERRADA_TRASPASO", "CANCELADA"] },
     },
-    select: { id: true, codigo: true },
+    select: { id: true, codigo: true, demandId: true, estado: true },
   });
 
   if (existing) {
+    if (existing.demandId && existing.demandId !== input.workItem.demandId) {
+      throw new Error(
+        `Ya existe una operación activa para esta propiedad: ${existing.codigo} (${existing.estado})`,
+      );
+    }
     return { ...existing, existing: true };
   }
 
