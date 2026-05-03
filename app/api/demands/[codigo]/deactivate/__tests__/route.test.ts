@@ -72,4 +72,26 @@ describe("POST /api/demands/[codigo]/deactivate", () => {
     expect(res.status).toBe(403);
     expect(mockDeactivateDemand).not.toHaveBeenCalled();
   });
+
+  it("bloquea comerciales sin vinculacion aunque la demanda no tenga comercial", async () => {
+    mockGetSession.mockResolvedValue({
+      role: "comercial",
+      comercialId: null,
+      nombre: "Comercial sin ficha",
+      email: "sin-ficha@example.com",
+    });
+    mockDemandFindUnique.mockResolvedValue({
+      codigo: "DEM-001",
+      comercialId: null,
+      leadStatus: "EN_SELECCION",
+    });
+
+    const { POST } = await import("../route");
+    const res = await POST(new Request("http://localhost"), {
+      params: Promise.resolve({ codigo: "DEM-001" }),
+    });
+
+    expect(res.status).toBe(403);
+    expect(mockDeactivateDemand).not.toHaveBeenCalled();
+  });
 });
