@@ -96,6 +96,7 @@ async function createOrReuseOperacion(input: {
   const existing = await prisma.operacion.findFirst({
     where: {
       propertyCode: input.workItem.propertyId,
+      demandId: input.workItem.demandId,
       estado: { notIn: ["CERRADA_VENTA", "CERRADA_ALQUILER", "CERRADA_TRASPASO", "CANCELADA"] },
     },
     select: { id: true, codigo: true },
