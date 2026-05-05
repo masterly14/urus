@@ -8,7 +8,11 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
+import {
+  getSessionFromRequest,
+  isCeoOrAdmin,
+  unauthorized,
+} from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store";
 import { createInmovillaRestClient } from "@/lib/inmovilla/rest/client";
@@ -105,6 +109,20 @@ export async function POST(
   }
 
   const patch = parsed.data;
+
+  const demand = await prisma.demandCurrent.findUnique({
+    where: { codigo },
+    select: { comercialId: true },
+  });
+  if (!demand) {
+    return NextResponse.json({ error: "Demanda no encontrada" }, { status: 404 });
+  }
+  if (!isCeoOrAdmin(session.role) && demand.comercialId !== session.comercialId) {
+    return NextResponse.json(
+      { error: "Solo puedes editar datos de tus propias demandas." },
+      { status: 403 },
+    );
+  }
 
   const token = process.env.INMOVILLA_API_TOKEN;
   if (!token) {
