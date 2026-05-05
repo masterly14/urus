@@ -109,6 +109,33 @@ describe("decideVisitWorkItem", () => {
     expect(result.operacion).toMatchObject({ codigo: "OP-2026-0007", existing: false });
   });
 
+  it("verde solo reutiliza operaciones abiertas de la misma demanda", async () => {
+    mockOperacionFindFirst.mockResolvedValue({ id: "op-existing", codigo: "OP-2026-0001" });
+
+    const result = await decideVisitWorkItem({
+      visitWorkItemId: "vwi-001",
+      decision: "green",
+      decidedBy: "Comercial",
+    });
+
+    expect(mockOperacionFindFirst).toHaveBeenCalledWith({
+      where: {
+        propertyCode: "PROP-001",
+        demandId: "DEM-001",
+        estado: {
+          notIn: ["CERRADA_VENTA", "CERRADA_ALQUILER", "CERRADA_TRASPASO", "CANCELADA"],
+        },
+      },
+      select: { id: true, codigo: true },
+    });
+    expect(mockOperacionCreate).not.toHaveBeenCalled();
+    expect(result.operacion).toMatchObject({
+      id: "op-existing",
+      codigo: "OP-2026-0001",
+      existing: true,
+    });
+  });
+
   it("amarillo emite re-perfilado y devuelve la demanda a EN_SELECCION", async () => {
     const result = await decideVisitWorkItem({
       visitWorkItemId: "vwi-001",
