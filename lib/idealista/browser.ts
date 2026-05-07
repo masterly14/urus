@@ -11,7 +11,19 @@ export async function createIdealistaBrowser(
   headless: boolean,
   storageStatePath?: string,
 ): Promise<IdealistaBrowserKit> {
-  const browser = await chromium.launch({ headless });
+  const proxyServer = process.env.IDEALISTA_PROXY_SERVER?.trim();
+  const browser = await chromium.launch({
+    headless,
+    ...(proxyServer
+      ? {
+          proxy: {
+            server: proxyServer,
+            username: process.env.IDEALISTA_PROXY_USERNAME?.trim() || undefined,
+            password: process.env.IDEALISTA_PROXY_PASSWORD?.trim() || undefined,
+          },
+        }
+      : {}),
+  });
   const context = await browser.newContext({
     locale: "es-ES",
     timezoneId: "Europe/Madrid",

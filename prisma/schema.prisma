@@ -154,6 +154,18 @@ enum JobType {
   EVALUATE_DEMAND_COVERAGE
   REBUILD_MATCHES_FOR_DEMAND
   UPDATE_PROPERTY_STATUS_INMOVILLA
+  IMPORT_STATEFOX_PORTAL_IMAGES
+  MARKET_DISCOVER_SEEDS
+  MARKET_CRAWL_SEED
+  MARKET_FETCH_DETAIL
+  MARKET_NORMALIZE_BATCH
+  MARKET_RESOLVE_IDENTITY
+  MARKET_RESOLVE_ADVERTISER
+  MARKET_DIFF_AND_VERSION
+  MARKET_REFRESH_SNAPSHOT
+  MARKET_RUN_RULES
+  MARKET_REINDEX_PROPERTY
+  MARKET_PUSH_ADVERTISER_TO_INMOVILLA
 }
 
 enum JobStatus {
@@ -190,6 +202,31 @@ enum MicrositeSelectionStatus {
 enum MicrositeSelectionDecision {
   ME_INTERESA
   NO_ME_ENCAJA
+}
+
+enum StatefoxPortalSource {
+  idealista
+  fotocasa
+  pisoscom
+  habitaclia
+  unknown
+}
+
+enum StatefoxImageCacheStatus {
+  PENDING
+  IMPORTED
+  FAILED
+  BLOCKED
+  CAPTCHA
+  LISTING_REMOVED
+  NO_IMAGES_FOUND
+}
+
+enum PortalWarmSessionStatus {
+  ACTIVE
+  EXPIRED
+  EXHAUSTED
+  INVALIDATED
 }
 
 model Event {
@@ -314,38 +351,38 @@ model DemandSnapshot {
 }
 
 model PropertyCurrent {
-  codigo             String   @id
-  ref                String   @default("")
-  refCatastral       String?
-  titulo             String   @default("")
-  tipoOfer           String   @default("")
-  precio             Float    @default(0)
-  metrosConstruidos  Float    @default(0)
-  habitaciones       Int      @default(0)
-  banyos             Int      @default(0)
-  ciudad             String   @default("")
-  zona               String   @default("")
-  estado             String   @default("")
-  nodisponible       Boolean  @default(false)
-  prospecto          Boolean  @default(false)
-  fechaAlta          String   @default("")
-  fechaActualizacion String   @default("")
-  numFotos           Int      @default(0)
-  agente             String   @default("")
+  codigo                     String    @id
+  ref                        String    @default("")
+  refCatastral               String?
+  titulo                     String    @default("")
+  tipoOfer                   String    @default("")
+  precio                     Float     @default(0)
+  metrosConstruidos          Float     @default(0)
+  habitaciones               Int       @default(0)
+  banyos                     Int       @default(0)
+  ciudad                     String    @default("")
+  zona                       String    @default("")
+  estado                     String    @default("")
+  nodisponible               Boolean   @default(false)
+  prospecto                  Boolean   @default(false)
+  fechaAlta                  String    @default("")
+  fechaActualizacion         String    @default("")
+  numFotos                   Int       @default(0)
+  agente                     String    @default("")
   /// ID interno del comercial gestor (resuelto desde keyagente de Inmovilla)
-  comercialId        String?
+  comercialId                String?
   /// URL absoluta de la foto principal. Se llenará en FASE 2 desde el worker
   /// que cachea la foto en Cloudinary (source: `lafoto` de la API legacy o
   /// URL construida con numagencia+cod_ofer+fotoletra de la REST v1).
-  mainPhotoUrl       String?
+  mainPhotoUrl               String?
   /// URL pública del anuncio en el portal inmobiliario principal donde está
   /// publicado (prioridad Idealista). Se llenará en FASE 2 desde el worker
   /// que consume `GET /propiedades/?extrainfo&cod_ofer=` → `publishinfo[idealista].publication_url`.
-  portalUrl          String?
+  portalUrl                  String?
   /// Nombre canónico del portal al que apunta `portalUrl` (ej. "idealista", "pisos.com", "fotocasa").
-  portalName         String?
+  portalName                 String?
   /// Última vez que el worker de extrainfo sincronizó portalUrl/portalName (null si nunca).
-  portalSyncedAt     DateTime?
+  portalSyncedAt             DateTime?
   /// Datos de propietario capturados desde Nota de Encargo cuando la propiedad aún no existía en Inmovilla.
   propietarioNombre          String?
   propietarioDni             String?
@@ -354,11 +391,11 @@ model PropertyCurrent {
   propietarioRegisteredAt    DateTime?
   /// Sesión de Nota de Encargo desde la que se copiaron los datos del propietario.
   notaEncargoSessionId       String?
-  lastEventId        String
-  lastEventPosition  BigInt
-  lastEventAt        DateTime
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  lastEventId                String
+  lastEventPosition          BigInt
+  lastEventAt                DateTime
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
 
   @@index([estado])
   @@index([ciudad, zona])
@@ -395,6 +432,54 @@ model PricingReport {
   @@map("pricing_reports")
 }
 
+model StatefoxComparableImage {
+  id                  String                   @id @default(cuid())
+  source              StatefoxPortalSource
+  statefoxId          String
+  portalUrl           String
+  imageIndex          Int
+  originalImageUrl    String?
+  originalImageSha256 String?
+  cloudinaryPublicId  String?
+  cloudinarySecureUrl String?
+  width               Int?
+  height              Int?
+  bytes               Int?
+  format              String?
+  status              StatefoxImageCacheStatus @default(PENDING)
+  errorReason         String?
+  attempts            Int                      @default(0)
+  lastAttemptAt       DateTime?
+  importedAt          DateTime?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  @@unique([source, statefoxId, imageIndex])
+  @@index([statefoxId, status])
+  @@index([source, status, updatedAt])
+  @@index([originalImageSha256])
+  @@map("statefox_comparable_images")
+}
+
+model PortalWarmSession {
+  id            String                  @id @default(cuid())
+  source        StatefoxPortalSource
+  cookieHeader  String
+  userAgent     String
+  proxySession  String?
+  status        PortalWarmSessionStatus @default(ACTIVE)
+  requestCount  Int                     @default(0)
+  maxRequests   Int                     @default(40)
+  expiresAt     DateTime
+  lastUsedAt    DateTime?
+  warmedAt      DateTime                @default(now())
+  invalidatedAt DateTime?
+  invalidReason String?
+
+  @@index([source, status, expiresAt])
+  @@map("portal_warm_sessions")
+}
+
 /// Informe estratégico IA del mercado agregado (M7 — Smart Pricing).
 ///
 /// Se genera on-demand desde `/platform/pricing/mercado` a través de LangGraph
@@ -403,25 +488,25 @@ model PricingReport {
 /// informe estructurado devuelto por el LLM. Cada generación emite un evento
 /// `MARKET_INFORME_GENERADO` en el Event Store con `aggregateType = MARKET`.
 model MarketReport {
-  id             String   @id @default(cuid())
+  id            String   @id @default(cuid())
   /// Ciudad del alcance del informe. "Todas" cuando no se filtró por ciudad.
-  ciudad         String
+  ciudad        String
   /// Usuario que disparó la generación (AppSession.userId).
-  generatedBy    String
+  generatedBy   String
   /// Modelo LLM usado (p. ej. "gpt-5.4-mini").
-  model          String
+  model         String
   /// Snapshot de los datos agregados de mercado usados como input del LLM
   /// (zones + competitors recortados a lo enviado al prompt).
-  inputSnapshot  Json
+  inputSnapshot Json
   /// Informe estructurado (MarketReportSchema de Zod) devuelto por el graph.
-  report         Json
+  report        Json
   /// Tokens consumidos si el proveedor los reporta; null si no.
-  tokensUsed     Int?
+  tokensUsed    Int?
   /// ID del evento `MARKET_INFORME_GENERADO` emitido al persistir.
-  lastEventId    String?
-  generatedAt    DateTime @default(now())
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  lastEventId   String?
+  generatedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([ciudad, generatedAt])
   @@index([generatedBy, generatedAt])
@@ -429,25 +514,25 @@ model MarketReport {
 }
 
 model DemandCurrent {
-  codigo             String   @id
-  ref                String   @default("")
-  nombre             String   @default("")
-  estadoId           String   @default("")
-  estadoNombre       String   @default("")
-  presupuestoMin     Float    @default(0)
-  presupuestoMax     Float    @default(0)
-  habitacionesMin    Int      @default(0)
-  tipos              String   @default("")
-  zonas              String   @default("")
-  fechaActualizacion String   @default("")
-  agente             String   @default("")
+  codigo             String     @id
+  ref                String     @default("")
+  nombre             String     @default("")
+  estadoId           String     @default("")
+  estadoNombre       String     @default("")
+  presupuestoMin     Float      @default(0)
+  presupuestoMax     Float      @default(0)
+  habitacionesMin    Int        @default(0)
+  tipos              String     @default("")
+  zonas              String     @default("")
+  fechaActualizacion String     @default("")
+  agente             String     @default("")
   /// ID interno del comercial gestor (resuelto desde agente de Inmovilla)
   comercialId        String?
   lastEventId        String
   lastEventPosition  BigInt
   lastEventAt        DateTime
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
   /// * Teléfono del contacto/comprador si la ingesta lo expone (E.164 o dígitos).
   telefono           String     @default("")
   /// Estado del pipeline interno. Independiente de Inmovilla; se actualiza
@@ -587,16 +672,16 @@ model ExecutionMetric {
 // ---------------------------------------------------------------------------
 
 enum LeadStatus {
-  NUEVO              // Demanda recibida de Inmovilla; sin contacto aún
-  CONTACTADO         // Primer contacto realizado vía WhatsApp
-  EN_SELECCION       // Comprador interactuando con microsites o propiedades
-  VISITA_PENDIENTE   // Comprador expresó ME_INTERESA; coordinando visita
-  VISITA_CONFIRMADA  // Visita agendada en calendario (comprador aceptó slot)
-  VISITA_REALIZADA   // Visita completada; datos recopilados
-  EN_NEGOCIACION     // Post-visita: contrato o propuesta en proceso
-  EN_FIRMA           // Firma digital enviada / en trámite
-  CERRADO            // Operación cerrada exitosamente
-  PERDIDO            // Lead perdido (escalado sin resolución / cancelado)
+  NUEVO // Demanda recibida de Inmovilla; sin contacto aún
+  CONTACTADO // Primer contacto realizado vía WhatsApp
+  EN_SELECCION // Comprador interactuando con microsites o propiedades
+  VISITA_PENDIENTE // Comprador expresó ME_INTERESA; coordinando visita
+  VISITA_CONFIRMADA // Visita agendada en calendario (comprador aceptó slot)
+  VISITA_REALIZADA // Visita completada; datos recopilados
+  EN_NEGOCIACION // Post-visita: contrato o propuesta en proceso
+  EN_FIRMA // Firma digital enviada / en trámite
+  CERRADO // Operación cerrada exitosamente
+  PERDIDO // Lead perdido (escalado sin resolución / cancelado)
 }
 
 enum VisitSessionState {
@@ -630,31 +715,31 @@ enum VisitWorkItemStatus {
 }
 
 model VisitSchedulingSession {
-  id              String            @id @default(cuid())
-  demandId        String
-  propertyCode    String
-  comercialId     String
-  buyerWaId       String
-  comercialWaId   String
-  state           VisitSessionState @default(INITIATED)
-  currentRound    Int               @default(0)
-  maxRounds       Int               @default(3)
+  id                  String            @id @default(cuid())
+  demandId            String
+  propertyCode        String
+  comercialId         String
+  buyerWaId           String
+  comercialWaId       String
+  state               VisitSessionState @default(INITIATED)
+  currentRound        Int               @default(0)
+  maxRounds           Int               @default(3)
   confirmedSlotStart  DateTime?
   confirmedSlotEnd    DateTime?
-  visitorName     String?
-  visitorPhone    String?
-  visitorCount    Int?
-  calendarEventId String?
-  calendarLink    String?
-  escalationReason String?
+  visitorName         String?
+  visitorPhone        String?
+  visitorCount        Int?
+  calendarEventId     String?
+  calendarLink        String?
+  escalationReason    String?
   lastProposedSlots   Json?
   lastCommercialMsgId String?
   lastBuyerMsgId      String?
   buyerPreferredDate  String?
   currentStepDeadline DateTime?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  completedAt     DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  completedAt         DateTime?
 
   @@index([demandId])
   @@index([buyerWaId, state])
@@ -664,22 +749,22 @@ model VisitSchedulingSession {
 }
 
 model VisitWorkItem {
-  id                 String              @id @default(cuid())
-  demandId           String
-  selectionId        String              @default("")
-  propertyId         String
-  propertySource     String
-  comercialId        String
-  buyerName          String              @default("")
-  buyerPhone         String              @default("")
-  propertySnapshot   Json
-  contactSnapshot    Json
-  nluSummary         String              @default("")
-  status             VisitWorkItemStatus @default(PENDING_SCHEDULE)
-  scheduledSessionId String?
-  missingContactPhone Boolean            @default(false)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  id                  String              @id @default(cuid())
+  demandId            String
+  selectionId         String              @default("")
+  propertyId          String
+  propertySource      String
+  comercialId         String
+  buyerName           String              @default("")
+  buyerPhone          String              @default("")
+  propertySnapshot    Json
+  contactSnapshot     Json
+  nluSummary          String              @default("")
+  status              VisitWorkItemStatus @default(PENDING_SCHEDULE)
+  scheduledSessionId  String?
+  missingContactPhone Boolean             @default(false)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
   @@unique([demandId, selectionId, propertyId])
   @@index([comercialId, status])
@@ -742,25 +827,26 @@ model User {
 
   sessions          Session[]
   accounts          Account[]
-  comercial         Comercial? @relation(fields: [comercialId], references: [id])
-  comercialId       String?    @unique
+  comercial         Comercial?         @relation(fields: [comercialId], references: [id])
+  comercialId       String?            @unique
   contractTemplates ContractTemplate[]
+  assignedMarketListings MarketListing[] @relation("MarketListingAssignedByUser")
 
   @@map("user")
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  expiresAt DateTime
-  token     String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  ipAddress String?
-  userAgent String?
+  id             String   @id @default(cuid())
+  expiresAt      DateTime
+  token          String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
   /// Plugin admin (better-auth) — sesión de impersonación
   impersonatedBy String?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("session")
 }
@@ -785,73 +871,74 @@ model Account {
 }
 
 model Verification {
-  id         String    @id @default(cuid())
+  id         String   @id @default(cuid())
   identifier String
   value      String
   expiresAt  DateTime
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@map("verification")
 }
 
 model Invitation {
-  id          String     @id @default(cuid())
-  email       String
-  role        String
-  token       String     @unique
-  expiresAt   DateTime
-  used        Boolean    @default(false)
-  invitedBy   String
-  createdAt   DateTime   @default(now())
+  id           String     @id @default(cuid())
+  email        String
+  role         String
+  token        String     @unique
+  expiresAt    DateTime
+  used         Boolean    @default(false)
+  invitedBy    String
+  createdAt    DateTime   @default(now())
   /// Nombre que el CEO/admin asigna al invitado; se usa al aceptar (sin pedirlo de nuevo en el registro).
-  invitedName  String    @default("")
+  invitedName  String     @default("")
   /// Teléfono normalizado (E.164 sin +, ej. 34612345678). Obligatorio para comercial; opcional para admin.
-  invitedPhone String    @default("")
+  invitedPhone String     @default("")
   /// Ficha Comercial a vincular al aceptar (rol comercial). Evita depender de Comercial.email, que suele ir vacío.
-  comercialId String?
-  comercial   Comercial? @relation(fields: [comercialId], references: [id], onDelete: SetNull)
+  comercialId  String?
+  comercial    Comercial? @relation(fields: [comercialId], references: [id], onDelete: SetNull)
   /// Iniciales del comercial en la ref de Inmovilla (ej. "MA", "FEDE"). Se copia a Comercial.inmovillaRefCode al aceptar.
-  refCode     String?
+  refCode      String?
 
   @@index([comercialId])
   @@map("invitation")
 }
 
 model Comercial {
-  id             String   @id @default(cuid())
-  nombre         String
-  telefono       String   @default("")
-  email          String   @default("")
-  ciudad         String
-  especialidad   String   @default("general")
-  activo         Boolean  @default(true)
-  cargaActual    Int      @default(0)
-  cargaMaxima    Int      @default(20)
-  leadsAsignados Int      @default(0)
-  leadsCerrados  Int      @default(0)
-  tasaConversion Float    @default(0)
+  id                    String    @id @default(cuid())
+  nombre                String
+  telefono              String    @default("")
+  email                 String    @default("")
+  ciudad                String
+  especialidad          String    @default("general")
+  activo                Boolean   @default(true)
+  cargaActual           Int       @default(0)
+  cargaMaxima           Int       @default(20)
+  leadsAsignados        Int       @default(0)
+  leadsCerrados         Int       @default(0)
+  tasaConversion        Float     @default(0)
   /// WhatsApp ID del comercial (E.164 sin +, ej: "34612345678")
-  waId                 String?
+  waId                  String?
   /// Composio userId para la conexión OAuth de Google Calendar
-  composioConnectionId String?
+  composioConnectionId  String?
   /// Fecha en que el comercial autorizó su calendario via Composio
-  composioConnectedAt  DateTime?
+  composioConnectedAt   DateTime?
   /// Proveedor de calendario conectado (google | outlook)
-  calendarProvider     String?   @default("google")
+  calendarProvider      String?   @default("google")
   /// ID numérico del agente en Inmovilla (campo `keyagente` de la ficha de propiedad)
-  inmovillaAgentId     Int?      @unique
+  inmovillaAgentId      Int?      @unique
   /// Iniciales del comercial en las refs de Inmovilla (ej. "MA" → URUS111VMA). Patrón: URUS{num}{V|A}{refCode}
-  inmovillaRefCode     String?
+  inmovillaRefCode      String?
   /// Si true, los microsites de este comercial se validan automáticamente con IA
   /// (descripciones generadas + rebranding) y se envían al comprador sin validación manual.
-  autoValidateMicrosite Boolean @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  autoValidateMicrosite Boolean   @default(false)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  referrals    Referral[]
-  user         User?
-  invitations  Invitation[]
+  referrals   Referral[]
+  user        User?
+  invitations Invitation[]
+  assignedMarketListings MarketListing[] @relation("MarketListingAssignedComercial")
 
   @@index([ciudad, activo])
   @@index([activo, cargaActual])
@@ -1009,28 +1096,28 @@ enum LegalDocumentStatus {
 }
 
 model LegalDocument {
-  id                 String              @id @default(cuid())
-  operationId        String
-  propertyCode       String
-  documentKind       String
-  templateVersion    String?
-  status             LegalDocumentStatus @default(DRAFT)
-  contractInput      Json?
+  id                         String              @id @default(cuid())
+  operationId                String
+  propertyCode               String
+  documentKind               String
+  templateVersion            String?
+  status                     LegalDocumentStatus @default(DRAFT)
+  contractInput              Json?
   /// Cláusulas adicionales libres escritas por el agente desde el editor
   /// WYSIWYG (TipTap JSON con subset controlado: paragraph, bold, italic,
   /// fontSize S/M/L, bulletList, orderedList). Opcional y editable solo
   /// mientras el documento esté en DRAFT.
-  additionalClausesDoc      Json?
+  additionalClausesDoc       Json?
   additionalClausesUpdatedAt DateTime?
-  cloudinaryUrl      String?
-  signedDocumentUrl  String?
-  auditTrailUrl      String?
-  approvedAt         DateTime?
-  approvedByUserId   String?
-  completedAt        DateTime?
-  signatureRequestId String?             @unique
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  cloudinaryUrl              String?
+  signedDocumentUrl          String?
+  auditTrailUrl              String?
+  approvedAt                 DateTime?
+  approvedByUserId           String?
+  completedAt                DateTime?
+  signatureRequestId         String?             @unique
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
 
   signatureRequest SignatureRequest?    @relation(fields: [signatureRequestId], references: [id], onDelete: SetNull)
   parties          LegalDocumentParty[]
@@ -1374,10 +1461,10 @@ model Operacion {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
-  asignaciones ColaboradorAsignacion[]
-  notas         OperacionNota[]
+  asignaciones   ColaboradorAsignacion[]
+  notas          OperacionNota[]
   checklistItems OperacionChecklistItem[]
-  adjuntos      OperacionAdjunto[]
+  adjuntos       OperacionAdjunto[]
 
   @@index([propertyCode, estado])
   @@index([comercialId, createdAt])
@@ -1396,15 +1483,15 @@ model Operacion {
 /// - comercial: solo las suyas (filtradas por authorUserId en la API).
 /// Nunca se incluyen en PDFs ni mensajes al cliente.
 model OperacionNota {
-  id             String   @id @default(cuid())
-  operacionId    String
-  authorUserId   String
-  authorName     String
+  id           String   @id @default(cuid())
+  operacionId  String
+  authorUserId String
+  authorName   String
   /// "ceo" | "admin" | "comercial" — congelado en el momento de creación.
-  authorRole     String
-  content        String   @db.Text
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  authorRole   String
+  content      String   @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   operacion Operacion @relation(fields: [operacionId], references: [id], onDelete: Cascade)
 
@@ -1416,18 +1503,18 @@ model OperacionNota {
 /// Ítem de checklist ad-hoc en una operación. Ordenable mediante `orden`.
 /// NO avanza el stage del pipeline automáticamente — es tracking operativo.
 model OperacionChecklistItem {
-  id                      String    @id @default(cuid())
-  operacionId             String
-  texto                   String
-  completado              Boolean   @default(false)
-  orden                   Int       @default(0)
-  responsableComercialId  String?
+  id                       String    @id @default(cuid())
+  operacionId              String
+  texto                    String
+  completado               Boolean   @default(false)
+  orden                    Int       @default(0)
+  responsableComercialId   String?
   responsableColaboradorId String?
-  createdByUserId         String
-  completadoByUserId      String?
-  completadoAt            DateTime?
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+  createdByUserId          String
+  completadoByUserId       String?
+  completadoAt             DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   operacion   Operacion    @relation(fields: [operacionId], references: [id], onDelete: Cascade)
   colaborador Colaborador? @relation(fields: [responsableColaboradorId], references: [id], onDelete: SetNull)
@@ -2016,4 +2103,380 @@ model RematchRun {
 
   @@index([status, startedAt])
   @@map("rematch_runs")
+}
+
+// ---------------------------------------------------------------------------
+// Core de Inteligencia de Mercado (Market*)
+//
+// Capa de datos del Core descrito en docs/core-sistema-mercado.md y
+// docs/core-sistema-mercado-plan-implementacion.md. Construye un inventario
+// canónico de mercado a partir de fuentes externas, con identidad estable,
+// versionado de cambios y snapshots de lectura. Independiente del Event Store
+// principal: usa MarketEvent como event log dedicado del dominio.
+// ---------------------------------------------------------------------------
+
+enum MarketSource {
+  source_a
+  source_b
+  source_c
+  source_d
+  unknown
+}
+
+enum MarketOperation {
+  sale
+  rent
+}
+
+enum MarketHousingType {
+  flat
+  house
+  countryhouse
+  duplex
+  penthouse
+  studio
+  loft
+  garage
+  office
+  premises
+  land
+  building
+  storage
+  warehouse
+  room
+}
+
+enum MarketListingStatus {
+  active
+  inactive
+  removed
+  blocked
+  unknown
+}
+
+enum MarketCaptacionStage {
+  NEW
+  PROSPECT_CREATING
+  PROSPECT_CREATED
+  ENCARGO_ATTACHED
+  READY_FOR_PROPERTY
+  PROPERTY_CREATING
+  PROPERTY_CREATED
+  FAILED
+}
+
+enum CrawlRunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  PARTIAL
+}
+
+enum RawListingStatus {
+  CAPTURED
+  NORMALIZED
+  REJECTED
+  STALE
+}
+
+enum MarketEventType {
+  MARKET_LISTING_CREATED
+  MARKET_LISTING_UPDATED
+  MARKET_LISTING_PRICE_CHANGED
+  MARKET_LISTING_STATUS_CHANGED
+  MARKET_LISTING_REMOVED
+  MARKET_LISTING_REAPPEARED
+  MARKET_PROPERTY_MERGED
+  MARKET_PROPERTY_SPLIT
+  MARKET_PROPERTY_REVIEW_REQUIRED
+  MARKET_SNAPSHOT_REFRESHED
+}
+
+enum MarketCircuitBreakerStatus {
+  CLOSED
+  OPEN
+  HALF_OPEN
+}
+
+/// Semilla de rastreo: combinación (source, operation, city[, zone]) con URL de
+/// listado del portal y cadencia de revisita. El scheduler selecciona seeds
+/// vencidos (lastRunAt + cadenceMinutes < now) para encolar MarketCrawlRun.
+model MarketSeed {
+  id             String          @id @default(cuid())
+  source         MarketSource
+  operation      MarketOperation
+  city           String
+  zone           String?
+  url            String
+  active         Boolean         @default(true)
+  priority       Int             @default(100)
+  cadenceMinutes Int             @default(120)
+  lastRunAt      DateTime?
+  lastCursor     String?
+  notes          String          @default("")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  crawlRuns MarketCrawlRun[]
+
+  @@unique([source, operation, city, zone, url])
+  @@index([active, lastRunAt])
+  @@index([source, active])
+  @@map("market_seeds")
+}
+
+/// Ciclo de captura para un seed concreto. Un MarketCrawlRun procesa N páginas
+/// con presupuesto de tiempo/requests y materializa MarketRawListing.
+model MarketCrawlRun {
+  id             String         @id @default(cuid())
+  seedId         String
+  source         MarketSource
+  status         CrawlRunStatus @default(PENDING)
+  startedAt      DateTime       @default(now())
+  finishedAt     DateTime?
+  pagesScanned   Int            @default(0)
+  itemsCaptured  Int            @default(0)
+  itemsRejected  Int            @default(0)
+  blockedCount   Int            @default(0)
+  errorCode      String?
+  errorMessage   String?
+  budgetMs       Int            @default(60000)
+  budgetRequests Int            @default(50)
+  cursorIn       String?
+  cursorOut      String?
+  correlationId  String
+
+  seed     MarketSeed         @relation(fields: [seedId], references: [id], onDelete: Cascade)
+  rawItems MarketRawListing[]
+
+  @@index([seedId, startedAt])
+  @@index([status, startedAt])
+  @@index([correlationId])
+  @@map("market_crawl_runs")
+}
+
+/// Captura bruta indexada por contenido. La fuente de verdad técnica para
+/// reproceso: si cambian las reglas de normalización, se reprocesa desde aquí
+/// sin volver a raspar el portal. Retención configurable (ver decisiones.md).
+model MarketRawListing {
+  id              String           @id @default(cuid())
+  source          MarketSource
+  externalId      String?
+  canonicalUrl    String
+  crawlRunId      String
+  httpStatus      Int?
+  contentHash     String
+  payload         Json
+  status          RawListingStatus @default(CAPTURED)
+  rejectionReason String?
+  capturedAt      DateTime         @default(now())
+
+  crawlRun MarketCrawlRun @relation(fields: [crawlRunId], references: [id], onDelete: Cascade)
+
+  @@unique([source, contentHash])
+  @@index([crawlRunId])
+  @@index([source, externalId])
+  @@index([status, capturedAt])
+  @@map("market_raw_listings")
+}
+
+/// Listing canónico (proyección normalizada de un anuncio en un portal).
+/// Identidad estable por (source, externalId). Puede vincularse a una
+/// MarketProperty cuando la resolución cross-portal supera el umbral.
+model MarketListing {
+  id           String              @id @default(cuid())
+  source       MarketSource
+  externalId   String
+  canonicalUrl String
+  operation    MarketOperation
+  housingType  MarketHousingType
+  status       MarketListingStatus @default(active)
+
+  price         Float?
+  currency      String @default("EUR")
+  pricePerMeter Float?
+
+  builtArea Float?
+  rooms     Int?
+  bathrooms Int?
+  floor     String?
+
+  city          String
+  zone          String?
+  addressApprox String?
+  lat           Float?
+  lng           Float?
+  geohash       String?
+
+  advertiserType String?
+  advertiserName String?
+  phones         String[] @default([])
+  advertiserId   String?
+  assignedComercialId String?
+  assignedAt          DateTime?
+  assignedByUserId    String?
+
+  mainImageUrl String?
+  imageUrls    String[] @default([])
+
+  description       String?
+  listingReference  String?
+  cadastralRef      String?
+  detailFetchedAt   DateTime?
+  detailFetchAttempts Int @default(0)
+
+  qualityScore Float    @default(0)
+  qualityFlags String[] @default([])
+
+  captacionStage            MarketCaptacionStage @default(NEW)
+  inmovillaProspectRef      String?
+  inmovillaPropertyCodOfer  Int?
+  captacionLastError        String?
+  captacionUpdatedAt        DateTime             @default(now())
+
+  propertyId   String?
+  firstSeenAt  DateTime  @default(now())
+  lastSeenAt   DateTime  @default(now())
+  lastChangeAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  property   MarketProperty?      @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  advertiser MarketAdvertiser?    @relation(fields: [advertiserId], references: [id], onDelete: SetNull)
+  assignedComercial Comercial?    @relation("MarketListingAssignedComercial", fields: [assignedComercialId], references: [id], onDelete: SetNull)
+  assignedByUser  User?           @relation("MarketListingAssignedByUser", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  versions   MarketListingVersion[]
+
+  @@unique([source, externalId])
+  @@index([city, zone])
+  @@index([operation, housingType])
+  @@index([status, lastSeenAt])
+  @@index([price])
+  @@index([propertyId])
+  @@index([advertiserId])
+  @@index([captacionStage, lastSeenAt])
+  @@index([inmovillaProspectRef])
+  @@index([inmovillaPropertyCodOfer])
+  @@index([assignedComercialId, lastSeenAt])
+  @@index([assignedByUserId])
+  @@index([geohash])
+  @@index([listingReference])
+  @@index([cadastralRef])
+  @@map("market_listings")
+}
+
+model MarketAdvertiser {
+  id                 String   @id @default(cuid())
+  phoneCanonical     String?
+  displayName        String?
+  advertiserType     String?
+  inmovillaContactId String?
+  listingsCount      Int      @default(0)
+  firstSeenAt        DateTime @default(now())
+  lastSeenAt         DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  listings MarketListing[]
+
+  @@index([advertiserType, lastSeenAt])
+  @@index([displayName])
+  @@map("market_advertisers")
+}
+
+/// Histórico de cambios por listing. Una fila por cambio detectado por el
+/// diff engine. Retención por política (ver decisiones.md, sección 7.3).
+model MarketListingVersion {
+  id            String   @id @default(cuid())
+  listingId     String
+  changedFields String[]
+  before        Json
+  after         Json
+  capturedAt    DateTime @default(now())
+
+  listing MarketListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, capturedAt])
+  @@map("market_listing_versions")
+}
+
+/// Inmueble subyacente probable. Agrupa MarketListing del mismo bien físico
+/// publicado en múltiples portales. La resolución se hace por fingerprint
+/// determinístico + similitud (ver lib/market/identity.ts).
+model MarketProperty {
+  id                      String   @id @default(cuid())
+  city                    String
+  zone                    String?
+  geohash                 String?
+  fingerprint             String   @unique
+  representativeListingId String?
+  listingsCount           Int      @default(0)
+  firstSeenAt             DateTime @default(now())
+  lastSeenAt              DateTime @default(now())
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  listings MarketListing[]
+
+  @@index([city, zone])
+  @@index([geohash])
+  @@map("market_properties")
+}
+
+/// Event log dedicado del Core. Independiente del Event Store principal para
+/// no inflarlo con el alto volumen de eventos de mercado. La idempotencia se
+/// garantiza con (type, fingerprint) único por evento.
+model MarketEvent {
+  id            String          @id @default(cuid())
+  type          MarketEventType
+  listingId     String?
+  propertyId    String?
+  source        MarketSource?
+  payload       Json
+  fingerprint   String
+  correlationId String
+  occurredAt    DateTime        @default(now())
+
+  @@unique([type, fingerprint])
+  @@index([type, occurredAt])
+  @@index([listingId, occurredAt])
+  @@index([propertyId, occurredAt])
+  @@index([correlationId])
+  @@map("market_events")
+}
+
+/// Vista agregada por (city, housingType, operation) para consumidores
+/// (búsqueda, pricing, captación). Recalculada periódicamente por
+/// MARKET_REFRESH_SNAPSHOT.
+model MarketSnapshotIndex {
+  id          String            @id @default(cuid())
+  city        String
+  housingType MarketHousingType
+  operation   MarketOperation
+  freshAt     DateTime          @default(now())
+  totalActive Int               @default(0)
+  priceMin    Float?
+  priceMax    Float?
+  priceMedian Float?
+  ppmMedian   Float?
+
+  @@unique([city, housingType, operation])
+  @@index([freshAt])
+  @@map("market_snapshot_index")
+}
+
+/// Estado del circuit breaker por fuente. Se abre cuando hay tasa alta de
+/// bloqueos/errores y degrada la chain anti-bot a modo conservador.
+model MarketCircuitBreaker {
+  source       MarketSource               @id
+  status       MarketCircuitBreakerStatus @default(CLOSED)
+  failureCount Int                        @default(0)
+  openedAt     DateTime?
+  halfOpenAt   DateTime?
+  closedAt     DateTime?
+  updatedAt    DateTime                   @updatedAt
+
+  @@map("market_circuit_breakers")
 }

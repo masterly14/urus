@@ -856,9 +856,11 @@ registerJobHandler("SEND_SIGNATURE_REQUEST", handleSendSignatureRequest);
 // --- Pricing automático (M7) ---
 import { handlePricingAnalysis } from "./pricing-handler";
 import { handleNotifyPricingWhatsApp } from "./pricing-notify-handler";
+import { handleStatefoxImageImport } from "./statefox-image-import-handler";
 
 registerJobHandler("RUN_PRICING_ANALYSIS", handlePricingAnalysis);
 registerJobHandler("NOTIFY_PRICING_WHATSAPP", handleNotifyPricingWhatsApp);
+registerJobHandler("IMPORT_STATEFOX_PORTAL_IMAGES", handleStatefoxImageImport);
 
 // --- Post-Venta (M9): cadencia de mensajes al cliente ---
 registerJobHandler("SEND_POST_SALE_MESSAGE", handleSendPostSaleMessage);
@@ -938,3 +940,25 @@ registerJobHandler("REBUILD_MATCHES_FOR_DEMAND", handleRebuildMatchesForDemand);
 import { handleUpdatePropertyStatusInmovilla } from "@/lib/operacion/inmovilla-property-status-handler";
 
 registerJobHandler("UPDATE_PROPERTY_STATUS_INMOVILLA", handleUpdatePropertyStatusInmovilla);
+
+// --- Core de Mercado (Fases 3-4): pipeline raw → canonical → diff/snapshot ---
+import {
+  handleMarketNormalizeBatch,
+  handleMarketFetchDetail,
+  handleMarketResolveIdentity,
+  handleMarketResolveAdvertiser,
+  handleMarketDiffAndVersion,
+  handleMarketRefreshSnapshot,
+  handleMarketPushAdvertiserToInmovilla,
+} from "@/lib/market/jobs";
+
+registerJobHandler("MARKET_NORMALIZE_BATCH", handleMarketNormalizeBatch);
+registerJobHandler("MARKET_FETCH_DETAIL", handleMarketFetchDetail);
+registerJobHandler("MARKET_RESOLVE_IDENTITY", handleMarketResolveIdentity);
+registerJobHandler("MARKET_RESOLVE_ADVERTISER", handleMarketResolveAdvertiser);
+registerJobHandler("MARKET_DIFF_AND_VERSION", handleMarketDiffAndVersion);
+registerJobHandler("MARKET_REFRESH_SNAPSHOT", handleMarketRefreshSnapshot);
+registerJobHandler(
+  "MARKET_PUSH_ADVERTISER_TO_INMOVILLA",
+  handleMarketPushAdvertiserToInmovilla,
+);

@@ -78,7 +78,18 @@ const navGroups: NavGroup[] = [
     {
         label: "Procesos IA",
         items: [
-            { label: "Captación", href: "/platform/captacion", icon: ClipboardList },
+            {
+                label: "Captación",
+                href: "/platform/captacion",
+                icon: ClipboardList,
+                children: [
+                    {
+                        label: "Oportunidades de mercado",
+                        href: "/platform/captacion/oportunidades",
+                        icon: Target,
+                    },
+                ],
+            },
             {
                 label: "Cruces",
                 href: "/platform/matching",

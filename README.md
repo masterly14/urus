@@ -64,6 +64,7 @@ Escenario de migración a API REST (contactos, propiedades, propietarios) docume
 - **E2E NLU demanda → visita (Vitest dry-run)**: `npm test -- nlu-demand-to-visit-flow-e2e` — valida primer contacto NLU, work item y re-perfilado amarillo con mocks deterministas.
 - **Firma live E2E (Neon + Cloudinary + WhatsApp + OTP real)**: `npm run firma:live-e2e -- --check-env` para validar prerequisitos y `npm run firma:live-e2e -- --confirm-live` para ejecutar el flujo completo con firma humana. Detalle en `docs/firma-live-e2e.md`.
 - **WhatsApp — sincronizar plantillas WABA**: `npm run whatsapp:templates:sync` — descarga plantillas aprobadas/configuradas desde Meta y actualiza `whatsapp_templates` para renderizar texto real y variables en `/platform/conversaciones`. Requiere `WHATSAPP_ACCESS_TOKEN` con `whatsapp_business_management` y `WHATSAPP_BUSINESS_ID`.
+- **Statefox — cache propio de imágenes (Cloudinary + Bright Data opcional)**: `npm run statefox:images:test -- --portal-url <URL>` para validar discovery contra un anuncio real (dry-run) y `... --upload --statefox-id <ID>` para subir a Cloudinary. Las imágenes se persisten en `statefox_comparable_images` y la UI (pricing/microsites) las usa antes que las `pImages` de Statefox. Si `BRIGHTDATA_SCRAPING_BROWSER_URL` o las variables `BRIGHTDATA_RESIDENTIAL_PROXY_*` están definidas, el extractor usa Bright Data para mitigar bloqueos de Idealista. Para Idealista, con CDP configurada se usa Scraping Browser directo (`--cdp`); fallback híbrido warm session DataDome + residencial (`--warm`, `--invalidate`, `--no-warm`, `--no-cdp`) y navegación humana con `ghost-cursor`. Detalle en `docs/statefox-image-cache.md`.
 - **Nota de Encargo — matching diferido**: `npm run nota-encargo:test-matching` simula una sesión creada por referencia URUS antes de existir la propiedad y valida que la ingesta la vincule después. Ver `docs/nota-encargo-matching-diferido.md`.
 - **Post-venta (M9) — plantillas Meta + Flow + anuales**: la cadencia post-venta se envía 100% con plantillas Meta (`postventa_agradecimiento`, `postventa_resena`, `postventa_referidos`, `postventa_recaptacion`, `postventa_cumpleanos`, `postventa_navidad`, `postventa_formulario`). En D0 se envía un WhatsApp Flow (`postventa_survey`) que recoge nombre, fecha de nacimiento y email; con eso el sistema programa mensajes anuales indefinidos (cumpleaños 12:00 Europe/Madrid, Navidad 24-dic 12:00). Ver `docs/postventa-plantillas-whatsapp.md` (plantillas, Flow JSON, variables). Cron complementario: `POST /api/cron/postventa-rearm` (mensual, `CRON_SECRET`).
 - **Bootstrap post-deploy**: `npm run bootstrap` — script idempotente para inicialización tras despliegue. Controlado por `BOOTSTRAP_ON_DEPLOY=true` y `BOOTSTRAP_MODE=safe|full`. Modo `safe`: seed CEO + check DB. Modo `full`: además sync catálogos Inmovilla y backfill operaciones. El `build` de Vercel solo ejecuta compilación (`next build`); las sincronizaciones pesadas nunca se ejecutan dentro del build.
@@ -1178,8 +1179,9 @@ Además de la parte conceptual, el repo incluye una implementación v1 del siste
 - **API Routes**:
   - `GET /api/dashboard/comerciales`
   - `GET /api/dashboard/comercial/:id`
-- **UI (micro-frontend en Rendimiento)**:
-  - Rutas: `/rendimiento/comerciales` (ranking + KPIs + gráficos) y `/rendimiento/comerciales/[id]` (detalle + evolución semanal).
+- **UI (Rendimiento en plataforma)**:
+  - Rutas reales: `/platform/rendimiento/comerciales` (ranking + KPIs + gráficos) y `/platform/rendimiento/comerciales/[id]` (detalle + evolución semanal).
+  - La demo solo-mock que antes vivía en `/rendimiento/*` está en el repo aparte `urus-rendimiento-mock` (hermano de este proyecto bajo `~/code`).
   - Hook cliente: `lib/hooks/use-dashboard-comercial.ts`.
   - Navegación: pestaña y entrada de sidebar bajo **Rendimiento → Comerciales**.
 

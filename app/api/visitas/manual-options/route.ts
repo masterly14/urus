@@ -5,6 +5,7 @@ import {
   isCeoOrAdmin,
   unauthorized,
 } from "@/lib/auth/session";
+import { buildDemandSearchConditions } from "@/lib/demands/search";
 import { withObservedRoute } from "@/lib/observability";
 
 const getHandler = async (request: Request) => {
@@ -17,6 +18,7 @@ const getHandler = async (request: Request) => {
   const comercialId = isCeoOrAdmin(session.role)
     ? url.searchParams.get("comercialId") || undefined
     : session.comercialId || undefined;
+  const demandSearchConditions = buildDemandSearchConditions(q);
 
   if (!isCeoOrAdmin(session.role) && !comercialId) {
     return NextResponse.json({ ok: true, demands: [], properties: [] });
@@ -27,13 +29,7 @@ const getHandler = async (request: Request) => {
       where: {
         ...(comercialId ? { comercialId } : {}),
         leadStatus: { notIn: ["CERRADO", "PERDIDO"] },
-        ...(q ? {
-          OR: [
-            { codigo: { contains: q, mode: "insensitive" } },
-            { nombre: { contains: q, mode: "insensitive" } },
-            { telefono: { contains: q, mode: "insensitive" } },
-          ],
-        } : {}),
+        ...(demandSearchConditions.length > 0 ? { OR: demandSearchConditions } : {}),
       },
       select: {
         codigo: true,

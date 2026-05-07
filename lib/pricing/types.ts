@@ -70,6 +70,7 @@ export interface PricingComparable {
   descripcion: string | null;
   direccion: string | null;
   fotos: string[];
+  imageCacheStatus?: "PENDING" | "IMPORTED" | "FAILED" | "BLOCKED" | "CAPTCHA" | "LISTING_REMOVED" | "NO_IMAGES_FOUND";
   anunciante: PricingComparableAdvertiser;
   latitud: number | null;
   longitud: number | null;

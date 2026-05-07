@@ -52,3 +52,14 @@ scripts/_*
 
 # Archivo de migraciones archivadas (historial local, no versionable)
 /prisma/migrations_archive_*/
+
+# Workers (artefactos de build y dependencias propias)
+/workers/*/node_modules
+/workers/*/dist
+/workers/*/.env
+/workers/*/.env.local
+
+# Capturas crudas de HTML real para calibrar parsers (no se commitean,
+# pueden contener datos personales). Los fixtures sanitizados sí se commitean
+# en `__tests__/fixtures/`.
+/data/captures/

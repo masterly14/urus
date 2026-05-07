@@ -147,6 +147,15 @@ async function getLastConsumerSuccess(): Promise<Date | null> {
   return rows[0]?.finishedAt ?? null;
 }
 
+async function getLastImageImportSuccess(): Promise<Date | null> {
+  const job = await prisma.jobQueue.findFirst({
+    where: { type: JobType.IMPORT_STATEFOX_PORTAL_IMAGES, status: JobStatus.COMPLETED },
+    orderBy: { completedAt: "desc" },
+    select: { completedAt: true },
+  });
+  return job?.completedAt ?? null;
+}
+
 async function getJobQueueCounts(): Promise<JobQueueCounts> {
   const groups = await prisma.jobQueue.groupBy({
     by: ["status"],
@@ -284,6 +293,7 @@ export async function getWorkersStatusFull(): Promise<WorkersStatusFull> {
     lastDemandSnapshotUpdate,
     lastEgestion,
     lastConsumer,
+    lastImageImport,
     jobQueue,
     pendingJobs,
     pendingByType,
@@ -297,6 +307,7 @@ export async function getWorkersStatusFull(): Promise<WorkersStatusFull> {
       getLastDemandSnapshotUpdate(),
       getLastEgestionSuccess(),
       getLastConsumerSuccess(),
+      getLastImageImportSuccess(),
       getJobQueueCounts(),
       getPendingJobs(),
       getPendingJobsByType(),
@@ -339,6 +350,14 @@ export async function getWorkersStatusFull(): Promise<WorkersStatusFull> {
       status: computeWorkerStatus(lastConsumer),
       lastSuccessSource: "execution_metrics",
       ageMinutes: computeAgeMinutes(lastConsumer),
+    },
+    {
+      id: "image-worker",
+      label: "Image worker (Statefox)",
+      lastSuccessAt: toIsoOrNull(lastImageImport),
+      status: computeWorkerStatus(lastImageImport),
+      lastSuccessSource: "job_queue",
+      ageMinutes: computeAgeMinutes(lastImageImport),
     },
   ];
 

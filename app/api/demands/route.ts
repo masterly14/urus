@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 import { getSessionFromRequest, unauthorized, isCeoOrAdmin } from "@/lib/auth/session";
+import { buildDemandSearchConditions } from "@/lib/demands/search";
 import type { LeadStatus, Prisma } from "@prisma/client";
 
 const LEAD_STATUS_VALUES = new Set<LeadStatus>([
@@ -39,6 +40,7 @@ const getHandler = async (request: Request) => {
   // Filters
   const q = url.searchParams.get("q")?.trim() ?? "";
   const statusFilter = parseLeadStatuses(url.searchParams.get("leadStatus"));
+  const searchConditions = buildDemandSearchConditions(q);
 
   // RBAC: comercial only sees their own demands
   let comercialIdFilter: string | null = null;
@@ -57,15 +59,8 @@ const getHandler = async (request: Request) => {
   const where: Prisma.DemandCurrentWhereInput = {
     ...(comercialIdFilter ? { comercialId: comercialIdFilter } : {}),
     ...(statusFilter.length > 0 ? { leadStatus: { in: statusFilter } } : {}),
-    ...(q
-      ? {
-          OR: [
-            { nombre: { contains: q, mode: "insensitive" } },
-            { zonas: { contains: q, mode: "insensitive" } },
-            { telefono: { contains: q, mode: "insensitive" } },
-            { tipos: { contains: q, mode: "insensitive" } },
-          ],
-        }
+    ...(searchConditions.length > 0
+      ? { OR: searchConditions }
       : {}),
   };
 
@@ -101,15 +96,8 @@ const getHandler = async (request: Request) => {
       by: ["leadStatus"],
       where: {
         ...(comercialIdFilter ? { comercialId: comercialIdFilter } : {}),
-        ...(q
-          ? {
-              OR: [
-                { nombre: { contains: q, mode: "insensitive" } },
-                { zonas: { contains: q, mode: "insensitive" } },
-                { telefono: { contains: q, mode: "insensitive" } },
-                { tipos: { contains: q, mode: "insensitive" } },
-              ],
-            }
+        ...(searchConditions.length > 0
+          ? { OR: searchConditions }
           : {}),
       },
       _count: { _all: true },

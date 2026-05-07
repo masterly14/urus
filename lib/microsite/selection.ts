@@ -8,6 +8,13 @@ import {
 } from "@/lib/statefox";
 import type { StatefoxSnapshotProperty, StatefoxPropertyZone } from "@/lib/statefox";
 import { isExpiredStatefoxImageUrl } from "@/lib/statefox/image-expiry";
+import {
+  enqueueStatefoxImageImportsForComparables,
+  getImportedImagesByStatefoxIds,
+  toCloudinaryUrls,
+  warmImportStatefoxImagesOnFirstSeen,
+  type CachedStatefoxImage,
+} from "@/lib/statefox/image-cache";
 
 export type MicrositeCuratedProperty = {
   propertyId: string;
@@ -54,10 +61,7 @@ export type GenerateMicrositeSelectionResult =
   | { ok: true; token: string; selectionId: string; propertiesCount: number; stockCount: number }
   | { ok: false; reason: "STATEFOX_TOKEN_MISSING" | "STATEFOX_ERROR" | "NO_MATCHING_PROPERTIES" };
 
-let micrositeImageDebugLogs = 0;
-
 function generateToken(): string {
-  // URL-safe, longitud fija, sin caracteres especiales
   return randomBytes(16).toString("hex");
 }
 
@@ -67,43 +71,16 @@ function resolveZoneName(pZone: string | StatefoxPropertyZone | undefined): stri
   return pZone.name ?? "";
 }
 
-function summarizeImageShape(value: unknown): Record<string, unknown> {
-  if (Array.isArray(value)) {
-    return {
-      type: "array",
-      length: value.length,
-      sampleTypes: value.slice(0, 3).map((item) => typeof item),
-      firstObjectKeys:
-        value.find((item) => item && typeof item === "object" && !Array.isArray(item))
-          ? Object.keys(value.find((item) => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>).slice(0, 8)
-          : [],
-    };
-  }
-  if (value && typeof value === "object") {
-    const obj = value as Record<string, unknown>;
-    const first = Object.values(obj).find((item) => item && typeof item === "object" && !Array.isArray(item));
-    return {
-      type: "object",
-      keys: Object.keys(obj).slice(0, 8),
-      firstObjectKeys: first ? Object.keys(first as Record<string, unknown>).slice(0, 8) : [],
-    };
-  }
-  return { type: typeof value, present: value != null };
-}
-
 function extractImages(p: StatefoxSnapshotProperty): string[] {
   const imgs = p.pImages;
-  const extracted = Array.isArray(imgs) ? imgs
-    .filter((src): src is string => typeof src === "string" && src.trim() !== "" && !isExpiredStatefoxImageUrl(src))
-    .slice(0, 30) : [];
-  if (micrositeImageDebugLogs < 5) {
-    micrositeImageDebugLogs++;
-    const rawImages = Array.isArray(imgs) ? imgs.filter((src): src is string => typeof src === "string" && src.trim() !== "") : [];
-    // #region agent log
-    fetch("http://127.0.0.1:7478/ingest/3a86774c-7051-4ca6-b6e8-a92160972b21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "bfe3e0" }, body: JSON.stringify({ sessionId: "bfe3e0", runId: "post-fix", hypothesisId: "H8", location: "lib/microsite/selection.ts:extractImages", message: "Microsite image extraction filtered expired URLs", data: { rawImageShape: summarizeImageShape((p as Record<string, unknown>).pImages), hasPropertyMainImage: typeof (p as Record<string, unknown>).propertyMainImage === "string", hasImagesField: Object.prototype.hasOwnProperty.call(p as Record<string, unknown>, "images"), rawImagesCount: rawImages.length, expiredImagesCount: rawImages.length - extracted.length, extractedImagesCount: extracted.length }, timestamp: Date.now() }) }).catch(() => {});
-    // #endregion
-  }
-  return extracted;
+  return Array.isArray(imgs)
+    ? imgs
+        .filter(
+          (src): src is string =>
+            typeof src === "string" && src.trim() !== "" && !isExpiredStatefoxImageUrl(src),
+        )
+        .slice(0, 30)
+    : [];
 }
 
 function extractPhones(p: StatefoxSnapshotProperty): string[] {
@@ -317,6 +294,56 @@ export function applyDescriptionUpdates(
   return { ok: true, properties: next };
 }
 
+async function replaceMicrositeImagesWithCloudinaryCache(
+  curated: MicrositeCuratedProperty[],
+): Promise<void> {
+  if (curated.length === 0) return;
+  const ids = curated.map((c) => c.propertyId);
+
+  let cached: Map<string, CachedStatefoxImage[]>;
+  try {
+    cached = await getImportedImagesByStatefoxIds(ids);
+  } catch (err) {
+    console.warn(
+      `[microsite:selection] No se pudo consultar cache Cloudinary: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    cached = new Map();
+  }
+
+  const missing = curated
+    .filter((c) => !cached.has(c.propertyId) && Boolean(c.link))
+    .map((c) => ({ statefoxId: c.propertyId, portalUrl: c.link as string }));
+
+  if (missing.length > 0) {
+    const warm = await warmImportStatefoxImagesOnFirstSeen(missing);
+    if (warm.imported > 0) {
+      try {
+        cached = await getImportedImagesByStatefoxIds(ids);
+      } catch (err) {
+        console.warn(
+          `[microsite:selection] No se pudo refrescar cache tras warm import: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+      console.log(
+        `[microsite:selection] Warm import en caliente: ${warm.imported}/${warm.attempted} comparables con foto inmediata`,
+      );
+    }
+
+    await enqueueStatefoxImageImportsForComparables(missing);
+  }
+
+  for (const property of curated) {
+    const cachedUrls = toCloudinaryUrls(cached.get(property.propertyId) ?? []);
+    if (cachedUrls.length > 0) {
+      property.images = cachedUrls;
+    }
+  }
+}
+
 function scoreForDemand(p: StatefoxSnapshotProperty, demand: DemandFilterInput): number {
   let score = 0;
 
@@ -455,6 +482,8 @@ export async function generateMicrositeSelection(
   }
 
   const curated = rankedWithImages.slice(0, 12).map((x) => curate(x.propertyId, x.property));
+
+  await replaceMicrositeImagesWithCloudinaryCache(curated);
 
   const token = generateToken();
   const validationToken = generateToken();
