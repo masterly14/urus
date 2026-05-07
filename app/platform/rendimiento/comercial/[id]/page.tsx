@@ -8,10 +8,10 @@ import { ShieldAlert } from "lucide-react";
 
 /**
  * Routes:
- *   /rendimiento/comercial/me  → redirects to Prisma-backed detail for current user
- *   /rendimiento/comercial/:id → redirects to Prisma-backed detail
+ *   /platform/rendimiento/comercial/me  → redirige al detalle Prisma del usuario actual
+ *   /platform/rendimiento/comercial/:id → redirige al detalle Prisma del id indicado
  *
- * When auth is not configured (no comercialId in session), shows a message.
+ * Si no hay auth / comercialId en sesión, muestra mensaje (caso "me").
  */
 export default function ComercialRedirectPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);

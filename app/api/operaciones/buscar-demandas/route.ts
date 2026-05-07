@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 import { getSessionFromRequest, unauthorized, isCeoOrAdmin } from "@/lib/auth/session";
+import { buildDemandPhoneSearchTerms } from "@/lib/demands/search";
 
 /**
  * GET /api/operaciones/buscar-demandas?q=<query>
  *
- * Busca demandas activas por nombre, referencia o código para el
+ * Busca demandas activas por nombre, referencia, código o teléfono para el
  * autocomplete del DemandSelector en la UI de operaciones.
  * Accesible por cualquier usuario autenticado (filtra por comercialId si no es CEO).
  */
@@ -26,6 +27,9 @@ const getHandler = async (request: Request) => {
       { nombre: { contains: q, mode: "insensitive" } },
       { ref: { contains: q, mode: "insensitive" } },
       { codigo: { contains: q, mode: "insensitive" } },
+      ...buildDemandPhoneSearchTerms(q).map((term) => ({
+        telefono: { contains: term, mode: "insensitive" as const },
+      })),
     ];
   }
 

@@ -1178,8 +1178,9 @@ Además de la parte conceptual, el repo incluye una implementación v1 del siste
 - **API Routes**:
   - `GET /api/dashboard/comerciales`
   - `GET /api/dashboard/comercial/:id`
-- **UI (micro-frontend en Rendimiento)**:
-  - Rutas: `/rendimiento/comerciales` (ranking + KPIs + gráficos) y `/rendimiento/comerciales/[id]` (detalle + evolución semanal).
+- **UI (Rendimiento en plataforma)**:
+  - Rutas reales: `/platform/rendimiento/comerciales` (ranking + KPIs + gráficos) y `/platform/rendimiento/comerciales/[id]` (detalle + evolución semanal).
+  - La demo solo-mock que antes vivía en `/rendimiento/*` está en el repo aparte `urus-rendimiento-mock` (hermano de este proyecto bajo `~/code`).
   - Hook cliente: `lib/hooks/use-dashboard-comercial.ts`.
   - Navegación: pestaña y entrada de sidebar bajo **Rendimiento → Comerciales**.
 
