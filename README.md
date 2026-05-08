@@ -4,9 +4,9 @@
 
 ---
 
-## Estado del repo (M0 + M1 + M2 + Auth)
+## Estado del repo (implementación completa)
 
-Infraestructura base, workers de Inmovilla y autenticación/autorización implementados:
+El sistema de automatización de Urus está implementado end-to-end en este repositorio (M0–M14). A continuación se resumen componentes clave operativos:
 
 - **Auth y Autorización**: Better Auth con Prisma adapter, 3 roles (`ceo`, `admin`, `comercial`), invitaciones por email (Resend), protección de rutas con `proxy.ts` (Next.js 16). Ver `docs/auth-autorizacion.md`.
 
