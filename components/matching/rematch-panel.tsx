@@ -311,7 +311,7 @@ export function RematchPanel({
                   <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                   <input
                     type="text"
-                    placeholder="Buscar demanda por nombre o referencia..."
+                    placeholder="Buscar demanda por nombre, referencia, código o teléfono..."
                     value={searchQuery}
                     onChange={(e) => {
                       setSearchQuery(e.target.value);

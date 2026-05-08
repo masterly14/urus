@@ -159,7 +159,7 @@ export function DemandSelector({
       >
         <ComboboxInput
           className="w-full min-h-11 text-base"
-          placeholder="Buscar por nombre, referencia o código…"
+          placeholder="Buscar por nombre, referencia, código o teléfono…"
           showClear={!!value}
         />
         <ComboboxContent

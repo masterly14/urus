@@ -1,7 +1,7 @@
 /**
  * GET /api/matching/rematch/demands?q=<query>
  *
- * Busca demandas activas por nombre o referencia para el autocomplete del RematchPanel.
+ * Busca demandas activas por nombre, referencia, código o teléfono para el autocomplete del RematchPanel.
  * Solo CEO.
  */
 
@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { ACTIVE_DEMAND_STATES } from "@/lib/matching";
+import { buildDemandPhoneSearchTerms } from "@/lib/demands/search";
 
 const getHandler = async (request: Request) => {
   const session = await getSessionFromRequest(request);
@@ -32,6 +33,9 @@ const getHandler = async (request: Request) => {
         { nombre: { contains: q, mode: "insensitive" } },
         { ref: { contains: q, mode: "insensitive" } },
         { codigo: { contains: q, mode: "insensitive" } },
+        ...buildDemandPhoneSearchTerms(q).map((term) => ({
+          telefono: { contains: term, mode: "insensitive" as const },
+        })),
       ],
     },
     select: {

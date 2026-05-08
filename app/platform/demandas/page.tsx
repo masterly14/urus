@@ -1189,7 +1189,7 @@ export default function DemandasPage() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="Buscar por nombre, zona o teléfono..."
+              placeholder="Buscar por nombre, código, zona o teléfono..."
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-9 h-10"
