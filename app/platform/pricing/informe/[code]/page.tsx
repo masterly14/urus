@@ -39,6 +39,7 @@ import {
 import type { PricingAnalysisResult, PricingComparable } from "@/lib/pricing/types";
 import type { PricingRecommendation } from "@/lib/pricing/recommendation-types";
 import { isExpiredStatefoxImageUrl } from "@/lib/statefox/image-expiry";
+import { formatStatefoxHousingLabel } from "@/lib/statefox/housing-label";
 import { proxiedStatefoxImageUrl } from "@/lib/statefox/image-url";
 import { pricingFixture } from "@/lib/mock-data/pricing-fixture";
 
@@ -1248,7 +1249,10 @@ function SectionMetadata({ data }: { data: PricingAnalysisResult }) {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <MetaItem label="Analizado" value={new Date(analyzedAt).toLocaleString("es-ES")} />
             <MetaItem label="Endpoint" value={queryMeta.endpoint} />
-            <MetaItem label="Housing" value={queryMeta.housing} />
+            <MetaItem
+              label="Housing"
+              value={formatStatefoxHousingLabel(queryMeta.housing) || queryMeta.housing}
+            />
             <MetaItem label="Tipo operación" value={queryMeta.type} />
             <MetaItem label="Páginas escaneadas" value={String(queryMeta.pagesScanned)} />
             <MetaItem label="Total API" value={formatEur(queryMeta.totalResultsFromAPI)} />

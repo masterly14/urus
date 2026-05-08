@@ -2,6 +2,7 @@ import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { MICROSITE_VALIDATION_SLA_MS, MIN_PREFERRED_PROPERTIES } from "@/lib/microsite/constants";
 import { resolveBuyerPhoneForDemand } from "@/lib/microsite/buyer-phone";
+import { formatStatefoxHousingLabel } from "@/lib/statefox/housing-label";
 import {
   searchSnapshotForDemand,
   type DemandFilterInput,
@@ -150,7 +151,9 @@ function extractEnergyCert(p: StatefoxSnapshotProperty): { rating: string | null
 }
 
 function makeTitle(p: StatefoxSnapshotProperty): string {
-  const housing = typeof p.pHousing === "string" ? p.pHousing : "";
+  const housing = formatStatefoxHousingLabel(
+    typeof p.pHousing === "string" ? p.pHousing : null,
+  );
   const zone = resolveZoneName(p.pZone);
   const city = typeof p.pCity?.cityName === "string" ? p.pCity.cityName : "";
 

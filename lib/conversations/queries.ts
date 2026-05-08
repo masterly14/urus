@@ -166,6 +166,27 @@ function sourceLooksAgent(message: ConversationMessage): boolean {
   );
 }
 
+/**
+ * Evita mostrar duplicados cuando el mismo inbound se guarda en:
+ * - WHATSAPP_CONVERSATION (webhook)
+ * - MENTAL_CONVERSATION (coach)
+ *
+ * El evento mental recibido guarda causationId = eventId del WHATSAPP_RECIBIDO origen.
+ */
+function dedupeConversationMessages(messages: ConversationMessage[]): ConversationMessage[] {
+  const inboundWhatsAppEventIds = new Set(
+    messages
+      .filter((message) => message.type === "WHATSAPP_RECIBIDO")
+      .map((message) => message.eventId),
+  );
+
+  return messages.filter((message) => {
+    if (message.type !== "MENTAL_MSG_RECIBIDO") return true;
+    if (!message.causationId) return true;
+    return !inboundWhatsAppEventIds.has(message.causationId);
+  });
+}
+
 function lastNine(value: string): string {
   return normalizeWhatsAppDigits(value).slice(-9);
 }
@@ -546,10 +567,12 @@ export async function listConversations(
     },
   });
 
-  const normalizedMessages = await enrichTemplateMessages(
-    events
-      .map((event) => normalizeConversationEvent(event))
-      .filter((message): message is ConversationMessage => Boolean(message)),
+  const normalizedMessages = dedupeConversationMessages(
+    await enrichTemplateMessages(
+      events
+        .map((event) => normalizeConversationEvent(event))
+        .filter((message): message is ConversationMessage => Boolean(message)),
+    ),
   );
 
   const grouped = new Map<string, ConversationMessage[]>();
@@ -674,11 +697,13 @@ export async function getConversation(
     },
   });
 
-  const normalized = await enrichTemplateMessages(
-    events
-      .slice(0, limit)
-      .map((event) => normalizeConversationEvent(event))
-      .filter((message): message is ConversationMessage => Boolean(message)),
+  const normalized = dedupeConversationMessages(
+    await enrichTemplateMessages(
+      events
+        .slice(0, limit)
+        .map((event) => normalizeConversationEvent(event))
+        .filter((message): message is ConversationMessage => Boolean(message)),
+    ),
   );
   const context = await loadConversationContext(waId);
 
