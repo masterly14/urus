@@ -6,7 +6,7 @@ async function main() {
   console.log("Sincronizando plantillas WhatsApp desde WABA -> Neon...");
   const result = await syncWhatsAppTemplates();
   console.log(
-    `Sincronización completada. fetched=${result.fetched} upserted=${result.upserted} syncedAt=${result.syncedAt}`,
+    `Sincronización completada. fetched=${result.fetched} upserted=${result.upserted} skipped=${result.skipped} syncedAt=${result.syncedAt}`,
   );
   await prisma.$disconnect();
 }

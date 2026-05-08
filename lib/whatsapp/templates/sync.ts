@@ -6,6 +6,7 @@ import type { WabaTemplate } from "./types";
 export type SyncWhatsAppTemplatesResult = {
   fetched: number;
   upserted: number;
+  skipped: number;
   syncedAt: string;
 };
 
@@ -48,14 +49,17 @@ export async function syncWhatsAppTemplates(
   const client = createWabaTemplatesClient(config);
   const templates = await client.listTemplates();
   const syncedAt = new Date();
+  let upserted = 0;
 
   for (const template of templates) {
     await upsertTemplate(template, syncedAt);
+    upserted += 1;
   }
 
   return {
     fetched: templates.length,
-    upserted: templates.length,
+    upserted,
+    skipped: Math.max(templates.length - upserted, 0),
     syncedAt: syncedAt.toISOString(),
   };
 }

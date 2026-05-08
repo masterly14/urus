@@ -15,7 +15,7 @@ const postHandler = async (request: Request) => {
   try {
     const result = await syncWhatsAppTemplates();
     console.log(
-      `[cron/whatsapp-templates-sync] fetched=${result.fetched} upserted=${result.upserted} skipped=${result.skipped}`,
+      `[cron/whatsapp-templates-sync] fetched=${result.fetched} upserted=${result.upserted} skipped=${result.skipped} syncedAt=${result.syncedAt}`,
     );
     return NextResponse.json(result);
   } catch (err) {
