@@ -168,4 +168,60 @@ describe("startNluInitialContactForDemand", () => {
       payload: expect.objectContaining({ skippedReason: "demand_not_found" }),
     }));
   });
+
+  it("personaliza el cuerpo con zona y presupuesto reales de la demanda", async () => {
+    mockDemandFindUnique.mockResolvedValue(
+      demand({
+        zonas: "Centro, Macarena",
+        presupuestoMax: 220000,
+        presupuestoMin: 150000,
+        habitacionesMin: 3,
+        tipos: "Piso",
+      }),
+    );
+
+    await startNluInitialContactForDemand({ demandId: "DEM-001" });
+
+    const sendCall = mockSendTemplate.mock.calls[0];
+    expect(sendCall).toBeDefined();
+    const template = sendCall![1] as { components: Array<{ parameters: Array<{ text: string }> }> };
+    const body = template.components[0]?.parameters[1]?.text ?? "";
+    expect(body).toContain("Centro");
+    expect(body).toContain("220.000€");
+
+    expect(mockSessionUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          buyerDigest: expect.stringContaining("Presupuesto: 150.000–220.000€"),
+        }),
+      }),
+    );
+  });
+
+  it("usa solo el primer nombre del comprador en la plantilla", async () => {
+    mockDemandFindUnique.mockResolvedValue(
+      demand({ nombre: "JUAN PÉREZ FERNÁNDEZ" }),
+    );
+
+    await startNluInitialContactForDemand({ demandId: "DEM-001" });
+
+    const sendCall = mockSendTemplate.mock.calls[0];
+    const template = sendCall![1] as { components: Array<{ parameters: Array<{ text: string }> }> };
+    const nameParam = template.components[0]?.parameters[0]?.text ?? "";
+    expect(nameParam).toBe("Juan");
+  });
+
+  it("cae a copy neutral cuando la demanda no tiene zona ni presupuesto", async () => {
+    mockDemandFindUnique.mockResolvedValue(
+      demand({ zonas: "", presupuestoMax: 0, presupuestoMin: 0 }),
+    );
+
+    await startNluInitialContactForDemand({ demandId: "DEM-001" });
+
+    const sendCall = mockSendTemplate.mock.calls[0];
+    const template = sendCall![1] as { components: Array<{ parameters: Array<{ text: string }> }> };
+    const body = template.components[0]?.parameters[1]?.text ?? "";
+    expect(body).not.toContain("0€");
+    expect(body).toMatch(/zona|presupuesto/i);
+  });
 });

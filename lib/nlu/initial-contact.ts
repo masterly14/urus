@@ -3,6 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store";
 import { sendTemplateMessage, WHATSAPP_TEMPLATES } from "@/lib/whatsapp/send";
 import type { JsonValue } from "@/lib/event-store/types";
+import {
+  buildSeedDigest,
+  buildWelcomeMessage,
+  sanitizeFirstName,
+} from "./welcome-message";
 
 const RECENT_SESSION_HOURS = 24;
 
@@ -29,6 +34,11 @@ type DemandForInitialContact = {
   nombre: string;
   telefono: string;
   leadStatus: LeadStatus;
+  zonas: string | null;
+  presupuestoMin: number | null;
+  presupuestoMax: number | null;
+  habitacionesMin: number | null;
+  tipos: string | null;
 };
 
 function normalizePhone(value: string | null | undefined): string {
@@ -59,8 +69,15 @@ function hasOptOut(raw: unknown): boolean {
   });
 }
 
-function welcomeText(): string {
-  return "Soy tu agente inmobiliario personalizado de Urus. Te ayudare a encontrar una propiedad que encaje contigo haciendo unas preguntas cortas y mostrandote opciones concretas.";
+function welcomeText(demand: DemandForInitialContact): string {
+  return buildWelcomeMessage({
+    nombre: demand.nombre,
+    zonas: demand.zonas,
+    presupuestoMin: demand.presupuestoMin,
+    presupuestoMax: demand.presupuestoMax,
+    habitacionesMin: demand.habitacionesMin,
+    tipos: demand.tipos,
+  });
 }
 
 async function appendContactEvent(input: {
@@ -125,6 +142,11 @@ export async function startNluInitialContactForDemand(input: {
       nombre: true,
       telefono: true,
       leadStatus: true,
+      zonas: true,
+      presupuestoMin: true,
+      presupuestoMax: true,
+      habitacionesMin: true,
+      tipos: true,
     },
   }) as DemandForInitialContact | null;
 
@@ -171,6 +193,15 @@ export async function startNluInitialContactForDemand(input: {
     return { ok: true, demandId: input.demandId, waId, sent: false, skippedReason, eventId: event.id, dryRun: input.dryRun };
   }
 
+  const seedDigest = buildSeedDigest({
+    nombre: demand.nombre,
+    zonas: demand.zonas,
+    presupuestoMin: demand.presupuestoMin,
+    presupuestoMax: demand.presupuestoMax,
+    habitacionesMin: demand.habitacionesMin,
+    tipos: demand.tipos,
+  });
+
   await prisma.whatsAppBuyerSession.upsert({
     where: { waId },
     create: {
@@ -180,15 +211,18 @@ export async function startNluInitialContactForDemand(input: {
       turnCount: 0,
       summary: null,
       conversationPhase: "initial_nlu_discovery",
-      buyerDigest: welcomeText(),
+      buyerDigest: seedDigest,
     },
     update: {
       demandId: input.demandId,
       lastMessageAt: new Date(),
       conversationPhase: "initial_nlu_discovery",
-      buyerDigest: welcomeText(),
+      buyerDigest: seedDigest,
     },
   });
+
+  const firstName = sanitizeFirstName(demand.nombre) || "comprador";
+  const welcomeBody = welcomeText(demand);
 
   let messageId: string | null = null;
   if (!input.dryRun) {
@@ -199,8 +233,8 @@ export async function startNluInitialContactForDemand(input: {
         {
           type: "body",
           parameters: [
-            { type: "text", text: demand.nombre || "comprador" },
-            { type: "text", text: welcomeText() },
+            { type: "text", text: firstName },
+            { type: "text", text: welcomeBody },
           ],
         },
       ],
