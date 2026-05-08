@@ -99,7 +99,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export function UserManagement() {
-  const { user: sessionUser, isCeo } = useAppSession();
+  const { user: sessionUser, isCeoOrAdmin } = useAppSession();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [invitations, setInvitations] = useState<InvitationRow[]>([]);
   const [comerciales, setComerciales] = useState<ComercialOption[]>([]);
@@ -124,7 +124,7 @@ export function UserManagement() {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const userTableColSpan = isCeo ? 6 : 5;
+  const userTableColSpan = isCeoOrAdmin ? 6 : 5;
 
   const fetchData = useCallback(async () => {
     try {
@@ -430,7 +430,7 @@ export function UserManagement() {
                 <TableHead>Rol</TableHead>
                 <TableHead>Comercial vinculado</TableHead>
                 <TableHead>Registro</TableHead>
-                {isCeo && (
+                {isCeoOrAdmin && (
                   <TableHead className="w-[72px] text-right text-muted-foreground">Acciones</TableHead>
                 )}
               </TableRow>
@@ -545,16 +545,16 @@ export function UserManagement() {
                       <TableCell className="text-xs text-muted-foreground">
                         {new Date(user.createdAt).toLocaleDateString("es-ES")}
                       </TableCell>
-                      {isCeo && (
+                      {isCeoOrAdmin && (
                         <TableCell className="text-right">
-                          {sessionUser && user.id !== sessionUser.id ? (
+                          {sessionUser && user.id !== sessionUser.id && user.role === "comercial" ? (
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                              title="Eliminar usuario"
-                              aria-label={`Eliminar usuario ${user.name}`}
+                              title="Eliminar comercial"
+                              aria-label={`Eliminar comercial ${user.name}`}
                               onClick={() => {
                                 setDeleteError(null);
                                 setDeleteTarget(user);
@@ -587,8 +587,8 @@ export function UserManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar usuario?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se eliminará la cuenta de {deleteTarget?.name} ({deleteTarget?.email}). Esta acción no
-              se puede deshacer.
+              Se eliminará automáticamente el comercial {deleteTarget?.name} ({deleteTarget?.email}).
+              Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteError ? (

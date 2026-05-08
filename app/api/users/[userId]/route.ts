@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 type Params = { params: Promise<{ userId: string }> };
 
 /**
- * DELETE /api/users/:userId — Solo CEO. No puede eliminarse a sí mismo ni al último CEO.
+ * DELETE /api/users/:userId — Solo CEO/Admin. Solo permite eliminar usuarios comerciales.
  */
 export async function DELETE(_request: NextRequest, { params }: Params) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -15,7 +15,7 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
     return NextResponse.json({ ok: false, error: "No autenticado" }, { status: 401 });
   }
 
-  if (session.user.role !== "ceo") {
+  if (session.user.role !== "ceo" && session.user.role !== "admin") {
     return NextResponse.json({ ok: false, error: "Sin permisos" }, { status: 403 });
   }
 
@@ -41,14 +41,11 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
     return NextResponse.json({ ok: false, error: "Usuario no encontrado" }, { status: 404 });
   }
 
-  if (target.role === "ceo") {
-    const ceoCount = await prisma.user.count({ where: { role: "ceo" } });
-    if (ceoCount <= 1) {
-      return NextResponse.json(
-        { ok: false, error: "Debe existir al menos un usuario con rol CEO" },
-        { status: 400 },
-      );
-    }
+  if (target.role !== "comercial") {
+    return NextResponse.json(
+      { ok: false, error: "Solo se pueden eliminar usuarios con rol comercial" },
+      { status: 400 },
+    );
   }
 
   await prisma.user.delete({ where: { id: userId } });
