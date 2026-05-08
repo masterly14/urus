@@ -119,6 +119,77 @@ describe("normalizeConversationEvent", () => {
       waId: "34600000000",
     });
   });
+
+  it("reconstruye texto legible para eventos legacy microsite_link", () => {
+    const message = normalizeConversationEvent(
+      event({
+        type: "WHATSAPP_ENVIADO",
+        payload: {
+          messageId: "wamid.micro",
+          kind: "microsite_link",
+          buyerUrl: "https://app.urus.test/seleccion/token123",
+        },
+      }),
+    );
+
+    expect(message).toMatchObject({
+      direction: "outbound",
+      text: "Aquí tienes una selección de propiedades que encajan con tu búsqueda:\nhttps://app.urus.test/seleccion/token123",
+      messageId: "wamid.micro",
+    });
+  });
+
+  it("prioriza caption y referencia legible para mensajes image/document", () => {
+    const imageMessage = normalizeConversationEvent(
+      event({
+        type: "WHATSAPP_ENVIADO",
+        payload: {
+          messageType: "image",
+          image: {
+            caption: "Plano actualizado de la vivienda",
+            link: "https://cdn.urus.test/image-1.jpg",
+          },
+        },
+      }),
+    );
+
+    const documentMessage = normalizeConversationEvent(
+      event({
+        type: "WHATSAPP_ENVIADO",
+        payload: {
+          messageType: "document",
+          document: {
+            filename: "ficha-tecnica.pdf",
+            id: "doc_123",
+          },
+        },
+      }),
+    );
+
+    expect(imageMessage).toMatchObject({
+      kind: "image",
+      text: "Plano actualizado de la vivienda",
+    });
+    expect(documentMessage).toMatchObject({
+      kind: "document",
+      text: "Documento: ficha-tecnica.pdf",
+    });
+  });
+
+  it("omite eventos técnicos de escalado en el transcript", () => {
+    const message = normalizeConversationEvent(
+      event({
+        type: "WHATSAPP_ENVIADO",
+        payload: {
+          type: "escalation_requested",
+          kind: "escalation_requested",
+          body: "Conversación marcada para revisión manual del comercial.",
+        },
+      }),
+    );
+
+    expect(message).toBeNull();
+  });
 });
 
 describe("previewText", () => {

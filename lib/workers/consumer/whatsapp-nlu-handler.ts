@@ -43,6 +43,7 @@ import {
   getActiveSessionForComercial,
 } from "@/lib/visit-scheduling/session-manager";
 import { handleVisitMessage } from "@/lib/visit-scheduling/handle-visit-message";
+import { normalizeConversationEvent } from "@/lib/conversations/normalize";
 
 type WhatsAppReceivedPayload = {
   messageId?: string;
@@ -303,8 +304,88 @@ async function loadSelectionProperties(
 }
 
 const COACH_PREFIX_RE = /^\/?coach\b/i;
-const GENERIC_MARKETING_MESSAGE =
-  "Hola, somos Urus Capital Group. Puedes conocer nuestro perfil aquí: https://www.idealista.com/pro/urus-capital-group/";
+const ADMIN_ESCALATION_PHONE =
+  process.env.WHATSAPP_ADMIN_ESCALATION_PHONE?.trim() || "601257555";
+
+function buildAdminEscalationMessage(phone: string): string {
+  return (
+    "Gracias por avisar. Para evitar mas confusion, escale tu caso a administracion para revision manual. " +
+    `Si prefieres resolverlo ahora, puedes contactar directamente a administracion en ${phone}.`
+  );
+}
+
+async function hasRecentAdminEscalation(
+  waId: string,
+  withinMinutes: number = 30,
+): Promise<boolean> {
+  const threshold = new Date(Date.now() - withinMinutes * 60_000);
+  const recent = await prisma.event.findFirst({
+    where: {
+      aggregateType: "WHATSAPP_CONVERSATION",
+      aggregateId: waId,
+      type: "WHATSAPP_ENVIADO",
+      occurredAt: { gte: threshold },
+      payload: { path: ["kind"], equals: "admin_escalation_fallback" },
+    },
+    select: { id: true },
+  });
+  return Boolean(recent);
+}
+
+async function escalateConversationToAdministration(params: {
+  waId: string;
+  event: Event;
+  reason: string;
+  messageText: string;
+  demandId?: string;
+  selectionId?: string;
+}): Promise<void> {
+  const { waId, event, reason, messageText, demandId, selectionId } = params;
+
+  if (await hasRecentAdminEscalation(waId)) {
+    console.log(
+      `[consumer:whatsapp] Escalado admin omitido por deduplicacion waId=${waId} reason=${reason}`,
+    );
+    return;
+  }
+
+  try {
+    await sendTextMessage(waId, buildAdminEscalationMessage(ADMIN_ESCALATION_PHONE), {
+      trace: {
+        source: "whatsapp_nlu_handler",
+        kind: "admin_escalation_fallback",
+        causationId: event.id,
+        payload: {
+          reason,
+          adminPhone: ADMIN_ESCALATION_PHONE,
+          demandId: demandId ?? null,
+          selectionId: selectionId ?? null,
+        },
+      },
+    });
+  } catch (notifyErr) {
+    console.error(
+      `[consumer:whatsapp] Error enviando escalado a administracion waId=${waId}: ${notifyErr instanceof Error ? notifyErr.message : notifyErr}`,
+    );
+  }
+
+  try {
+    const excerpt = messageText.slice(0, 180);
+    await emitManagementAlert({
+      source: "whatsapp-nlu",
+      severity: "warning",
+      title: "Conversacion escalada a administracion",
+      description:
+        `waId ${waId} escalado por ${reason}. ` +
+        `demandId=${demandId ?? "n/a"} selectionId=${selectionId ?? "n/a"}. ` +
+        `Mensaje: "${excerpt}"`,
+    });
+  } catch (alertErr) {
+    console.error(
+      `[consumer:whatsapp] Error emitiendo alerta de escalado waId=${waId}: ${alertErr instanceof Error ? alertErr.message : alertErr}`,
+    );
+  }
+}
 
 async function loadConversationHistory(
   waId: string,
@@ -319,7 +400,19 @@ async function loadConversationHistory(
       },
       orderBy: { position: "desc" },
       take: limit,
-      select: { type: true, payload: true, occurredAt: true },
+      select: {
+        id: true,
+        position: true,
+        type: true,
+        aggregateType: true,
+        aggregateId: true,
+        payload: true,
+        metadata: true,
+        correlationId: true,
+        causationId: true,
+        occurredAt: true,
+        createdAt: true,
+      },
     }),
     prisma.mentalHealthSession.findUnique({
       where: { waId },
@@ -329,9 +422,13 @@ async function loadConversationHistory(
 
   return events
     .reverse()
-    .filter((evt) => {
-      if (evt.type !== "WHATSAPP_RECIBIDO") return true;
-      const p = (evt.payload ?? {}) as Record<string, unknown>;
+    .flatMap((evt) => {
+      const normalized = normalizeConversationEvent(evt);
+      return normalized ? [{ evt, normalized }] : [];
+    })
+    .filter(({ evt, normalized }) => {
+      if (normalized.direction !== "inbound") return true;
+      const p = asRecord(evt.payload);
       const textObj = p.text as Record<string, unknown> | undefined;
       const body = typeof textObj?.body === "string" ? textObj.body : "";
       if (COACH_PREFIX_RE.test(body.trim())) return false;
@@ -340,19 +437,11 @@ async function loadConversationHistory(
       }
       return true;
     })
-    .map((evt) => {
-      const p = (evt.payload ?? {}) as Record<string, unknown>;
-      let text = "";
-      if (evt.type === "WHATSAPP_RECIBIDO") {
-        const textObj = p.text as Record<string, unknown> | undefined;
-        text = typeof textObj?.body === "string" ? textObj.body : "";
-      } else {
-        text = typeof p.kind === "string" ? `[Enviado: ${p.kind}]` : "[Mensaje enviado]";
-      }
+    .map(({ normalized }) => {
       return {
-        role: evt.type === "WHATSAPP_RECIBIDO" ? "buyer" as const : "system" as const,
-        text,
-        timestamp: evt.occurredAt.toISOString(),
+        role: normalized.direction === "inbound" ? ("buyer" as const) : ("system" as const),
+        text: normalized.text,
+        timestamp: normalized.occurredAt,
       };
     });
 }
@@ -569,19 +658,12 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
     console.log(
       `[consumer:whatsapp] WHATSAPP_RECIBIDO waId=${waId} sin demandId resolvible — no-op`,
     );
-    try {
-      await sendTextMessage(waId, GENERIC_MARKETING_MESSAGE, {
-        trace: {
-          source: "whatsapp_nlu_handler",
-          kind: "generic_marketing_fallback",
-          causationId: event.id,
-        },
-      });
-    } catch (err) {
-      console.error(
-        `[consumer:whatsapp] Error enviando mensaje de marketing waId=${waId}: ${err instanceof Error ? err.message : err}`,
-      );
-    }
+    await escalateConversationToAdministration({
+      waId,
+      event,
+      reason: "missing_demand_context",
+      messageText,
+    });
     return { success: true };
   }
 
@@ -649,27 +731,14 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
       `[consumer:whatsapp] classifyBuyerFeedback falló waId=${waId} demandId=${ctx.demandId}: ${err instanceof Error ? err.message : err}`,
     );
 
-    // Fallback graceful: pedir al comprador que reformule el mensaje.
-    // No emitimos eventos derivados, pero sí actualizamos la session y retornamos success
-    // para no reintentar con el mismo input problemático (el job no debe fallar).
-    try {
-      await sendTextMessage(
-        waId,
-        "Perdona, no he entendido bien tu mensaje. ¿Puedes reformularlo o darme más detalles sobre lo que buscas?",
-        {
-          trace: {
-            source: "whatsapp_nlu_handler",
-            kind: "nlu_error_fallback",
-            causationId: event.id,
-            payload: { demandId: ctx.demandId, selectionId: ctx.selectionId ?? null },
-          },
-        },
-      );
-    } catch (notifyErr) {
-      console.error(
-        `[consumer:whatsapp] Fallback sendTextMessage falló waId=${waId}: ${notifyErr instanceof Error ? notifyErr.message : notifyErr}`,
-      );
-    }
+    await escalateConversationToAdministration({
+      waId,
+      event,
+      reason: "nlu_classification_error",
+      messageText,
+      demandId: ctx.demandId,
+      selectionId: ctx.selectionId,
+    });
 
     await prisma.whatsAppBuyerSession.upsert({
       where: { waId },

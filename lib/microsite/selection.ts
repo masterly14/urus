@@ -9,6 +9,10 @@ import {
 } from "@/lib/statefox";
 import type { StatefoxSnapshotProperty, StatefoxPropertyZone } from "@/lib/statefox";
 import { isExpiredStatefoxImageUrl } from "@/lib/statefox/image-expiry";
+import {
+  EXTERNAL_PORTFOLIO_DISABLED_REASON,
+  isExternalPortfolioSearchEnabled,
+} from "@/lib/statefox/external-search";
 
 export type MicrositeCuratedProperty = {
   propertyId: string;
@@ -53,7 +57,14 @@ export type GenerateMicrositeSelectionInput = {
 
 export type GenerateMicrositeSelectionResult =
   | { ok: true; token: string; selectionId: string; propertiesCount: number; stockCount: number }
-  | { ok: false; reason: "STATEFOX_TOKEN_MISSING" | "STATEFOX_ERROR" | "NO_MATCHING_PROPERTIES" };
+  | {
+    ok: false;
+    reason:
+      | "STATEFOX_TOKEN_MISSING"
+      | "STATEFOX_ERROR"
+      | "NO_MATCHING_PROPERTIES"
+      | "EXTERNAL_SEARCH_DISABLED";
+  };
 
 let micrositeImageDebugLogs = 0;
 
@@ -358,6 +369,11 @@ function scoreForDemand(p: StatefoxSnapshotProperty, demand: DemandFilterInput):
 export async function generateMicrositeSelection(
   input: GenerateMicrositeSelectionInput,
 ): Promise<GenerateMicrositeSelectionResult> {
+  if (!isExternalPortfolioSearchEnabled()) {
+    console.warn(`[microsite:selection] ${EXTERNAL_PORTFOLIO_DISABLED_REASON}`);
+    return { ok: false, reason: "EXTERNAL_SEARCH_DISABLED" };
+  }
+
   if (input.sourceEventId) {
     const existing = await prisma.micrositeSelection.findFirst({
       where: { sourceEventId: input.sourceEventId },

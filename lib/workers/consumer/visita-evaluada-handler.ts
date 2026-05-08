@@ -15,6 +15,10 @@ import type { HandlerResult } from "./types";
 import type { DemandFilterInput } from "@/lib/statefox";
 import { prisma } from "@/lib/prisma";
 import { searchSnapshotForDemand } from "@/lib/statefox";
+import {
+  EXTERNAL_PORTFOLIO_DISABLED_REASON,
+  isExternalPortfolioSearchEnabled,
+} from "@/lib/statefox/external-search";
 import { upsertCommercialVisitEvaluationFactFromVisitaEvaluadaEvent } from "@/lib/dashboard/comercial/facts";
 
 // ---------------------------------------------------------------------------
@@ -57,6 +61,11 @@ function parsePayload(payload: unknown): VisitaEvaluadaPayload {
  * Usa /snapshot (inventario completo) con early exit para eficiencia en serverless.
  */
 async function fetchStockForDemand(demand: DemandFilterInput): Promise<number> {
+  if (!isExternalPortfolioSearchEnabled()) {
+    console.warn(`[consumer:visita-evaluada] ${EXTERNAL_PORTFOLIO_DISABLED_REASON}`);
+    return 0;
+  }
+
   try {
     const result = await searchSnapshotForDemand(demand, {
       listingType: "sale",

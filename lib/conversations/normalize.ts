@@ -54,6 +54,60 @@ function extractTemplateText(payload: Record<string, unknown>): string | null {
   return `Plantilla: ${name ?? "sin nombre"} (${variables.join(" · ")})`;
 }
 
+function extractLegacySentText(payload: Record<string, unknown>): string | null {
+  const kind = stringValue(payload.kind);
+  if (!kind) return null;
+
+  if (kind === "microsite_link") {
+    const buyerUrl = stringValue(payload.buyerUrl);
+    return [
+      "Aquí tienes una selección de propiedades que encajan con tu búsqueda:",
+      buyerUrl,
+    ].filter(Boolean).join("\n");
+  }
+
+  if (kind === "match_notification") {
+    const link = stringValue(payload.enlacePropiedad);
+    return [
+      "Te hemos enviado una propiedad que puede encajar con tu búsqueda.",
+      link,
+    ].filter(Boolean).join("\n");
+  }
+
+  if (kind === "no_stock_available") {
+    const currentSelectionUrl = stringValue(payload.currentSelectionUrl);
+    if (currentSelectionUrl) {
+      return [
+        "De momento no he encontrado opciones nuevas que encajen con tus criterios.",
+        "Mientras tanto, puedes revisar de nuevo la selección actual:",
+        currentSelectionUrl,
+      ].join("\n");
+    }
+    return "De momento no he encontrado propiedades que encajen con tus criterios. Si quieres, dime por aquí con qué margen podemos movernos y vuelvo a buscar.";
+  }
+
+  return `[Enviado: ${kind}]`;
+}
+
+function extractMediaText(payload: Record<string, unknown>): string | null {
+  const image = asRecord(payload.image);
+  const document = asRecord(payload.document);
+
+  const imageCaption = stringValue(image.caption);
+  const imageLink = firstString(image.link, image.id, payload.link, payload.id);
+  const documentCaption = stringValue(document.caption);
+  const documentFilename = stringValue(document.filename);
+  const documentRef = firstString(document.link, document.id);
+
+  if (imageCaption) return imageCaption;
+  if (documentCaption) return documentCaption;
+  if (documentFilename) return `Documento: ${documentFilename}`;
+  if (imageLink) return `Imagen adjunta: ${imageLink}`;
+  if (documentRef) return `Documento adjunto: ${documentRef}`;
+
+  return null;
+}
+
 function extractInteractiveText(payload: Record<string, unknown>): string | null {
   const interactive = asRecord(payload.interactive);
   const body = asRecord(interactive.body);
@@ -78,6 +132,7 @@ function inferKind(payload: Record<string, unknown>): ConversationMessageKind {
     explicit === "template" ||
     explicit === "interactive" ||
     explicit === "button" ||
+    explicit === "image" ||
     explicit === "document"
   ) {
     return explicit;
@@ -85,6 +140,7 @@ function inferKind(payload: Record<string, unknown>): ConversationMessageKind {
   if (payload.template) return "template";
   if (payload.interactive) return "interactive";
   if (payload.button) return "button";
+  if (payload.image) return "image";
   if (payload.document) return "document";
   if (payload.body || payload.text) return "text";
   return "unknown";
@@ -103,6 +159,13 @@ export function normalizeConversationEvent(event: NormalizableEvent): Conversati
   }
 
   const payload = asRecord(event.payload);
+  if (
+    event.type === "WHATSAPP_ENVIADO" &&
+    (stringValue(payload.type) === "escalation_requested" ||
+      stringValue(payload.kind) === "escalation_requested")
+  ) {
+    return null;
+  }
   const metadata = asRecord(event.metadata);
   const direction: ConversationDirection =
     event.type === "WHATSAPP_RECIBIDO" || event.type === "MENTAL_MSG_RECIBIDO"
@@ -110,7 +173,6 @@ export function normalizeConversationEvent(event: NormalizableEvent): Conversati
       : "outbound";
   const kind = isMentalHealthEvent ? "text" : inferKind(payload);
   const textObject = asRecord(payload.text);
-  const document = asRecord(payload.document);
   const text =
     firstString(
       textObject.body,
@@ -118,9 +180,8 @@ export function normalizeConversationEvent(event: NormalizableEvent): Conversati
       payload.text,
       extractInteractiveText(payload),
       extractTemplateText(payload),
-      document.caption,
-      document.filename,
-      payload.kind,
+      extractMediaText(payload),
+      extractLegacySentText(payload),
     ) ?? "[Mensaje sin texto visible]";
 
   const messageId = firstString(payload.messageId, payload.waMessageId, metadata.waMessageId);

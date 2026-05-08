@@ -30,6 +30,7 @@ import { getPublicAppUrl } from "@/lib/microsite/app-url";
 import { normalizeWhatsAppDigits, resolveBuyerPhoneForDemand } from "@/lib/microsite/buyer-phone";
 import { enqueueJob } from "@/lib/job-queue";
 import type { DemandFilterInput } from "@/lib/statefox";
+import { EXTERNAL_PORTFOLIO_DISABLED_REASON } from "@/lib/statefox/external-search";
 import { handleGenerateContractDraft } from "./contract-draft-handler";
 import {
   handleSendPostSaleMessage,
@@ -298,6 +299,13 @@ async function handleGenerateMicrosite(job: JobRecord): Promise<HandlerResult> {
   });
 
   if (!result.ok) {
+    if (result.reason === "EXTERNAL_SEARCH_DISABLED") {
+      console.warn(
+        `[consumer] GENERATE_MICROSITE job ${job.id} demandId=${demandId} — omitido: ${EXTERNAL_PORTFOLIO_DISABLED_REASON}`,
+      );
+      return { success: true };
+    }
+
     console.warn(
       `[consumer] GENERATE_MICROSITE job ${job.id} demandId=${demandId} — omitido: ${result.reason}`,
     );
@@ -413,6 +421,19 @@ async function notifyBuyerNoStockAvailable(args: {
     const result = await sendNoStockAvailableToBuyer(buyerPhone, {
       demandNombre,
       currentSelectionUrl,
+    }, {
+      trace: {
+        source: "consumer",
+        kind: "no_stock_available",
+        aggregateId: buyerPhone,
+        causationId: job.sourceEventId ?? null,
+        payload: {
+          demandId,
+          sourceEventId: sourceEventId ?? null,
+          hasPreviousSelection: Boolean(currentSelectionUrl),
+          currentSelectionUrl: currentSelectionUrl ?? null,
+        },
+      },
     });
     wamid = result.messages?.[0]?.id;
     console.log(
@@ -426,19 +447,6 @@ async function notifyBuyerNoStockAvailable(args: {
     return;
   }
 
-  await appendEvent({
-    type: "WHATSAPP_ENVIADO",
-    aggregateType: "WHATSAPP_CONVERSATION",
-    aggregateId: buyerPhone,
-    payload: {
-      messageId: wamid ?? null,
-      demandId,
-      kind: "no_stock_available",
-      sourceEventId: sourceEventId ?? null,
-      hasPreviousSelection: Boolean(currentSelectionUrl),
-      currentSelectionUrl: currentSelectionUrl ?? null,
-    } as unknown as import("@/lib/event-store/types").JsonValue,
-  });
 }
 
 async function handleNotifyMicrositePendingValidation(job: JobRecord): Promise<HandlerResult> {
@@ -575,6 +583,19 @@ async function handleSendMicrositeToBuyer(job: JobRecord): Promise<HandlerResult
     const result = await sendMicrositeLinkToBuyer(digits, {
       demandNombre: selection.demandNombre,
       buyerUrl,
+    }, {
+      trace: {
+        source: "consumer",
+        kind: "microsite_link",
+        aggregateId: digits,
+        causationId: job.sourceEventId ?? null,
+        payload: {
+          demandId: selection.demandId,
+          selectionId: selection.id,
+          selectionToken: selection.token,
+          buyerUrl,
+        },
+      },
     });
     wamid = result.messages?.[0]?.id;
     console.log(
@@ -584,22 +605,6 @@ async function handleSendMicrositeToBuyer(job: JobRecord): Promise<HandlerResult
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[consumer] SEND_MICROSITE_TO_BUYER — error: ${message}`);
     return { success: false, error: message };
-  }
-
-  if (wamid) {
-    await appendEvent({
-      type: "WHATSAPP_ENVIADO",
-      aggregateType: "WHATSAPP_CONVERSATION",
-      aggregateId: digits,
-      payload: {
-        messageId: wamid,
-        demandId: selection.demandId,
-        selectionId: selection.id,
-        selectionToken: selection.token,
-        kind: "microsite_link",
-        buyerUrl,
-      } as unknown as import("@/lib/event-store/types").JsonValue,
-    });
   }
 
   await prisma.whatsAppBuyerSession.upsert({

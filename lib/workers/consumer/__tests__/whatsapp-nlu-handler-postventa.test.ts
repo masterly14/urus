@@ -17,7 +17,10 @@ vi.mock("@/lib/notifications/emit", () => ({
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    event: { findMany: vi.fn().mockResolvedValue([]) },
+    event: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
   },
 }));
 

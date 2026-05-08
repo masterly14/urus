@@ -93,6 +93,10 @@ Query params:
 
 Sincroniza desde Meta las plantillas del WABA configurado en `WHATSAPP_BUSINESS_ID` y actualiza la tabla `whatsapp_templates`. Requiere usuario autenticado con rol `ceo` o `admin`.
 
+### `POST /api/cron/whatsapp-templates-sync`
+
+Endpoint para ejecucion automatizada diaria del mismo sync de plantillas. Autenticacion por firma QStash (`Upstash-Signature`) o `Authorization: Bearer <CRON_SECRET>`.
+
 ## Registro de salientes
 
 Los helpers de envio de WhatsApp aceptan `options.trace`. Cuando se informa, el envio exitoso crea `WHATSAPP_ENVIADO` con:
@@ -102,6 +106,8 @@ Los helpers de envio de WhatsApp aceptan `options.trace`. Cuando se informa, el 
 - `source` y `kind` del flujo que envio el mensaje.
 - `correlationId` / `causationId`, si el caller los proporciona.
 
+Los eventos tecnicos de escalado (`kind/type = escalation_requested`) se conservan en Event Store para auditoria, pero no se renderizan dentro del transcript de chat para evitar ruido no conversacional.
+
 La escritura del evento es idempotente por `messageId` dentro de la conversacion. Si el registro falla despues de enviar a Meta, se loguea el error para evitar reintentos que dupliquen mensajes reales al cliente.
 
 ## Como probar
@@ -109,6 +115,7 @@ La escritura del evento es idempotente por `messageId` dentro de la conversacion
 - Tests unitarios de normalizacion: `npm test -- lib/conversations/__tests__/normalize.test.ts`.
 - Tests unitarios de render de plantillas: `npm test -- lib/whatsapp/templates/__tests__/render.test.ts`.
 - Sincronizar plantillas en entorno configurado: `npm run whatsapp:templates:sync`.
+- Probar cron de plantillas: `curl -X POST "$APP_URL/api/cron/whatsapp-templates-sync" -H "Authorization: Bearer $CRON_SECRET"`.
 - Revision manual: abrir `/platform/conversaciones` con una sesion autenticada y verificar lista, filtros y transcript.
 - Para validar una conversacion concreta, consultar `GET /api/conversations/{waId}` desde la sesion de plataforma.
 

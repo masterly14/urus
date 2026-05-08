@@ -17,8 +17,6 @@ import { prisma } from "@/lib/prisma";
 import { resolveComercialFromAgente } from "@/lib/routing/resolve-comercial";
 import { sendMatchNotification } from "@/lib/whatsapp/send";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
-import { appendEvent } from "@/lib/event-store";
-import type { JsonValue } from "@/lib/event-store/types";
 import { normalizeWhatsAppDigits } from "@/lib/microsite/buyer-phone";
 
 interface MatchGeneradoPayload {
@@ -178,6 +176,18 @@ export async function handleSendWhatsAppMatch(
     const result = await sendMatchNotification(payload.buyerPhone, {
       nombre: payload.nombre,
       enlacePropiedad: payload.enlacePropiedad,
+    }, {
+      trace: {
+        source: "consumer",
+        kind: "match_notification",
+        aggregateId: normalizeWhatsAppDigits(payload.buyerPhone),
+        causationId: job.sourceEventId ?? null,
+        payload: {
+          demandId: payload.demandId ?? null,
+          propertyId: payload.propertyId ?? null,
+          enlacePropiedad: payload.enlacePropiedad,
+        },
+      },
     });
     wamid = result.messages?.[0]?.id;
     console.log(
@@ -202,28 +212,6 @@ export async function handleSendWhatsAppMatch(
   if (payload.demandId) {
     const waId = normalizeWhatsAppDigits(payload.buyerPhone);
     if (waId.length >= 9) {
-      if (wamid) {
-        try {
-          await appendEvent({
-            type: "WHATSAPP_ENVIADO",
-            aggregateType: "WHATSAPP_CONVERSATION",
-            aggregateId: waId,
-            payload: {
-              messageId: wamid,
-              demandId: payload.demandId,
-              propertyId: payload.propertyId,
-              kind: "match_notification",
-              enlacePropiedad: payload.enlacePropiedad,
-            } as unknown as JsonValue,
-          });
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.warn(
-            `[consumer] SEND_WHATSAPP_MATCH job ${job.id} — append WHATSAPP_ENVIADO falló: ${msg}`,
-          );
-        }
-      }
-
       try {
         await prisma.whatsAppBuyerSession.upsert({
           where: { waId },

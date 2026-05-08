@@ -355,8 +355,11 @@ export function createConversationalTools(ctx: ToolExecutionContext): Structured
         aggregateType: "WHATSAPP_CONVERSATION",
         aggregateId: ctx.buyerWaId,
         payload: {
+          // Evento técnico de auditoría: no representa un envío WhatsApp real.
           type: "escalation_requested",
+          kind: "escalation_requested",
           source: "conversational_agent",
+          body: "Conversación marcada para revisión manual del comercial.",
           reason,
           demandId: ctx.demandId,
           requestedAt: new Date().toISOString(),

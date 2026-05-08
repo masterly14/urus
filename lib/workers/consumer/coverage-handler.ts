@@ -13,6 +13,10 @@ import { hasRecentCoverageSelection } from "@/lib/microsite/coverage-dedup";
 import { resolveComercialByDemand } from "@/lib/routing/resolve-comercial";
 import type { JsonValue } from "@/lib/job-queue/types";
 import { isMatchingPaused, MATCHING_PAUSED_REASON } from "@/lib/matching/pause";
+import {
+  EXTERNAL_PORTFOLIO_DISABLED_REASON,
+  isExternalPortfolioSearchEnabled,
+} from "@/lib/statefox/external-search";
 
 export async function handleEvaluateDemandCoverage(
   job: JobRecord,
@@ -36,6 +40,13 @@ export async function handleEvaluateDemandCoverage(
   if (isMatchingPaused()) {
     console.warn(
       `[coverage] job ${job.id} demandId=${demandId} — cobertura/Statefox pausado: ${MATCHING_PAUSED_REASON}`,
+    );
+    return { success: true };
+  }
+
+  if (!isExternalPortfolioSearchEnabled()) {
+    console.warn(
+      `[coverage] job ${job.id} demandId=${demandId} — omitiendo cartera externa: ${EXTERNAL_PORTFOLIO_DISABLED_REASON}`,
     );
     return { success: true };
   }
