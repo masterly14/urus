@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Users2,
   Search,
@@ -213,6 +214,7 @@ interface RematchResult {
   matchesEmitted: number;
   matchesSkipped: number;
   executionMs: number;
+  firstEmittedMatchId?: string | null;
 }
 
 function ForceMatchButton({
@@ -1021,6 +1023,7 @@ function TableSkeleton({ rows = 8, showComercial, showForceMatch }: { rows?: num
 const PAGE_LIMIT = 25;
 
 export default function DemandasPage() {
+  const router = useRouter();
   const { isCeoOrAdmin } = useSession();
 
   const [selectedStatuses, setSelectedStatuses] = useState<LeadStatus[]>([]);
@@ -1113,8 +1116,15 @@ export default function DemandasPage() {
           matchesEmitted: data.matchesEmitted,
           matchesSkipped: data.matchesSkipped,
           executionMs: data.executionMs,
+          firstEmittedMatchId: data.firstEmittedMatchId ?? null,
         },
       }));
+
+      if (data.matchesEmitted > 0 && typeof data.firstEmittedMatchId === "string") {
+        router.push(
+          `/platform/matching/cruces?matchId=${encodeURIComponent(data.firstEmittedMatchId)}`,
+        );
+      }
 
       setTimeout(() => {
         setRematchStates((prev) => {
@@ -1131,7 +1141,7 @@ export default function DemandasPage() {
         [codigo]: err instanceof Error ? err.message : "Error de red",
       }));
     }
-  }, []);
+  }, [router]);
 
   return (
     <div className="flex flex-col gap-6 p-6">

@@ -84,6 +84,7 @@ const postHandler = async (
 
   let emitted = 0;
   let skipped = 0;
+  let firstEmittedMatchId: string | null = null;
 
   for (const match of result.matches) {
     const aggregateId = `${match.demandId}:${match.propertyId}`;
@@ -128,6 +129,9 @@ const postHandler = async (
       sourceEventId: matchEvent.id,
     });
 
+    if (!firstEmittedMatchId) {
+      firstEmittedMatchId = matchEvent.id;
+    }
     emitted++;
   }
 
@@ -138,6 +142,7 @@ const postHandler = async (
     filteredOut: result.filteredOut,
     matchesEmitted: emitted,
     matchesSkipped: skipped,
+    firstEmittedMatchId,
     executionMs: result.executionMs,
   });
 };

@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
-import { enqueueJob } from "@/lib/job-queue";
-import { getPublicAppUrl } from "@/lib/microsite/app-url";
+import { sendMatchWhatsAppHot } from "@/lib/matching/send-match-whatsapp";
 
 interface MatchEventPayload {
   demandId?: string;
+  demandNombre?: string;
   propertyId?: string;
   totalScore?: number;
 }
@@ -14,8 +14,11 @@ interface MatchEventPayload {
 /**
  * POST /api/matching/cruces/:id/send
  *
- * Reintenta o fuerza el WhatsApp de match al comprador.
- * Flujo principal: automático desde handleMatchGenerado.
+ * Envía en caliente el WhatsApp de match al comprador.
+ * No pasa por la cola de jobs: la llamada a Meta es síncrona y el resultado
+ * (wamid o error) se devuelve al cliente para feedback real en la UI.
+ *
+ * Idempotente por `causationId` (matchEventId) sobre evento WHATSAPP_ENVIADO.
  */
 const postHandler = async (
   request: Request,
@@ -46,56 +49,48 @@ const postHandler = async (
     );
   }
 
-  const existingJob = await prisma.jobQueue.findFirst({
-    where: {
-      type: "SEND_WHATSAPP_MATCH",
-      sourceEventId: eventId,
-      status: { in: ["COMPLETED", "IN_PROGRESS", "PENDING"] },
-    },
-    select: { id: true, status: true },
-  });
-
-  if (existingJob) {
-    return NextResponse.json(
-      { ok: false, error: "Ya se envió o se está enviando el WhatsApp para este cruce", jobStatus: existingJob.status },
-      { status: 409 },
-    );
-  }
-
   const demand = await prisma.demandCurrent.findUnique({
     where: { codigo: payload.demandId },
     select: { telefono: true, nombre: true },
   });
 
-  if (!demand?.telefono) {
+  if (!demand?.telefono?.trim()) {
     return NextResponse.json(
       { ok: false, error: "El comprador no tiene teléfono registrado" },
       { status: 400 },
     );
   }
 
-  const appUrl = getPublicAppUrl();
-  const enlace = `${appUrl}/matching/cruces`;
+  const buyerName = demand.nombre ?? payload.demandNombre ?? "comprador";
 
-  await enqueueJob({
-    type: "SEND_WHATSAPP_MATCH",
-    payload: {
-      buyerPhone: demand.telefono,
-      nombre: demand.nombre ?? "comprador",
-      enlacePropiedad: enlace,
-      demandId: payload.demandId,
-      propertyId: payload.propertyId,
-    },
-    priority: 20,
-    idempotencyKey: `send_wa_match:${eventId}`,
-    sourceEventId: eventId,
+  const result = await sendMatchWhatsAppHot({
+    matchEventId: eventId,
+    demandId: payload.demandId,
+    propertyId: payload.propertyId,
+    buyerPhone: demand.telefono,
+    buyerName,
+    source: "api:matching",
   });
 
+  if (!result.ok) {
+    console.error(
+      `[api:matching] Fallo al enviar WhatsApp event=${eventId} demand=${payload.demandId}: ${result.error}`,
+    );
+    return NextResponse.json(
+      { ok: false, error: result.error ?? "Error enviando WhatsApp" },
+      { status: 502 },
+    );
+  }
+
   console.log(
-    `[api:matching] WhatsApp de match enviado manualmente por ${session.nombre || "comercial"} — event=${eventId} demand=${payload.demandId} property=${payload.propertyId}`,
+    `[api:matching] WhatsApp ${result.alreadySent ? "ya enviado" : "enviado"} por ${session.nombre || "comercial"} — event=${eventId} demand=${payload.demandId} property=${payload.propertyId} wamid=${result.wamid ?? "N/A"}`,
   );
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    wamid: result.wamid ?? null,
+    alreadySent: result.alreadySent ?? false,
+  });
 };
 
 export const POST = withObservedRoute(

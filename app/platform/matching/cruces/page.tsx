@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import useSWR from "swr";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
     ArrowLeftRight,
     Sparkles,
@@ -37,6 +38,8 @@ interface ApiResponse {
 }
 
 export default function CrucesPage() {
+    const searchParams = useSearchParams();
+    const targetMatchId = searchParams.get("matchId");
     const [allMatches, setAllMatches] = useState<CruceMatch[]>([]);
     const [newMatchIds, setNewMatchIds] = useState<Set<string>>(new Set());
     const [selectedMatch, setSelectedMatch] = useState<CruceMatch | null>(null);
@@ -53,6 +56,7 @@ export default function CrucesPage() {
 
     const latestPosition = useRef<string | null>(null);
     const knownIds = useRef<Set<string>>(new Set());
+    const focusedMatchIdRef = useRef<string | null>(null);
 
     const handleMatchSent = useCallback((matchId: string) => {
         setAllMatches((prev) =>
@@ -258,6 +262,18 @@ export default function CrucesPage() {
             setCurrentPage(totalPages);
         }
     }, [currentPage, totalPages]);
+
+    useEffect(() => {
+        if (!targetMatchId) return;
+        if (focusedMatchIdRef.current === targetMatchId) return;
+        const targetIndex = allMatches.findIndex((match) => match.id === targetMatchId);
+        if (targetIndex === -1) return;
+        const targetMatch = allMatches[targetIndex];
+        if (!targetMatch) return;
+        setSelectedMatch(targetMatch);
+        setCurrentPage(Math.floor(targetIndex / ITEMS_PER_PAGE) + 1);
+        focusedMatchIdRef.current = targetMatchId;
+    }, [allMatches, targetMatchId]);
 
     const totalMatches = allMatches.length;
     const avgMatch = totalMatches > 0

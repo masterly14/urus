@@ -6,7 +6,8 @@
  *
  * 1. Resuelve el teléfono del comprador desde demands_current.
  * 2. Encola NOTIFY_LEAD_WHATSAPP al comercial asignado.
- * 3. Si hay teléfono del comprador, encola SEND_WHATSAPP_MATCH (H21: asíncrono).
+ * 3. Si hay teléfono del comprador, envía en caliente el WhatsApp de match
+ *    al comprador (sin pasar por job queue) vía `sendMatchWhatsAppHot`.
  * 4. Registra el match en CommercialLeadFact (analytics best-effort).
  */
 
@@ -16,8 +17,8 @@ import type { HandlerResult } from "./types";
 import { prisma } from "@/lib/prisma";
 import { resolveComercialFromAgente } from "@/lib/routing/resolve-comercial";
 import { sendMatchNotification } from "@/lib/whatsapp/send";
-import { getPublicAppUrl } from "@/lib/microsite/app-url";
 import { normalizeWhatsAppDigits } from "@/lib/microsite/buyer-phone";
+import { sendMatchWhatsAppHot } from "@/lib/matching/send-match-whatsapp";
 
 interface MatchGeneradoPayload {
   demandId: string;
@@ -105,25 +106,29 @@ export async function handleMatchGenerado(
     });
   }
 
-  const buyerPhone = demand?.telefono;
+  const buyerPhone = demand?.telefono?.trim();
   if (buyerPhone) {
-    const appUrl = getPublicAppUrl();
-    const enlace = `${appUrl}/matching/cruces`;
-    followUpJobs.push({
-      type: "SEND_WHATSAPP_MATCH",
-      payload: {
-        buyerPhone,
-        nombre: demand?.nombre ?? payload.demandNombre ?? "comprador",
-        enlacePropiedad: enlace,
-        demandId,
-        propertyId,
-      },
-      priority: 20,
-      idempotencyKey: `send_wa_match:${event.id}`,
-      sourceEventId: event.id,
+    const buyerName = demand?.nombre ?? payload.demandNombre ?? "comprador";
+    const sendResult = await sendMatchWhatsAppHot({
+      matchEventId: event.id,
+      demandId,
+      propertyId,
+      buyerPhone,
+      buyerName,
+      source: "consumer:match",
     });
+
+    if (!sendResult.ok) {
+      console.error(
+        `[consumer:match] fallo enviando WhatsApp en caliente demanda=${demandId} property=${propertyId} event=${event.id}: ${sendResult.error}`,
+      );
+      // Devolvemos error para que el PROCESS_EVENT se reintente; la
+      // idempotencia por causationId evita duplicar el envío al comprador.
+      return { success: false, error: sendResult.error ?? "Error enviando WhatsApp" };
+    }
+
     console.log(
-      `[consumer:match] demanda=${demandId} tiene teléfono — encolado SEND_WHATSAPP_MATCH automático`,
+      `[consumer:match] WhatsApp ${sendResult.alreadySent ? "ya enviado" : "enviado en caliente"} a demanda=${demandId} property=${propertyId} wamid=${sendResult.wamid ?? "N/A"}`,
     );
   } else {
     console.log(

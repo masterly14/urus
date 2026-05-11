@@ -108,17 +108,22 @@ const getHandler = async (request: Request) => {
   const demMap = new Map(demands.map((d) => [d.codigo, d]));
 
   const eventIds = pageEvents.map((ev) => ev.id);
-  const sentJobs = eventIds.length > 0
-    ? await prisma.jobQueue.findMany({
+  // El flag `whatsappEnviado` se infiere de la presencia de un evento
+  // WHATSAPP_ENVIADO causado por el MATCH_GENERADO (envío en caliente,
+  // ya no pasa por la cola de jobs SEND_WHATSAPP_MATCH).
+  const sentEvents = eventIds.length > 0
+    ? await prisma.event.findMany({
         where: {
-          type: "SEND_WHATSAPP_MATCH",
-          sourceEventId: { in: eventIds },
-          status: { in: ["COMPLETED", "IN_PROGRESS"] },
+          type: "WHATSAPP_ENVIADO",
+          causationId: { in: eventIds },
+          payload: { path: ["kind"], equals: "match_notification" },
         },
-        select: { sourceEventId: true },
+        select: { causationId: true },
       })
     : [];
-  const sentEventIds = new Set(sentJobs.map((j) => j.sourceEventId).filter(Boolean));
+  const sentEventIds = new Set(
+    sentEvents.map((e) => e.causationId).filter((id): id is string => Boolean(id)),
+  );
 
   type CruceItem = {
     id: string;
