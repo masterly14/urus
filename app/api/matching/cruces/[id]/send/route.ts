@@ -14,8 +14,8 @@ interface MatchEventPayload {
 /**
  * POST /api/matching/cruces/:id/send
  *
- * Envía el WhatsApp de match al comprador de forma manual.
- * El comercial valida el cruce y decide cuándo enviar.
+ * Reintenta o fuerza el WhatsApp de match al comprador.
+ * Flujo principal: automático desde handleMatchGenerado.
  */
 const postHandler = async (
   request: Request,

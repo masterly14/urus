@@ -180,6 +180,14 @@ function normalizeDemand(raw: InmovillaDemandRaw): InmovillaDemand {
     map[f.campo] = f.value;
   }
 
+  const joinPrefixAndPhone = (prefixValue: unknown, phoneValue: unknown): string => {
+    const prefix = String(prefixValue ?? "").replace(/\D/g, "");
+    const phone = String(phoneValue ?? "").replace(/\D/g, "");
+    if (!phone || phone.length < 7) return "";
+    if (!prefix) return phone;
+    return `${prefix}${phone}`;
+  };
+
   // keyagente, keycomercial y userid son todos el ID numérico del agente en Inmovilla.
   // Tomamos el primero que sea un número entero válido.
   const rawAgentId =
@@ -202,15 +210,29 @@ function normalizeDemand(raw: InmovillaDemandRaw): InmovillaDemand {
 
   // Teléfono del comprador con prefijo de país.
   // Preferimos el móvil (telefono2_raw). Fallback a fijo (telefono1_raw).
-  // Solo usamos valores que sean strings con al menos 7 dígitos (evitar prefijo solo "34").
+  // Si _raw no viene, reconstruimos con prefijo + número (prefijotel* + telefono*).
+  // Solo usamos valores con al menos 7 dígitos para evitar capturar prefijo suelto.
   const rawTel2 = String(map["telefono2_raw"] ?? "").trim();
   const rawTel1 = String(map["telefono1_raw"] ?? "").trim();
+  const composedTel2 = joinPrefixAndPhone(map["prefijotel2"], map["telefono2"]);
+  const composedTel1 = joinPrefixAndPhone(map["prefijotel1"], map["telefono1"]);
+  const plainTel2 = String(map["telefono2"] ?? "").replace(/\D/g, "");
+  const plainTel1 = String(map["telefono1"] ?? "").replace(/\D/g, "");
+
+  const candidates = [
+    rawTel2,
+    composedTel2,
+    plainTel2,
+    rawTel1,
+    composedTel1,
+    plainTel1,
+  ].map((v) => String(v).trim());
+
+  const bestPhone = candidates.find((value) => value.replace(/\D/g, "").length >= 7);
   const telefono =
-    rawTel2.replace(/\D/g, "").length >= 7
-      ? rawTel2
-      : rawTel1.replace(/\D/g, "").length >= 7
-        ? rawTel1
-        : undefined;
+    bestPhone && bestPhone.replace(/\D/g, "").length >= 7
+      ? bestPhone
+      : undefined;
 
   return {
     codigo: String(map["codigo"] ?? map["cod_dem"] ?? map["keydem"] ?? ""),

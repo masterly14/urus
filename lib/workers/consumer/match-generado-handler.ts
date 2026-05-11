@@ -107,11 +107,23 @@ export async function handleMatchGenerado(
 
   const buyerPhone = demand?.telefono;
   if (buyerPhone) {
-    // El envío al comprador ya NO es automático. El comercial lo dispara
-    // manualmente desde la UI de cruces (/platform/matching/cruces)
-    // a través de POST /api/matching/cruces/:id/send.
+    const appUrl = getPublicAppUrl();
+    const enlace = `${appUrl}/matching/cruces`;
+    followUpJobs.push({
+      type: "SEND_WHATSAPP_MATCH",
+      payload: {
+        buyerPhone,
+        nombre: demand?.nombre ?? payload.demandNombre ?? "comprador",
+        enlacePropiedad: enlace,
+        demandId,
+        propertyId,
+      },
+      priority: 20,
+      idempotencyKey: `send_wa_match:${event.id}`,
+      sourceEventId: event.id,
+    });
     console.log(
-      `[consumer:match] demanda=${demandId} tiene teléfono — WhatsApp pendiente de validación del comercial`,
+      `[consumer:match] demanda=${demandId} tiene teléfono — encolado SEND_WHATSAPP_MATCH automático`,
     );
   } else {
     console.log(

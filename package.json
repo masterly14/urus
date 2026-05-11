@@ -60,7 +60,8 @@
     "visit:test": "echo Abre http://localhost:3000/platform/test-visit en el navegador",
     "bootstrap": "tsx scripts/post-deploy-bootstrap.ts",
     "scrape:fotocasa": "tsx scripts/scrape-fotocasa.ts",
-    "scrape:idealista": "tsx scripts/scrape-idealista.ts"
+    "scrape:idealista": "tsx scripts/scrape-idealista.ts",
+    "demand:force-create": "tsx scripts/force-create-demand-from-existing.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
