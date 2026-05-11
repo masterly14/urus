@@ -38,6 +38,7 @@ const SELLER_CLIENT_ID_KEYS = [
 ] as const;
 
 const CADASTRAL_KEYS = [
+  "rcatastral",
   "refcat",
   "refcatastral",
   "referencia_catastral",

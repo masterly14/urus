@@ -193,7 +193,7 @@ export function mapClientToPerson(
 }
 
 export const CADASTRAL_KEYS = [
-  "refcat", "refcatastral", "referencia_catastral",
+  "rcatastral", "refcat", "refcatastral", "referencia_catastral",
   "referenciacatastral", "catastro", "catastral",
 ] as const;
 

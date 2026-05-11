@@ -1,4 +1,5 @@
 import type { OperacionEstado, Operacion } from "@prisma/client";
+import type { ExtractionDeps } from "@/lib/contracts/extraction/shared";
 import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store";
 import type { JsonValue } from "@/lib/event-store/types";
@@ -9,6 +10,8 @@ import {
   requirementsForSkippedAndTarget,
   type MissingFieldResult,
 } from "./stage-requirements";
+import { resolveStageDataForOperacion } from "./resolve-stage-data";
+import { deepMerge, expandDottedKeys } from "./merge-stage-data";
 
 // ---------------------------------------------------------------------------
 // Tipos públicos
@@ -27,6 +30,11 @@ export interface AdvanceParams {
   targetEstado: OperacionEstado;
   manualData?: Record<string, unknown>;
   comercialId: string;
+  /**
+   * Inyección opcional para tests — en producción se usan los deps por
+   * defecto que leen de Prisma + Inmovilla REST.
+   */
+  extractionDeps?: ExtractionDeps;
 }
 
 // ---------------------------------------------------------------------------
@@ -48,7 +56,7 @@ export interface AdvanceParams {
 export async function advanceOperacion(
   params: AdvanceParams,
 ): Promise<AdvanceResult> {
-  const { operacionId, targetEstado, manualData, comercialId } = params;
+  const { operacionId, targetEstado, manualData, comercialId, extractionDeps } = params;
 
   const operacion = await prisma.operacion.findUnique({
     where: { id: operacionId },
@@ -86,7 +94,18 @@ export async function advanceOperacion(
     const allRequirements = requirementsForSkippedAndTarget(skipped, targetEstado);
 
     if (allRequirements.length > 0) {
-      const availableData = manualData ?? {};
+      // Resolvemos primero lo que ya existe en Neon + Inmovilla (comprador,
+      // vendedor si aplica y propiedad), y combinamos con los datos manuales
+      // que el comercial proporcione desde el formulario. Solo así pedimos
+      // al usuario los campos que de verdad no se pueden deducir.
+      const resolved = await resolveStageDataForOperacion({
+        operacion,
+        targetEstado,
+        deps: extractionDeps,
+      });
+      const manualExpanded = expandDottedKeys(manualData ?? {});
+      const availableData = deepMerge(resolved as Record<string, unknown>, manualExpanded);
+
       const missing = validateStageRequirements(targetEstado, availableData);
 
       if (missing.length > 0) {
