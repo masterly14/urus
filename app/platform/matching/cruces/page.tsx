@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { Suspense, useState, useEffect, useMemo, useCallback, useRef } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -37,7 +37,7 @@ interface ApiResponse {
     zonas: string[];
 }
 
-export default function CrucesPage() {
+function CrucesPageContent() {
     const searchParams = useSearchParams();
     const targetMatchId = searchParams.get("matchId");
     const [allMatches, setAllMatches] = useState<CruceMatch[]>([]);
@@ -752,5 +752,22 @@ export default function CrucesPage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function CrucesPage() {
+    return (
+        <Suspense
+            fallback={(
+                <div className="flex items-center justify-center h-[50vh]">
+                    <div className="flex flex-col items-center gap-3">
+                        <Loader2 className="h-8 w-8 animate-spin text-secondary" />
+                        <p className="text-sm text-muted-foreground">Cargando cruces reales...</p>
+                    </div>
+                </div>
+            )}
+        >
+            <CrucesPageContent />
+        </Suspense>
     );
 }
