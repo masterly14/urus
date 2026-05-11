@@ -8,6 +8,7 @@ import {
   applyDescriptionUpdates,
   coerceMicrositeCuratedProperties,
 } from "@/lib/microsite/selection";
+import { sendMicrositeToBuyerHot } from "@/lib/microsite/send-microsite-buyer-hot";
 import { z } from "zod";
 import { withObservedRoute } from "@/lib/observability";
 
@@ -132,14 +133,44 @@ const postHandler = async (request: Request, context: { params: Promise<{ valida
     idempotencyKey: `process_event:${event.id}`,
   });
 
-  await enqueueJob({
-    type: "SEND_MICROSITE_TO_BUYER",
-    payload: { selectionId: selection.id },
-    priority: 30,
-    idempotencyKey: `send_microsite_buyer:${selection.id}`,
+  // Envío en caliente del microsite al comprador. Si Meta falla,
+  // caemos al job como red de seguridad para que el consumer reintente
+  // con backoff sin perder el envío.
+  const sendResult = await sendMicrositeToBuyerHot({
+    selectionId: selection.id,
+    source: "api:validar-seleccion",
+    causationId: event.id,
   });
 
-  return NextResponse.json({ ok: true, eventId: event.id, action: "APPROVE" });
+  let queued = false;
+  if (!sendResult.ok) {
+    console.error(
+      `[validar-seleccion] envío hot falló selectionId=${selection.id}: ${sendResult.error} — encolando fallback`,
+    );
+    await enqueueJob({
+      type: "SEND_MICROSITE_TO_BUYER",
+      payload: { selectionId: selection.id },
+      priority: 30,
+      idempotencyKey: `send_microsite_buyer:${selection.id}`,
+      sourceEventId: event.id,
+    });
+    queued = true;
+  } else {
+    console.log(
+      `[validar-seleccion] microsite ${sendResult.alreadySent ? "ya enviado" : "enviado en caliente"} selectionId=${selection.id} wamid=${sendResult.wamid ?? "N/A"}`,
+    );
+  }
+
+  return NextResponse.json({
+    ok: true,
+    eventId: event.id,
+    action: "APPROVE",
+    sent: sendResult.ok && !sendResult.skipped,
+    wamid: sendResult.ok ? (sendResult.wamid ?? null) : null,
+    alreadySent: sendResult.alreadySent ?? false,
+    sendError: sendResult.ok ? null : (sendResult.error ?? null),
+    queued,
+  });
 }
 
 export const POST = withObservedRoute({ method: "POST", route: "/api/validar-seleccion/[validationToken]" }, postHandler);

@@ -7,7 +7,6 @@ import {
   sendLeadAssignedToCommercial,
   sendFollowUpToCommercial,
   sendMicrositePendingValidationToCommercial,
-  sendMicrositeLinkToBuyer,
   sendNoStockAvailableToBuyer,
   sendContractDataIncompleteToCommercial,
   type LeadAssignedParams,
@@ -28,6 +27,7 @@ import { generateMicrositeSelection } from "@/lib/microsite/selection";
 import { autoValidateMicrosite } from "@/lib/microsite/auto-validate";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
 import { normalizeWhatsAppDigits, resolveBuyerPhoneForDemand } from "@/lib/microsite/buyer-phone";
+import { sendMicrositeToBuyerHot } from "@/lib/microsite/send-microsite-buyer-hot";
 import { enqueueJob } from "@/lib/job-queue";
 import type { DemandFilterInput } from "@/lib/statefox";
 import { EXTERNAL_PORTFOLIO_DISABLED_REASON } from "@/lib/statefox/external-search";
@@ -545,83 +545,34 @@ async function handleSendMicrositeToBuyer(job: JobRecord): Promise<HandlerResult
     return { success: false, error: "SEND_MICROSITE_TO_BUYER sin selectionId", permanent: true };
   }
 
-  const selection = await prisma.micrositeSelection.findUnique({
-    where: { id: selectionId },
-    select: {
-      id: true,
-      token: true,
-      status: true,
-      demandId: true,
-      demandNombre: true,
-      buyerPhone: true,
-    },
+  const result = await sendMicrositeToBuyerHot({
+    selectionId,
+    source: "consumer:send-microsite",
+    causationId: job.sourceEventId ?? null,
   });
 
-  if (!selection) {
-    return { success: false, error: "Selección no encontrada", permanent: true };
+  if (!result.ok) {
+    const isNotFound = result.error?.includes("no encontrada");
+    console.error(
+      `[consumer] SEND_MICROSITE_TO_BUYER job ${job.id} — error: ${result.error}`,
+    );
+    return {
+      success: false,
+      error: result.error ?? "Error enviando microsite",
+      permanent: isNotFound ? true : undefined,
+    };
   }
-  if (selection.status !== "APPROVED") {
+
+  if (result.skipped) {
     console.warn(
-      `[consumer] SEND_MICROSITE_TO_BUYER job ${job.id} — status=${selection.status}, omitiendo envío`,
+      `[consumer] SEND_MICROSITE_TO_BUYER job ${job.id} — omitido: ${result.skipReason}`,
     );
     return { success: true };
   }
 
-  const digits = normalizeWhatsAppDigits(selection.buyerPhone);
-  if (digits.length < 9) {
-    console.warn(
-      `[consumer] SEND_MICROSITE_TO_BUYER job ${job.id} — sin teléfono comprador para selectionId=${selectionId}`,
-    );
-    return { success: true };
-  }
-
-  const base = getPublicAppUrl();
-  const buyerUrl = `${base}/seleccion/${selection.token}`;
-
-  let wamid: string | undefined;
-  try {
-    const result = await sendMicrositeLinkToBuyer(digits, {
-      demandNombre: selection.demandNombre,
-      buyerUrl,
-    }, {
-      trace: {
-        source: "consumer",
-        kind: "microsite_link",
-        aggregateId: digits,
-        causationId: job.sourceEventId ?? null,
-        payload: {
-          demandId: selection.demandId,
-          selectionId: selection.id,
-          selectionToken: selection.token,
-          buyerUrl,
-        },
-      },
-    });
-    wamid = result.messages?.[0]?.id;
-    console.log(
-      `[consumer] SEND_MICROSITE_TO_BUYER job ${job.id} — enviado al comprador selectionId=${selectionId} wamid=${wamid ?? "N/A"}`,
-    );
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`[consumer] SEND_MICROSITE_TO_BUYER — error: ${message}`);
-    return { success: false, error: message };
-  }
-
-  await prisma.whatsAppBuyerSession.upsert({
-    where: { waId: digits },
-    create: {
-      waId: digits,
-      demandId: selection.demandId,
-      selectionId: selection.id,
-      selectionToken: selection.token,
-    },
-    update: {
-      demandId: selection.demandId,
-      selectionId: selection.id,
-      selectionToken: selection.token,
-    },
-  });
-
+  console.log(
+    `[consumer] SEND_MICROSITE_TO_BUYER job ${job.id} — ${result.alreadySent ? "ya enviado" : "enviado"} al comprador selectionId=${selectionId} wamid=${result.wamid ?? "N/A"}`,
+  );
   return { success: true };
 }
 
