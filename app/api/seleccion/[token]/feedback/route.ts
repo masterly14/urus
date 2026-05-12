@@ -82,6 +82,18 @@ const postHandler = async (request: Request, context: { params: Promise<{ token:
     select: { id: true, decision: true },
   });
 
+  // Idempotencia hard: si ya hay un ME_INTERESA registrado para esta propiedad,
+  // devolvemos 409 para que el cliente pueda bloquear el botón sin ambigüedad y
+  // no se emita un nuevo evento (lo que dispararía un WhatsApp duplicado).
+  // Para NO_ME_ENCAJA mantenemos el 200 (la decisión negativa puede repetirse
+  // sin efectos secundarios visibles al comprador).
+  if (existing?.decision === "ME_INTERESA" && decision === "ME_INTERESA") {
+    return NextResponse.json(
+      { ok: false, alreadyRecorded: true, decision: "ME_INTERESA" },
+      { status: 409 },
+    );
+  }
+
   if (existing?.decision === decision) {
     return NextResponse.json({
       ok: true,
@@ -90,6 +102,9 @@ const postHandler = async (request: Request, context: { params: Promise<{ token:
     });
   }
 
+  const ip = getClientIp(request);
+  const userAgent = request.headers.get("user-agent");
+
   const feedbackPayload = {
     token: selection.token,
     demandId: selection.demandId,
@@ -97,6 +112,16 @@ const postHandler = async (request: Request, context: { params: Promise<{ token:
     comercialId: selection.comercialId,
     selectionId: selection.id,
     decision,
+    // `source.channel` está al primer nivel del payload (no solo en metadata)
+    // para que los handlers (`handleSeleccionComprador`) puedan discriminar
+    // el canal sin tener que leer metadata. `microsite_card` indica que la
+    // decisión viene del botón "Me encaja" del micrositio.
+    source: {
+      channel: "microsite_card" as const,
+      token: selection.token,
+      ip,
+      userAgent,
+    },
     property: {
       propertyId: selectedProperty.propertyId,
       title: selectedProperty.title,
@@ -112,9 +137,9 @@ const postHandler = async (request: Request, context: { params: Promise<{ token:
   } as const;
 
   const metadata = {
-    channel: "microsite",
-    userAgent: request.headers.get("user-agent"),
-    ip: getClientIp(request),
+    channel: "microsite_card",
+    userAgent,
+    ip,
   };
 
   const event = await appendEvent({

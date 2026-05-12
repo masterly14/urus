@@ -18,6 +18,8 @@ import type { MicrositeSelectionDecision } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { updateDemandLeadStatus } from "@/lib/projections/update-lead-status";
 import { notifyCommercialVisitInterest } from "@/lib/visitas/notify-commercial";
+import { enqueueJob } from "@/lib/job-queue";
+import type { JobType } from "@prisma/client";
 
 type SeleccionCompradorPayload = {
   demandId?: string;
@@ -72,6 +74,8 @@ export async function handleSeleccionComprador(event: Event): Promise<HandlerRes
     },
   });
 
+  const channel = p.source?.channel ?? "unknown";
+
   if (decision === "ME_INTERESA") {
     await updateDemandLeadStatus(demandId, "VISITA_PENDIENTE");
     const notification = await notifyCommercialVisitInterest({
@@ -85,9 +89,34 @@ export async function handleSeleccionComprador(event: Event): Promise<HandlerRes
         `[consumer:seleccion] No se notificó paquete de visita demandId=${demandId}: ${notification.reason ?? "unknown"}`,
       );
     }
+
+    // Acuse al comprador SOLO cuando el interés llega por el botón
+    // "Me encaja" del micrositio (canal canónico). Si el evento procede de
+    // otros canales (p.ej. NLU sobre WhatsApp), no se envía acuse para no
+    // romper la regla de "un mensaje por click".
+    if (channel === "microsite_card") {
+      try {
+        await enqueueJob({
+          type: "SEND_BUYER_INTEREST_ACK" as JobType,
+          payload: {
+            selectionId,
+            propertyId,
+            demandId,
+            sourceEventId: event.id,
+          },
+          sourceEventId: event.id,
+          idempotencyKey: `send_buyer_interest_ack:${event.id}`,
+          priority: 30,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(
+          `[consumer:seleccion] No se pudo encolar SEND_BUYER_INTEREST_ACK demandId=${demandId} selection=${selectionId} property=${propertyId}: ${msg}`,
+        );
+      }
+    }
   }
 
-  const channel = p.source?.channel ?? "unknown";
   console.log(
     `[consumer:seleccion] SELECCION_COMPRADOR demandId=${demandId} property=${propertyId} decision=${decision} channel=${channel}`,
   );

@@ -894,3 +894,8 @@ registerJobHandler("REBUILD_MATCHES_FOR_DEMAND", handleRebuildMatchesForDemand);
 import { handleUpdatePropertyStatusInmovilla } from "@/lib/operacion/inmovilla-property-status-handler";
 
 registerJobHandler("UPDATE_PROPERTY_STATUS_INMOVILLA", handleUpdatePropertyStatusInmovilla);
+
+// --- Microsite (M6): acuse al comprador tras pulsar "Me encaja" en una propiedad ---
+import { handleSendBuyerInterestAck } from "./buyer-interest-ack-handler";
+
+registerJobHandler("SEND_BUYER_INTEREST_ACK", handleSendBuyerInterestAck);
