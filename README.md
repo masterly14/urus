@@ -43,7 +43,9 @@ Escenario de migración a API REST (contactos, propiedades, propietarios) docume
 - **Testeo cercano a producción (lógica):** además de la suite anterior, el proyecto usa **scripts** (`scripts/` y comandos `npm run …`) para ejecutar flujos de negocio e integración con la misma configuración que el runtime real en la medida de lo posible. Detalle y reglas en `AGENTS.md` y en `docs/plan.md` (*Estrategia de testeo*).
 - **UI con datos mock:** las rutas con interfaz relevante deben soportar un **query parameter** documentado que active fixtures/mock y permita **previsualizar la UI** sin datos reales. Convención y obligaciones descritas en `AGENTS.md` y `docs/plan.md`.
 - **Build**: `npm run build`
-- **Inmovilla — login**: `npm run inmovilla:login` (requiere `INMOVILLA_USER`, `INMOVILLA_PASSWORD`, `INMOVILLA_OFFICE_KEY` y Composio/Gmail para 2FA).
+- **Inmovilla — login**: `npm run inmovilla:login` (requiere `INMOVILLA_USER`, `INMOVILLA_PASSWORD`, `INMOVILLA_OFFICE_KEY` y Composio/Gmail para 2FA). Ver setup y troubleshooting de Composio en `docs/composio-gmail-2fa.md`.
+- **Composio — debug 2FA Inmovilla**: `npx tsx scripts/debug-inmovilla-2fa.ts` — valida la conexión Gmail anclada (`COMPOSIO_GMAIL_CONNECTED_ACCOUNT_ID`), lista cuentas conectadas y reproduce el flujo del extractor sin pasar por Playwright.
+- **Composio — health check Gmail (cron)**: `POST /api/cron/composio-gmail-health` (auth `CRON_SECRET` o firma QStash). Recomendado 1×/día. Detalle en `docs/composio-gmail-2fa.md`.
 - **Inmovilla — lectura propiedades**: `npm run inmovilla:read-properties`
 - **Egestion — escritura en Inmovilla**: `npm run egestion:write -- <operation> [--headless] [--no-verify] [--json]` — operaciones: `createDemand`, `updateDemandEmail`, `updateDemandPriority` (ver variables/args en el script).
 - **Ingestion — propiedades**: `npm run ingestion:properties`

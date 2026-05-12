@@ -69,6 +69,18 @@ export async function runDemandsIngestionCycle(): Promise<DemandIngestionCycleRe
               ).catch(() => {});
               throw classified;
             }
+            if (classified.code === "COMPOSIO_GMAIL_NOT_CONNECTED") {
+              alertGeneric(
+                "Ingesta demandas: conexión Gmail en Composio caída o no autorizada",
+                "critical",
+                {
+                  errorCode: classified.code,
+                  recommendation:
+                    "Reautorizar Gmail en https://app.composio.dev y validar COMPOSIO_GMAIL_CONNECTED_ACCOUNT_ID",
+                },
+              ).catch(() => {});
+              throw classified;
+            }
             log.warn("Login fallido, reintentando en 10s", {
               errorCode: classified.code,
               error: classified.message,

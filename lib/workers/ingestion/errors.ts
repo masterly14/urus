@@ -11,6 +11,7 @@ export type IngestionErrorCode =
   | "TIMEOUT"       // Respuesta demasiado lenta
   | "AUTH_FAILED"   // 401/403, sesión expirada, token inválido
   | "PLAYWRIGHT_MISSING_BROWSER" // Runtime sin binario de Chromium/Playwright
+  | "COMPOSIO_GMAIL_NOT_CONNECTED" // Conexión Gmail en Composio inactiva/expirada
   | "DB_ERROR"      // Error de conexión Prisma / Neon
   | "PARSE_ERROR"   // Respuesta de la API con formato inesperado
   | "UNKNOWN";      // No clasificado
@@ -40,6 +41,15 @@ export class IngestionError extends Error {
  */
 export function classifyError(err: unknown): IngestionError {
   if (err instanceof IngestionError) return err;
+
+  const errorObj = err as { name?: string; code?: unknown } | null;
+  if (
+    errorObj?.name === "ComposioGmailNotConnectedError" ||
+    errorObj?.code === "COMPOSIO_GMAIL_NOT_CONNECTED"
+  ) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return new IngestionError("COMPOSIO_GMAIL_NOT_CONNECTED", msg, false, err);
+  }
 
   const msg = err instanceof Error ? err.message : String(err);
   const lower = msg.toLowerCase();

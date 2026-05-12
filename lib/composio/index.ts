@@ -1,4 +1,12 @@
 export { getInmovilla2FACode } from "./get-inmovilla-2fa-code";
+export {
+  ComposioGmailNotConnectedError,
+  getActiveGmailConnection,
+} from "./gmail-connection";
+export type {
+  ComposioGmailConnection,
+  ComposioGmailConnectionStatus,
+} from "./gmail-connection";
 export { createCalendarEvent } from "./create-calendar-event";
 export type {
   CalendarEventInput,

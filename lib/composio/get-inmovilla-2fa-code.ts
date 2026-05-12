@@ -1,17 +1,28 @@
 import { Composio } from "@composio/core";
 import { OpenAIAgentsProvider } from "@composio/openai-agents";
 import { Agent, run } from "@openai/agents";
+import {
+  ComposioGmailNotConnectedError,
+  getActiveGmailConnection,
+} from "./gmail-connection";
 
 /**
- * Busca el correo 2FA de Inmovilla más reciente en Gmail y extrae el código.
+ * Busca el correo 2FA de Inmovilla más reciente en Gmail (vía Composio) y
+ * extrae el código de verificación.
  *
- * @param sentAfter  Solo considerar correos recibidos después de esta fecha.
- *                   Si se omite, busca el más reciente sin filtro de tiempo.
+ * Antes de llamar al agente LLM se valida que la conexión Gmail en Composio
+ * esté `ACTIVE` para `COMPOSIO_USER_ID`. Si no, se lanza
+ * `ComposioGmailNotConnectedError` para que el caller pueda alertar y abortar
+ * sin gastar tokens ni reintentos.
  *
- * Requiere en .env:
- *   COMPOSIO_API_KEY  – API key de Composio (https://app.composio.dev)
- *   COMPOSIO_USER_ID  – User ID en Composio con conexión Gmail activa
- *   OPENAI_API_KEY    – API key de OpenAI
+ * Variables requeridas en `.env`:
+ *   COMPOSIO_API_KEY                       – API key de Composio (https://app.composio.dev)
+ *   COMPOSIO_USER_ID                       – User ID en Composio con conexión Gmail activa
+ *   COMPOSIO_GMAIL_CONNECTED_ACCOUNT_ID    – (opcional pero recomendado) ID `ca_…` de la
+ *                                            conexión Gmail anclada para producción
+ *   OPENAI_API_KEY                         – API key de OpenAI
+ *
+ * @param sentAfter Solo considerar correos recibidos después de esta fecha.
  */
 export async function getInmovilla2FACode(sentAfter?: Date): Promise<string> {
   const composio = new Composio({
@@ -20,6 +31,11 @@ export async function getInmovilla2FACode(sentAfter?: Date): Promise<string> {
   });
 
   const userId = process.env.COMPOSIO_USER_ID ?? "default";
+
+  const gmailConnection = await getActiveGmailConnection(composio, userId);
+  console.log(
+    `[2fa] Composio Gmail OK (userId=${userId}, connectedAccountId=${gmailConnection.id}, status=${gmailConnection.status})`,
+  );
 
   const session = await composio.create(userId);
   const tools = await session.tools();
@@ -61,6 +77,13 @@ export async function getInmovilla2FACode(sentAfter?: Date): Promise<string> {
 
   const raw = result.finalOutput?.trim() ?? "";
 
+  if (/connect\.composio\.dev\/link/i.test(raw)) {
+    throw new ComposioGmailNotConnectedError(
+      "Composio: el agente devolvió un enlace de autorización Gmail (la conexión no está realmente ACTIVA). Reautoriza en https://app.composio.dev.",
+      { userId, expectedConnectionId: gmailConnection.id, observedStatus: "INITIALIZING" },
+    );
+  }
+
   if (raw.includes("NO_CODE_FOUND")) {
     throw new Error("No se encontró un correo 2FA reciente de Inmovilla");
   }
@@ -68,8 +91,9 @@ export async function getInmovilla2FACode(sentAfter?: Date): Promise<string> {
   const match = raw.match(/\d{4,8}/);
 
   if (!match) {
+    const preview = raw.slice(0, 200);
     throw new Error(
-      `No se pudo extraer el código 2FA de Inmovilla. Respuesta del agente: "${raw}"`,
+      `No se pudo extraer el código 2FA de Inmovilla. Respuesta del agente (primeros 200 chars): "${preview}"`,
     );
   }
 
