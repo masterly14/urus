@@ -34,7 +34,9 @@ Tu no tienes que buscar propiedades externas manualmente. El sistema se encarga 
 
 5. **Envia la seleccion al comprador.** Cuando tu apruebas, Urus envia un WhatsApp al comprador con su enlace personal al portal de seleccion.
 
-6. **Recoge la opinion del comprador.** El comprador navega por las propiedades. Si responde por WhatsApp con comentarios ("me gusta esta", "esta no me convence", "busco algo mas grande"), el sistema interpreta el mensaje con inteligencia artificial, puede ajustar los criterios de la demanda y genera una nueva seleccion.
+6. **Recoge la opinion del comprador por dos vias.**
+   - **Boton "Me encaja" en cada ficha del portal.** Cuando el comprador pulsa "Me encaja" en una propiedad, el sistema avanza la demanda a `VISITA_PENDIENTE`, te avisa a ti con el paquete de visita (propietario / agencia + datos de la propiedad) y le manda al comprador un acuse de WhatsApp confirmando que un agente se pondra en contacto. El boton queda permanentemente bloqueado con el texto "Ya elegida".
+   - **Texto libre por WhatsApp.** Si el comprador responde con comentarios ("esta no me convence", "busco algo mas grande", "prefiero otra zona"), el sistema interpreta el mensaje con inteligencia artificial, **registra solo rechazos** y, cuando detecta variables nuevas (precio, metros, zona, habitaciones), ajusta los criterios de la demanda y genera una nueva seleccion. Si el comprador escribe "me encaja" o "me gusta esa" por WhatsApp, el sistema le pide amablemente que use el boton de la ficha (no se interpreta como interes positivo desde texto libre).
 
 7. **Repite el ciclo.** Seleccion nueva → tu validas → el comprador la ve → opina → el sistema ajusta. Asi hasta que el comprador encuentre lo que busca.
 
@@ -119,6 +121,16 @@ No. El portal de seleccion es una pagina web normal. El comprador recibe un enla
 ### "Que pasa si al comprador no le gusta ninguna propiedad?"
 
 Responde por WhatsApp con su opinion ("ninguna me convence", "busco algo mas centrico", "el precio es demasiado alto"). El sistema interpreta el mensaje, ajusta los criterios de busqueda y genera una nueva seleccion. Tu la validas y el comprador recibe un portal actualizado.
+
+### "Como sabe el comprador que una propiedad le gusta de verdad?"
+
+En cada ficha del portal hay un boton "Me encaja". Es el unico canal para registrar interes positivo. Cuando el comprador lo pulsa:
+
+1. Recibes tu el paquete de visita (propietario / agencia + datos de la propiedad).
+2. El comprador recibe un WhatsApp de acuse confirmando que un agente se pondra en contacto.
+3. El boton queda permanentemente marcado en el portal ("Ya elegida — un agente te contactara"), incluso si vuelve a entrar mas tarde.
+
+Si el comprador escribe "me encaja" o "me gusta esa" por WhatsApp, el sistema no lo registra como interes positivo: le contesta amablemente pidiendole que use el boton de la ficha. Esto evita que un mensaje ambiguo genere acuses falsos o avisos duplicados.
 
 ### "El comprador puede ver propiedades de nuestra cartera en Inmovilla?"
 

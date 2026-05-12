@@ -4,7 +4,15 @@
 
 El microsite es la experiencia publica que ve el comprador cuando Urus Capital le presenta propiedades de mercado que encajan con su demanda. Es una aplicacion Next.js bajo la ruta `/seleccion/{token}` que actua como **portal de marca propia** — el comprador nunca sale del dominio de Urus Capital.
 
-El feedback del comprador llega exclusivamente por WhatsApp. El sistema usa LangGraph con NLU contextual para interpretar texto libre del comprador, resolver a que propiedades se refiere y clasificar sentimiento por propiedad.
+El feedback del comprador llega por **dos canales complementarios**:
+
+- **Boton "Me encaja" en cada ficha del micrositio** (canal canonico para
+  expresar interes positivo en una propiedad concreta). Ver `docs/microsite-me-encaja-flow.md`.
+- **WhatsApp en texto libre**, procesado por LangGraph con NLU contextual,
+  para rechazo de propiedades (`NO_ME_ENCAJA`) y ajuste de demanda
+  (`BUSCO_DIFERENTE` + variables). El NLU **ya no infiere interes positivo**:
+  si detecta lenguaje de interes positivo en texto libre, redirige al
+  comprador al boton de la ficha.
 
 ## Flujo completo
 
@@ -17,21 +25,37 @@ Visita evaluada (interes alto)
   → NOTIFY_MICROSITE_PENDING_VALIDATION (WhatsApp al comercial)
     → Comercial revisa en /validar-seleccion/{validationToken}
     → APPROVE → SEND_MICROSITE_TO_BUYER
-      → Envia WhatsApp con URL al comprador
+      → Envia WhatsApp al comprador con la plantilla
+        microsite_listo_comprador (tono informativo, sin orden)
       → Persiste WHATSAPP_ENVIADO (WAMID + demandId + selectionId)
       → Crea/actualiza WhatsAppBuyerSession
         → Comprador navega /seleccion/{token}
-          → Grid de tarjetas clickeables
-          → Click → /seleccion/{token}/propiedad/{propertyId} (detalle completo)
-        → Comprador responde por WhatsApp
+          → Grid de tarjetas con boton "Me encaja" por ficha
+          → Click "Me encaja" en una ficha (canal canonico de interes positivo):
+            → POST /api/seleccion/{token}/feedback con decision=ME_INTERESA
+            → SELECCION_COMPRADOR con source.channel="microsite_card"
+            → handleSeleccionComprador:
+              → leadStatus -> VISITA_PENDIENTE
+              → notifyCommercialVisitInterest (paquete al comercial)
+              → SEND_BUYER_INTEREST_ACK (plantilla
+                microsite_propiedad_me_encaja al comprador)
+            → El boton queda permanentemente bloqueado y muestra
+              "Ya elegida — un agente te contactara"
+          → Click en el resto de la tarjeta abre /seleccion/{token}/propiedad/{propertyId}
+            (detalle completo con el mismo boton)
+        → Comprador responde por WhatsApp en texto libre
           → WHATSAPP_RECIBIDO → Handler NLU contextual
             → Resolucion de demandId (session / reply context / boton match)
             → Carga propiedades del microsite activo como contexto
             → Carga historial conversacional
             → classifyBuyerFeedback (LangGraph)
-              → propertyFeedback[] → SELECCION_COMPRADOR por propiedad
-              → variables → DEMANDA_ACTUALIZADA → projection + Inmovilla + GENERATE_MICROSITE
-              → wantsMoreOptions → GENERATE_MICROSITE directo
+              → propertyFeedback[] -> SELECCION_COMPRADOR (solo NO_ME_ENCAJA)
+              → variables -> DEMANDA_ACTUALIZADA -> projection + Inmovilla + GENERATE_MICROSITE
+              → wantsMoreOptions -> GENERATE_MICROSITE directo
+              → Si el comprador expresa interes positivo en texto libre
+                (intention=OTRO + senal positiva), el handler responde con
+                un texto que invita a pulsar el boton de la ficha
+                (sin emitir SELECCION_COMPRADOR / ME_INTERESA).
 ```
 
 ## Estructura de archivos
@@ -47,7 +71,10 @@ Visita evaluada (interes alto)
 | `app/seleccion/[token]/propiedad/[propertyId]/page.tsx` | Detalle completo de propiedad |
 | `app/seleccion/[token]/propiedad/[propertyId]/image-carousel.tsx` | Carrusel de imagenes |
 | `app/validar-seleccion/[validationToken]/page.tsx` | Validacion comercial |
-| `app/api/seleccion/[token]/feedback/route.ts` | API de feedback HTTP (canal legacy, no canonico — ver nota) |
+| `app/api/seleccion/[token]/feedback/route.ts` | API de feedback HTTP (canal canonico para `ME_INTERESA` via boton del micrositio; idempotente con 409) |
+| `components/seleccion/property-card.tsx` | Tarjeta de propiedad con boton "Me encaja" (Client Component) |
+| `components/seleccion/me-encaja-button.tsx` | Boton "Me encaja" reutilizable en la pagina de detalle |
+| `lib/workers/consumer/buyer-interest-ack-handler.ts` | Handler `SEND_BUYER_INTEREST_ACK` (acuse al comprador) |
 | `lib/agents/nlu-graph.ts` | Grafo LangGraph NLU contextual (2 modos: simple y con propiedades) |
 | `lib/agents/types.ts` | Tipos NLU: PropertyFeedbackItem, PropertySummaryForNLU, ConversationTurn |
 | `lib/workers/consumer/whatsapp-nlu-handler.ts` | Handler WHATSAPP_RECIBIDO con session + NLU contextual |
@@ -76,18 +103,27 @@ El agente NLU recibe:
 - Lista de propiedades del microsite activo (id, titulo, precio, zona, m2, habitaciones, extras)
 - Historial de conversacion (ultimos 10 mensajes)
 
-Produce:
-- `intention`: ME_ENCAJA / NO_ME_ENCAJA / BUSCO_DIFERENTE
-- `propertyFeedback[]`: array de { propertyId, sentiment } por cada propiedad mencionada
+Produce (contrato vigente tras el refactor "Me encaja"):
+- `intention`: `NO_ME_ENCAJA` / `BUSCO_DIFERENTE` / `OTRO`. **Ya no existe
+  `ME_ENCAJA`**: el interes positivo se captura por el boton de la ficha.
+- `propertyFeedback[]`: array de `{ propertyId, sentiment }` por cada
+  propiedad mencionada. `sentiment` se restringe a `"NO_ME_ENCAJA"`.
 - `variables`: ajustes de demanda (precio, zona, metros, tipo, habitaciones)
 - `wantsMoreOptions`: true si pide ver mas propiedades
+
+Cuando el comprador expresa interes positivo en texto libre ("me encaja
+la del centro", "me gusta la segunda", "me la quedo"), el NLU devuelve
+`intention=OTRO` con `propertyFeedback=[]`. El handler de WhatsApp
+(`lib/workers/consumer/whatsapp-nlu-handler.ts`) detecta esa senal y
+responde con un mensaje que invita al comprador a pulsar el boton "Me
+encaja" en la ficha del micrositio (cooldown de 12h para evitar spam).
 
 ## Eventos emitidos
 
 | Evento | Cuando | Payload clave |
 |--------|--------|--------------|
-| WHATSAPP_ENVIADO | Al enviar microsite al comprador | messageId (WAMID), demandId, selectionId, kind |
-| SELECCION_COMPRADOR | Por cada propiedad con feedback del comprador | demandId, selectionId, propertyId, decision, source.channel |
+| WHATSAPP_ENVIADO | Al enviar el micrositio (kind=`microsite_link`) o el acuse (kind=`buyer_interest_ack`) | messageId (WAMID), demandId, selectionId, kind, propertyId (en acuses) |
+| SELECCION_COMPRADOR | `ME_INTERESA` via boton del micrositio (`source.channel="microsite_card"`) o `NO_ME_ENCAJA` via NLU (`source.channel="whatsapp_feedback"`) | demandId, selectionId, propertyId, decision, source.channel |
 | DEMANDA_ACTUALIZADA | Cuando hay ajuste de demanda (NO_ME_ENCAJA/BUSCO_DIFERENTE con variables) | source.channel, selectionId, variables, nlu |
 
 ## Roles de los handlers
@@ -95,6 +131,14 @@ Produce:
 ### SELECCION_COMPRADOR (seleccion-comprador-handler)
 
 Persiste feedback individual por propiedad en `MicrositeSelectionFeedback` (upsert idempotente por selectionId+propertyId). **No dispara** actualizacion de demanda ni regeneracion de microsite — eso lo gestiona `DEMANDA_ACTUALIZADA`.
+
+Cuando `decision === "ME_INTERESA"`:
+
+1. Avanza `leadStatus` a `VISITA_PENDIENTE`.
+2. Llama a `notifyCommercialVisitInterest` (paquete WhatsApp al comercial).
+3. Si `source.channel === "microsite_card"` encola `SEND_BUYER_INTEREST_ACK`
+   con `idempotencyKey = send_buyer_interest_ack:{event.id}`. Para otros
+   canales no se envia acuse (regla "un mensaje por click").
 
 ### DEMANDA_ACTUALIZADA (write-demand-update-handler)
 
@@ -109,9 +153,17 @@ Se dispara en dos caminos:
 1. **DEMANDA_ACTUALIZADA desde feedback WhatsApp**: el handler de escritura detecta `source.channel === "whatsapp_feedback"` o `source.selectionId` y encola GENERATE_MICROSITE tras la egestion a Inmovilla. Las variables de metros se pasan en el payload para que el query a Statefox las use.
 2. **wantsMoreOptions**: el handler de WhatsApp encola GENERATE_MICROSITE directamente cuando el comprador pide mas opciones.
 
-## Canal canonico
+## Canales canonicos
 
-El feedback del comprador llega exclusivamente por **WhatsApp** (texto libre procesado por NLU contextual). El microsite es solo visual: grid de propiedades + pagina de detalle por propiedad. La API HTTP (`POST /api/seleccion/{token}/feedback`) se mantiene como canal legacy pero **no es el flujo canonico** de produccion.
+- **Interes positivo en una propiedad concreta**: boton "Me encaja" en
+  cada ficha del micrositio (`POST /api/seleccion/{token}/feedback` con
+  `decision=ME_INTERESA`). Es el **unico** canal valido para
+  `ME_INTERESA`. Idempotente: la API responde 409 ante un segundo click
+  sobre la misma propiedad, y el boton queda permanentemente bloqueado
+  con el badge "Ya elegida — un agente te contactara". Detalle completo
+  en `docs/microsite-me-encaja-flow.md`.
+- **Rechazo de propiedades y ajuste de demanda**: WhatsApp en texto libre
+  procesado por NLU contextual (`source.channel="whatsapp_feedback"`).
 
 ## Variables de entorno
 
@@ -121,6 +173,8 @@ El feedback del comprador llega exclusivamente por **WhatsApp** (texto libre pro
 | `NEXT_PUBLIC_GOOGLE_MAPS_KEY` | Opcional | Mapa estatico en detalle de propiedad |
 | `DEMO_UI` | Opcional | Activa vistas demo sin Statefox ni DB |
 | `OPENAI_API_KEY` | Si | NLU contextual con LangGraph |
+| `WHATSAPP_TEMPLATE_MICROSITE_LISTO_COMPRADOR` | Opcional (default `microsite_listo_comprador`) | Plantilla del mensaje inicial al comprador con el enlace al micrositio |
+| `WHATSAPP_TEMPLATE_MICROSITE_PROPIEDAD_ME_ENCAJA` | Opcional (default `microsite_propiedad_me_encaja`) | Plantilla del acuse al comprador tras pulsar "Me encaja" en una ficha |
 
 ## Test
 
