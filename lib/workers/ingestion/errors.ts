@@ -10,6 +10,7 @@ export type IngestionErrorCode =
   | "NETWORK_ERROR" // ECONNREFUSED, ETIMEDOUT, ENOTFOUND, etc.
   | "TIMEOUT"       // Respuesta demasiado lenta
   | "AUTH_FAILED"   // 401/403, sesión expirada, token inválido
+  | "PLAYWRIGHT_MISSING_BROWSER" // Runtime sin binario de Chromium/Playwright
   | "DB_ERROR"      // Error de conexión Prisma / Neon
   | "PARSE_ERROR"   // Respuesta de la API con formato inesperado
   | "UNKNOWN";      // No clasificado
@@ -81,6 +82,15 @@ export function classifyError(err: unknown): IngestionError {
     lower.includes("credenciales")
   ) {
     return new IngestionError("AUTH_FAILED", msg, false, err);
+  }
+
+  if (
+    lower.includes("executable doesn't exist") ||
+    lower.includes("playwright install") ||
+    lower.includes("chromium_headless_shell") ||
+    lower.includes("chrome-headless-shell")
+  ) {
+    return new IngestionError("PLAYWRIGHT_MISSING_BROWSER", msg, false, err);
   }
 
   if (

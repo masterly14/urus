@@ -17,6 +17,7 @@ const DEFAULT_TIMEOUT_MS = 90_000;
 const RETRY_EXTRA_DELAY_MS = 5_000;
 /** Tras credenciales OK: tiempo máximo para detectar si Inmovilla redirige al panel sin pedir 2FA. */
 const DIRECT_PANEL_DETECTION_MS = 30_000;
+type LoginPage = Awaited<ReturnType<typeof createBrowser>>["page"];
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -25,6 +26,28 @@ function requireEnv(name: string): string {
 }
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+async function clickVisibleResendButton(page: LoginPage): Promise<boolean> {
+  const candidates = [
+    page.locator("#twoFASectionInitialError #btn-2fa--send-again"),
+    page.getByRole("button", { name: /reenviar código/i }),
+    page.getByRole("button", { name: /reintentar/i }),
+    page.locator("#btn-2fa--send-again"),
+  ];
+
+  for (const candidate of candidates) {
+    const count = await candidate.count();
+    for (let i = 0; i < count; i++) {
+      const button = candidate.nth(i);
+      if (await button.isVisible().catch(() => false)) {
+        await button.click();
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
 
 export async function loginToInmovilla(
   options: InmovillaLoginOptions = {},
@@ -122,10 +145,12 @@ export async function loginToInmovilla(
       code = await getInmovilla2FACode(twoFASentAt);
     } catch {
       console.log("[login] Código no encontrado — reenviando código...");
-      const resendBtn = page.locator("#btn-2fa--send-again");
-      if (await resendBtn.isVisible()) {
-        await resendBtn.click();
+      if (await clickVisibleResendButton(page)) {
         console.log("[login] Click en 'Reenviar código' — esperando...");
+      } else {
+        console.log(
+          "[login] No se encontró botón visible de reenvío; continuando con reintento de lectura de código.",
+        );
       }
       const resendAt = new Date();
       await delay(RETRY_EXTRA_DELAY_MS);

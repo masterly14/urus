@@ -57,6 +57,18 @@ export async function runDemandsIngestionCycle(): Promise<DemandIngestionCycleRe
             await saveSessionToDb(session, "demands-login").catch(() => {});
           } catch (loginErr) {
             const classified = classifyError(loginErr);
+            if (classified.code === "PLAYWRIGHT_MISSING_BROWSER") {
+              alertGeneric(
+                "Ingesta demandas: runtime sin Chromium de Playwright y sesión DB ausente/expirada",
+                "critical",
+                {
+                  errorCode: classified.code,
+                  recommendation:
+                    "Renovar sesión en inmovilla_session_store desde el Session Proxy (Railway) y verificar su cron de refresh",
+                },
+              ).catch(() => {});
+              throw classified;
+            }
             log.warn("Login fallido, reintentando en 10s", {
               errorCode: classified.code,
               error: classified.message,
