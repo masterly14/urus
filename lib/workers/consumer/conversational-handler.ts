@@ -5,8 +5,8 @@
  * 1. Carga contexto (propiedades, historial, sesión).
  * 2. Invoca el agente conversacional.
  * 3. Envía responseText al comprador.
- * 4. Registra WHATSAPP_ENVIADO en Event Store.
- * 5. Actualiza WhatsAppBuyerSession.
+ * 4. Si el envío tuvo éxito, registra WHATSAPP_ENVIADO en Event Store.
+ * 5. Si el envío tuvo éxito, actualiza WhatsAppBuyerSession.
  * 6. Retorna jobs derivados de tool calls.
  */
 
@@ -278,9 +278,11 @@ export async function handleConversationalFlow(
     const sendResult = await sendTextMessage(waId, output.responseText);
     messageId = sendResult.messages?.[0]?.id ?? null;
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     console.error(
-      `[conversational-handler] sendTextMessage failed waId=${waId}: ${err instanceof Error ? err.message : err}`,
+      `[conversational-handler] sendTextMessage failed waId=${waId}: ${msg}`,
     );
+    return { success: false, error: msg };
   }
 
   // 6. Registrar WHATSAPP_ENVIADO
