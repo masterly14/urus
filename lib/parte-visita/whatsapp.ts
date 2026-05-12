@@ -22,6 +22,9 @@ const FLOW_ID = process.env.WHATSAPP_FLOW_PARTE_VISITA_ID || "";
 const FORMULARIO_TEMPLATE =
   process.env.WHATSAPP_TEMPLATE_PARTE_VISITA_FORMULARIO ||
   "parte_visita_formulario";
+const CONTEXTO_TEMPLATE =
+  process.env.WHATSAPP_TEMPLATE_PARTE_VISITA_CONTEXTO ||
+  "visita_contexto_propiedad";
 
 // ---------------------------------------------------------------------------
 // Send Flow (formulario parte de visita)
@@ -45,6 +48,50 @@ function buildFormularioTrace(
       flowToken: params.sessionId,
     },
   };
+}
+
+function buildContextoTrace(
+  to: string,
+  params: { sessionId: string; propertyRef: string; propertyUrl: string },
+): WhatsAppTraceOptions {
+  return {
+    source: "parte_visita",
+    kind: "parte_visita_contexto_propiedad",
+    aggregateId: to,
+    payload: {
+      parteVisitaSessionId: params.sessionId,
+      propertyRef: params.propertyRef,
+      propertyUrl: params.propertyUrl,
+    },
+  };
+}
+
+export async function sendParteVisitaContexto(
+  to: string,
+  params: {
+    sessionId: string;
+    propertyRef: string;
+    propertyTitle: string;
+    propertyUrl: string;
+  },
+): Promise<SendMessageSuccess> {
+  const template: TemplateObject = {
+    name: CONTEXTO_TEMPLATE,
+    language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
+    components: [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: params.propertyTitle },
+          { type: "text", text: params.propertyUrl },
+        ],
+      },
+    ],
+  };
+
+  return sendTemplateMessage(to, template, {
+    trace: buildContextoTrace(to, params),
+  });
 }
 
 export async function sendParteVisitaFlow(

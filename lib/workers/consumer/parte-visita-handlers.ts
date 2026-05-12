@@ -8,7 +8,10 @@
 
 import { prisma } from "@/lib/prisma";
 import { resolveComercial } from "@/lib/routing/resolve-comercial";
-import { sendParteVisitaFlow } from "@/lib/parte-visita/whatsapp";
+import {
+  sendParteVisitaContexto,
+  sendParteVisitaFlow,
+} from "@/lib/parte-visita/whatsapp";
 import type { JobRecord } from "@/lib/job-queue/types";
 import type { HandlerResult } from "./types";
 
@@ -60,8 +63,29 @@ export async function handleParteVisitaEnviarFormulario(
     hour: "2-digit",
     minute: "2-digit",
   });
+  const property = await prisma.propertyCurrent.findUnique({
+    where: { codigo: session.propertyCode },
+    select: { titulo: true, portalUrl: true },
+  });
+  const propertyTitle =
+    property?.titulo?.trim() ||
+    session.direccion ||
+    session.propertyRef ||
+    "propiedad";
+  const propertyUrl =
+    property?.portalUrl?.trim() ||
+    // Fallback cuando aún no existe portalUrl sincronizado.
+    "https://www.idealista.com/";
 
   try {
+    // 1) Contexto previo (plantilla)
+    await sendParteVisitaContexto(session.buyerPhone, {
+      sessionId: session.id,
+      propertyRef: session.propertyRef,
+      propertyTitle,
+      propertyUrl,
+    });
+    // 2) Flow de parte de visita
     await sendParteVisitaFlow(session.buyerPhone, {
       sessionId: session.id,
       direccion: session.direccion,
