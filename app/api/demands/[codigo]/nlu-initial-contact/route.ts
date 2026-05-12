@@ -59,12 +59,12 @@ const postHandler = async (
 
   if (result.skippedReason === "demand_not_found") {
     return NextResponse.json(
-      { ok: false, ...result, error: "Demanda no encontrada" },
+      { ...result, error: "Demanda no encontrada" },
       { status: 404 },
     );
   }
 
-  return NextResponse.json({ ok: true, ...result });
+  return NextResponse.json(result);
 };
 
 export const POST = withObservedRoute(
