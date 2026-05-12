@@ -1,11 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { updateTemplateBodySchema } from "@/lib/contracts/templates/schema";
+import {
+  requireTemplateReadAccess,
+  requireTemplateWriteAccess,
+} from "../_auth";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireTemplateReadAccess(req);
+  if (auth.response) return auth.response;
+
   const { id } = await params;
 
   const template = await prisma.contractTemplate.findUnique({
@@ -24,6 +31,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireTemplateWriteAccess(req);
+  if (auth.response) return auth.response;
+
   const { id } = await params;
   const body = await req.json();
   const parsed = updateTemplateBodySchema.safeParse(body);

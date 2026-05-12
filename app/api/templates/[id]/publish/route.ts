@@ -1,13 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { validateTemplateForPublishing } from "@/lib/contracts/templates/validate-bindings";
+import { requireTemplateWriteAccess } from "../../_auth";
 import type { TemplateStructure } from "@/types/contract-template";
 import type { ContractDocumentKind } from "@/types/contracts";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireTemplateWriteAccess(req);
+  if (auth.response) return auth.response;
+
   const { id } = await params;
 
   const template = await prisma.contractTemplate.findUnique({ where: { id } });

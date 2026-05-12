@@ -1,13 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createTemplateBodySchema } from "@/lib/contracts/templates/schema";
+import {
+  requireTemplateReadAccess,
+  requireTemplateWriteAccess,
+} from "./_auth";
 import { randomUUID } from "node:crypto";
 import type { TemplateStructure } from "@/types/contract-template";
 
 const createId = () => randomUUID().replace(/-/g, "").slice(0, 25);
 
 export async function GET(req: NextRequest) {
+  const auth = await requireTemplateReadAccess(req);
+  if (auth.response) return auth.response;
+
   const { searchParams } = req.nextUrl;
   const kind = searchParams.get("kind");
   const active = searchParams.get("active");
@@ -37,6 +43,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireTemplateWriteAccess(req);
+  if (auth.response) return auth.response;
+
   const body = await req.json();
   const parsed = createTemplateBodySchema.safeParse(body);
   if (!parsed.success) {
@@ -80,9 +89,9 @@ export async function POST(req: NextRequest) {
       version: resolvedVersion,
       name,
       isActive: false,
-      structure: structure as unknown as Prisma.InputJsonValue,
-      variableBindings: variableBindings as unknown as Prisma.InputJsonValue,
-      sharedClauseOverrides: sharedClauseOverrides as unknown as Prisma.InputJsonValue,
+      structure,
+      variableBindings,
+      sharedClauseOverrides,
     },
   });
 
