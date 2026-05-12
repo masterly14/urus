@@ -13,6 +13,7 @@ import {
 } from "@/lib/microsite/mock-selection";
 import { ImageCarousel } from "./image-carousel";
 import { StaticMapImage } from "./static-map-image";
+import { MeEncajaButton } from "@/components/seleccion/me-encaja-button";
 
 function formatPrice(n: number | null): string {
   if (n === null) return "Precio N/D";
@@ -81,6 +82,7 @@ export default async function PropertyDetailPage({
   let properties: MicrositeCuratedProperty[];
   let selectionDemandNombre = "";
   let demoMode = false;
+  let alreadyInterested = false;
 
   if (useMock) {
     const mock = getMicrositeMockSelection();
@@ -91,6 +93,7 @@ export default async function PropertyDetailPage({
     const row = await prisma.micrositeSelection.findUnique({
       where: { token },
       select: {
+        id: true,
         status: true,
         demandNombre: true,
         properties: true,
@@ -104,6 +107,21 @@ export default async function PropertyDetailPage({
 
     properties = coerceMicrositeCuratedProperties(row.properties as unknown);
     selectionDemandNombre = row.demandNombre;
+
+    // Si el comprador ya pulsó "Me encaja" en esta propiedad, queremos que el
+    // botón se renderice ya en estado bloqueado para evitar parpadeos y
+    // posibles dobles envíos (la API responde 409, pero el badge debe ser la
+    // verdad inicial). El flag se calcula en server-side.
+    const interestRow = await prisma.micrositeSelectionFeedback.findUnique({
+      where: {
+        selectionId_propertyId: {
+          selectionId: row.id,
+          propertyId,
+        },
+      },
+      select: { decision: true },
+    });
+    alreadyInterested = interestRow?.decision === "ME_INTERESA";
   }
 
   const property = properties.find((p) => p.propertyId === propertyId);
@@ -187,11 +205,21 @@ export default async function PropertyDetailPage({
                 {property.title}
               </h1>
 
-              <div className="mt-6 flex flex-wrap items-baseline gap-4 pb-6 border-b border-slate-100">
+              <div className="mt-6 flex flex-wrap items-center gap-4 pb-6 border-b border-slate-100">
                 <span className="text-3xl font-bold text-slate-900 bg-blue-50/50 px-3 py-1 rounded-lg border border-blue-100">{formatPrice(property.price)}</span>
                 {pricePerMeter ? (
                   <span className="text-sm font-medium text-slate-500">{pricePerMeter}</span>
                 ) : null}
+                <div className="ms-auto">
+                  <MeEncajaButton
+                    selectionToken={token}
+                    propertyId={property.propertyId}
+                    propertyTitle={property.title}
+                    alreadyInterested={alreadyInterested}
+                    demoMode={demoMode}
+                    size="large"
+                  />
+                </div>
               </div>
 
               {property.description ? (
