@@ -42,6 +42,17 @@ vi.mock("@/lib/whatsapp/send", async (importOriginal) => {
     sendMicrositeValidationEscalation: vi.fn().mockResolvedValue({
       messages: [{ id: "wamid.mock.escalation.001" }],
     }),
+    sendBuyerInterestAckToBuyer: vi.fn().mockResolvedValue({
+      messages: [{ id: "wamid.mock.ack.001" }],
+    }),
+  };
+});
+
+vi.mock("@/lib/visitas/notify-commercial", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/visitas/notify-commercial")>();
+  return {
+    ...original,
+    notifyCommercialVisitInterest: vi.fn().mockResolvedValue({ sent: true }),
   };
 });
 
@@ -99,6 +110,7 @@ async function drainConsumer(maxCycles = 40): Promise<{ processed: number; faile
         "GENERATE_MICROSITE",
         "NOTIFY_MICROSITE_PENDING_VALIDATION",
         "SEND_MICROSITE_TO_BUYER",
+        "SEND_BUYER_INTEREST_ACK",
       ],
     });
     const p = await runProjectionCycle({ workerId: WORKER_ID });
@@ -397,61 +409,73 @@ describe("Escenario 3: Comercial RECHAZA → status REJECTED, sin envío", () =>
 });
 
 // ---------------------------------------------------------------------------
-// Escenario 4: Comprador dice ME_INTERESA → leadStatus EN_SELECCION
+// Escenario 4: Comprador pulsa "Me encaja" en el micrositio → flujo canónico
 // ---------------------------------------------------------------------------
 
-describe("Escenario 4: Feedback ME_INTERESA → leadStatus avanza", () => {
-  it("WHATSAPP_RECIBIDO con NLU ME_INTERESA genera SELECCION_COMPRADOR y avanza leadStatus", async () => {
-    const stubbedNLU: NLUResult = {
-      intention: "ME_ENCAJA",
-      confidence: 0.95,
-      propertyFeedback: [
-        { propertyId: PROPERTY_ID, sentiment: "ME_INTERESA" },
-      ],
-      variables: {},
-      rawText: "Me gusta mucho el piso del centro, quiero visitarlo",
-      reasoning: "Buyer shows strong interest in property",
-      wantsMoreOptions: false,
-    };
-    mockedNLU.mockResolvedValueOnce(stubbedNLU);
-
-    const waEvent = await appendEvent({
-      type: "WHATSAPP_RECIBIDO",
-      aggregateType: "WHATSAPP_CONVERSATION",
-      aggregateId: WA_ID,
+describe("Escenario 4: Botón 'Me encaja' → SELECCION_COMPRADOR + SEND_BUYER_INTEREST_ACK", () => {
+  it("SELECCION_COMPRADOR con channel=microsite_card encola SEND_BUYER_INTEREST_ACK y persiste feedback", async () => {
+    // El flujo "Me encaja" ya no se infiere por NLU. Lo emite la API
+    // `/api/seleccion/[token]/feedback`. En este test simulamos esa emisión
+    // directamente con appendEvent + PROCESS_EVENT (mismo contrato que la
+    // ruta HTTP, sin levantar el servidor).
+    const meInteresaEvent = await appendEvent({
+      type: "SELECCION_COMPRADOR",
+      aggregateType: "DEMAND",
+      aggregateId: DEMAND_ID,
       payload: {
-        messageId: `wamid.me_interesa.${Date.now()}`,
-        from: WA_ID,
-        timestamp: String(Math.floor(Date.now() / 1000)),
-        type: "text",
-        text: { body: stubbedNLU.rawText },
+        token: selectionToken,
+        demandId: DEMAND_ID,
+        demandNombre: "Buyer Test MSF",
+        comercialId: COMERCIAL_ID,
+        selectionId,
+        propertyId: PROPERTY_ID,
+        decision: "ME_INTERESA",
+        source: {
+          channel: "microsite_card" as const,
+          token: selectionToken,
+          ip: null,
+          userAgent: "vitest",
+        },
+        property: {
+          propertyId: PROPERTY_ID,
+          title: "Piso Centro Córdoba",
+          price: 250000,
+          metersBuilt: 80,
+          zone: "Centro",
+          city: "Córdoba",
+          extras: [],
+          images: [],
+          link: null,
+        },
+        respondedAt: new Date().toISOString(),
       },
-      correlationId: `${TEST_RUN}-meinteresa`,
+      metadata: { channel: "microsite_card", userAgent: "vitest", ip: null },
+      correlationId: `${TEST_RUN}-meencaja`,
     });
-    createdEventIds.push(waEvent.id);
+    createdEventIds.push(meInteresaEvent.id);
+
+    await prisma.micrositeSelectionFeedback.upsert({
+      where: {
+        selectionId_propertyId: { selectionId, propertyId: PROPERTY_ID },
+      },
+      create: {
+        selectionId,
+        propertyId: PROPERTY_ID,
+        decision: "ME_INTERESA",
+        payload: {} as unknown as import("@prisma/client").Prisma.InputJsonValue,
+      },
+      update: {
+        decision: "ME_INTERESA",
+        payload: {} as unknown as import("@prisma/client").Prisma.InputJsonValue,
+      },
+    });
 
     await enqueueJob({
       type: "PROCESS_EVENT",
-      payload: { eventId: waEvent.id, eventType: waEvent.type },
-      sourceEventId: waEvent.id,
-      idempotencyKey: `process-event:${waEvent.id}`,
+      payload: { eventId: meInteresaEvent.id, eventType: meInteresaEvent.type },
+      sourceEventId: meInteresaEvent.id,
+      idempotencyKey: `process_event:${meInteresaEvent.id}`,
     });
-
-    await drainConsumer();
-
-    const seleccionEvents = await prisma.event.findMany({
-      where: {
-        type: "SELECCION_COMPRADOR",
-        aggregateId: DEMAND_ID,
-        correlationId: `${TEST_RUN}-meinteresa`,
-      },
-    });
-    expect(seleccionEvents.length).toBeGreaterThanOrEqual(1);
-
-    const scPayload = seleccionEvents[0].payload as Record<string, unknown>;
-    expect(scPayload.decision).toBe("ME_INTERESA");
-    expect(scPayload.propertyId).toBe(PROPERTY_ID);
-    createdEventIds.push(seleccionEvents[0].id);
 
     await drainConsumer();
 
@@ -465,6 +489,18 @@ describe("Escenario 4: Feedback ME_INTERESA → leadStatus avanza", () => {
     });
     expect(feedback).not.toBeNull();
     expect(feedback!.decision).toBe("ME_INTERESA");
+
+    const ackJobs = await prisma.jobQueue.findMany({
+      where: {
+        type: "SEND_BUYER_INTEREST_ACK",
+        sourceEventId: meInteresaEvent.id,
+      },
+    });
+    expect(ackJobs.length).toBe(1);
+    const ackPayload = ackJobs[0].payload as Record<string, unknown>;
+    expect(ackPayload.selectionId).toBe(selectionId);
+    expect(ackPayload.propertyId).toBe(PROPERTY_ID);
+    expect(ackPayload.demandId).toBe(DEMAND_ID);
   }, 60_000);
 });
 
@@ -566,7 +602,7 @@ describe("Escenario 5: NO_ME_ENCAJA con variables → DEMANDA_ACTUALIZADA → GE
 describe("Escenario 6: wantsMoreOptions → GENERATE_MICROSITE directo (sin DEMANDA_ACTUALIZADA)", () => {
   it("encola GENERATE_MICROSITE sin emitir DEMANDA_ACTUALIZADA", async () => {
     const stubbedNLU: NLUResult = {
-      intention: "ME_ENCAJA",
+      intention: "OTRO",
       confidence: 0.85,
       propertyFeedback: [],
       variables: {},
