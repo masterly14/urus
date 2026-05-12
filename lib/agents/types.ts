@@ -4,11 +4,18 @@
  */
 
 // ── Intención clasificada por el agente NLU ──────────────────────────────────
-
+//
+// Importante: tras el refactor del flujo "Me encaja" (M6), el interés positivo
+// del comprador **NO** se infiere por NLU — se captura exclusivamente con el
+// botón "Me encaja" del micrositio (canal canónico `microsite_card`). Por eso
+// el intent `ME_ENCAJA` está eliminado del contrato. Si el comprador escribe
+// algo que suene a interés positivo en texto libre, el handler debe
+// redirigirle al botón en lugar de emitir `SELECCION_COMPRADOR` con
+// `ME_INTERESA`.
 export type IntentionWhatsApp =
-  | "ME_ENCAJA"
   | "NO_ME_ENCAJA"
-  | "BUSCO_DIFERENTE";
+  | "BUSCO_DIFERENTE"
+  | "OTRO";
 
 // ── Variables de demanda extraídas del texto libre ───────────────────────────
 
@@ -26,10 +33,13 @@ export interface DemandVariables {
 }
 
 // ── Feedback por propiedad del microsite ─────────────────────────────────────
-
+//
+// Solo se modela el sentimiento negativo (`NO_ME_ENCAJA`) que el NLU sí puede
+// inferir a partir de texto libre. El positivo se captura por botón
+// (ver `IntentionWhatsApp`).
 export interface PropertyFeedbackItem {
   propertyId: string;
-  sentiment: "ME_INTERESA" | "NO_ME_ENCAJA";
+  sentiment: "NO_ME_ENCAJA";
 }
 
 export interface PropertySummaryForNLU {

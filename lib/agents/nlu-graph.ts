@@ -49,23 +49,39 @@ const VariablesSchema = z.object({
   ),
 });
 
+// El interés positivo (ME_INTERESA) NO se infiere por NLU desde texto libre:
+// se captura exclusivamente con el botón "Me encaja" del micrositio. Por eso
+// `sentiment` aquí queda restringido a `NO_ME_ENCAJA`.
 const PropertyFeedbackSchema = z.object({
   propertyId: z.string().describe("ID exacto de la propiedad del listado."),
-  sentiment: z.enum(["ME_INTERESA", "NO_ME_ENCAJA"]).describe("Sentimiento del comprador hacia esta propiedad."),
+  sentiment: z.literal("NO_ME_ENCAJA").describe(
+    "Solo se modela el rechazo a una propiedad. El interés positivo " +
+    "se captura por el botón 'Me encaja' del micrositio, NUNCA por NLU.",
+  ),
 });
 
 const ContextualNLUOutputSchema = z.object({
-  intention: z.enum(["ME_ENCAJA", "NO_ME_ENCAJA", "BUSCO_DIFERENTE"]).describe(
-    "Intención global: ME_ENCAJA si le gustan propiedades, " +
-    "NO_ME_ENCAJA si no cumplen sus requisitos, " +
-    "BUSCO_DIFERENTE si quiere un cambio completo."
+  intention: z.enum(["NO_ME_ENCAJA", "BUSCO_DIFERENTE", "OTRO"]).describe(
+    "Intención global del mensaje:\n" +
+    "- NO_ME_ENCAJA: el comprador rechaza propiedades del listado o expresa " +
+    "criterios nuevos porque lo mostrado no le encaja.\n" +
+    "- BUSCO_DIFERENTE: pide un cambio de búsqueda radicalmente distinto.\n" +
+    "- OTRO: cualquier otro caso (preguntas, agradecimientos, mensajes " +
+    "neutros, expresiones de interés positivo en texto libre). Cuando el " +
+    "comprador exprese que algo le gusta SIN haber pulsado el botón " +
+    "'Me encaja' del micrositio, usa OTRO y el sistema le invitará a usar " +
+    "el botón. Nunca emitas ME_ENCAJA ni intentes inferir ME_INTERESA por " +
+    "texto libre."
   ),
   confidence: z.number().min(0).max(1).describe("Confianza 0–1."),
   propertyFeedback: z.array(PropertyFeedbackSchema).describe(
-    "Una entrada por propiedad que el comprador identifique SIN AMBIGÜEDAD respecto al listado. " +
-    "NO incluir filas solo porque comparten zona/precio/ciudad con lo dicho: si no señala cuál del listado, array vacío. " +
+    "Una entrada por propiedad del listado que el comprador RECHACE sin " +
+    "ambigüedad (sentiment=NO_ME_ENCAJA). NO se modela el interés positivo " +
+    "(eso lo captura el botón del micrositio). " +
+    "Si el comprador no señala una propiedad concreta del listado, array vacío. " +
     "Si dudas entre dos IDs o entre incluir o no, array vacío. " +
-    "Ordinales, 'la de [extra único]', precio que solo coincide con una fila, o 'todas'/'ninguna' sí permiten mapear."
+    "Ordinales, 'la de [extra único]', precio que solo coincide con una fila, " +
+    "o 'ninguna' sí permiten mapear como rechazo."
   ),
   variables: VariablesSchema.describe("Variables de demanda extraídas."),
   wantsMoreOptions: z.boolean().describe(
@@ -75,8 +91,9 @@ const ContextualNLUOutputSchema = z.object({
 });
 
 const SimpleNLUOutputSchema = z.object({
-  intention: z.enum(["ME_ENCAJA", "NO_ME_ENCAJA", "BUSCO_DIFERENTE"]).describe(
-    "Intención del comprador."
+  intention: z.enum(["NO_ME_ENCAJA", "BUSCO_DIFERENTE", "OTRO"]).describe(
+    "Intención del comprador (sin ME_ENCAJA: el interés positivo se captura " +
+    "por el botón 'Me encaja' del micrositio, no por NLU).",
   ),
   confidence: z.number().min(0).max(1),
   variables: VariablesSchema,
@@ -139,24 +156,29 @@ El comprador está viendo estas propiedades en su microsite personalizado:
 
 ${propsList}
 
+REGLA CARDINAL — interés positivo:
+El interés positivo del comprador hacia una propiedad concreta ("me encaja", "me gusta", "esta sí", "me la quedo") NO se captura por este NLU. Existe un botón "Me encaja" en CADA ficha del micrositio que es el ÚNICO canal canónico para registrar interés. Por tanto:
+- NUNCA emitas la intención ME_ENCAJA (de hecho no es un valor permitido).
+- NUNCA pongas sentiment=ME_INTERESA en propertyFeedback (solo se permite NO_ME_ENCAJA).
+- Si el comprador expresa interés positivo en texto libre, devuelve intention=OTRO con un reasoning que indique que debe pulsar el botón "Me encaja" en la ficha. El handler le contestará invitándole a usarlo.
+
 Tu tarea:
-1. Identificar qué propiedad(es) menciona el comprador (por referencia directa, posición, zona, precio u otra característica). Usa el propertyId exacto del listado.
-2. Clasificar el sentimiento por cada propiedad mencionada: ME_INTERESA o NO_ME_ENCAJA.
-3. Determinar la intención global (ver reglas abajo).
-4. Extraer variables de demanda si el comprador indica ajustes.
+1. Identificar qué propiedad(es) del listado RECHAZA el comprador (referencia directa, posición, zona, precio, característica). Usa el propertyId exacto del listado.
+2. Marcar sentiment=NO_ME_ENCAJA para esas propiedades (es el único valor permitido en propertyFeedback).
+3. Determinar la intención global (NO_ME_ENCAJA, BUSCO_DIFERENTE u OTRO).
+4. Extraer variables de demanda si el comprador indica ajustes (presupuesto, zona, metros, habitaciones, extras, etc.).
 5. Detectar si pide ver más opciones (wantsMoreOptions).
 
 PROPIEDADES (propertyFeedback) — evitar sobrerresolución:
-- Incluye un propertyId SOLO si el comprador identifica ESA fila del listado de forma clara: ordinales ("la primera", "la segunda"), "la de la piscina" cuando solo una tiene piscina, precio mencionado que desempata a una sola fila, título o rasgo único que una sola cumple, o "todas"/"ninguna".
-- NO añadas entradas porque el mensaje cita una zona, ciudad o rango de precio que "podría" corresponder a una propiedad del listado si el comprador no señala cuál. En ese caso propertyFeedback=[] y, si aplica, rellena solo variables de demanda.
+- Incluye un propertyId SOLO si el comprador RECHAZA esa fila del listado de forma clara: ordinales ("la primera no me convence"), "la de la piscina" cuando solo una tiene piscina, precio mencionado que desempata a una sola fila, título o rasgo único que una sola cumple, o "ninguna" (en cuyo caso incluye todas las del listado con NO_ME_ENCAJA).
+- NO añadas entradas porque el mensaje cite una zona, ciudad o rango de precio que "podría" corresponder a una propiedad del listado si el comprador no señala cuál. En ese caso propertyFeedback=[] y, si aplica, rellena solo variables de demanda.
 - NO rellenes el array para "ayudar" al sistema: ante la menor duda entre dos IDs o entre poner o no poner, deja propertyFeedback vacío.
+- Si el comprador da feedback positivo sobre una propiedad concreta ("me gusta la segunda"), NO la añadas a propertyFeedback. Deja el array vacío y usa intention=OTRO con reasoning que mencione invitarle al botón.
 
 INTENCIÓN GLOBAL — prioridad sobre tono coloquial:
-- ME_ENCAJA: el comprador muestra claramente que le encajan las opciones mostradas (aprobación, entusiasmo, "me quedo con…", "me gusta esta").
-- Excepción explícita — acuerdo mínimo: si el mensaje COMPLETO (sin contar espacios finales) es únicamente una confirmación breve —ok, vale, sí, perfecto, genial, de acuerdo— opcionalmente con puntuación o emoji y nada más, entonces intention=ME_ENCAJA y propertyFeedback=[] (no adivines propiedad).
-- NO_ME_ENCAJA: hay rechazo, desacuerdo o desajuste con lo mostrado. Usa esta etiqueta si aparece CUALQUIERA de: "no", "paso", "no me convence(n)", "ninguna", "caro/cara", "pequeño/pequeña", "no cumple(n)", "necesito…", "quiero…" con criterios nuevos que implican que lo actual no vale, críticas a tipología o precio, o sentimiento NO_ME_ENCAJA hacia alguna propiedad mencionada sin compensar con un ME_INTERESA claro a otra.
-- NO uses ME_ENCAJA si el mensaje mezcla entusiasmo genérico con exigencias o rechazo a lo enseñado. En caso de duda entre positivo y negativo, elige NO_ME_ENCAJA, salvo la excepción de acuerdo mínimo de arriba.
-- BUSCO_DIFERENTE: solo si pide un cambio de búsqueda radicalmente distinto (otro segmento, otro uso, "otra cosa totalmente distinta"). NO lo uses cuando solo ajusta presupuesto, zona, metros, habitaciones o extras: eso es NO_ME_ENCAJA (o ME_ENCAJA si además aprueba algo) más variables.
+- NO_ME_ENCAJA: hay rechazo, desacuerdo o desajuste con lo mostrado. Usa esta etiqueta si aparece CUALQUIERA de: "no", "paso", "no me convence(n)", "ninguna", "caro/cara", "pequeño/pequeña", "no cumple(n)", "necesito…", "quiero…" con criterios nuevos que implican que lo actual no vale, críticas a tipología o precio.
+- BUSCO_DIFERENTE: solo si pide un cambio de búsqueda radicalmente distinto (otro segmento, otro uso, "otra cosa totalmente distinta"). NO lo uses cuando solo ajusta presupuesto, zona, metros, habitaciones o extras: eso es NO_ME_ENCAJA + variables.
+- OTRO: mensaje que no rechaza claramente, no pide cambio radical, no expresa interés accionable. Incluye: confirmaciones breves ("ok", "vale", "sí", "perfecto"), agradecimientos, preguntas, mensajes ambiguos, y CUALQUIER expresión de interés positivo en texto libre (porque ese caso debe redirigirse al botón "Me encaja"). En caso de duda entre positivo y negativo, elige NO_ME_ENCAJA solo si hay señales claras de rechazo; si no, OTRO.
 
 Extracción de variables — reglas estrictas:
 
@@ -195,10 +217,10 @@ EXTRAS:
 - "extrasNoDeseados": los que RECHAZA ("sin garaje"→extrasNoDeseados=["garaje"], "no quiero piscina"→extrasNoDeseados=["piscina"]).
 
 RESPUESTAS CORTAS:
-- Mensaje que es solo confirmación mínima (una sola intención de sí: "ok", "ok.", "vale", "sí", "si", "perfecto", "genial", "de acuerdo", con emoji opcional) → ME_ENCAJA, propertyFeedback=[], variables sin rellenar salvo que en ese mismo texto pida criterios.
-- Si en el MISMO mensaje hay confirmación Y rechazo, exigencias, listas de requisitos o críticas → NO_ME_ENCAJA y extrae variables; no apliques la excepción anterior.
+- Mensaje que es solo confirmación mínima ("ok", "ok.", "vale", "sí", "si", "perfecto", "genial", "de acuerdo", con emoji opcional) → intention=OTRO, propertyFeedback=[], variables vacías. Recuerda: la confirmación no es un sustituto del botón "Me encaja".
+- Si en el MISMO mensaje hay confirmación Y rechazo, exigencias, listas de requisitos o críticas → intention=NO_ME_ENCAJA y extrae variables.
 - "no", "paso", "nada" sin más contexto → intention=NO_ME_ENCAJA, variables vacías.
-- Emojis positivos (👍, 😍, ❤️) refuerzan sentimiento positivo. Emojis negativos (👎, 😒) refuerzan negativo.
+- Emojis positivos aislados (👍, 😍, ❤️) sin texto concreto → intention=OTRO (no captures interés positivo aquí). Emojis negativos (👎, 😒) refuerzan rechazo.
 
 VARIABLES RELATIVAS (sin valor numérico concreto):
 - "más grande", "más barato", "más céntrico" sin número concreto → NO inventar valores numéricos. Marcar wantsMoreOptions=true si el comprador expresa insatisfacción general sin dar cifras.
@@ -206,18 +228,21 @@ VARIABLES RELATIVAS (sin valor numérico concreto):
 REGLAS GENERALES:
 - Solo extraer lo que el comprador mencione explícitamente. null para lo no mencionado.
 - NUNCA inventar valores numéricos que el comprador no haya dicho.
-- Si dice "todas" o "ninguna", incluye todas las propiedades con el sentimiento correspondiente.${historyBlock}`;
+- Si dice "ninguna", incluye todas las propiedades del listado con sentiment=NO_ME_ENCAJA.
+- Si dice "todas me gustan" o similar interés positivo: NO uses propertyFeedback, devuelve intention=OTRO y deja claro en reasoning que el comprador debe pulsar el botón "Me encaja" en cada ficha que quiera.${historyBlock}`;
 }
 
 const SIMPLE_SYSTEM_PROMPT = `Eres un asistente de análisis inmobiliario de Urus Capital.
-Clasifica la respuesta del comprador en: ME_ENCAJA, NO_ME_ENCAJA, BUSCO_DIFERENTE.
+Clasifica la respuesta del comprador en: NO_ME_ENCAJA, BUSCO_DIFERENTE u OTRO.
 Extrae variables de demanda ajustada cuando el comprador las mencione.
 
+REGLA CARDINAL — interés positivo:
+El interés positivo del comprador hacia una propiedad concreta ("me encaja", "me gusta", "me la quedo") NO se captura por NLU. Existe un botón "Me encaja" en cada ficha del micrositio que es el único canal canónico. Si el comprador expresa interés positivo en texto libre, devuelve intention=OTRO con reasoning que indique que debe pulsar el botón en la ficha. Nunca emitas ME_ENCAJA.
+
 INTENCIÓN:
-- ME_ENCAJA: aprobación clara sin rechazo ni exigencias que desmonten lo ofrecido.
-- Si el mensaje entero es solo "ok"/"vale"/"sí"/"perfecto"/"genial"/"de acuerdo" (+ puntuación o emoji opcional) → ME_ENCAJA.
-- NO_ME_ENCAJA: "no", "paso", críticas de precio/tamaño/tipo, criterios nuevos que implican desajuste, o mensaje ambivalente con parte negativa fuerte. Si dudas entre positivo y negativo, NO_ME_ENCAJA, salvo el caso de acuerdo mínimo de una sola línea anterior.
-- BUSCO_DIFERENTE: cambio de búsqueda totalmente distinto; no uses solo por ajustar presupuesto, zona, metros, habitaciones o extras.
+- NO_ME_ENCAJA: "no", "paso", críticas de precio/tamaño/tipo, criterios nuevos que implican desajuste, o mensaje ambivalente con parte negativa fuerte. Usa esta etiqueta cuando hay señales claras de rechazo o necesidad de ajuste.
+- BUSCO_DIFERENTE: cambio de búsqueda totalmente distinto; no la uses para ajustar presupuesto, zona, metros, habitaciones o extras (eso es NO_ME_ENCAJA + variables).
+- OTRO: confirmación breve ("ok", "vale", "sí", "perfecto", "genial", "de acuerdo" con emoji opcional), agradecimientos, preguntas, expresiones de interés positivo en texto libre, mensajes neutros o ambiguos sin rechazo claro. Si dudas entre positivo y negativo, elige NO_ME_ENCAJA solo si hay señales claras de rechazo; si no, OTRO.
 
 Reglas de extracción:
 
@@ -245,8 +270,8 @@ EXTRAS:
 - RECHAZADOS: "sin garaje"→extrasNoDeseados=["garaje"]; "sin terraza"→extrasNoDeseados.
 
 RESPUESTAS CORTAS:
-- Solo "ok"/"ok."/"vale"/"sí"/"si"/"perfecto"/"genial"/"de acuerdo" (+ emoji opcional) → ME_ENCAJA, variables vacías.
-- Si el mismo mensaje mezcla sí con rechazo o requisitos → NO_ME_ENCAJA + variables.
+- Solo "ok"/"ok."/"vale"/"sí"/"si"/"perfecto"/"genial"/"de acuerdo" (+ emoji opcional) → intention=OTRO, variables vacías.
+- Si el mismo mensaje mezcla confirmación con rechazo o requisitos → NO_ME_ENCAJA + variables.
 - "no"/"paso"/"nada" sin contexto → NO_ME_ENCAJA, variables vacías.
 
 REGLAS GENERALES:
@@ -321,10 +346,14 @@ async function clasificarContextual(state: NLUStateType): Promise<Partial<NLUSta
       wantsMoreOptions: result.wantsMoreOptions,
     };
 
+    // Confirmaciones breves ("ok", "vale", "sí", ...) ya no se interpretan
+    // como interés positivo: el botón "Me encaja" es el canal canónico para
+    // ME_INTERESA. Forzamos intention=OTRO con vars y feedback vacíos para
+    // que el handler responda invitando al uso del botón.
     if (isMinimalAffirmation(messageText)) {
       nluResult = {
         ...nluResult,
-        intention: "ME_ENCAJA",
+        intention: "OTRO",
         confidence: Math.max(nluResult.confidence, 0.95),
         propertyFeedback: [],
         variables: {},
@@ -363,7 +392,7 @@ async function clasificarSimple(state: NLUStateType): Promise<Partial<NLUStateTy
     if (isMinimalAffirmation(messageText)) {
       nluResult = {
         ...nluResult,
-        intention: "ME_ENCAJA",
+        intention: "OTRO",
         confidence: Math.max(nluResult.confidence, 0.95),
         variables: {},
       };

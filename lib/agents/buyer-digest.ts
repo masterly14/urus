@@ -63,12 +63,14 @@ export function buildBuyerDigest(input: BuyerDigestInput): string {
     parts.push(`No quiere: ${extrasNoDeseados.join(", ")}`);
   }
 
-  // Feedback acumulado
+  // Feedback acumulado. Tras el refactor "Me encaja" (M6) el NLU solo modela
+  // rechazos (`NO_ME_ENCAJA`): el interés positivo se captura por el botón
+  // del micrositio y queda registrado en `MicrositeSelectionFeedback`, no aquí.
+  // Por eso este resumen únicamente muestra el número de descartadas.
   if (input.feedbackHistory.length > 0) {
-    const liked = input.feedbackHistory.filter((f) => f.sentiment === "ME_INTERESA").length;
     const disliked = input.feedbackHistory.filter((f) => f.sentiment === "NO_ME_ENCAJA").length;
-    if (liked > 0 || disliked > 0) {
-      parts.push(`Feedback: ${liked} gustaron, ${disliked} descartadas`);
+    if (disliked > 0) {
+      parts.push(`Feedback NLU: ${disliked} descartadas`);
     }
   }
 

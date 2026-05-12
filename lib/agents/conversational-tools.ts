@@ -77,8 +77,11 @@ export function createConversationalTools(ctx: ToolExecutionContext): Structured
   const classifyFeedbackTool = new DynamicStructuredTool({
     name: "classify_feedback",
     description:
-      "Analiza el mensaje del comprador para clasificar su intención (ME_ENCAJA, NO_ME_ENCAJA, BUSCO_DIFERENTE), " +
-      "detectar feedback por propiedad y extraer variables de demanda. Usar cuando el comprador da opinión sobre propiedades.",
+      "Analiza el mensaje del comprador para clasificar su intención (NO_ME_ENCAJA, BUSCO_DIFERENTE u OTRO), " +
+      "detectar feedback negativo por propiedad y extraer variables de demanda. " +
+      "IMPORTANTE: el interés positivo (ME_INTERESA) NO se infiere por NLU — " +
+      "se captura SOLO por el botón 'Me encaja' del micrositio. Si el comprador " +
+      "expresa interés positivo en texto libre, redirígele al botón.",
     schema: z.object({
       messageText: z.string().describe("Texto exacto del comprador a clasificar."),
     }),
@@ -97,12 +100,15 @@ export function createConversationalTools(ctx: ToolExecutionContext): Structured
   const emitSelectionFeedbackTool = new DynamicStructuredTool({
     name: "emit_selection_feedback",
     description:
-      "Registra la decisión del comprador sobre una propiedad específica (ME_INTERESA o NO_ME_ENCAJA). " +
-      "Llamar una vez por cada propiedad sobre la que el comprador se pronuncie.",
+      "Registra el RECHAZO del comprador sobre una propiedad específica (NO_ME_ENCAJA). " +
+      "Llamar una vez por cada propiedad que el comprador rechaza. " +
+      "NO usar para registrar interés positivo: el botón 'Me encaja' del micrositio " +
+      "es el ÚNICO canal canónico para ME_INTERESA. Si el comprador expresa interés " +
+      "positivo en texto libre, no llames a esta tool — redirígele al botón en tu respuesta.",
     schema: z.object({
       propertyId: z.string().describe("ID de la propiedad en el microsite."),
-      decision: z.enum(["ME_INTERESA", "NO_ME_ENCAJA"]).describe("Decisión del comprador."),
-      nluIntention: z.enum(["ME_ENCAJA", "NO_ME_ENCAJA", "BUSCO_DIFERENTE"]).describe("Intención global NLU."),
+      decision: z.literal("NO_ME_ENCAJA").describe("Único valor permitido: rechazo del comprador."),
+      nluIntention: z.enum(["NO_ME_ENCAJA", "BUSCO_DIFERENTE", "OTRO"]).describe("Intención global NLU."),
       confidence: z.number().describe("Confianza del NLU (0-1)."),
     }),
     func: async ({ propertyId, decision, nluIntention, confidence }) => {
@@ -158,18 +164,24 @@ export function createConversationalTools(ctx: ToolExecutionContext): Structured
         extras: z.array(z.string()).optional(),
         extrasNoDeseados: z.array(z.string()).optional(),
       }).describe("Variables de demanda extraídas del mensaje."),
-      intention: z.enum(["ME_ENCAJA", "NO_ME_ENCAJA", "BUSCO_DIFERENTE"]),
+      intention: z.enum(["NO_ME_ENCAJA", "BUSCO_DIFERENTE", "OTRO"]),
       confidence: z.number(),
       rawText: z.string().describe("Texto original del comprador."),
+      policyMetadata: z.object({
+        mode: z.literal("hybrid").optional(),
+        ruleApplied: z.enum(["auto_hard_rule", "buyer_confirmed"]).optional(),
+        conflictResolvedBy: z.literal("buyer_priority").optional(),
+        source: z.enum(["post_visit_context", "whatsapp_feedback", "conversational_agent"]).optional(),
+      }).optional().describe("Metadata de política cuando el update viene de reperfilado post-visita."),
     }),
-    func: async ({ variables, intention, confidence, rawText }) => {
+    func: async ({ variables, intention, confidence, rawText, policyMetadata }) => {
       const event = await appendEvent({
         type: "DEMANDA_ACTUALIZADA",
         aggregateType: "DEMAND",
         aggregateId: ctx.demandId,
         payload: {
           source: {
-            channel: "conversational_agent",
+            channel: policyMetadata?.source ?? "conversational_agent",
             waId: ctx.buyerWaId,
             selectionId: ctx.selectionId,
             eventId: ctx.eventId ?? null,
@@ -177,6 +189,13 @@ export function createConversationalTools(ctx: ToolExecutionContext): Structured
           nlu: { intention, confidence },
           variables: variables as unknown as JsonValue,
           rawText,
+          policy: policyMetadata
+            ? {
+                mode: policyMetadata.mode ?? "hybrid",
+                ruleApplied: policyMetadata.ruleApplied ?? "buyer_confirmed",
+                conflictResolvedBy: policyMetadata.conflictResolvedBy ?? "buyer_priority",
+              }
+            : undefined,
           detectedAt: new Date().toISOString(),
         } as unknown as JsonValue,
         correlationId: ctx.correlationId,

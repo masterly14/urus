@@ -57,6 +57,7 @@ Solo puedes conversar, recoger preferencias y, si ya hay demanda, solicitar que 
     INITIAL_CONTACT: "Primer contacto. El comprador acaba de recibir su selección de propiedades o escribe por primera vez.",
     REVIEWING_OPTIONS: "Revisando opciones. El comprador está mirando propiedades.",
     GIVING_FEEDBACK: "Dando feedback. El comprador ya ha opinado sobre propiedades.",
+    POST_VISIT_REPROFILING: "Reperfilado post-visita. Se reactiva la búsqueda tras feedback del comercial.",
     SCHEDULING_VISIT: "Agendando visita. Hay un proceso de visita activo.",
     IDLE_FOLLOWUP: "Seguimiento. Hace tiempo que no interactúa.",
     UNKNOWN: "Fase no determinada.",
@@ -68,6 +69,29 @@ ${phaseDescriptions[input.conversationPhase] ?? ""}`);
   if (input.buyerDigest) {
     sections.push(`PERFIL DEL COMPRADOR (resumen acumulado):
 ${input.buyerDigest}`);
+  }
+
+  if (input.conversationPhase === "POST_VISIT_REPROFILING") {
+    sections.push(`REGLA ESPECIAL DE REPERFILADO POST-VISITA:
+- El contexto recibido del comercial (buyerDigest) es un briefing inicial, no una verdad definitiva.
+- Debes usarlo para orientar la conversación, pero confirmar con el comprador antes de fijar criterios.
+- Si detectas ambigüedad, formula una pregunta de confirmación concreta antes de llamar a update_demand.`);
+  }
+
+  if (input.postVisitStructuredContext) {
+    const ctx = input.postVisitStructuredContext;
+    sections.push(`CONTEXTO POST-VISITA ESTRUCTURADO:
+- Resumen: ${ctx.summary}
+- Restricciones duras detectadas: ${JSON.stringify(ctx.hardConstraints)}
+- Preferencias blandas detectadas: ${JSON.stringify(ctx.softPreferences)}
+- Motivos de no encaje: ${ctx.rejections.join(", ") || "ninguno claro"}
+- Campos que requieren confirmación: ${ctx.requiresBuyerConfirmation.join(", ") || "ninguno"}
+
+POLÍTICA HÍBRIDA:
+- Los datos del comprador prevalecen sobre el briefing del comercial.
+- Puedes llamar update_demand cuando el comprador confirme o corrija criterios.
+- No conviertas preferencias blandas o ambiguas en criterios definitivos sin confirmación del comprador.
+- Si llamas update_demand por este flujo, incluye policyMetadata con ruleApplied="buyer_confirmed" salvo que el campo venga de una regla automática hard ya validada.`);
   }
 
   // ── 4. Historial conversacional ───────────────────────────────────────────
@@ -84,14 +108,28 @@ ${historyBlock}`);
 
   // ── 5. Reglas de decisión de tools ────────────────────────────────────────
 
-  sections.push(`CUÁNDO USAR CADA HERRAMIENTA:
+  sections.push(`REGLA CARDINAL — INTERÉS POSITIVO ("Me encaja"):
+- Existe un botón *"Me encaja"* en cada ficha del micrositio. Es el ÚNICO canal canónico para
+  registrar que al comprador le encaja una propiedad concreta.
+- NUNCA registres interés positivo (ME_INTERESA) a partir de un mensaje de WhatsApp: ni con
+  emit_selection_feedback, ni con ninguna otra tool. La tool emit_selection_feedback solo
+  admite NO_ME_ENCAJA.
+- Si el comprador escribe algo como "me encaja la del centro", "me gusta la segunda", "me la
+  quedo", "esa me interesa" o equivalentes, NO emitas eventos. Responde con texto invitándole
+  a pulsar el botón "Me encaja" *en la ficha de esa propiedad* del micrositio (sin usar la
+  palabra "microsite": di "en su ficha", "en la opción que te mandé", "en la propiedad de la
+  selección", etc.). Explícale que al pulsarlo un agente se pondrá en contacto con él.
+- Si el comprador rechaza propiedades, sí puedes registrar NO_ME_ENCAJA con emit_selection_feedback.
 
-1. *classify_feedback* — Cuando el comprador opina sobre propiedades (le gusta, no le gusta, pide cambios).
-   Tras obtener el resultado, usa emit_selection_feedback para cada propiedad con feedback,
-   y update_demand si hay variables nuevas.
+CUÁNDO USAR CADA HERRAMIENTA:
 
-2. *emit_selection_feedback* — Después de classify_feedback, registra cada decisión por propiedad.
-   NO la llames sin haber clasificado primero.
+1. *classify_feedback* — Cuando el comprador opina sobre propiedades (rechazo o cambios de criterio).
+   Tras obtener el resultado, usa emit_selection_feedback SOLO para rechazos (NO_ME_ENCAJA),
+   y update_demand si hay variables nuevas. Nunca uses esta tool para inferir interés positivo.
+
+2. *emit_selection_feedback* — Después de classify_feedback, registra rechazos (NO_ME_ENCAJA)
+   por propiedad. NO la llames sin haber clasificado primero. NO la llames para registrar
+   interés positivo (ese canal es el botón del micrositio).
 
 3. *update_demand* — Cuando el comprador expresa nuevas preferencias (presupuesto, zona, metros, etc.)
    que ajustan su búsqueda. IMPORTANTE: esta tool YA dispara automáticamente la generación de una
