@@ -120,6 +120,7 @@ export async function handleFirmaCompletada(
         await sendParteVisitaDocumentoFirmado(parteSession.buyerPhone, {
           propertyRef: parteSession.propertyRef,
           signedDocumentUrl: signedUrl,
+          parteVisitaSessionId: parteSession.id,
         });
 
         await prisma.parteVisitaSession.update({

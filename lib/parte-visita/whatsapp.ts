@@ -6,6 +6,7 @@ import {
   sendTemplateMessage,
   sendInteractiveMessage,
   sendDocumentMessage,
+  type WhatsAppTraceOptions,
 } from "@/lib/whatsapp/send";
 import type {
   TemplateObject,
@@ -25,6 +26,26 @@ const FORMULARIO_TEMPLATE =
 // ---------------------------------------------------------------------------
 // Send Flow (formulario parte de visita)
 // ---------------------------------------------------------------------------
+
+function buildFormularioTrace(
+  to: string,
+  params: { sessionId: string; propertyRef: string },
+  kind: "template" | "interactive",
+): WhatsAppTraceOptions {
+  return {
+    source: "parte_visita",
+    kind:
+      kind === "template"
+        ? "parte_visita_formulario_template"
+        : "parte_visita_formulario_flow",
+    aggregateId: to,
+    payload: {
+      parteVisitaSessionId: params.sessionId,
+      propertyRef: params.propertyRef,
+      flowToken: params.sessionId,
+    },
+  };
+}
 
 export async function sendParteVisitaFlow(
   to: string,
@@ -82,7 +103,9 @@ export async function sendParteVisitaFlow(
     ],
   };
 
-  return sendTemplateMessage(to, template);
+  return sendTemplateMessage(to, template, {
+    trace: buildFormularioTrace(to, params, "template"),
+  });
 }
 
 async function sendParteVisitaFlowInteractive(
@@ -130,7 +153,9 @@ async function sendParteVisitaFlowInteractive(
     },
   };
 
-  return sendInteractiveMessage(to, interactive);
+  return sendInteractiveMessage(to, interactive, {
+    trace: buildFormularioTrace(to, params, "interactive"),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -142,13 +167,29 @@ export async function sendParteVisitaDocumentoFirmado(
   params: {
     propertyRef: string;
     signedDocumentUrl: string;
+    parteVisitaSessionId?: string;
   },
 ): Promise<SendMessageSuccess> {
-  return sendDocumentMessage(to, {
-    link: params.signedDocumentUrl,
-    filename: `parte_visita_${params.propertyRef}_firmado.pdf`,
-    caption:
-      `✅ Aquí tiene su Parte de Visita firmado (ref: ${params.propertyRef}). ` +
-      `Guarde este documento para sus registros. Gracias por confiar en URUS Capital Group.`,
-  });
+  return sendDocumentMessage(
+    to,
+    {
+      link: params.signedDocumentUrl,
+      filename: `parte_visita_${params.propertyRef}_firmado.pdf`,
+      caption:
+        `✅ Aquí tiene su Parte de Visita firmado (ref: ${params.propertyRef}). ` +
+        `Guarde este documento para sus registros. Gracias por confiar en URUS Capital Group.`,
+    },
+    {
+      trace: {
+        source: "parte_visita",
+        kind: "parte_visita_documento_firmado",
+        aggregateId: to,
+        payload: {
+          parteVisitaSessionId: params.parteVisitaSessionId ?? null,
+          propertyRef: params.propertyRef,
+          signedDocumentUrl: params.signedDocumentUrl,
+        },
+      },
+    },
+  );
 }

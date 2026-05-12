@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { VisitWorkItemStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   getSessionFromRequest,
@@ -19,6 +20,12 @@ const BodySchema = z.object({
   horaFin: z.string().regex(/^\d{2}:\d{2}$/),
   comercialId: z.string().optional(),
   notas: z.string().optional(),
+  /**
+   * Permite reprogramar explícitamente una visita ya agendada.
+   * Por defecto el endpoint rechaza el reagendado para evitar sobrescrituras silenciosas
+   * (p. ej. cuando la UI envía valores por defecto sobre una visita ya confirmada).
+   */
+  allowReschedule: z.boolean().optional(),
 });
 
 const postHandler = async (request: Request) => {
@@ -41,6 +48,23 @@ const postHandler = async (request: Request) => {
     return NextResponse.json(
       { ok: false, error: "Visita pre-creada no encontrada" },
       { status: 404 },
+    );
+  }
+
+  if (
+    workItem &&
+    workItem.status === VisitWorkItemStatus.SCHEDULED &&
+    workItem.scheduledSessionId &&
+    !parsed.data.allowReschedule
+  ) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Esta visita ya está agendada. Para reprogramarla, cancélala primero o reenvía la petición con allowReschedule=true.",
+        code: "VISIT_ALREADY_SCHEDULED",
+      },
+      { status: 409 },
     );
   }
 

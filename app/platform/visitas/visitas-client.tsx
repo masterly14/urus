@@ -130,6 +130,30 @@ function tomorrow(): string {
   return date.toISOString().split("T")[0];
 }
 
+function formatMadridSlot(iso: string | null | undefined): { date: string; time: string } | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Madrid",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(d);
+  const map: Record<string, string> = {};
+  for (const part of parts) {
+    if (part.type !== "literal") map[part.type] = part.value;
+  }
+  if (!map.year || !map.month || !map.day || !map.hour || !map.minute) return null;
+  return {
+    date: `${map.year}-${map.month}-${map.day}`,
+    time: `${map.hour}:${map.minute}`,
+  };
+}
+
 function formatMoney(value: number | null): string {
   if (value === null) return "Precio no disponible";
   return new Intl.NumberFormat("es-ES", {
@@ -299,6 +323,9 @@ export function VisitasClient() {
   const [fecha, setFecha] = useState(tomorrow());
   const [horaInicio, setHoraInicio] = useState("10:00");
   const [horaFin, setHoraFin] = useState("11:00");
+  const [manualFecha, setManualFecha] = useState(tomorrow());
+  const [manualHoraInicio, setManualHoraInicio] = useState("10:00");
+  const [manualHoraFin, setManualHoraFin] = useState("11:00");
   const [notas, setNotas] = useState("");
   const [postVisitContext, setPostVisitContext] = useState("");
   const [showYellowContext, setShowYellowContext] = useState(false);
@@ -408,6 +435,31 @@ export function VisitasClient() {
       postVisitRecorderRef.current = null;
     };
   }, []);
+
+  // Sincroniza los inputs del detalle (fecha/horaInicio/horaFin) con la visita seleccionada.
+  // Antes, estos inputs conservaban los valores por defecto (tomorrow() y 10:00–11:00) aunque
+  // la visita ya estuviera agendada para otra fecha/hora, lo que daba la sensación de que el
+  // sistema "movía" la visita al guardar. Ahora, al cambiar de visita seleccionada, el detalle
+  // muestra siempre el slot real de la visita en Europe/Madrid.
+  useEffect(() => {
+    if (!selected) {
+      setFecha(tomorrow());
+      setHoraInicio("10:00");
+      setHoraFin("11:00");
+      return;
+    }
+    const startSlot = formatMadridSlot(selected.scheduledSlotStart);
+    const endSlot = formatMadridSlot(selected.scheduledSlotEnd);
+    if (startSlot && endSlot) {
+      setFecha(startSlot.date);
+      setHoraInicio(startSlot.time);
+      setHoraFin(endSlot.time);
+    } else {
+      setFecha(tomorrow());
+      setHoraInicio("10:00");
+      setHoraFin("11:00");
+    }
+  }, [selected?.id, selected?.scheduledSlotStart, selected?.scheduledSlotEnd]);
 
   const loadManualOptions = async () => {
     setManualLoading(true);
@@ -673,7 +725,7 @@ export function VisitasClient() {
       setError("Selecciona tipo y localidad para la propiedad provisional.");
       return;
     }
-    if (horaInicio >= horaFin) {
+    if (manualHoraInicio >= manualHoraFin) {
       setError("La hora de fin debe ser posterior a la hora de inicio.");
       return;
     }
@@ -719,9 +771,9 @@ export function VisitasClient() {
           visitId: createData.workItem.id,
           demandId: createData.workItem.demandId || undefined,
           propertyId: createData.workItem.propertyId || undefined,
-          fecha,
-          horaInicio,
-          horaFin,
+          fecha: manualFecha,
+          horaInicio: manualHoraInicio,
+          horaFin: manualHoraFin,
           notas,
         }),
       });
@@ -1171,15 +1223,15 @@ export function VisitasClient() {
             <div className="grid gap-4 lg:grid-cols-[160px_130px_130px_minmax(0,1fr)_auto]">
               <div className="space-y-2">
                 <Label htmlFor="manualFecha">Dia</Label>
-                <Input id="manualFecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+                <Input id="manualFecha" type="date" value={manualFecha} onChange={(e) => setManualFecha(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="manualInicio">Inicio</Label>
-                <Input id="manualInicio" type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} />
+                <Input id="manualInicio" type="time" value={manualHoraInicio} onChange={(e) => setManualHoraInicio(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="manualFin">Fin</Label>
-                <Input id="manualFin" type="time" value={horaFin} onChange={(e) => setHoraFin(e.target.value)} />
+                <Input id="manualFin" type="time" value={manualHoraFin} onChange={(e) => setManualHoraFin(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="manualNotas">Notas</Label>

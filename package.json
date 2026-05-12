@@ -59,6 +59,7 @@
     "backfill:comercial": "tsx scripts/backfill-comercial-relations.ts",
     "backfill:comercial-ref": "tsx scripts/backfill-comercial-ref-assignments.ts",
     "owners:backfill": "tsx scripts/backfill-property-owners.ts",
+    "backfill:parte-visita": "tsx scripts/backfill-parte-visita.ts",
     "list:properties-by-comercial": "tsx scripts/list-properties-by-comercial.ts",
     "raw:nonempty": "tsx scripts/analyze-nonempty-raw.ts",
     "microsite:from-db": "tsx scripts/create-microsite-from-db-property.ts",
