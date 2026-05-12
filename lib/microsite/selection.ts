@@ -66,8 +66,6 @@ export type GenerateMicrositeSelectionResult =
       | "EXTERNAL_SEARCH_DISABLED";
   };
 
-let micrositeImageDebugLogs = 0;
-
 function generateToken(): string {
   // URL-safe, longitud fija, sin caracteres especiales
   return randomBytes(16).toString("hex");
@@ -79,43 +77,11 @@ function resolveZoneName(pZone: string | StatefoxPropertyZone | undefined): stri
   return pZone.name ?? "";
 }
 
-function summarizeImageShape(value: unknown): Record<string, unknown> {
-  if (Array.isArray(value)) {
-    return {
-      type: "array",
-      length: value.length,
-      sampleTypes: value.slice(0, 3).map((item) => typeof item),
-      firstObjectKeys:
-        value.find((item) => item && typeof item === "object" && !Array.isArray(item))
-          ? Object.keys(value.find((item) => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>).slice(0, 8)
-          : [],
-    };
-  }
-  if (value && typeof value === "object") {
-    const obj = value as Record<string, unknown>;
-    const first = Object.values(obj).find((item) => item && typeof item === "object" && !Array.isArray(item));
-    return {
-      type: "object",
-      keys: Object.keys(obj).slice(0, 8),
-      firstObjectKeys: first ? Object.keys(first as Record<string, unknown>).slice(0, 8) : [],
-    };
-  }
-  return { type: typeof value, present: value != null };
-}
-
 function extractImages(p: StatefoxSnapshotProperty): string[] {
   const imgs = p.pImages;
-  const extracted = Array.isArray(imgs) ? imgs
+  return Array.isArray(imgs) ? imgs
     .filter((src): src is string => typeof src === "string" && src.trim() !== "" && !isExpiredStatefoxImageUrl(src))
     .slice(0, 30) : [];
-  if (micrositeImageDebugLogs < 5) {
-    micrositeImageDebugLogs++;
-    const rawImages = Array.isArray(imgs) ? imgs.filter((src): src is string => typeof src === "string" && src.trim() !== "") : [];
-    // #region agent log
-    fetch("http://127.0.0.1:7478/ingest/3a86774c-7051-4ca6-b6e8-a92160972b21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "bfe3e0" }, body: JSON.stringify({ sessionId: "bfe3e0", runId: "post-fix", hypothesisId: "H8", location: "lib/microsite/selection.ts:extractImages", message: "Microsite image extraction filtered expired URLs", data: { rawImageShape: summarizeImageShape((p as Record<string, unknown>).pImages), hasPropertyMainImage: typeof (p as Record<string, unknown>).propertyMainImage === "string", hasImagesField: Object.prototype.hasOwnProperty.call(p as Record<string, unknown>, "images"), rawImagesCount: rawImages.length, expiredImagesCount: rawImages.length - extracted.length, extractedImagesCount: extracted.length }, timestamp: Date.now() }) }).catch(() => {});
-    // #endregion
-  }
-  return extracted;
 }
 
 function extractPhones(p: StatefoxSnapshotProperty): string[] {

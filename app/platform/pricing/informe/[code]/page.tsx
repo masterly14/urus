@@ -729,44 +729,12 @@ function isValidImageUrl(url: string): boolean {
   return url.startsWith("http://") || url.startsWith("https://");
 }
 
-function imageDebugHost(url: string): string | null {
-  try {
-    return new URL(url).host;
-  } catch {
-    return null;
-  }
-}
-
-function debugPricingImageRender(
-  message: string,
-  data: Record<string, unknown>,
-  hypothesisId = "H3",
-): void {
-  // #region agent log
-  fetch("http://127.0.0.1:7478/ingest/3a86774c-7051-4ca6-b6e8-a92160972b21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "bfe3e0" }, body: JSON.stringify({ sessionId: "bfe3e0", runId: "initial", hypothesisId, location: "app/platform/pricing/informe/[code]/page.tsx:ComparablePhotoCarousel", message, data, timestamp: Date.now() }) }).catch(() => {});
-  // #endregion
-}
-
 function ComparablePhotoCarousel({ fotos, alt }: { fotos: string[]; alt: string }) {
   const validFotos = fotos.filter((url) => isValidImageUrl(url) && !isExpiredStatefoxImageUrl(url));
   const [idx, setIdx] = useState(0);
   const [failedUrls, setFailedUrls] = useState<Set<string>>(new Set());
 
   const visibleFotos = validFotos.filter((u) => !failedUrls.has(u));
-
-  useEffect(() => {
-    debugPricingImageRender(
-      "Pricing carousel image URL validation",
-      {
-        rawCount: fotos.length,
-        validCount: validFotos.length,
-        firstRawType: typeof fotos[0],
-        firstValidHost: validFotos[0] ? imageDebugHost(validFotos[0]) : null,
-      },
-      "H1,H3",
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   if (visibleFotos.length === 0) {
     return (
@@ -793,12 +761,6 @@ function ComparablePhotoCarousel({ fotos, alt }: { fotos: string[]; alt: string 
         loading="lazy"
         referrerPolicy="no-referrer"
         onError={() => {
-          debugPricingImageRender("Pricing carousel image load failed", {
-            host: imageDebugHost(currentOriginalUrl),
-            proxied: currentDisplayUrl !== currentOriginalUrl,
-            visibleCount: visibleFotos.length,
-            failedCount: failedUrls.size + 1,
-          });
           setFailedUrls((prev) => new Set(prev).add(currentOriginalUrl));
         }}
       />
