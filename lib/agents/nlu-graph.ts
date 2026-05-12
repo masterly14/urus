@@ -298,6 +298,33 @@ function isMinimalAffirmation(raw: string): boolean {
   return /^(ok|okey|okay|vale|sí|si|perfecto|genial|de acuerdo)$/u.test(core);
 }
 
+function detectWantsMoreOptionsHeuristic(raw: string): boolean {
+  const normalized = raw
+    .normalize("NFKD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+  if (!normalized) return false;
+
+  const explicitSignals: RegExp[] = [
+    /\bmas opciones\b/u,
+    /\botras opciones\b/u,
+    /\bensename\b/u,
+    /\b(muestrame|mostrarme)\b/u,
+    /\bque opciones (tienes|hay)\b/u,
+    /\bque mas tienes\b/u,
+    /\bhay algo mas\b/u,
+    /\bbusca(me)? (mas|otra)\b/u,
+    /\bquiero ver (mas|otras)\b/u,
+    /\bno (hay|tienes) (mas|algo mas)\b/u,
+  ];
+  if (explicitSignals.some((rx) => rx.test(normalized))) return true;
+
+  // Confirmaciones muy cortas no deben disparar por sí solas.
+  if (isMinimalAffirmation(raw)) return false;
+  return false;
+}
+
 function stripNullVars(vars: z.infer<typeof VariablesSchema>) {
   return {
     ...(vars.precioMin != null && { precioMin: vars.precioMin }),
@@ -343,7 +370,7 @@ async function clasificarContextual(state: NLUStateType): Promise<Partial<NLUSta
       variables: stripNullVars(result.variables),
       rawText: messageText,
       reasoning: result.reasoning,
-      wantsMoreOptions: result.wantsMoreOptions,
+      wantsMoreOptions: result.wantsMoreOptions || detectWantsMoreOptionsHeuristic(messageText),
     };
 
     // Confirmaciones breves ("ok", "vale", "sí", ...) ya no se interpretan
@@ -386,7 +413,7 @@ async function clasificarSimple(state: NLUStateType): Promise<Partial<NLUStateTy
       variables: stripNullVars(result.variables),
       rawText: messageText,
       reasoning: result.reasoning,
-      wantsMoreOptions: false,
+      wantsMoreOptions: detectWantsMoreOptionsHeuristic(messageText),
     };
 
     if (isMinimalAffirmation(messageText)) {

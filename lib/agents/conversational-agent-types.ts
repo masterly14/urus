@@ -11,6 +11,10 @@ import type {
   PostVisitPolicyState,
   PostVisitStructuredContext,
 } from "@/lib/visitas/post-visit-context-types";
+import type {
+  ConversationSignals,
+  DemandCriteriaSnapshot,
+} from "./conversation-signals";
 
 // ── Fases de la conversación ────────────────────────────────────────────────
 
@@ -36,6 +40,10 @@ export interface ConversationalAgentInput {
   conversationPhase: ConversationPhase;
   postVisitStructuredContext?: PostVisitStructuredContext | null;
   policyHints?: PostVisitPolicyState | null;
+  /** Criterios actuales registrados en la demanda (para que el agente no los vuelva a preguntar). */
+  demandCriteria?: DemandCriteriaSnapshot | null;
+  /** Señales precomputadas (anti-bucle, gatillo de búsqueda) calculadas en el handler. */
+  signals?: ConversationSignals | null;
 }
 
 // ── Output del agente ───────────────────────────────────────────────────────

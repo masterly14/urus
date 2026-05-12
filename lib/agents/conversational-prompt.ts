@@ -11,6 +11,34 @@
 
 import type { ConversationalAgentInput } from "./conversational-agent-types";
 import { MICROSITE_HANDOFF_ETA_MINUTES } from "./conversational-operational-constants";
+import type { DemandCriteriaSnapshot } from "./conversation-signals";
+
+function describeDemandCriteria(c: DemandCriteriaSnapshot | null | undefined): string | null {
+  if (!c) return null;
+  const parts: string[] = [];
+  const ciudad = typeof c.ciudad === "string" ? c.ciudad.trim() : "";
+  const zonas = Array.isArray(c.zonas)
+    ? c.zonas.filter(Boolean).join(", ")
+    : (typeof c.zonas === "string" ? c.zonas.trim() : "");
+  if (ciudad && zonas) parts.push(`zona: ${ciudad} (${zonas})`);
+  else if (ciudad) parts.push(`ciudad: ${ciudad}`);
+  else if (zonas) parts.push(`zonas: ${zonas}`);
+
+  const min = c.presupuestoMin ?? 0;
+  const max = c.presupuestoMax ?? 0;
+  if (min > 0 && max > 0) parts.push(`presupuesto: ${min.toLocaleString("es-ES")}€ – ${max.toLocaleString("es-ES")}€`);
+  else if (max > 0) parts.push(`presupuesto: hasta ${max.toLocaleString("es-ES")}€`);
+  else if (min > 0) parts.push(`presupuesto: desde ${min.toLocaleString("es-ES")}€`);
+
+  if (c.habitacionesMin && c.habitacionesMin > 0) parts.push(`habitaciones: al menos ${c.habitacionesMin}`);
+
+  const tipos = Array.isArray(c.tipos)
+    ? c.tipos.filter(Boolean).join(", ")
+    : (typeof c.tipos === "string" ? c.tipos.trim() : "");
+  if (tipos) parts.push(`tipo: ${tipos}`);
+
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
 
 export function buildConversationalSystemPrompt(input: ConversationalAgentInput): string {
   const sections: string[] = [];
@@ -69,6 +97,64 @@ ${phaseDescriptions[input.conversationPhase] ?? ""}`);
   if (input.buyerDigest) {
     sections.push(`PERFIL DEL COMPRADOR (resumen acumulado):
 ${input.buyerDigest}`);
+  }
+
+  // ── Criterios ya registrados en la demanda ─────────────────────────────
+  const criteriaSummary = describeDemandCriteria(input.demandCriteria ?? null);
+  if (criteriaSummary) {
+    sections.push(`CRITERIOS YA REGISTRADOS EN LA DEMANDA:
+${criteriaSummary}
+
+Reglas:
+- NO vuelvas a preguntar lo que ya está aquí. Asúmelo dado.
+- Si quieres confirmarlo, hazlo en una sola línea ("trabajamos con X, ¿correcto?") y AVANZA.
+- No repitas el resumen completo en cada turno: si ya lo dijiste en el último mensaje, no lo vuelvas a recitar; pasa a la siguiente acción.`);
+  }
+
+  // ── Señales precomputadas (gatillo de búsqueda / anti-bucle) ──────────
+  const signals = input.signals ?? null;
+  if (signals) {
+    const triggerLines: string[] = [];
+
+    if (signals.buyerAskedForOptions) {
+      triggerLines.push(
+        "- El comprador acaba de PEDIR opciones explícitamente. Llama AHORA a `request_more_options` (o `update_demand` si en este turno también ajustó algún criterio). Nunca respondas solo con texto en este caso.",
+      );
+    }
+    if (signals.buyerConfirmedToProceed) {
+      triggerLines.push(
+        "- El comprador acaba de CONFIRMAR proceder ('sí', 'vale', 'ok', 'adelante') tras una invitación tuya a buscar. Llama AHORA a `request_more_options` (o `update_demand` si tienes nuevos criterios sin guardar). NO repitas el resumen ni vuelvas a preguntar.",
+      );
+    }
+    if (signals.recentSummaryStreak >= 1) {
+      triggerLines.push(
+        `- Ya llevas ${signals.recentSummaryStreak} turno(s) seguido(s) "resumiendo + pidiendo permiso para buscar". Está prohibido volver a hacer eso. En este turno DEBES o bien: (a) llamar a una tool de búsqueda, (b) iniciar una visita si procede, o (c) avanzar con una pregunta NUEVA y concreta que aporte algo distinto a lo ya preguntado.`,
+      );
+    }
+    if (signals.lastBotPromisedSearch) {
+      triggerLines.push(
+        "- En tu último mensaje YA prometiste preparar opciones / búsqueda. NO vuelvas a prometer lo mismo. Si el comprador escribe en este turno, asume que está esperando: limítate a confirmarle el plazo, hacer una pregunta breve si te falta un criterio crítico, o iniciar una visita si la pide.",
+      );
+    }
+    if (signals.hasMinimumCriteria) {
+      triggerLines.push(
+        "- Hay criterios mínimos en la demanda (zona/ciudad + al menos presupuesto, habitaciones o tipología). Estás autorizado a llamar `request_more_options` SIN pedir más datos al comprador.",
+      );
+    } else if (signals.missingHelpfulFields.length > 0) {
+      triggerLines.push(
+        `- Faltan datos para una búsqueda inicial sólida. Falta(n): ${signals.missingHelpfulFields.join(", ")}. Pregunta SOLO el más crítico (orden recomendado: ciudad_o_zona > presupuesto > habitaciones > tipo). Una sola pregunta por turno.`,
+      );
+    }
+    if (signals.buyerRequestedHuman) {
+      triggerLines.push(
+        "- El comprador ha pedido hablar con una persona. Llama a `escalate_to_human` y comunica el plazo realista (un compañero le escribirá en menos de 1 hora laborable).",
+      );
+    }
+
+    if (triggerLines.length > 0) {
+      sections.push(`SEÑALES DE ESTE TURNO (anti-bucle / gatillo de búsqueda):
+${triggerLines.join("\n")}`);
+    }
   }
 
   if (input.conversationPhase === "POST_VISIT_REPROFILING") {
@@ -246,7 +332,33 @@ CONSOLIDACIÓN ANTES DE PREGUNTAR:
 - Antes de pedir más datos al comprador, reformula primero lo que ya sabes ("tengo apuntado: tope
   120.000€, prioridad precio, zona Madrid") y pregunta solo una cosa más cuando sea imprescindible.
 - NUNCA hagas dos turnos seguidos de preguntas abiertas sin aportar nada nuevo entre medias.
-- Si el comprador ya respondió algo en turnos anteriores, no lo preguntes otra vez.`);
+- Si el comprador ya respondió algo en turnos anteriores, no lo preguntes otra vez.
+
+PROTOCOLO ANTI-BUCLE (estricto):
+- Está PROHIBIDO repetir en este turno la misma estructura "te resumo lo que tengo + ¿quieres
+  seguir afinando?" si ya la usaste en el mensaje anterior. Si te ves tentado, sustituye por una
+  acción real: invocar tool de búsqueda, hacer UNA pregunta nueva concreta, o iniciar visita.
+- Si la zona/ciudad y al menos un criterio (presupuesto, habitaciones o tipo) están registrados,
+  considera que tienes mínimos suficientes para LANZAR la búsqueda. No pidas permiso al comprador
+  para buscar: invoca request_more_options directamente y comunica el plazo.
+- Cuando el comprador escriba "sí", "ok", "vale", "adelante", "claro" justo después de que tú
+  ofrecieras buscar opciones, NO respondas resumiendo otra vez: invoca la tool de búsqueda en
+  ESE turno y confirma el plazo.
+- Cuando el comprador pregunte "qué opciones tienes", "qué me ofreces", "qué tienes para
+  enseñarme", "muéstrame algo", trata la pregunta como un encargo de búsqueda: invoca
+  request_more_options y responde explicando que se las preparas y revisará el equipo.
+
+PROGRESIÓN DEL DIÁLOGO (orden mental antes de responder):
+1. ¿El comprador pide visitar algo concreto? → initiate_visit y confirma plazo de coordinación.
+2. ¿El comprador pide opciones (explícita o implícitamente: "qué tienes", "enséñame")? →
+   request_more_options (o update_demand si trae criterios nuevos en el mismo turno).
+3. ¿Trae criterios nuevos? → update_demand (esa tool ya encola la búsqueda).
+4. ¿Rechaza propiedades concretas de su selección? → classify_feedback →
+   emit_selection_feedback.
+5. ¿Es una pregunta operativa sobre una propiedad concreta? → get_property_details y responde.
+6. ¿Es texto social, gracias, saludo? → respuesta breve cordial + siguiente paso accionable.
+7. ¿Pide hablar con humano o hay error grave? → escalate_to_human.
+Solo si nada de lo anterior aplica responde con texto que aporte algo nuevo.`);
 
   return sections.join("\n\n---\n\n");
 }

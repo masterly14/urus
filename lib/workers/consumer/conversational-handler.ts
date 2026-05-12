@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store/event-store";
 import { sendTextMessage } from "@/lib/whatsapp/send";
 import { runConversationalAgent } from "@/lib/agents/conversational-graph";
+import { enqueueJob } from "@/lib/job-queue";
 import type { ConversationalAgentInput, ConversationPhase } from "@/lib/agents/conversational-agent-types";
 import type { PropertySummaryForNLU, ConversationTurn } from "@/lib/agents/types";
 import type { JsonValue } from "@/lib/event-store/types";
@@ -23,6 +24,13 @@ import type {
   PostVisitPolicyState,
   PostVisitStructuredContext,
 } from "@/lib/visitas/post-visit-context-types";
+import { MICROSITE_HANDOFF_ETA_MINUTES } from "@/lib/agents/conversational-operational-constants";
+import {
+  computeConversationSignals,
+  shouldForceSearchFallback,
+  type ConversationSignals,
+  type DemandCriteriaSnapshot,
+} from "@/lib/agents/conversation-signals";
 
 // ── Tipos del resultado ─────────────────────────────────────────────────────
 
@@ -140,21 +148,22 @@ export async function handleConversationalFlow(
     }
   }
 
-  // 2. Cargar historial de conversación
-  const conversationHistory = await loadConversationHistory(waId);
-
-  // 3. Cargar estado de sesión
-  const existingSession = await prisma.whatsAppBuyerSession.findUnique({
-    where: { waId },
-    select: {
-      summary: true,
-      turnCount: true,
-      conversationPhase: true,
-      buyerDigest: true,
-      postVisitContextStructured: true,
-      postVisitPolicyState: true,
-    },
-  });
+  // 2. Cargar historial de conversación + criterios de demanda en paralelo
+  const [conversationHistory, demandCriteria, existingSession] = await Promise.all([
+    loadConversationHistory(waId),
+    loadDemandCriteria(ctx.demandId),
+    prisma.whatsAppBuyerSession.findUnique({
+      where: { waId },
+      select: {
+        summary: true,
+        turnCount: true,
+        conversationPhase: true,
+        buyerDigest: true,
+        postVisitContextStructured: true,
+        postVisitPolicyState: true,
+      },
+    }),
+  ]);
 
   const conversationPhase =
     mapSessionPhase(existingSession?.conversationPhase) ??
@@ -162,6 +171,13 @@ export async function handleConversationalFlow(
   const buyerDigest = existingSession?.buyerDigest ?? existingSession?.summary ?? null;
   const postVisitStructuredContext = asPostVisitStructuredContext(existingSession?.postVisitContextStructured);
   const policyHints = (existingSession?.postVisitPolicyState ?? null) as PostVisitPolicyState | null;
+
+  // 3. Calcular señales (anti-bucle / gatillo de búsqueda) deterministas.
+  const signals = computeConversationSignals({
+    messageText,
+    conversationHistory,
+    demandCriteria,
+  });
 
   // 4. Construir input y ejecutar agente
   const agentInput: ConversationalAgentInput = {
@@ -175,6 +191,8 @@ export async function handleConversationalFlow(
     conversationPhase,
     postVisitStructuredContext,
     policyHints,
+    demandCriteria,
+    signals,
   };
 
   let output;
@@ -208,6 +226,51 @@ export async function handleConversationalFlow(
     `[conversational-handler] waId=${waId} phase=${conversationPhase}→${output.nextPhase} ` +
     `tools=${output.toolResults.length} elapsed=${elapsedMs}ms`,
   );
+
+  const agentInvokedSearchTool = output.toolResults.some(
+    (t) => t.toolName === "request_more_options" || t.toolName === "update_demand",
+  );
+
+  const fallback = shouldForceSearchFallback({
+    signals,
+    hasSelection: selectionProperties.length > 0,
+    agentInvokedSearchTool,
+  });
+
+  if (fallback.force && fallback.reason) {
+    await enqueueJob({
+      type: "GENERATE_MICROSITE",
+      payload: {
+        demandId: ctx.demandId,
+        comercialId: "system",
+        sourceEventId: event.id,
+        reason: `conversational_fallback:${fallback.reason}`,
+      },
+      idempotencyKey: `generate_microsite:conv_fallback:${event.id}`,
+      sourceEventId: event.id,
+    });
+
+    output = {
+      ...output,
+      responseText: buildFallbackResponse({
+        reason: fallback.reason,
+        criteria: demandCriteria,
+      }),
+      nextPhase: "REVIEWING_OPTIONS",
+      toolResults: [
+        ...output.toolResults,
+        {
+          toolName: "request_more_options",
+          args: { reason: `conversational_fallback:${fallback.reason}` },
+          result: { status: "queued_for_validation", source: "handler_fallback" },
+        },
+      ],
+    };
+
+    console.log(
+      `[conversational-handler] Fallback GENERATE_MICROSITE reason=${fallback.reason} demandId=${ctx.demandId} waId=${waId}`,
+    );
+  }
 
   // 5. Enviar respuesta al comprador
   let messageId: string | null = null;
@@ -289,4 +352,74 @@ function mapSessionPhase(phase: string | null | undefined): ConversationPhase | 
     return phase;
   }
   return null;
+}
+
+async function loadDemandCriteria(
+  demandId: string,
+): Promise<DemandCriteriaSnapshot | null> {
+  try {
+    const demand = await prisma.demandCurrent.findUnique({
+      where: { codigo: demandId },
+      select: {
+        zonas: true,
+        presupuestoMin: true,
+        presupuestoMax: true,
+        habitacionesMin: true,
+        tipos: true,
+      },
+    });
+    if (!demand) return null;
+    return {
+      zonas: demand.zonas ?? null,
+      presupuestoMin: demand.presupuestoMin ?? null,
+      presupuestoMax: demand.presupuestoMax ?? null,
+      habitacionesMin: demand.habitacionesMin ?? null,
+      tipos: demand.tipos ?? null,
+    };
+  } catch (err) {
+    console.warn(
+      `[conversational-handler] No se pudieron cargar criterios de demanda ${demandId}: ${
+        err instanceof Error ? err.message : err
+      }`,
+    );
+    return null;
+  }
+}
+
+function summarizeCriteriaShort(c: DemandCriteriaSnapshot | null): string {
+  if (!c) return "";
+  const parts: string[] = [];
+  const zonas = Array.isArray(c.zonas) ? c.zonas.join(", ") : (c.zonas ?? "");
+  if (zonas && typeof zonas === "string" && zonas.trim()) parts.push(zonas.trim());
+  if (c.presupuestoMin && c.presupuestoMax)
+    parts.push(`${c.presupuestoMin.toLocaleString("es-ES")}–${c.presupuestoMax.toLocaleString("es-ES")}€`);
+  else if (c.presupuestoMax)
+    parts.push(`hasta ${c.presupuestoMax.toLocaleString("es-ES")}€`);
+  if (c.habitacionesMin) parts.push(`≥${c.habitacionesMin} hab`);
+  return parts.join(" · ");
+}
+
+/**
+ * Genera una respuesta natural y profesional para el fallback determinista
+ * de búsqueda. Varía según el motivo (pidió opciones, confirmó proceder o
+ * detectamos bucle) y evita siempre el mismo "Perfecto 👍".
+ */
+function buildFallbackResponse(params: {
+  reason: "buyer_asked" | "buyer_confirmed" | "loop_detected";
+  criteria: DemandCriteriaSnapshot | null;
+}): string {
+  const summary = summarizeCriteriaShort(params.criteria);
+  const eta = `unos ${MICROSITE_HANDOFF_ETA_MINUTES} minutos`;
+  const tail = summary
+    ? `Lo monto con lo que ya tengo apuntado (${summary}) y un compañero del equipo lo revisa antes de enviártelo. Te llega en ${eta}.`
+    : `Un compañero del equipo lo revisa antes de enviártelo. Te llega en ${eta}.`;
+
+  switch (params.reason) {
+    case "buyer_asked":
+      return `Voy a por ello. ${tail}`;
+    case "buyer_confirmed":
+      return `Perfecto, lanzo la búsqueda. ${tail}`;
+    case "loop_detected":
+      return `Mejor te muestro algo concreto en lugar de seguir confirmando. ${tail}`;
+  }
 }

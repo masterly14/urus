@@ -19,6 +19,7 @@ import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from "@langchain/
 import type { BaseMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { buildConversationalSystemPrompt } from "./conversational-prompt";
+import { computeConversationSignals } from "./conversation-signals";
 import { createMockConversationalTools, resetMockCounters } from "@/lib/eval/conversational-mock-tools";
 import type {
   ConversationalAgentInput,
@@ -70,13 +71,27 @@ export async function runConversationalAgentSandboxed(
 ): Promise<ConversationalAgentOutput> {
   resetMockCounters();
 
-  const systemPrompt = buildConversationalSystemPrompt(input);
+  // Si el caller no precomputó señales, las derivamos solo con texto + historial.
+  // Sin demandCriteria, el bloque "criterios mínimos" del prompt simplemente no
+  // se renderizará, pero el resto del anti-bucle sigue activo.
+  const enrichedInput: ConversationalAgentInput = input.signals
+    ? input
+    : {
+        ...input,
+        signals: computeConversationSignals({
+          messageText: input.messageText,
+          conversationHistory: input.conversationHistory,
+          demandCriteria: input.demandCriteria ?? null,
+        }),
+      };
+
+  const systemPrompt = buildConversationalSystemPrompt(enrichedInput);
   const tools = createMockConversationalTools({
-    buyerWaId: input.buyerWaId,
-    demandId: input.demandId,
-    selectionId: input.selectionId,
-    properties: input.properties,
-    conversationHistory: input.conversationHistory,
+    buyerWaId: enrichedInput.buyerWaId,
+    demandId: enrichedInput.demandId,
+    selectionId: enrichedInput.selectionId,
+    properties: enrichedInput.properties,
+    conversationHistory: enrichedInput.conversationHistory,
   });
 
   const llm = getSandboxLlm();
@@ -84,7 +99,7 @@ export async function runConversationalAgentSandboxed(
 
   const messages: BaseMessage[] = [
     new SystemMessage(systemPrompt),
-    new HumanMessage(input.messageText),
+    new HumanMessage(enrichedInput.messageText),
   ];
 
   const allToolResults: ToolCallResult[] = [];
@@ -100,7 +115,7 @@ export async function runConversationalAgentSandboxed(
       return {
         responseText,
         toolResults: allToolResults,
-        nextPhase: inferNextPhase(input.conversationPhase, allToolResults),
+        nextPhase: inferNextPhase(enrichedInput.conversationPhase, allToolResults),
         nluResult,
       };
     }
@@ -146,7 +161,7 @@ export async function runConversationalAgentSandboxed(
   return {
     responseText: extractText(finalResponse.content),
     toolResults: allToolResults,
-    nextPhase: inferNextPhase(input.conversationPhase, allToolResults),
+    nextPhase: inferNextPhase(enrichedInput.conversationPhase, allToolResults),
     nluResult,
   };
 }
