@@ -9,7 +9,11 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
+import {
+  getSessionFromRequest,
+  isCeoOrAdmin,
+  unauthorized,
+} from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store";
 import { enqueueJob } from "@/lib/job-queue";
@@ -60,10 +64,17 @@ export async function POST(
 
   const demand = await prisma.demandCurrent.findUnique({
     where: { codigo },
-    select: { codigo: true },
+    select: { codigo: true, comercialId: true },
   });
   if (!demand) {
     return NextResponse.json({ error: "Demanda no encontrada" }, { status: 404 });
+  }
+
+  if (!isCeoOrAdmin(session.role) && demand.comercialId !== session.comercialId) {
+    return NextResponse.json(
+      { error: "Solo puedes editar tus propias demandas." },
+      { status: 403 },
+    );
   }
 
   const localPatch: Record<string, unknown> = {};

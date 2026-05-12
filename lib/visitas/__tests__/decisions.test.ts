@@ -109,6 +109,40 @@ describe("decideVisitWorkItem", () => {
     expect(result.operacion).toMatchObject({ codigo: "OP-2026-0007", existing: false });
   });
 
+  it("verde no reutiliza operaciones abiertas de otra demanda para la misma propiedad", async () => {
+    await decideVisitWorkItem({
+      visitWorkItemId: "vwi-001",
+      decision: "green",
+      decidedBy: "Comercial",
+    });
+
+    expect(mockOperacionFindFirst).toHaveBeenCalledWith({
+      where: {
+        propertyCode: "PROP-001",
+        demandId: "DEM-001",
+        estado: { notIn: ["CERRADA_VENTA", "CERRADA_ALQUILER", "CERRADA_TRASPASO", "CANCELADA"] },
+      },
+      select: { id: true, codigo: true },
+    });
+  });
+
+  it("verde reutiliza solo la operación abierta de la misma demanda y propiedad", async () => {
+    mockOperacionFindFirst.mockResolvedValueOnce({ id: "op-existing", codigo: "OP-2026-0004" });
+
+    const result = await decideVisitWorkItem({
+      visitWorkItemId: "vwi-001",
+      decision: "green",
+      decidedBy: "Comercial",
+    });
+
+    expect(mockOperacionCreate).not.toHaveBeenCalled();
+    expect(result.operacion).toMatchObject({
+      id: "op-existing",
+      codigo: "OP-2026-0004",
+      existing: true,
+    });
+  });
+
   it("amarillo emite re-perfilado y devuelve la demanda a EN_SELECCION", async () => {
     const postVisitContext = "Quiere terraza, más luz y evitar planta baja";
     const result = await decideVisitWorkItem({
