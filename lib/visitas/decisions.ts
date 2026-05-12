@@ -100,10 +100,26 @@ async function createOrReuseOperacion(input: {
       propertyCode: input.workItem.propertyId,
       estado: { notIn: ["CERRADA_VENTA", "CERRADA_ALQUILER", "CERRADA_TRASPASO", "CANCELADA"] },
     },
-    select: { id: true, codigo: true },
+    select: { id: true, codigo: true, demandId: true, estado: true },
   });
 
   if (existing) {
+    if (existing.demandId && existing.demandId !== input.workItem.demandId) {
+      throw new Error(
+        `Ya existe una operación activa para esta propiedad: ${existing.codigo} (${existing.estado})`,
+      );
+    }
+    if (!existing.demandId) {
+      const linked = await prisma.operacion.update({
+        where: { id: existing.id },
+        data: {
+          demandId: input.workItem.demandId,
+          comercialId: input.workItem.comercialId,
+        },
+        select: { id: true, codigo: true },
+      });
+      return { ...linked, existing: true };
+    }
     return { ...existing, existing: true };
   }
 

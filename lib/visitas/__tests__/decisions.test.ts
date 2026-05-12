@@ -6,6 +6,7 @@ const mockVisitFindUnique = vi.fn();
 const mockVisitUpdate = vi.fn();
 const mockOperacionFindFirst = vi.fn();
 const mockOperacionCreate = vi.fn();
+const mockOperacionUpdate = vi.fn();
 const mockDemandUpdate = vi.fn();
 const mockDemandUpdateMany = vi.fn();
 const mockDemandSnapshotFindUnique = vi.fn();
@@ -22,6 +23,7 @@ vi.mock("@/lib/prisma", () => ({
     operacion: {
       findFirst: (...args: unknown[]) => mockOperacionFindFirst(...args),
       create: (...args: unknown[]) => mockOperacionCreate(...args),
+      update: (...args: unknown[]) => mockOperacionUpdate(...args),
     },
     demandCurrent: {
       update: (...args: unknown[]) => mockDemandUpdate(...args),
@@ -77,6 +79,7 @@ describe("decideVisitWorkItem", () => {
     mockQueryRaw.mockResolvedValue([{ lastValue: 7 }]);
     mockOperacionFindFirst.mockResolvedValue(null);
     mockOperacionCreate.mockResolvedValue({ id: "op-1", codigo: "OP-2026-0007" });
+    mockOperacionUpdate.mockResolvedValue({ id: "op-existing", codigo: "OP-2026-0005" });
     mockDemandUpdate.mockResolvedValue({});
     mockDemandUpdateMany.mockResolvedValue({ count: 1 });
     mockDemandSnapshotFindUnique.mockResolvedValue(null);
@@ -107,6 +110,78 @@ describe("decideVisitWorkItem", () => {
       data: { leadStatus: "EN_NEGOCIACION" },
     });
     expect(result.operacion).toMatchObject({ codigo: "OP-2026-0007", existing: false });
+  });
+
+  it("verde reutiliza una operación activa solo si pertenece a la misma demanda", async () => {
+    mockOperacionFindFirst.mockResolvedValue({
+      id: "op-existing",
+      codigo: "OP-2026-0005",
+      demandId: "DEM-001",
+      estado: "EN_CURSO",
+    });
+
+    const result = await decideVisitWorkItem({
+      visitWorkItemId: "vwi-001",
+      decision: "green",
+      decidedBy: "Comercial",
+    });
+
+    expect(mockOperacionCreate).not.toHaveBeenCalled();
+    expect(mockDemandUpdate).not.toHaveBeenCalled();
+    expect(mockDemandUpdateMany).toHaveBeenCalledWith({
+      where: { codigo: "DEM-001" },
+      data: { leadStatus: "EN_NEGOCIACION" },
+    });
+    expect(result.operacion).toMatchObject({
+      id: "op-existing",
+      codigo: "OP-2026-0005",
+      existing: true,
+    });
+  });
+
+  it("verde vincula la demanda si reutiliza una operación activa sin comprador", async () => {
+    mockOperacionFindFirst.mockResolvedValue({
+      id: "op-existing",
+      codigo: "OP-2026-0005",
+      demandId: null,
+      estado: "EN_CURSO",
+    });
+
+    const result = await decideVisitWorkItem({
+      visitWorkItemId: "vwi-001",
+      decision: "green",
+      decidedBy: "Comercial",
+    });
+
+    expect(mockOperacionCreate).not.toHaveBeenCalled();
+    expect(mockOperacionUpdate).toHaveBeenCalledWith({
+      where: { id: "op-existing" },
+      data: { demandId: "DEM-001", comercialId: "com-001" },
+      select: { id: true, codigo: true },
+    });
+    expect(result.operacion).toMatchObject({
+      id: "op-existing",
+      codigo: "OP-2026-0005",
+      existing: true,
+    });
+  });
+
+  it("verde bloquea reutilizar una operación activa de otra demanda", async () => {
+    mockOperacionFindFirst.mockResolvedValue({
+      id: "op-other",
+      codigo: "OP-2026-0004",
+      demandId: "DEM-OTHER",
+      estado: "EN_CURSO",
+    });
+
+    await expect(decideVisitWorkItem({
+      visitWorkItemId: "vwi-001",
+      decision: "green",
+      decidedBy: "Comercial",
+    })).rejects.toThrow("Ya existe una operación activa para esta propiedad");
+
+    expect(mockOperacionCreate).not.toHaveBeenCalled();
+    expect(mockDemandUpdateMany).not.toHaveBeenCalled();
   });
 
   it("amarillo emite re-perfilado y devuelve la demanda a EN_SELECCION", async () => {
