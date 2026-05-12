@@ -34,11 +34,12 @@ export const EDGE_CASE_SCENARIOS: EvalScenario[] = [
     persona: PERSONA_DIRECTO,
     buyerInstructions:
       "Buscas algo entre 300k y 400k. Usa la abreviatura 'k' para miles. " +
-      "El dúplex de Chamberí (eval-003, 395.000€) te encaja por precio.",
+      "El dúplex de Chamberí (eval-003, 395.000€) te encaja por precio. " +
+      "Recuerda: el interés positivo se captura por el botón 'Me encaja' del micrositio, no por NLU.",
     expectedOutcome: {
-      intention: "ME_ENCAJA",
+      intention: "OTRO",
       variableKeys: ["precioMin", "precioMax"],
-      propertyFeedback: [{ propertyId: "eval-003", sentiment: "ME_INTERESA" }],
+      propertyFeedback: [],
     },
   },
   {
@@ -66,9 +67,9 @@ export const EDGE_CASE_SCENARIOS: EvalScenario[] = [
     ],
     persona: PERSONA_DIRECTO,
     buyerInstructions:
-      "Responde SOLO con 'ok' o 'vale'. Nada más. Una sola palabra.",
+      "Responde SOLO con 'ok' o 'vale'. Nada más. Una sola palabra. Recuerda: las confirmaciones breves no equivalen a interés positivo (eso lo captura el botón 'Me encaja'); el NLU debe devolver OTRO.",
     expectedOutcome: {
-      intention: "ME_ENCAJA",
+      intention: "OTRO",
     },
   },
   {
@@ -156,11 +157,12 @@ export const EDGE_CASE_SCENARIOS: EvalScenario[] = [
     persona: PERSONA_DIRECTO,
     buyerInstructions:
       "Te gusta el piso del Centro de Córdoba (eval-cor-001). Dilo como 'en el centro de Córdoba'. " +
-      "El NLU debería separar ciudad=Córdoba y zonas=['Centro'].",
+      "El NLU debería separar ciudad=Córdoba y zonas=['Centro']. " +
+      "Recuerda: el interés positivo se captura por el botón 'Me encaja' del micrositio, no por NLU.",
     expectedOutcome: {
-      intention: "ME_ENCAJA",
+      intention: "OTRO",
       variableKeys: ["ciudad", "zonas"],
-      propertyFeedback: [{ propertyId: "eval-cor-001", sentiment: "ME_INTERESA" }],
+      propertyFeedback: [],
     },
   },
   {
@@ -187,10 +189,11 @@ export const EDGE_CASE_SCENARIOS: EvalScenario[] = [
     persona: PERSONA_EMOCIONAL,
     buyerInstructions:
       "Te encanta la casa de Pozuelo (eval-005). Responde con muchos emojis positivos " +
-      "(😍, ❤️, 👍) y una frase corta como 'me encanta esa!'. Sé muy expresivo emocionalmente.",
+      "(😍, ❤️, 👍) y una frase corta como 'me encanta esa!'. Sé muy expresivo emocionalmente. " +
+      "Recuerda: el interés positivo se captura por el botón 'Me encaja' del micrositio, no por NLU.",
     expectedOutcome: {
-      intention: "ME_ENCAJA",
-      propertyFeedback: [{ propertyId: "eval-005", sentiment: "ME_INTERESA" }],
+      intention: "OTRO",
+      propertyFeedback: [],
     },
   },
 ];

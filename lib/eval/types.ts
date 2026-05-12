@@ -23,7 +23,9 @@ export interface BuyerPersona {
 
 export interface ExpectedOutcome {
   intention?: IntentionWhatsApp;
-  propertyFeedback?: { propertyId: string; sentiment: "ME_INTERESA" | "NO_ME_ENCAJA" }[];
+  // Sólo se modela el rechazo. El interés positivo se captura por botón en el
+  // micrositio (canal canónico `microsite_card`), no por NLU.
+  propertyFeedback?: { propertyId: string; sentiment: "NO_ME_ENCAJA" }[];
   variableKeys?: string[];
   wantsMoreOptions?: boolean;
 }

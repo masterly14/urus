@@ -292,13 +292,14 @@ const FEEDBACK_SCENARIOS: ConversationalEvalScenario[] = [
     buyerInstructions: "Expresa interés positivo en una propiedad",
     expectedToolCalls: ["classify_feedback", "emit_selection_feedback"],
     expectedResponseTraits: [
-      { trait: "Confirma que ha registrado el interés", weight: 0.3 },
-      { trait: "Ofrece siguiente paso (visita, más detalles)", weight: 0.4 },
-      { trait: "Tono entusiasta y profesional", weight: 0.3 },
+      { trait: "Invita a pulsar el botón 'Me encaja' en la ficha del micrositio para registrar el interés", weight: 0.4 },
+      { trait: "No promete haber registrado el interés en este mensaje", weight: 0.3 },
+      { trait: "Tono cercano y profesional", weight: 0.3 },
     ],
     forbiddenPatterns: [],
     expectedOutcome: {
-      propertyFeedback: [{ propertyId: "eval-001", sentiment: "ME_INTERESA" }],
+      intention: "OTRO",
+      propertyFeedback: [],
     },
     isRegression: true,
   },
@@ -339,15 +340,14 @@ const FEEDBACK_SCENARIOS: ConversationalEvalScenario[] = [
     expectedToolCalls: ["classify_feedback", "emit_selection_feedback"],
     expectedResponseTraits: [
       { trait: "Acusa recibo de opiniones sobre múltiples propiedades", weight: 0.3 },
-      { trait: "Resume lo entendido de cada propiedad", weight: 0.4 },
-      { trait: "Ofrece siguiente paso para las que interesan", weight: 0.3 },
+      { trait: "Sólo registra el rechazo al ático y resume el resto", weight: 0.3 },
+      { trait: "Invita a pulsar el botón 'Me encaja' en la ficha de las que le gustan (Salamanca y dúplex de Chamberí)", weight: 0.4 },
     ],
     forbiddenPatterns: [],
     expectedOutcome: {
+      intention: "NO_ME_ENCAJA",
       propertyFeedback: [
-        { propertyId: "eval-001", sentiment: "ME_INTERESA" },
         { propertyId: "eval-002", sentiment: "NO_ME_ENCAJA" },
-        { propertyId: "eval-003", sentiment: "ME_INTERESA" },
       ],
     },
   },

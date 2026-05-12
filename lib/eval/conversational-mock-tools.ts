@@ -64,8 +64,9 @@ export function createMockConversationalTools(ctx: ToolExecutionContext): Struct
   const classifyFeedbackTool = new DynamicStructuredTool({
     name: "classify_feedback",
     description:
-      "Analiza el mensaje del comprador para clasificar su intención (ME_ENCAJA, NO_ME_ENCAJA, BUSCO_DIFERENTE), " +
-      "detectar feedback por propiedad y extraer variables de demanda.",
+      "Analiza el mensaje del comprador para clasificar su intención (NO_ME_ENCAJA, BUSCO_DIFERENTE, OTRO), " +
+      "detectar rechazos por propiedad (NO_ME_ENCAJA) y extraer variables de demanda. El interés positivo " +
+      "se captura por botón en el micrositio, no por NLU.",
     schema: z.object({
       messageText: z.string().describe("Texto exacto del comprador a clasificar."),
     }),
@@ -84,11 +85,12 @@ export function createMockConversationalTools(ctx: ToolExecutionContext): Struct
   const emitSelectionFeedbackTool = new DynamicStructuredTool({
     name: "emit_selection_feedback",
     description:
-      "Registra la decisión del comprador sobre una propiedad específica (ME_INTERESA o NO_ME_ENCAJA).",
+      "Registra el RECHAZO del comprador sobre una propiedad específica (NO_ME_ENCAJA). " +
+      "El interés positivo (ME_INTERESA) se captura SOLO por el botón 'Me encaja' del micrositio.",
     schema: z.object({
       propertyId: z.string().describe("ID de la propiedad en el microsite."),
-      decision: z.enum(["ME_INTERESA", "NO_ME_ENCAJA"]).describe("Decisión del comprador."),
-      nluIntention: z.enum(["ME_ENCAJA", "NO_ME_ENCAJA", "BUSCO_DIFERENTE"]).describe("Intención global NLU."),
+      decision: z.literal("NO_ME_ENCAJA").describe("Único valor permitido: rechazo."),
+      nluIntention: z.enum(["NO_ME_ENCAJA", "BUSCO_DIFERENTE", "OTRO"]).describe("Intención global NLU."),
       confidence: z.number().describe("Confianza del NLU (0-1)."),
     }),
     func: async ({ propertyId, decision }) => {
@@ -116,7 +118,7 @@ export function createMockConversationalTools(ctx: ToolExecutionContext): Struct
         extras: z.array(z.string()).optional(),
         extrasNoDeseados: z.array(z.string()).optional(),
       }).describe("Variables de demanda extraídas del mensaje."),
-      intention: z.enum(["ME_ENCAJA", "NO_ME_ENCAJA", "BUSCO_DIFERENTE"]),
+      intention: z.enum(["NO_ME_ENCAJA", "BUSCO_DIFERENTE", "OTRO"]),
       confidence: z.number(),
       rawText: z.string().describe("Texto original del comprador."),
     }),

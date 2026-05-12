@@ -22,9 +22,10 @@ export const AMBIGUITY_SCENARIOS: EvalScenario[] = [
     properties: MOCK_PROPERTIES,
     conversationHistory: [],
     persona: PERSONA_COLOQUIAL,
-    buyerInstructions: "Te gusta el ático (eval-002) pero escribe con errores tipográficos y abreviaturas: 'atico', 'chamrtin', 'sta bien', 'piscna'. Simula escritura rápida en móvil.",
+    buyerInstructions: "Te gusta el ático (eval-002) pero escribe con errores tipográficos y abreviaturas: 'atico', 'chamrtin', 'sta bien', 'piscna'. Simula escritura rápida en móvil. Recuerda: el interés positivo se captura por botón en el micrositio, no por NLU.",
     expectedOutcome: {
-      propertyFeedback: [{ propertyId: "eval-002", sentiment: "ME_INTERESA" }],
+      intention: "OTRO",
+      propertyFeedback: [],
     },
   },
   {
@@ -34,10 +35,10 @@ export const AMBIGUITY_SCENARIOS: EvalScenario[] = [
     properties: MOCK_PROPERTIES,
     conversationHistory: [],
     persona: PERSONA_EMOCIONAL,
-    buyerInstructions: "Te encanta la casa de Pozuelo (eval-005) pero mezcla español e inglés: 'amazing', 'love it', 'super nice'. El estudio (eval-004) es 'too small, no way'.",
+    buyerInstructions: "Te encanta la casa de Pozuelo (eval-005) pero mezcla español e inglés: 'amazing', 'love it', 'super nice'. El estudio (eval-004) es 'too small, no way'. Recuerda: el interés positivo no se captura por NLU, sólo el rechazo.",
     expectedOutcome: {
+      intention: "NO_ME_ENCAJA",
       propertyFeedback: [
-        { propertyId: "eval-005", sentiment: "ME_INTERESA" },
         { propertyId: "eval-004", sentiment: "NO_ME_ENCAJA" },
       ],
     },
@@ -49,12 +50,10 @@ export const AMBIGUITY_SCENARIOS: EvalScenario[] = [
     properties: MOCK_PROPERTIES,
     conversationHistory: [],
     persona: PERSONA_COLOQUIAL,
-    buyerInstructions: "Te gusta 'la de la piscina'. Tanto eval-002 (ático) como eval-005 (casa) tienen piscina. Refiérete solo a 'la de la piscina' sin dar más pistas. El NLU deberá resolver cuál(es).",
+    buyerInstructions: "Te gusta 'la de la piscina'. Tanto eval-002 (ático) como eval-005 (casa) tienen piscina. Refiérete solo a 'la de la piscina' sin dar más pistas. Recuerda: el interés positivo se captura por botón en el micrositio, no por NLU.",
     expectedOutcome: {
-      propertyFeedback: [
-        { propertyId: "eval-002", sentiment: "ME_INTERESA" },
-        { propertyId: "eval-005", sentiment: "ME_INTERESA" },
-      ],
+      intention: "OTRO",
+      propertyFeedback: [],
     },
   },
 ];

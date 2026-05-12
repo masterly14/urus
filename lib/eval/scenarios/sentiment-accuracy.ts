@@ -10,10 +10,10 @@ export const SENTIMENT_ACCURACY_SCENARIOS: EvalScenario[] = [
     properties: MOCK_PROPERTIES,
     conversationHistory: [],
     persona: PERSONA_DIRECTO,
-    buyerInstructions: "Te encanta el piso de Salamanca (eval-001). Exprésalo sin ambigüedad.",
+    buyerInstructions: "Te encanta el piso de Salamanca (eval-001). Exprésalo sin ambigüedad. Recuerda: el interés positivo se captura por el botón 'Me encaja' del micrositio, no por NLU.",
     expectedOutcome: {
-      intention: "ME_ENCAJA",
-      propertyFeedback: [{ propertyId: "eval-001", sentiment: "ME_INTERESA" }],
+      intention: "OTRO",
+      propertyFeedback: [],
     },
   },
   {
@@ -36,10 +36,10 @@ export const SENTIMENT_ACCURACY_SCENARIOS: EvalScenario[] = [
     properties: MOCK_PROPERTIES,
     conversationHistory: [],
     persona: PERSONA_MULTI,
-    buyerInstructions: "El dúplex de Chamberí (eval-003) te gusta pero el ático de Chamartín (eval-002) es muy caro. Expresa ambas opiniones.",
+    buyerInstructions: "El dúplex de Chamberí (eval-003) te gusta pero el ático de Chamartín (eval-002) es muy caro. Expresa ambas opiniones. Recuerda: el interés positivo no se captura por NLU, sólo el rechazo.",
     expectedOutcome: {
+      intention: "NO_ME_ENCAJA",
       propertyFeedback: [
-        { propertyId: "eval-003", sentiment: "ME_INTERESA" },
         { propertyId: "eval-002", sentiment: "NO_ME_ENCAJA" },
       ],
     },
@@ -51,10 +51,10 @@ export const SENTIMENT_ACCURACY_SCENARIOS: EvalScenario[] = [
     properties: MOCK_PROPERTIES,
     conversationHistory: [],
     persona: PERSONA_COLOQUIAL,
-    buyerInstructions: "La casa de Pozuelo (eval-005) te flipó. El estudio (eval-004) ni loco. Usa lenguaje informal.",
+    buyerInstructions: "La casa de Pozuelo (eval-005) te flipó. El estudio (eval-004) ni loco. Usa lenguaje informal. Recuerda: el interés positivo no se captura por NLU, sólo el rechazo.",
     expectedOutcome: {
+      intention: "NO_ME_ENCAJA",
       propertyFeedback: [
-        { propertyId: "eval-005", sentiment: "ME_INTERESA" },
         { propertyId: "eval-004", sentiment: "NO_ME_ENCAJA" },
       ],
     },

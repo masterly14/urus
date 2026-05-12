@@ -35,11 +35,11 @@ export const WANTS_MORE_SCENARIOS: EvalScenario[] = [
     properties: MOCK_PROPERTIES,
     conversationHistory: [],
     persona: PERSONA_DIRECTO,
-    buyerInstructions: "Te gusta el piso de Salamanca (eval-001). Estás satisfecho, NO pidas más opciones.",
+    buyerInstructions: "Te gusta el piso de Salamanca (eval-001). Estás satisfecho, NO pidas más opciones. Recuerda: el interés positivo NO se captura por NLU, sólo por el botón 'Me encaja' del micrositio.",
     expectedOutcome: {
       wantsMoreOptions: false,
-      intention: "ME_ENCAJA",
-      propertyFeedback: [{ propertyId: "eval-001", sentiment: "ME_INTERESA" }],
+      intention: "OTRO",
+      propertyFeedback: [],
     },
   },
   {

@@ -10,9 +10,10 @@ export const PROPERTY_RESOLUTION_SCENARIOS: EvalScenario[] = [
     properties: MOCK_PROPERTIES,
     conversationHistory: [],
     persona: PERSONA_COLOQUIAL,
-    buyerInstructions: "Te gusta la propiedad de Salamanca (eval-001). Refiérete a ella por la zona.",
+    buyerInstructions: "Te gusta la propiedad de Salamanca (eval-001). Refiérete a ella por la zona. Recuerda: el interés positivo se captura por el botón 'Me encaja' del micrositio, no por NLU; el modelo debería devolver intention=OTRO y propertyFeedback=[].",
     expectedOutcome: {
-      propertyFeedback: [{ propertyId: "eval-001", sentiment: "ME_INTERESA" }],
+      intention: "OTRO",
+      propertyFeedback: [],
     },
   },
   {
@@ -34,9 +35,10 @@ export const PROPERTY_RESOLUTION_SCENARIOS: EvalScenario[] = [
     properties: MOCK_PROPERTIES,
     conversationHistory: [],
     persona: PERSONA_NUMERICO,
-    buyerInstructions: "Te gusta la segunda propiedad de la lista (eval-002, el ático de Chamartín). Refiérete a ella por posición.",
+    buyerInstructions: "Te gusta la segunda propiedad de la lista (eval-002, el ático de Chamartín). Refiérete a ella por posición. Recuerda: el interés positivo se captura por botón en el micrositio, no por NLU.",
     expectedOutcome: {
-      propertyFeedback: [{ propertyId: "eval-002", sentiment: "ME_INTERESA" }],
+      intention: "OTRO",
+      propertyFeedback: [],
     },
   },
   {
@@ -46,9 +48,10 @@ export const PROPERTY_RESOLUTION_SCENARIOS: EvalScenario[] = [
     properties: MOCK_PROPERTIES,
     conversationHistory: [],
     persona: PERSONA_EMOCIONAL,
-    buyerInstructions: "Te encanta la propiedad que tiene piscina y jardín (eval-005, la casa de Pozuelo). Refiérete a ella por la piscina/jardín.",
+    buyerInstructions: "Te encanta la propiedad que tiene piscina y jardín (eval-005, la casa de Pozuelo). Refiérete a ella por la piscina/jardín. Recuerda: el interés positivo se captura por botón en el micrositio, no por NLU.",
     expectedOutcome: {
-      propertyFeedback: [{ propertyId: "eval-005", sentiment: "ME_INTERESA" }],
+      intention: "OTRO",
+      propertyFeedback: [],
     },
   },
   {
@@ -58,9 +61,10 @@ export const PROPERTY_RESOLUTION_SCENARIOS: EvalScenario[] = [
     properties: MOCK_PROPERTIES,
     conversationHistory: [],
     persona: PERSONA_DIRECTO,
-    buyerInstructions: "Te interesa el dúplex (eval-003, Chamberí). Refiérete a él por tipología.",
+    buyerInstructions: "Te interesa el dúplex (eval-003, Chamberí). Refiérete a él por tipología. Recuerda: el interés positivo se captura por botón en el micrositio, no por NLU.",
     expectedOutcome: {
-      propertyFeedback: [{ propertyId: "eval-003", sentiment: "ME_INTERESA" }],
+      intention: "OTRO",
+      propertyFeedback: [],
     },
   },
   {
@@ -70,11 +74,10 @@ export const PROPERTY_RESOLUTION_SCENARIOS: EvalScenario[] = [
     properties: MOCK_PROPERTIES,
     conversationHistory: [],
     persona: PERSONA_MULTI,
-    buyerInstructions: "Te gustan la de Salamanca (eval-001) y el dúplex (eval-003). El ático (eval-002) no te gusta. Opina sobre las tres.",
+    buyerInstructions: "Te gustan la de Salamanca (eval-001) y el dúplex (eval-003). El ático (eval-002) NO te gusta. Opina sobre las tres. Recuerda: el interés positivo (Salamanca y dúplex) se captura por botón en el micrositio, no por NLU. Sólo se debe registrar el rechazo al ático.",
     expectedOutcome: {
+      intention: "NO_ME_ENCAJA",
       propertyFeedback: [
-        { propertyId: "eval-001", sentiment: "ME_INTERESA" },
-        { propertyId: "eval-003", sentiment: "ME_INTERESA" },
         { propertyId: "eval-002", sentiment: "NO_ME_ENCAJA" },
       ],
     },
