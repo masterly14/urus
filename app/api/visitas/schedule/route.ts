@@ -46,9 +46,13 @@ const postHandler = async (request: Request) => {
 
   const demandId = parsed.data.demandId ?? workItem?.demandId;
   const propertyId = parsed.data.propertyId ?? workItem?.propertyId;
-  if (!demandId || !propertyId) {
+  const draftDemandId = workItem?.draftDemandId ?? null;
+  const draftPropertyId = workItem?.draftPropertyId ?? null;
+  const hasDemand = Boolean(demandId) || Boolean(draftDemandId);
+  const hasProperty = Boolean(propertyId) || Boolean(draftPropertyId);
+  if (!hasDemand || !hasProperty) {
     return NextResponse.json(
-      { ok: false, error: "Debe indicar demandId/propertyId o un visitId válido" },
+      { ok: false, error: "Debe indicar demanda y propiedad (existentes o provisionales)" },
       { status: 400 },
     );
   }
@@ -85,29 +89,33 @@ const postHandler = async (request: Request) => {
     );
   }
 
-  const demand = await prisma.demandCurrent.findUnique({
-    where: { codigo: demandId },
-    select: { comercialId: true },
-  });
-  if (!demand) {
-    return NextResponse.json(
-      { ok: false, error: "Demanda no encontrada" },
-      { status: 404 },
-    );
-  }
-  if (!isCeoOrAdmin(session.role) && demand.comercialId !== session.comercialId) {
-    return NextResponse.json(
-      { ok: false, error: "No puedes agendar esta demanda" },
-      { status: 403 },
-    );
+  if (demandId) {
+    const demand = await prisma.demandCurrent.findUnique({
+      where: { codigo: demandId },
+      select: { comercialId: true },
+    });
+    if (!demand) {
+      return NextResponse.json(
+        { ok: false, error: "Demanda no encontrada" },
+        { status: 404 },
+      );
+    }
+    if (!isCeoOrAdmin(session.role) && demand.comercialId !== session.comercialId) {
+      return NextResponse.json(
+        { ok: false, error: "No puedes agendar esta demanda" },
+        { status: 403 },
+      );
+    }
   }
 
   try {
     const result = await scheduleManualVisit({
       ...parsed.data,
       visitWorkItemId: workItem?.id,
-      demandId,
-      propertyId,
+      demandId: demandId || undefined,
+      propertyId: propertyId || undefined,
+      draftDemandId: draftDemandId || undefined,
+      draftPropertyId: draftPropertyId || undefined,
       comercialId: effectiveComercialId,
     });
     return NextResponse.json({ ok: true, ...result });

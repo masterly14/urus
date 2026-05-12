@@ -21,10 +21,10 @@ const getHandler = async (request: Request) => {
   const demandSearchConditions = buildDemandSearchConditions(q);
 
   if (!isCeoOrAdmin(session.role) && !comercialId) {
-    return NextResponse.json({ ok: true, demands: [], properties: [] });
+    return NextResponse.json({ ok: true, demands: [], properties: [], comerciales: [], demandPropertyTypes: [], localidades: [], currentComercialId: null });
   }
 
-  const [demands, properties] = await Promise.all([
+  const [demands, properties, comerciales, demandPropertyTypes, localidades] = await Promise.all([
     prisma.demandCurrent.findMany({
       where: {
         ...(comercialId ? { comercialId } : {}),
@@ -71,9 +71,41 @@ const getHandler = async (request: Request) => {
       orderBy: { updatedAt: "desc" },
       take: limit,
     }),
+    prisma.comercial.findMany({
+      where: {
+        activo: true,
+        ...(isCeoOrAdmin(session.role) ? {} : { id: comercialId }),
+      },
+      select: {
+        id: true,
+        nombre: true,
+        ciudad: true,
+        inmovillaAgentId: true,
+      },
+      orderBy: { nombre: "asc" },
+    }),
+    prisma.inmovillaEnumTipo.findMany({
+      where: { tipo: "key_tipo" },
+      select: { valor: true, nombre: true },
+      orderBy: { nombre: "asc" },
+      take: 200,
+    }),
+    prisma.inmovillaEnumCiudad.findMany({
+      select: { key_loca: true, ciudad: true, provincia: true },
+      orderBy: [{ provincia: "asc" }, { ciudad: "asc" }],
+      take: 500,
+    }),
   ]);
 
-  return NextResponse.json({ ok: true, demands, properties });
+  return NextResponse.json({
+    ok: true,
+    demands,
+    properties,
+    comerciales,
+    demandPropertyTypes,
+    localidades,
+    currentComercialId: session.comercialId ?? null,
+  });
 };
 
 export const GET = withObservedRoute(

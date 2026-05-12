@@ -49,7 +49,7 @@ const getHandler = async (request: Request) => {
   const sortField = validOrderFields.has(orderBy) ? orderBy : "createdAt";
 
   try {
-    const [operaciones, total] = await Promise.all([
+    const [operacionesRaw, total] = await Promise.all([
       prisma.operacion.findMany({
         where,
         select: {
@@ -72,6 +72,19 @@ const getHandler = async (request: Request) => {
       }),
       prisma.operacion.count({ where }),
     ]);
+
+    const propertyCodes = [...new Set(operacionesRaw.map(op => op.propertyCode))];
+    const properties = await prisma.propertyCurrent.findMany({
+      where: { codigo: { in: propertyCodes } },
+      select: { codigo: true, mainPhotoUrl: true, ref: true, numFotos: true }
+    });
+    
+    const propertyMap = new Map(properties.map(p => [p.codigo, p]));
+
+    const operaciones = operacionesRaw.map(op => ({
+      ...op,
+      property: propertyMap.get(op.propertyCode) || null
+    }));
 
     return NextResponse.json({ operaciones, total });
   } catch (error) {

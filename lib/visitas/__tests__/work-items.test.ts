@@ -10,6 +10,7 @@ import {
 import type { VisitInterestDemand, VisitInterestPackage, VisitInterestProperty } from "../interest-package";
 
 const mockFindUnique = vi.fn();
+const mockFindFirst = vi.fn();
 const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
 const mockFindMany = vi.fn();
@@ -26,6 +27,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     visitWorkItem: {
       findUnique: (...args: unknown[]) => mockFindUnique(...args),
+      findFirst: (...args: unknown[]) => mockFindFirst(...args),
       create: (...args: unknown[]) => mockCreate(...args),
       update: (...args: unknown[]) => mockUpdate(...args),
       findMany: (...args: unknown[]) => mockFindMany(...args),
@@ -97,8 +99,10 @@ function makeWorkItem(overrides: Record<string, unknown> = {}) {
   return {
     id: "vwi-001",
     demandId: "DEM-001",
+    draftDemandId: null,
     selectionId: "sel-001",
     propertyId: "prop-001",
+    draftPropertyId: null,
     propertySource: "external",
     comercialId: "com-001",
     buyerName: "Comprador Test",
@@ -119,6 +123,7 @@ describe("createOrUpdateVisitWorkItemFromInterest", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFindUnique.mockResolvedValue(null);
+    mockFindFirst.mockResolvedValue(null);
     mockFindFirstEvent.mockResolvedValue(null);
     mockAppendEvent.mockResolvedValue({ id: "evt-visit-precreated" });
     mockEnqueueJob.mockResolvedValue({ id: "job-1" });
@@ -190,7 +195,7 @@ describe("createOrUpdateVisitWorkItemFromInterest", () => {
 
   it("actualiza de forma idempotente sin duplicar evento si ya existe", async () => {
     const existing = makeWorkItem({ status: VisitWorkItemStatus.PENDING_SCHEDULE });
-    mockFindUnique.mockResolvedValue(existing);
+    mockFindFirst.mockResolvedValue(existing);
     mockUpdate.mockResolvedValue(existing);
     mockFindFirstEvent.mockResolvedValue({ id: "evt-existing" });
 
@@ -216,6 +221,7 @@ describe("createOrUpdateVisitWorkItemsForDemandInterest", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFindUnique.mockResolvedValue(null);
+    mockFindFirst.mockResolvedValue(null);
     mockFindFirstEvent.mockResolvedValue(null);
     mockAppendEvent.mockResolvedValue({ id: "evt-visit-precreated" });
     mockEnqueueJob.mockResolvedValue({ id: "job-1" });

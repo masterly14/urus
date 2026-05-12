@@ -80,6 +80,7 @@ const getHandler = async (request: Request) => {
             estado: true,
             numFotos: true,
             fechaAlta: true,
+            mainPhotoUrl: true,
           },
         })
       : Promise.resolve([]),
@@ -143,6 +144,7 @@ const getHandler = async (request: Request) => {
       estado: string;
       numFotos: number;
       fechaAlta: string;
+      mainPhotoUrl: string | null;
     };
     comprador: {
       id: string;
@@ -207,6 +209,7 @@ const getHandler = async (request: Request) => {
       estado: prop?.estado ?? "",
       numFotos: prop?.numFotos ?? 0,
       fechaAlta: prop?.fechaAlta ?? "",
+      mainPhotoUrl: prop?.mainPhotoUrl ?? null,
     };
 
     if (zona && zona !== "all" && propData.zona !== zona) continue;
@@ -261,6 +264,8 @@ const getHandler = async (request: Request) => {
     zonas: allZonas,
   });
 };
+
+export const dynamic = 'force-dynamic';
 
 export const GET = withObservedRoute(
   { method: "GET", route: "/api/matching/cruces" },

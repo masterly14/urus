@@ -12,6 +12,7 @@ import type { JsonValue } from "@/lib/event-store/types";
 import { generarCodigoOperacion } from "@/lib/operacion/codigo";
 import { updateDemandLeadStatus } from "@/lib/projections/update-lead-status";
 import { deactivateDemand } from "@/lib/demands/deactivate";
+import { normalizePostVisitContext } from "./post-visit-context-normalizer";
 
 export type VisitDecision = "green" | "yellow" | "red";
 
@@ -20,6 +21,7 @@ export type DecideVisitInput = {
   decision: VisitDecision;
   notes?: string;
   reason?: string;
+  postVisitContext?: string;
   decidedBy: string;
   causationId?: string | null;
   correlationId?: string | null;
@@ -140,6 +142,10 @@ async function createOrReuseOperacion(input: {
 }
 
 export async function decideVisitWorkItem(input: DecideVisitInput): Promise<DecideVisitResult> {
+  const postVisitContext = input.postVisitContext?.trim();
+  const postVisitContextStructured = postVisitContext
+    ? normalizePostVisitContext(postVisitContext)
+    : null;
   const workItem = await prisma.visitWorkItem.findUnique({
     where: { id: input.visitWorkItemId },
   });
@@ -163,6 +169,8 @@ export async function decideVisitWorkItem(input: DecideVisitInput): Promise<Deci
     decisionLabel: decisionLabel(input.decision),
     notes: input.notes ?? "",
     reason: input.reason ?? "",
+    postVisitContext: postVisitContext ?? "",
+    postVisitContextStructured,
     decidedBy: input.decidedBy,
   } as const;
 
@@ -198,6 +206,8 @@ export async function decideVisitWorkItem(input: DecideVisitInput): Promise<Deci
       aggregateId: updated.demandId,
       payload: {
         ...basePayload,
+        postVisitContext: postVisitContext ?? "",
+        postVisitContextStructured,
         propertySnapshot: updated.propertySnapshot as Prisma.JsonValue,
         nluSummary: updated.nluSummary,
       } as unknown as JsonValue,

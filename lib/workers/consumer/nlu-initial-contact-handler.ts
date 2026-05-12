@@ -7,6 +7,7 @@ export async function handleDemandaCreadaNluInitialContact(
 ): Promise<HandlerResult> {
   const result = await startNluInitialContactForDemand({
     demandId: event.aggregateId,
+    source: "auto_demand_creada",
     causationId: event.id,
     correlationId: event.correlationId ?? null,
   });

@@ -5,25 +5,14 @@ import useSWR from "swr";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
-    ArrowLeftRight,
-    Sparkles,
-    Filter,
-    MapPin,
-    MessageCircle,
-    Clock,
-    Zap,
-    Eye,
     ArrowUpRight,
     Loader2,
-    AlertTriangle,
     RefreshCw,
-    BarChart3,
+    Search,
+    Filter
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { MatchCard, getMatchColor } from "@/components/matching/match-card";
 import type { CruceMatch } from "@/components/matching/match-card";
-import { WhatsAppPreview } from "@/components/matching/whatsapp-preview";
 import { MATCHING_PAUSED, MATCHING_PAUSED_REASON } from "@/lib/matching/pause";
 
 const POLL_INTERVAL_MS = 10_000;
@@ -35,6 +24,164 @@ interface ApiResponse {
     hasMore: boolean;
     nextCursor: string | null;
     zonas: string[];
+}
+
+function MatchDetailView({ match }: { match: CruceMatch }) {
+    const color = getMatchColor(match.porcentajeMatch);
+
+    return (
+        <div className="flex flex-col h-full bg-card rounded-xl border border-border/50 overflow-hidden shadow-sm">
+            {/* Header */}
+            <div className="p-6 border-b border-border/50 flex items-center justify-between bg-transparent">
+                <div>
+                    <h2 className="text-lg font-semibold">Detalles del Cruce</h2>
+                    <p className="text-xs text-muted-foreground mt-1">
+                        Generado el {new Date(match.fechaMatch).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" })}
+                    </p>
+                </div>
+                <div className="text-right">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mb-1">Compatibilidad</p>
+                    <p className="text-2xl font-bold font-mono" style={{ color }}>{match.porcentajeMatch}%</p>
+                </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                {/* Two columns: Propiedad / Demanda */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Propiedad */}
+                    <div className="space-y-4">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Propiedad</h3>
+
+                        {match.propiedad.mainPhotoUrl ? (
+                            <div className="relative w-full h-48 rounded-lg overflow-hidden bg-accent/20 border border-border/50">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img 
+                                    src={match.propiedad.mainPhotoUrl} 
+                                    alt={match.propiedad.titulo || match.propiedad.ref}
+                                    className="object-cover w-full h-full"
+                                />
+                            </div>
+                        ) : (
+                            <div className="w-full h-48 rounded-lg bg-accent/20 border border-border/50 flex flex-col items-center justify-center text-muted-foreground">
+                                <span className="text-xs font-medium opacity-50">Sin imagen</span>
+                            </div>
+                        )}
+
+                        <div className="space-y-3 text-sm">
+                            <div>
+                                <p className="text-muted-foreground text-xs mb-0.5">Referencia / Título</p>
+                                <p className="font-medium">{match.propiedad.titulo || match.propiedad.ref}</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-muted-foreground text-xs mb-0.5">Precio</p>
+                                    <p>{match.propiedad.precio.toLocaleString("es-ES")} €</p>
+                                </div>
+                                <div>
+                                    <p className="text-muted-foreground text-xs mb-0.5">Zona</p>
+                                    <p>{match.propiedad.zona}</p>
+                                </div>
+                                <div>
+                                    <p className="text-muted-foreground text-xs mb-0.5">Superficie</p>
+                                    <p>{match.propiedad.metros} m²</p>
+                                </div>
+                                <div>
+                                    <p className="text-muted-foreground text-xs mb-0.5">Habitaciones</p>
+                                    <p>{match.propiedad.habitaciones} hab</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Demanda */}
+                    <div className="space-y-4">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Demanda</h3>
+                        <div className="space-y-3 text-sm">
+                            <div>
+                                <p className="text-muted-foreground text-xs mb-0.5">Comprador</p>
+                                <p className="font-medium">{match.comprador.nombre}</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-muted-foreground text-xs mb-0.5">Presupuesto</p>
+                                    <p>
+                                        {match.comprador.presupuestoMin > 0
+                                            ? `${match.comprador.presupuestoMin.toLocaleString("es-ES")} - ${match.comprador.presupuestoMax.toLocaleString("es-ES")} €`
+                                            : `Hasta ${match.comprador.presupuestoMax.toLocaleString("es-ES")} €`}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-muted-foreground text-xs mb-0.5">Zonas de interés</p>
+                                    <p className="truncate" title={match.comprador.zonasInteres.join(", ")}>
+                                        {match.comprador.zonasInteres.join(", ") || "Cualquiera"}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-muted-foreground text-xs mb-0.5">Superficie min.</p>
+                                    <p>{match.comprador.metrosMin ? `${match.comprador.metrosMin} m²` : "—"}</p>
+                                </div>
+                                <div>
+                                    <p className="text-muted-foreground text-xs mb-0.5">Habitaciones min.</p>
+                                    <p>{match.comprador.habitacionesMin || "—"}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Scoring Breakdown */}
+                {match.matchScore && (
+                    <div className="space-y-4 pt-6 border-t border-border/50">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Análisis de Compatibilidad</h3>
+                        <div className="grid grid-cols-1 gap-4">
+                            {(["zone", "price", "type", "size", "rooms"] as const).map((key) => {
+                                const s = match.matchScore?.[key];
+                                if (!s) return null;
+                                const pct = Math.round(s.score * 100);
+                                const c = pct >= 70 ? "var(--urus-success)" : pct >= 50 ? "var(--urus-gold)" : "var(--urus-danger)";
+                                const labels = { zone: "Zona", price: "Precio", type: "Tipología", size: "Superficie", rooms: "Habitaciones" };
+
+                                return (
+                                    <div key={key} className="flex items-start gap-4">
+                                        <div className="w-24 shrink-0 pt-0.5">
+                                            <p className="text-xs font-medium">{labels[key]}</p>
+                                            <p className="text-[10px] font-mono" style={{ color: c }}>{pct}%</p>
+                                        </div>
+                                        <div className="flex-1 space-y-1.5">
+                                            <div className="h-1 rounded-full bg-accent/50 overflow-hidden">
+                                                <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: c }} />
+                                            </div>
+                                            <p className="text-xs text-muted-foreground">{s.reason}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* Actions */}
+                <div className="pt-6 border-t border-border/50">
+                    {match.validationToken ? (
+                        <Link
+                            href={`/validar-seleccion/${match.validationToken}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center justify-center w-full gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+                        >
+                            Validar selección del comprador
+                            <ArrowUpRight className="w-4 h-4" />
+                        </Link>
+                    ) : (
+                        <div className="p-4 rounded-md bg-accent/30 border border-border/30 text-center">
+                            <p className="text-sm text-muted-foreground">No hay una selección pendiente de validación para esta demanda.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
 }
 
 function CrucesPageContent() {
@@ -57,15 +204,6 @@ function CrucesPageContent() {
     const latestPosition = useRef<string | null>(null);
     const knownIds = useRef<Set<string>>(new Set());
     const focusedMatchIdRef = useRef<string | null>(null);
-
-    const handleMatchSent = useCallback((matchId: string) => {
-        setAllMatches((prev) =>
-            prev.map((m) => m.id === matchId ? { ...m, whatsappEnviado: true } : m),
-        );
-        setSelectedMatch((prev) =>
-            prev?.id === matchId ? { ...prev, whatsappEnviado: true } : prev,
-        );
-    }, []);
 
     const { data: cachedInitial, mutate: mutateCrucesCache } = useSWR<ApiResponse>(
         "/api/matching/cruces?limit=30",
@@ -239,20 +377,6 @@ function CrucesPageContent() {
         setCurrentPage((prev) => Math.max(1, prev - 1));
     }, []);
 
-    const visiblePages = useMemo(() => {
-        const pages: number[] = [];
-        const windowSize = 5;
-        const start = Math.max(1, currentPage - Math.floor(windowSize / 2));
-        const end = Math.min(totalPages, start + windowSize - 1);
-        const normalizedStart = Math.max(1, end - windowSize + 1);
-
-        for (let p = normalizedStart; p <= end; p++) {
-            pages.push(p);
-        }
-
-        return pages;
-    }, [currentPage, totalPages]);
-
     useEffect(() => {
         setCurrentPage(1);
     }, [filterZona, filterMinScore]);
@@ -285,469 +409,168 @@ function CrucesPageContent() {
         return new Date(m.fechaMatch).getTime() > h24;
     }).length;
 
-    const scoreDistribution = useMemo(() => {
-        const buckets = { "90-100": 0, "75-89": 0, "60-74": 0, "<60": 0 };
-        for (const m of allMatches) {
-            if (m.porcentajeMatch >= 90) buckets["90-100"]++;
-            else if (m.porcentajeMatch >= 75) buckets["75-89"]++;
-            else if (m.porcentajeMatch >= 60) buckets["60-74"]++;
-            else buckets["<60"]++;
-        }
-        return buckets;
-    }, [allMatches]);
-
-    const zonaCounts = useMemo(() => {
-        const counts: Record<string, number> = {};
-        for (const m of allMatches) {
-            const z = m.propiedad.zona || "Sin zona";
-            counts[z] = (counts[z] || 0) + 1;
-        }
-        return Object.entries(counts).sort(([, a], [, b]) => b - a);
-    }, [allMatches]);
-
     if (loading) {
         return (
             <div className="flex items-center justify-center h-[50vh]">
                 <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="h-8 w-8 animate-spin text-secondary" />
-                    <p className="text-sm text-muted-foreground">Cargando cruces reales...</p>
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Cargando cruces...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6">
+        <div className="flex flex-col h-[calc(100vh-6rem)] min-h-[600px] space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between flex-wrap gap-4">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
-                        <ArrowLeftRight className="h-5 w-5 text-secondary" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight">Cruces Automáticos</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Resultados automáticos del motor de búsqueda — Propiedad ↔ Demanda
-                        </p>
-                    </div>
+            <div className="flex-none flex items-center justify-between flex-wrap gap-4">
+                <div>
+                    <h1 className="text-xl font-semibold tracking-tight">Cruces Automáticos</h1>
+                    <p className="text-sm text-muted-foreground">
+                        Resultados del motor de búsqueda
+                    </p>
                 </div>
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => setIsLiveActive(!isLiveActive)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${isLiveActive
-                            ? "bg-[var(--urus-success)]/10 border-[var(--urus-success)]/30 text-[var(--urus-success)]"
-                            : "bg-accent/30 border-border/30 text-muted-foreground"
-                            }`}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-accent transition-all text-muted-foreground border border-transparent hover:border-border/50"
                     >
-                        <span className={`h-2 w-2 rounded-full ${isLiveActive ? "bg-[var(--urus-success)] animate-pulse" : "bg-muted-foreground"}`} />
+                        <span className={`h-1.5 w-1.5 rounded-full ${isLiveActive ? "bg-green-500" : "bg-muted-foreground"}`} />
                         {isLiveActive ? "En directo" : "Pausado"}
                     </button>
                     <button
                         onClick={() => fetchCruces(false)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border/30 text-muted-foreground hover:bg-accent/30 transition-all"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-accent transition-all text-muted-foreground border border-transparent hover:border-border/50"
                     >
                         <RefreshCw className="h-3 w-3" />
                         Recargar
                     </button>
-                    <Link href="/platform/matching/feedback">
-                        <Badge
-                            variant="outline"
-                            className="gap-1.5 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors"
-                        >
-                            <Sparkles className="h-3 w-3 text-[var(--urus-gold)]" />
-                            Ciclo de Mejora
-                            <ArrowUpRight className="h-3 w-3" />
-                        </Badge>
-                    </Link>
                 </div>
             </div>
 
             {error && (
-                <Card className="border-[var(--urus-danger)]/30 bg-[var(--urus-danger)]/5">
-                    <CardContent className="p-3 flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-[var(--urus-danger)]" />
-                        <p className="text-sm text-[var(--urus-danger)]">{error}</p>
-                    </CardContent>
-                </Card>
+                <div className="p-3 rounded-md border border-red-500/20 bg-red-500/10 flex items-center gap-2 flex-none">
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                    <p className="text-sm text-red-500">{error}</p>
+                </div>
             )}
 
             {MATCHING_PAUSED && (
-                <Card className="border-[var(--urus-warning)]/30 bg-[var(--urus-warning)]/5">
-                    <CardContent className="p-3 flex items-start gap-2">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 text-[var(--urus-warning)]" />
-                        <div>
-                            <p className="text-sm font-medium text-foreground">Cruces pausados temporalmente</p>
-                            <p className="text-xs text-muted-foreground">{MATCHING_PAUSED_REASON}</p>
-                        </div>
-                    </CardContent>
-                </Card>
+                <div className="p-3 rounded-md border border-yellow-500/20 bg-yellow-500/10 flex items-start gap-2 flex-none">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 text-yellow-500" />
+                    <div>
+                        <p className="text-sm font-medium text-foreground">Cruces pausados temporalmente</p>
+                        <p className="text-xs text-muted-foreground">{MATCHING_PAUSED_REASON}</p>
+                    </div>
+                </div>
             )}
 
             {/* KPIs */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Card className="border-border/50 transition-all duration-300">
-                    <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="rounded-lg bg-secondary/15 p-2">
-                                <ArrowLeftRight className="h-4 w-4 text-secondary" />
-                            </div>
-                            <div>
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Cruces</p>
-                                <p className="text-xl font-bold font-mono">{totalMatches}</p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-border/50 transition-all duration-300">
-                    <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="rounded-lg bg-[var(--urus-gold)]/15 p-2">
-                                <Zap className="h-4 w-4 text-[var(--urus-gold)]" />
-                            </div>
-                            <div>
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Compatibilidad Media</p>
-                                <p className="text-xl font-bold font-mono" style={{ color: getMatchColor(avgMatch) }}>{avgMatch}%</p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-border/50 transition-all duration-300">
-                    <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="rounded-lg bg-[var(--urus-success)]/15 p-2">
-                                <Sparkles className="h-4 w-4 text-[var(--urus-success)]" />
-                            </div>
-                            <div>
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Alta Precisión</p>
-                                <p className="text-xl font-bold font-mono text-[var(--urus-success)]">{highScoreCount}</p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-border/50 transition-all duration-300">
-                    <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="rounded-lg bg-[var(--urus-info)]/15 p-2">
-                                <Clock className="h-4 w-4 text-[var(--urus-info)]" />
-                            </div>
-                            <div>
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Últimas 24h</p>
-                                <p className="text-xl font-bold font-mono text-[var(--urus-info)]">{recentCount}</p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+            <div className="flex-none grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="flex flex-col gap-1">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Total Cruces</p>
+                    <p className="text-2xl font-semibold leading-none text-foreground">{totalMatches}</p>
+                </div>
+                <div className="flex flex-col gap-1">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Compatibilidad Media</p>
+                    <p className="text-2xl font-semibold leading-none" style={{ color: getMatchColor(avgMatch) }}>{avgMatch}%</p>
+                </div>
+                <div className="flex flex-col gap-1">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Alta Precisión</p>
+                    <p className="text-2xl font-semibold leading-none text-foreground">{highScoreCount}</p>
+                </div>
+                <div className="flex flex-col gap-1">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Últimas 24h</p>
+                    <p className="text-2xl font-semibold leading-none text-foreground">{recentCount}</p>
+                </div>
             </div>
 
-            {/* Distribution + Zones + Filters */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {/* Score distribution */}
-                <Card className="border-border/50">
-                    <CardHeader className="pb-3">
-                        <div className="flex items-center gap-2">
-                            <BarChart3 className="h-4 w-4 text-secondary" />
-                            <CardTitle className="text-sm font-semibold">Distribución de Compatibilidad</CardTitle>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="pt-0 space-y-3">
-                        {([
-                            { key: "90-100", label: "Excelente (90–100%)", color: "var(--urus-success)" },
-                            { key: "75-89", label: "Bueno (75–89%)", color: "var(--urus-gold)" },
-                            { key: "60-74", label: "Moderado (60–74%)", color: "var(--urus-warning)" },
-                            { key: "<60", label: "Bajo (<60%)", color: "var(--urus-danger)" },
-                        ] as const).map(({ key, label, color }) => {
-                            const count = scoreDistribution[key];
-                            const pct = totalMatches > 0 ? (count / totalMatches) * 100 : 0;
-                            return (
-                                <div key={key} className="space-y-1">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs">{label}</span>
-                                        <span className="text-xs font-mono font-medium" style={{ color }}>
-                                            {count} <span className="text-muted-foreground font-normal">({pct.toFixed(0)}%)</span>
-                                        </span>
-                                    </div>
-                                    <div className="h-2 rounded-full bg-accent/20 overflow-hidden">
-                                        <div
-                                            className="h-full rounded-full transition-all duration-700"
-                                            style={{ width: `${pct}%`, backgroundColor: color }}
-                                        />
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </CardContent>
-                </Card>
-
-                {/* Zone distribution */}
-                <Card className="border-border/50">
-                    <CardHeader className="pb-3">
-                        <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-[var(--urus-gold)]" />
-                            <CardTitle className="text-sm font-semibold">Distribución por Zona</CardTitle>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                        {zonaCounts.length > 0 ? (
-                            <div className="space-y-2.5">
-                                {zonaCounts.slice(0, 8).map(([zona, count]) => {
-                                    const pct = totalMatches > 0 ? (count / totalMatches) * 100 : 0;
-                                    return (
-                                        <div key={zona} className="flex items-center gap-2">
-                                            <span className="text-xs w-[120px] truncate">{zona}</span>
-                                            <div className="flex-1 h-3 rounded-full bg-accent/20 overflow-hidden">
-                                                <div
-                                                    className="h-full rounded-full transition-all duration-500"
-                                                    style={{
-                                                        width: `${pct}%`,
-                                                        background: "linear-gradient(90deg, var(--color-secondary), color-mix(in oklch, var(--color-secondary) 50%, transparent))",
-                                                        minWidth: "8px",
-                                                    }}
-                                                />
-                                            </div>
-                                            <span className="text-[10px] font-mono font-medium w-5 text-right">{count}</span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <p className="text-xs text-muted-foreground py-4 text-center">Sin datos de zona</p>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* Filters */}
-                <Card className="border-border/50">
-                    <CardHeader className="pb-3">
-                        <div className="flex items-center gap-2">
-                            <Filter className="h-4 w-4 text-muted-foreground" />
-                            <CardTitle className="text-sm font-semibold">Filtros</CardTitle>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="pt-0 space-y-4">
-                        <div className="space-y-1.5">
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Zona</span>
-                            <select
-                                value={filterZona}
-                                onChange={(e) => setFilterZona(e.target.value)}
-                                className="w-full bg-accent/30 border border-border/50 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-secondary/30"
-                            >
-                                <option value="all">Todas las zonas</option>
-                                {zonas.map((z) => (
-                                    <option key={z} value={z}>{z}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Compatibilidad mínima</span>
-                            <div className="flex flex-wrap gap-1.5">
-                                {[0, 50, 60, 75, 90].map((s) => (
-                                    <button
-                                        key={s}
-                                        onClick={() => setFilterMinScore(s)}
-                                        className={`text-[10px] px-2.5 py-1.5 rounded-lg border transition-all ${filterMinScore === s
-                                            ? "bg-card border-secondary/30 text-foreground font-medium shadow-sm"
-                                            : "border-border/30 text-muted-foreground hover:bg-accent/30"
-                                            }`}
-                                    >
-                                        {s === 0 ? "Todos" : `≥${s}%`}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="pt-2 border-t border-border/20">
-                            <p className="text-xs text-muted-foreground">
-                                Mostrando <span className="font-semibold text-foreground">{filtered.length}</span> de {totalMatches} cargados
-                                {hasMore && <span className="text-muted-foreground/60"> · hay más</span>}
-                                <span className="text-muted-foreground/60"> · página {currentPage}/{totalPages}</span>
-                            </p>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Feed + Detail */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                <div className="xl:col-span-2 space-y-4">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-sm font-semibold flex items-center gap-2">
-                            <Zap className="h-4 w-4 text-[var(--urus-gold)]" />
-                            Feed de Cruces
-                            {isLiveActive && (
-                                <span className="text-[9px] text-[var(--urus-success)] flex items-center gap-1">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--urus-success)] animate-pulse" />
-                                    Actualización cada {POLL_INTERVAL_MS / 1000}s
-                                </span>
-                            )}
-                        </h2>
+            {/* Main Content: Master-Detail */}
+            <div className="flex-1 min-h-0 flex gap-4">
+                {/* Left Panel: Feed */}
+                <div className="w-full md:w-[380px] lg:w-[420px] shrink-0 flex flex-col bg-transparent">
+                    {/* Filters Bar */}
+                    <div className="flex-none pb-3 flex items-center gap-2">
+                        <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <select
+                            value={filterZona}
+                            onChange={(e) => setFilterZona(e.target.value)}
+                            className="flex-1 min-w-0 bg-transparent border border-border/50 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        >
+                            <option value="all">Todas las zonas</option>
+                            {zonas.map((z) => (
+                                <option key={z} value={z}>{z}</option>
+                            ))}
+                        </select>
+                        <select
+                            value={filterMinScore}
+                            onChange={(e) => setFilterMinScore(Number(e.target.value))}
+                            className="w-24 shrink-0 bg-transparent border border-border/50 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        >
+                            <option value={0}>Todos %</option>
+                            <option value={50}>≥50%</option>
+                            <option value={60}>≥60%</option>
+                            <option value={75}>≥75%</option>
+                            <option value={90}>≥90%</option>
+                        </select>
                     </div>
 
-                    {filtered.length === 0 ? (
-                        <Card className="border-border/50 border-dashed">
-                            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                                <ArrowLeftRight className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                                <p className="text-sm font-medium text-muted-foreground">Sin cruces registrados</p>
-                                <p className="text-xs text-muted-foreground/60 mt-1 max-w-sm">
-                                    Los cruces se generan automáticamente por el sistema. Cuando haya
-                                    nuevos resultados, aparecerán aquí.
-                                </p>
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        <div className="space-y-3">
-                            {paginatedMatches.map((m) => (
-                                <div
-                                    key={m.id}
-                                    onClick={() => setSelectedMatch(m)}
-                                    className="cursor-pointer"
-                                >
+                    {/* Feed List */}
+                    <div className="flex-1 overflow-y-auto space-y-1.5 pr-2">
+                        {filtered.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                                <Search className="h-8 w-8 text-muted-foreground/30 mb-2" />
+                                <p className="text-sm font-medium text-muted-foreground">Sin resultados</p>
+                                <p className="text-xs text-muted-foreground/60 mt-1">Ajusta los filtros o espera nuevos cruces.</p>
+                            </div>
+                        ) : (
+                            paginatedMatches.map((m) => (
+                                <div key={m.id} onClick={() => setSelectedMatch(m)}>
                                     <MatchCard
                                         match={m}
                                         isNew={newMatchIds.has(m.id)}
-                                        className={selectedMatch?.id === m.id ? "ring-2 ring-secondary/40" : ""}
+                                        isSelected={selectedMatch?.id === m.id}
                                     />
                                 </div>
-                            ))}
+                            ))
+                        )}
+                    </div>
 
-                            <div className="flex items-center justify-between gap-3 pt-2">
-                                <button
-                                    onClick={goToPrevPage}
-                                    disabled={currentPage === 1}
-                                    className="px-3 py-2 rounded-lg border border-border/40 text-xs font-medium text-muted-foreground hover:bg-accent/30 hover:text-foreground transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Anterior
-                                </button>
-
-                                <div className="flex items-center gap-1.5">
-                                    {visiblePages.map((page) => (
-                                        <button
-                                            key={page}
-                                            onClick={() => setCurrentPage(page)}
-                                            className={`min-w-8 h-8 px-2 rounded-lg text-xs border transition-all ${page === currentPage
-                                                ? "bg-card border-secondary/30 text-foreground font-semibold"
-                                                : "border-border/30 text-muted-foreground hover:bg-accent/30"
-                                                }`}
-                                        >
-                                            {page}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                <button
-                                    onClick={goToNextPage}
-                                    disabled={loadingMore || (!hasMore && currentPage >= totalPages)}
-                                    className="px-3 py-2 rounded-lg border border-border/40 text-xs font-medium text-muted-foreground hover:bg-accent/30 hover:text-foreground transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {loadingMore ? (
-                                        <span className="inline-flex items-center gap-1.5">
-                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                            Cargando…
-                                        </span>
-                                    ) : (
-                                        "Siguiente"
-                                    )}
-                                </button>
-                            </div>
-
-                            {hasMore && currentPage >= totalPages && !loadingMore && (
-                                <p className="text-[11px] text-center text-muted-foreground/70">
-                                    Hay más cruces en histórico; avanza a la siguiente página para cargarlos.
-                                </p>
-                            )}
+                    {/* Pagination */}
+                    {filtered.length > 0 && (
+                        <div className="flex-none pt-3 flex items-center justify-between gap-2">
+                            <button
+                                onClick={goToPrevPage}
+                                disabled={currentPage === 1}
+                                className="px-2 py-1.5 rounded-md text-xs font-medium text-muted-foreground hover:bg-accent/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Anterior
+                            </button>
+                            <span className="text-xs text-muted-foreground font-medium">
+                                {currentPage} / {totalPages}
+                            </span>
+                            <button
+                                onClick={goToNextPage}
+                                disabled={loadingMore || (!hasMore && currentPage >= totalPages)}
+                                className="px-2 py-1.5 rounded-md text-xs font-medium text-muted-foreground hover:bg-accent/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {loadingMore ? <Loader2 className="h-3 w-3 animate-spin" /> : "Siguiente"}
+                            </button>
                         </div>
                     )}
                 </div>
 
-                {/* Detail sidebar */}
-                <div className="space-y-4">
-                    <h2 className="text-sm font-semibold flex items-center gap-2">
-                        <Eye className="h-4 w-4 text-[#25D366]" />
-                        Validar y Enviar WhatsApp
-                    </h2>
-
+                {/* Right Panel: Detail */}
+                <div className="hidden md:block flex-1 min-w-0">
                     {selectedMatch ? (
-                        <div className="space-y-3 sticky top-4">
-                            <WhatsAppPreview match={selectedMatch} onSent={handleMatchSent} />
-                            <Card className="border-border/50">
-                                <CardContent className="p-3 space-y-2">
-                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Detalles del Cruce</p>
-                                    <div className="grid grid-cols-2 gap-2 text-xs">
-                                        <div>
-                                            <span className="text-muted-foreground">Compatibilidad:</span>
-                                            <span className="ml-1 font-bold" style={{ color: getMatchColor(selectedMatch.porcentajeMatch) }}>
-                                                {selectedMatch.porcentajeMatch}%
-                                            </span>
-                                        </div>
-                                        <div>
-                                            <span className="text-muted-foreground">Zona:</span>
-                                            <span className="ml-1">{selectedMatch.propiedad.zona}</span>
-                                        </div>
-                                        <div>
-                                            <span className="text-muted-foreground">Tipo:</span>
-                                            <span className="ml-1">{selectedMatch.propiedad.tipoOfer || "—"}</span>
-                                        </div>
-                                        <div>
-                                            <span className="text-muted-foreground">Demanda:</span>
-                                            <span className="ml-1 font-mono">{selectedMatch.comprador.nombre || selectedMatch.comprador.id.slice(0, 8)}</span>
-                                        </div>
-                                    </div>
-                                    {selectedMatch.matchScore && (
-                                        <div className="pt-2 border-t border-border/20 space-y-1">
-                                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Detalle de Compatibilidad</p>
-                                            {(["zone", "price", "type", "size", "rooms"] as const).map((key) => {
-                                                const s = selectedMatch.matchScore?.[key];
-                                                if (!s) return null;
-                                                const pct = Math.round(s.score * 100);
-                                                const color = pct >= 70 ? "var(--urus-success)" : pct >= 50 ? "var(--urus-gold)" : "var(--urus-danger)";
-                                                return (
-                                                    <div key={key} className="flex items-center gap-2">
-                                                        <span className="text-[10px] w-16 capitalize">{key === "zone" ? "Zona" : key === "price" ? "Precio" : key === "type" ? "Tipo" : key === "size" ? "Metros" : "Hab."}</span>
-                                                        <div className="flex-1 h-1.5 rounded-full bg-accent/20 overflow-hidden">
-                                                            <div
-                                                                className="h-full rounded-full"
-                                                                style={{ width: `${pct}%`, backgroundColor: color }}
-                                                            />
-                                                        </div>
-                                                        <span className="text-[10px] font-mono w-8 text-right" style={{ color }}>{pct}%</span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                    <div className="pt-2 border-t border-border/20">
-                                        {selectedMatch.validationToken ? (
-                                            <Link
-                                                href={`/validar-seleccion/${selectedMatch.validationToken}`}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-secondary hover:text-secondary/80 transition-colors"
-                                            >
-                                                Validar selección del comprador
-                                                <ArrowUpRight className="h-3.5 w-3.5" />
-                                            </Link>
-                                        ) : (
-                                            <p className="text-[10px] text-muted-foreground">
-                                                No hay una selección pendiente de validación para esta demanda.
-                                            </p>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </div>
+                        <MatchDetailView match={selectedMatch} />
                     ) : (
-                        <Card className="border-border/50 border-dashed">
-                            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                                <MessageCircle className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                                <p className="text-sm font-medium text-muted-foreground">Selecciona un cruce</p>
-                                <p className="text-xs text-muted-foreground/60 mt-1">
-                                    Haz clic en un cruce para revisar el mensaje y decidir si enviarlo al comprador
-                                </p>
-                            </CardContent>
-                        </Card>
+                        <div className="h-full flex flex-col items-center justify-center border border-border/50 border-dashed rounded-xl bg-transparent text-center p-6">
+                            <p className="text-sm font-medium text-muted-foreground">Selecciona un cruce</p>
+                            <p className="text-xs text-muted-foreground/60 mt-1 max-w-sm">
+                                Haz clic en un cruce del listado para ver el desglose de compatibilidad y los detalles de la propiedad y demanda.
+                            </p>
+                        </div>
                     )}
                 </div>
             </div>
@@ -761,8 +584,8 @@ export default function CrucesPage() {
             fallback={(
                 <div className="flex items-center justify-center h-[50vh]">
                     <div className="flex flex-col items-center gap-3">
-                        <Loader2 className="h-8 w-8 animate-spin text-secondary" />
-                        <p className="text-sm text-muted-foreground">Cargando cruces reales...</p>
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">Cargando cruces...</p>
                     </div>
                 </div>
             )}

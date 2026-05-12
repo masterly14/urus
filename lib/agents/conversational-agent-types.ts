@@ -7,6 +7,10 @@
  */
 
 import type { NLUResult, PropertySummaryForNLU, ConversationTurn } from "./types";
+import type {
+  PostVisitPolicyState,
+  PostVisitStructuredContext,
+} from "@/lib/visitas/post-visit-context-types";
 
 // ── Fases de la conversación ────────────────────────────────────────────────
 
@@ -14,6 +18,7 @@ export type ConversationPhase =
   | "INITIAL_CONTACT"
   | "REVIEWING_OPTIONS"
   | "GIVING_FEEDBACK"
+  | "POST_VISIT_REPROFILING"
   | "SCHEDULING_VISIT"
   | "IDLE_FOLLOWUP"
   | "UNKNOWN";
@@ -29,6 +34,8 @@ export interface ConversationalAgentInput {
   conversationHistory: ConversationTurn[];
   buyerDigest: string | null;
   conversationPhase: ConversationPhase;
+  postVisitStructuredContext?: PostVisitStructuredContext | null;
+  policyHints?: PostVisitPolicyState | null;
 }
 
 // ── Output del agente ───────────────────────────────────────────────────────

@@ -13,6 +13,7 @@
  */
 
 import type { Event } from "@/types/domain";
+import type { Prisma } from "@prisma/client";
 import type { HandlerResult } from "./types";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import { appendEvent } from "@/lib/event-store";
@@ -44,6 +45,11 @@ import {
 } from "@/lib/visit-scheduling/session-manager";
 import { handleVisitMessage } from "@/lib/visit-scheduling/handle-visit-message";
 import { normalizeConversationEvent } from "@/lib/conversations/normalize";
+import { evaluatePostVisitPolicy } from "@/lib/visitas/post-visit-policy";
+import type {
+  PostVisitPolicyState,
+  PostVisitStructuredContext,
+} from "@/lib/visitas/post-visit-context-types";
 
 type WhatsAppReceivedPayload = {
   messageId?: string;
@@ -63,6 +69,14 @@ type WhatsAppReceivedPayload = {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return (value ?? {}) as Record<string, unknown>;
+}
+
+function asPostVisitStructuredContext(value: unknown): PostVisitStructuredContext | null {
+  const record = value as Partial<PostVisitStructuredContext> | null | undefined;
+  if (!record || typeof record !== "object") return null;
+  if (record.source !== "commercial_post_visit") return null;
+  if (typeof record.rawText !== "string") return null;
+  return record as PostVisitStructuredContext;
 }
 
 function extractContextMessageId(payload: WhatsAppReceivedPayload): string | null {
@@ -90,6 +104,37 @@ function extractMessageText(payload: WhatsAppReceivedPayload): string | null {
   }
 
   return null;
+}
+
+/**
+ * Detecta señales de interés positivo del comprador en texto libre.
+ *
+ * Tras el refactor del flujo "Me encaja" (M6), el interés positivo se captura
+ * exclusivamente por botón en el micrositio. Si el comprador escribe algo como
+ * "me encaja esa", "me gusta la del centro", "me quedo con la segunda" o
+ * "esa me interesa", debemos redirigirle al botón en lugar de inferir
+ * `ME_INTERESA`. Esta función es deliberadamente conservadora: solo dispara
+ * cuando hay palabras clave inequívocas y NO cuando hay confirmaciones
+ * genéricas tipo "ok", "vale" o "perfecto".
+ */
+function containsPositiveInterestSignal(text: string): boolean {
+  const normalized = text
+    .normalize("NFKD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+  const patterns: RegExp[] = [
+    /\bme\s+encaja\w*\b/u,
+    /\bme\s+gusta\w*\b/u,
+    /\bme\s+interesa\w*\b/u,
+    /\bme\s+quedo\b/u,
+    /\bme\s+la\s+quedo\b/u,
+    /\bme\s+lo\s+quedo\b/u,
+    /\besa(s)?\s+(si|sí)\b/u,
+    /\bese(s)?\s+(si|sí)\b/u,
+    /\bquiero\s+(ver|visitar|conocer)\b/u,
+    /\bcomo\s+(la|lo)\s+(veo|visito)\b/u,
+  ];
+  return patterns.some((rx) => rx.test(normalized));
 }
 
 function parseMatchButtonId(id: string): { demandId: string; propertyId?: string } | null {
@@ -700,17 +745,37 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
   // --- Cargar contexto del microsite y historial ---
 
   let selectionProperties: PropertySummaryForNLU[] = [];
+  let postVisitStructuredContext: PostVisitStructuredContext | null = null;
+  let postVisitPolicyState: PostVisitPolicyState | null = null;
   if (ctx.selectionId) {
     selectionProperties = await loadSelectionProperties(ctx.selectionId);
   } else {
     const session = await prisma.whatsAppBuyerSession.findUnique({
       where: { waId },
-      select: { selectionId: true },
+      select: {
+        selectionId: true,
+        postVisitContextStructured: true,
+        postVisitPolicyState: true,
+      },
     });
+    postVisitStructuredContext = asPostVisitStructuredContext(session?.postVisitContextStructured);
+    postVisitPolicyState = (session?.postVisitPolicyState ?? null) as PostVisitPolicyState | null;
     if (session?.selectionId) {
       ctx.selectionId = session.selectionId;
       selectionProperties = await loadSelectionProperties(session.selectionId);
     }
+  }
+
+  if (!postVisitStructuredContext) {
+    const session = await prisma.whatsAppBuyerSession.findUnique({
+      where: { waId },
+      select: {
+        postVisitContextStructured: true,
+        postVisitPolicyState: true,
+      },
+    });
+    postVisitStructuredContext = asPostVisitStructuredContext(session?.postVisitContextStructured);
+    postVisitPolicyState = (session?.postVisitPolicyState ?? null) as PostVisitPolicyState | null;
   }
 
   const conversationHistory = await loadConversationHistory(waId);
@@ -805,9 +870,23 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
 
   // --- Emitir DEMANDA_ACTUALIZADA si hay ajuste de demanda ---
 
+  const postVisitPolicyDecision = postVisitStructuredContext
+    ? evaluatePostVisitPolicy({
+        structured: postVisitStructuredContext,
+        buyerText: messageText,
+        nlu,
+      })
+    : null;
+  postVisitPolicyState = postVisitPolicyDecision?.state ?? postVisitPolicyState;
+
   const hasVariables = Object.keys(nlu.variables).length > 0;
-  const shouldUpdateDemand =
-    (nlu.intention === "NO_ME_ENCAJA" || nlu.intention === "BUSCO_DIFERENTE") && hasVariables;
+  const shouldUpdateDemand = postVisitPolicyDecision
+    ? postVisitPolicyDecision.action === "emit_update"
+    : (nlu.intention === "NO_ME_ENCAJA" || nlu.intention === "BUSCO_DIFERENTE") && hasVariables;
+  const variablesForUpdate =
+    postVisitPolicyDecision?.action === "emit_update"
+      ? postVisitPolicyDecision.variables
+      : nlu.variables;
 
   if (shouldUpdateDemand) {
     const demandaEvent = await appendEvent({
@@ -816,7 +895,7 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
       aggregateId: ctx.demandId,
       payload: {
         source: {
-          channel: "whatsapp_feedback",
+          channel: postVisitPolicyDecision ? "post_visit_context" : "whatsapp_feedback",
           waId,
           messageId: payload.messageId ?? null,
           selectionId: ctx.selectionId ?? null,
@@ -827,8 +906,18 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
           confidence: nlu.confidence,
           reasoning: nlu.reasoning ?? null,
         },
-        variables: nlu.variables as unknown as JsonValue,
+        variables: variablesForUpdate as unknown as JsonValue,
         rawText: nlu.rawText,
+        policy: postVisitPolicyDecision
+          ? {
+              mode: "hybrid",
+              ruleApplied: postVisitPolicyDecision.ruleApplied,
+              conflictResolvedBy: "buyer_priority",
+              reason: postVisitPolicyDecision.reason,
+              state: postVisitPolicyDecision.state,
+            }
+          : undefined,
+        postVisitContextStructured: postVisitStructuredContext as unknown as JsonValue,
         detectedAt: new Date().toISOString(),
       } as unknown as JsonValue,
       correlationId: event.correlationId ?? undefined,
@@ -845,11 +934,75 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
     console.log(
       `[consumer:whatsapp] Emitido DEMANDA_ACTUALIZADA demandId=${ctx.demandId} (waId=${waId})`,
     );
+  } else if (postVisitPolicyDecision?.action === "ask_confirmation") {
+    await sendTextMessage(waId, postVisitPolicyDecision.confirmationPrompt, {
+      trace: {
+        source: "post_visit_policy",
+        kind: "post_visit_confirmation_request",
+        causationId: event.id,
+        correlationId: event.correlationId,
+        payload: {
+          demandId: ctx.demandId,
+          pendingFields: postVisitPolicyDecision.pendingFields,
+          reason: postVisitPolicyDecision.reason,
+        },
+      },
+    });
+  }
+
+  // --- Redirigir al botón "Me encaja" si el comprador expresa interés positivo
+  // en texto libre. El interés positivo NO se infiere por NLU (canal canónico:
+  // botón del micrositio). Si detectamos señales claras de "me encaja/me gusta",
+  // respondemos guiándole al botón. Dedup por waId+selectionId con cooldown
+  // de 12h para no spamear ante mensajes repetidos.
+  if (
+    nlu.intention === "OTRO" &&
+    nlu.propertyFeedback.length === 0 &&
+    Object.keys(nlu.variables).length === 0 &&
+    ctx.selectionId &&
+    selectionProperties.length > 0 &&
+    containsPositiveInterestSignal(messageText) &&
+    postVisitPolicyDecision?.action !== "ask_confirmation"
+  ) {
+    const alreadyRedirected = await prisma.event.findFirst({
+      where: {
+        aggregateType: "WHATSAPP_CONVERSATION",
+        aggregateId: waId,
+        type: "WHATSAPP_ENVIADO",
+        occurredAt: { gte: new Date(Date.now() - 12 * 60 * 60 * 1000) },
+        payload: { path: ["kind"], equals: "redirect_to_me_encaja" },
+        AND: [{ payload: { path: ["selectionId"], equals: ctx.selectionId } }],
+      },
+      select: { id: true },
+    });
+    if (!alreadyRedirected) {
+      try {
+        await sendTextMessage(
+          waId,
+          `Para reservar una propiedad concreta, pulsa el boton "Me encaja" en su ficha del micrositio. Asi avisamos a un agente para que se ponga en contacto contigo. Si quieres ajustar la busqueda (zona, precio, metros...), respondenos por aqui y la afinamos.`,
+          {
+            trace: {
+              source: "whatsapp_nlu_handler",
+              kind: "redirect_to_me_encaja",
+              causationId: event.id,
+              payload: {
+                demandId: ctx.demandId,
+                selectionId: ctx.selectionId,
+              },
+            },
+          },
+        );
+      } catch (err) {
+        console.error(
+          `[consumer:whatsapp] No se pudo enviar redirect_to_me_encaja waId=${waId}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
   }
 
   // --- Regeneración de microsite si el comprador pide más opciones ---
 
-  if (nlu.wantsMoreOptions) {
+  if (nlu.wantsMoreOptions && postVisitPolicyDecision?.action !== "ask_confirmation") {
     await enqueueJob({
       type: "GENERATE_MICROSITE",
       payload: {
@@ -876,10 +1029,13 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
       selectionId: ctx.selectionId,
       lastMessageAt: new Date(),
       turnCount: 1,
+      postVisitContextStructured: postVisitStructuredContext ? postVisitStructuredContext as unknown as Prisma.InputJsonValue : undefined,
+      postVisitPolicyState: postVisitPolicyState ? postVisitPolicyState as unknown as Prisma.InputJsonValue : undefined,
     },
     update: {
       lastMessageAt: new Date(),
       turnCount: { increment: 1 },
+      postVisitPolicyState: postVisitPolicyState ? postVisitPolicyState as unknown as Prisma.InputJsonValue : undefined,
     },
   });
 

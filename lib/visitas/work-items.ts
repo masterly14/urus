@@ -38,8 +38,10 @@ type VisitContactSnapshot = VisitInterestProperty["contact"] & {
 export type VisitWorkItemDto = {
   id: string;
   demandId: string;
+  draftDemandId: string | null;
   selectionId: string | null;
   propertyId: string;
+  draftPropertyId: string | null;
   propertySource: string;
   comercialId: string;
   buyerName: string;
@@ -127,8 +129,10 @@ function buildEventPayload(input: {
   return {
     visitWorkItemId: workItem.id,
     demandId: workItem.demandId,
+    draftDemandId: workItem.draftDemandId || null,
     selectionId: workItem.selectionId || null,
     propertyId: workItem.propertyId,
+    draftPropertyId: workItem.draftPropertyId || null,
     propertySource: workItem.propertySource,
     comercialId: workItem.comercialId,
     status: workItem.status,
@@ -143,11 +147,17 @@ async function emitVisitPrecreatedEvent(input: {
   causationId?: string | null;
   correlationId?: string | null;
 }) {
+  const aggregateType = input.workItem.demandId
+    ? AggregateType.DEMAND
+    : AggregateType.LEAD;
+  const aggregateId = input.workItem.demandId || input.workItem.draftDemandId || "";
+  if (!aggregateId) return null;
+
   const existingEvent = await prisma.event.findFirst({
     where: {
       type: EventType.VISITA_PRECREADA,
-      aggregateType: AggregateType.DEMAND,
-      aggregateId: input.workItem.demandId,
+      aggregateType,
+      aggregateId,
       payload: {
         path: ["visitWorkItemId"],
         equals: input.workItem.id,
@@ -160,8 +170,8 @@ async function emitVisitPrecreatedEvent(input: {
 
   const event = await appendEvent({
     type: EventType.VISITA_PRECREADA,
-    aggregateType: AggregateType.DEMAND,
-    aggregateId: input.workItem.demandId,
+    aggregateType,
+    aggregateId,
     payload: buildEventPayload(input),
     causationId: input.causationId ?? undefined,
     correlationId: input.correlationId ?? undefined,
@@ -186,13 +196,13 @@ export async function createOrUpdateVisitWorkItemFromInterest(
 
   const selectionId = toSelectionKey(input.selectionId);
   const status = getInitialStatus(input.property);
-  const existing = await prisma.visitWorkItem.findUnique({
+  const existing = await prisma.visitWorkItem.findFirst({
     where: {
-      demandId_selectionId_propertyId: {
-        demandId: input.demand.demandId,
-        selectionId,
-        propertyId: input.property.propertyId,
-      },
+      demandId: input.demand.demandId,
+      draftDemandId: null,
+      selectionId,
+      propertyId: input.property.propertyId,
+      draftPropertyId: null,
     },
   });
 
@@ -220,8 +230,10 @@ export async function createOrUpdateVisitWorkItemFromInterest(
     : await prisma.visitWorkItem.create({
         data: {
           demandId: input.demand.demandId,
+          draftDemandId: null,
           selectionId,
           propertyId: input.property.propertyId,
+          draftPropertyId: null,
           status,
           ...data,
         },
@@ -269,85 +281,175 @@ export async function createOrUpdateVisitWorkItemsForDemandInterest(
 }
 
 export async function createManualVisitWorkItem(input: {
-  demandId: string;
-  propertyId: string;
+  demandId?: string;
+  draftDemandId?: string;
+  propertyId?: string;
+  draftPropertyId?: string;
   comercialId: string;
   nluSummary?: string;
   causationId?: string | null;
   correlationId?: string | null;
 }): Promise<VisitWorkItemCreationResult> {
-  const [demand, property] = await Promise.all([
-    prisma.demandCurrent.findUnique({
-      where: { codigo: input.demandId },
-      select: {
-        codigo: true,
-        nombre: true,
-        telefono: true,
-        comercialId: true,
-        leadStatus: true,
-      },
-    }),
-    prisma.propertyCurrent.findUnique({
-      where: { codigo: input.propertyId },
-      select: {
-        codigo: true,
-        ref: true,
-        refCatastral: true,
-        titulo: true,
-        precio: true,
-        metrosConstruidos: true,
-        habitaciones: true,
-        ciudad: true,
-        zona: true,
-        propietarioNombre: true,
-        propietarioPhone: true,
-        portalUrl: true,
-      },
-    }),
+  const hasDemand = Boolean(input.demandId) !== Boolean(input.draftDemandId);
+  const hasProperty = Boolean(input.propertyId) !== Boolean(input.draftPropertyId);
+  if (!hasDemand || !hasProperty) {
+    throw new Error("Debes seleccionar una demanda (real o provisional) y una propiedad (real o provisional)");
+  }
+
+  const [demand, draftDemand, property, draftProperty] = await Promise.all([
+    input.demandId
+      ? prisma.demandCurrent.findUnique({
+          where: { codigo: input.demandId },
+          select: {
+            codigo: true,
+            nombre: true,
+            telefono: true,
+            comercialId: true,
+            leadStatus: true,
+          },
+        })
+      : Promise.resolve(null),
+    input.draftDemandId
+      ? prisma.draftDemand.findUnique({
+          where: { id: input.draftDemandId },
+          select: {
+            id: true,
+            buyerName: true,
+            buyerPhone: true,
+            comercialId: true,
+            status: true,
+          },
+        })
+      : Promise.resolve(null),
+    input.propertyId
+      ? prisma.propertyCurrent.findUnique({
+          where: { codigo: input.propertyId },
+          select: {
+            codigo: true,
+            ref: true,
+            refCatastral: true,
+            titulo: true,
+            precio: true,
+            metrosConstruidos: true,
+            habitaciones: true,
+            ciudad: true,
+            zona: true,
+            propietarioNombre: true,
+            propietarioPhone: true,
+            portalUrl: true,
+          },
+        })
+      : Promise.resolve(null),
+    input.draftPropertyId
+      ? prisma.draftProperty.findUnique({
+          where: { id: input.draftPropertyId },
+          select: {
+            id: true,
+            ownerPhone: true,
+            cadastralRef: true,
+          },
+        })
+      : Promise.resolve(null),
   ]);
 
-  if (!demand) throw new Error(`Demanda ${input.demandId} no encontrada`);
-  if (!property) throw new Error(`Propiedad ${input.propertyId} no encontrada`);
+  if (input.demandId && !demand) throw new Error(`Demanda ${input.demandId} no encontrada`);
+  if (input.draftDemandId && !draftDemand) throw new Error("Demanda provisional no encontrada");
+  if (input.propertyId && !property) throw new Error(`Propiedad ${input.propertyId} no encontrada`);
+  if (input.draftPropertyId && !draftProperty) throw new Error("Propiedad provisional no encontrada");
 
-  const contactPhones = cleanString(property.propietarioPhone)
-    ? [cleanString(property.propietarioPhone)!]
+  const contactPhones = cleanString(property?.propietarioPhone ?? draftProperty?.ownerPhone ?? "")
+    ? [cleanString(property?.propietarioPhone ?? draftProperty?.ownerPhone ?? "")!]
     : [];
 
-  return createOrUpdateVisitWorkItemFromInterest({
-    demand: {
-      demandId: demand.codigo,
-      demandName: demand.nombre,
-      buyerPhone: demand.telefono,
-      comercialId: demand.comercialId ?? input.comercialId,
-      leadStatus: demand.leadStatus,
+  const demandId = demand?.codigo ?? "";
+  const propertyId = property?.codigo ?? "";
+  const draftDemandId = draftDemand?.id ?? null;
+  const draftPropertyId = draftProperty?.id ?? null;
+  const selectionId = "";
+
+  const existing = await prisma.visitWorkItem.findFirst({
+    where: {
+      demandId,
+      draftDemandId,
+      selectionId,
+      propertyId,
+      draftPropertyId,
     },
-    selectionId: null,
-    property: {
-      propertyId: property.codigo,
-      source: "internal",
-      title: cleanString(property.titulo) ?? cleanString(property.ref) ?? property.codigo,
-      reference: cleanString(property.ref) ?? property.codigo,
-      cadastralReference: cleanString(property.refCatastral),
-      address: [property.zona, property.ciudad].map(cleanString).filter(Boolean).join(", ") || "Direccion no disponible",
-      city: cleanString(property.ciudad),
-      zone: cleanString(property.zona),
-      price: property.precio > 0 ? property.precio : null,
-      rooms: property.habitaciones > 0 ? property.habitaciones : null,
-      metersBuilt: property.metrosConstruidos > 0 ? property.metrosConstruidos : null,
-      portalUrl: cleanString(property.portalUrl),
-      contact: {
-        kind: "propietario",
-        name: cleanString(property.propietarioNombre),
-        phones: contactPhones,
-        source: "property_current",
-      },
-      missingContactPhone: contactPhones.length === 0,
+  });
+
+  const nextPropertyId = property?.codigo ?? draftProperty?.id ?? "";
+  const data = {
+    demandId,
+    draftDemandId,
+    selectionId,
+    propertyId,
+    draftPropertyId,
+    propertySource: property ? "internal" : "draft",
+    comercialId: input.comercialId || demand?.comercialId || draftDemand?.comercialId || "",
+    buyerName: demand?.nombre || draftDemand?.buyerName || draftDemand?.id || demandId || "Comprador provisional",
+    buyerPhone: demand?.telefono || draftDemand?.buyerPhone || "",
+    propertySnapshot: {
+      propertyId: nextPropertyId,
+      source: property ? "internal" : "external",
+      title: property
+        ? (cleanString(property.titulo) ?? cleanString(property.ref) ?? property.codigo)
+        : `Propiedad provisional ${draftProperty?.cadastralRef ?? draftProperty?.id}`,
+      reference: property
+        ? (cleanString(property.ref) ?? property.codigo)
+        : `DRAFT-${draftProperty?.id ?? ""}`,
+      cadastralReference: property
+        ? cleanString(property.refCatastral)
+        : cleanString(draftProperty?.cadastralRef),
+      address: property
+        ? ([property.zona, property.ciudad].map(cleanString).filter(Boolean).join(", ") || "Direccion no disponible")
+        : "Direccion pendiente de completar",
+      city: property ? cleanString(property.ciudad) : null,
+      zone: property ? cleanString(property.zona) : null,
+      price: property && property.precio > 0 ? property.precio : null,
+      rooms: property && property.habitaciones > 0 ? property.habitaciones : null,
+      metersBuilt: property && property.metrosConstruidos > 0 ? property.metrosConstruidos : null,
+      portalUrl: property ? cleanString(property.portalUrl) : null,
       interestedAt: new Date().toISOString(),
-    },
+    } as unknown as Prisma.InputJsonValue,
+    contactSnapshot: {
+      kind: "propietario",
+      name: property ? cleanString(property.propietarioNombre) : "Propietario provisional",
+      phones: contactPhones,
+      source: property ? "property_current" : "draft_property",
+      missingContactPhone: contactPhones.length === 0,
+    } as unknown as Prisma.InputJsonValue,
     nluSummary: input.nluSummary ?? "Visita creada manualmente por el comercial.",
+    missingContactPhone: contactPhones.length === 0,
+  };
+
+  const workItem = existing
+    ? await prisma.visitWorkItem.update({
+        where: { id: existing.id },
+        data: {
+          ...data,
+          status: existing.status === VisitWorkItemStatus.INCOMPLETE
+            ? (contactPhones.length === 0 ? VisitWorkItemStatus.INCOMPLETE : VisitWorkItemStatus.PENDING_SCHEDULE)
+            : existing.status,
+        },
+      })
+    : await prisma.visitWorkItem.create({
+        data: {
+          ...data,
+          status: contactPhones.length === 0
+            ? VisitWorkItemStatus.INCOMPLETE
+            : VisitWorkItemStatus.PENDING_SCHEDULE,
+        },
+      });
+
+  const created = !existing;
+  await emitVisitPrecreatedEvent({
+    workItem,
+    created,
     causationId: input.causationId,
     correlationId: input.correlationId,
   });
+
+  return { workItem, created };
 }
 
 export async function getVisitWorkItem(id: string): Promise<VisitWorkItem | null> {
@@ -384,8 +486,10 @@ export function serializeVisitWorkItem(
   return {
     id: workItem.id,
     demandId: workItem.demandId,
+    draftDemandId: workItem.draftDemandId || null,
     selectionId: workItem.selectionId || null,
     propertyId: workItem.propertyId,
+    draftPropertyId: workItem.draftPropertyId || null,
     propertySource: workItem.propertySource,
     comercialId: workItem.comercialId,
     buyerName: workItem.buyerName,
@@ -412,8 +516,10 @@ export function serializeLegacyVisitInterest(input: {
   return {
     id: `legacy:${input.demand.demandId}:${input.selectionId ?? "none"}:${input.property.propertyId}`,
     demandId: input.demand.demandId,
+    draftDemandId: null,
     selectionId: input.selectionId,
     propertyId: input.property.propertyId,
+    draftPropertyId: null,
     propertySource: input.property.source,
     comercialId: input.demand.comercialId ?? "",
     buyerName: input.demand.demandName,

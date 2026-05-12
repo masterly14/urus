@@ -1,6 +1,6 @@
 import { fetchWithRetry } from "@/lib/whatsapp/client";
 import { META_API_VERSION } from "@/lib/whatsapp/types";
-import type { WabaTemplate } from "./types";
+import type { WabaTemplate, WabaTemplateCreateInput, WabaTemplateCreateResult } from "./types";
 
 const DEFAULT_LIMIT = 100;
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -20,6 +20,8 @@ type MessageTemplatesResponse = {
   };
 };
 
+type CreateTemplateResponse = WabaTemplateCreateResult;
+
 export type WabaTemplatesClientConfig = {
   accessToken?: string;
   wabaId?: string;
@@ -35,8 +37,8 @@ function requiredEnv(name: string, value: string | undefined): string {
   return trimmed;
 }
 
-async function parseGraphResponse(response: Response): Promise<MessageTemplatesResponse> {
-  const json = await response.json() as MessageTemplatesResponse & GraphError;
+async function parseGraphResponse<T>(response: Response): Promise<T> {
+  const json = await response.json() as T & GraphError;
   if (!response.ok) {
     const error = json.error;
     const detail = error?.message
@@ -71,7 +73,29 @@ export function createWabaTemplatesClient(config: WabaTemplatesClientConfig = {}
           signal: controller.signal,
         }),
       );
-      return parseGraphResponse(response);
+      return parseGraphResponse<MessageTemplatesResponse>(response);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async function postTemplate(input: WabaTemplateCreateInput): Promise<CreateTemplateResponse> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const url = `https://graph.facebook.com/${apiVersion}/${wabaId}/message_templates`;
+    try {
+      const response = await fetchWithRetry(() =>
+        fetch(url, {
+          method: "POST",
+          headers: {
+            ...headers,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(input),
+          signal: controller.signal,
+        }),
+      );
+      return parseGraphResponse<CreateTemplateResponse>(response);
     } finally {
       clearTimeout(timeout);
     }
@@ -102,6 +126,9 @@ export function createWabaTemplatesClient(config: WabaTemplatesClientConfig = {}
       }
 
       return templates;
+    },
+    async createTemplate(input: WabaTemplateCreateInput): Promise<WabaTemplateCreateResult> {
+      return postTemplate(input);
     },
   };
 }

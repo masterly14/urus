@@ -16,6 +16,7 @@ import { computeSha256, buildSigningUrl } from "@/lib/firma/engine";
 import { generateSigningToken } from "@/lib/firma/token";
 import { generateNotaEncargoPdf } from "./generate-pdf";
 import { resolveComercial } from "@/lib/routing/resolve-comercial";
+import { promoteDraftProperty } from "@/lib/provisionals/promotion";
 
 export async function handleNotaEncargoFlowResponse(
   session: NotaEncargoSession,
@@ -29,6 +30,7 @@ export async function handleNotaEncargoFlowResponse(
   const tipoNota = String(formData.tipo_nota ?? "N1");
   const aceptaLopd =
     formData.acepta_lopd === true || formData.acepta_lopd === "true";
+  const signerPhone = telefono || session.propietarioPhone;
 
   // 1. Update session with form data
   await prisma.notaEncargoSession.update({
@@ -44,6 +46,27 @@ export async function handleNotaEncargoFlowResponse(
       aceptaLopd,
     },
   });
+
+  let promotedPropertyCode: string | null = null;
+  if (session.draftPropertyId) {
+    try {
+      const promoted = await promoteDraftProperty({
+        draftPropertyId: session.draftPropertyId,
+        comercialId: session.comercialId,
+        ownerName: nombreCompleto || null,
+        ownerPhone: signerPhone,
+        cadastralRef: session.refCatastral ?? "",
+        direccion: session.direccion,
+        precio: session.precio,
+        tipoOperacion: session.tipoOperacion,
+        correlationId: session.id,
+      });
+      promotedPropertyCode = promoted.inmovillaPropertyCode;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn(`[nota-encargo] Error promoviendo propiedad provisional ${session.draftPropertyId}: ${reason}`);
+    }
+  }
 
   // Resolve comercial name for the PDF
   const comercial = await resolveComercial({
@@ -75,8 +98,8 @@ export async function handleNotaEncargoFlowResponse(
 
   // Si la propiedad aún no existe en Inmovilla, la firma se crea contra un
   // identificador provisional. El matcher lo reemplaza por el código real.
-  const effectiveOperationId = session.propertyCode ?? `NOTA:${session.id}`;
-  const effectivePropertyCode = session.propertyCode ?? `NOTA:${session.id}`;
+  const effectiveOperationId = promotedPropertyCode ?? session.propertyCode ?? `NOTA:${session.id}`;
+  const effectivePropertyCode = promotedPropertyCode ?? session.propertyCode ?? `NOTA:${session.id}`;
   const documentRef = session.propertyRef ?? session.refCatastral ?? session.id;
 
   // 3. Upload to Cloudinary
@@ -108,7 +131,7 @@ export async function handleNotaEncargoFlowResponse(
       status: "SENT",
       signerName: nombreCompleto,
       signerEmail: "",
-      signerPhone: session.propietarioPhone,
+      signerPhone,
       sentAt: new Date(),
       slaDeadlineDays: 5,
       slaDeadline,
@@ -142,7 +165,7 @@ export async function handleNotaEncargoFlowResponse(
   });
 
   const existingParty = await prisma.legalDocumentParty.findFirst({
-    where: { legalDocumentId: legalDocument.id, phone: session.propietarioPhone },
+    where: { legalDocumentId: legalDocument.id, phone: signerPhone },
   });
 
   if (existingParty) {
@@ -157,7 +180,7 @@ export async function handleNotaEncargoFlowResponse(
         role: "PROPIETARIO",
         fullName: nombreCompleto,
         nifNie: dni,
-        phone: session.propietarioPhone,
+        phone: signerPhone,
         address: domicilioFiscal,
       },
     });
@@ -184,7 +207,7 @@ export async function handleNotaEncargoFlowResponse(
       operationId: effectiveOperationId,
       documentKind: "NOTA_ENCARGO",
       signingUrl,
-      signerPhone: session.propietarioPhone,
+      signerPhone,
     },
   });
 

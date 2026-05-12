@@ -14,8 +14,10 @@ import { getVisitWorkItem, markVisitWorkItemScheduled } from "./work-items";
 
 export type ManualVisitScheduleInput = {
   visitWorkItemId?: string;
-  demandId: string;
-  propertyId: string;
+  demandId?: string;
+  draftDemandId?: string;
+  propertyId?: string;
+  draftPropertyId?: string;
   fecha: string;
   horaInicio: string;
   horaFin: string;
@@ -125,12 +127,20 @@ export async function scheduleManualVisit(
   input: ManualVisitScheduleInput,
 ): Promise<ManualVisitScheduleResult> {
   const workItem = input.visitWorkItemId ? await getVisitWorkItem(input.visitWorkItemId) : null;
-  const pkg = workItem ? null : await getVisitInterestPackageByDemand(input.demandId);
-  const demandName = workItem?.buyerName || pkg?.demand.demandName || input.demandId;
+  const effectiveDemandId = workItem?.demandId || input.demandId || "";
+  const effectivePropertyId = workItem?.propertyId || input.propertyId || "";
+  const effectiveDraftDemandId = workItem?.draftDemandId || input.draftDemandId || null;
+  const effectiveDraftPropertyId = workItem?.draftPropertyId || input.draftPropertyId || null;
+  const pkg = workItem || !effectiveDemandId
+    ? null
+    : await getVisitInterestPackageByDemand(effectiveDemandId);
+  const demandName = workItem?.buyerName || pkg?.demand.demandName || effectiveDemandId || "Demanda provisional";
   const buyerPhone = workItem?.buyerPhone || pkg?.demand.buyerPhone || "";
-  const property = workItem ? propertyFromWorkItem(workItem) : pkg?.properties.find((item) => item.propertyId === input.propertyId);
-  if (!property) {
-    throw new Error(`La propiedad ${input.propertyId} no consta como interés de la demanda ${input.demandId}`);
+  const property = workItem
+    ? propertyFromWorkItem(workItem)
+    : pkg?.properties.find((item) => item.propertyId === effectivePropertyId);
+  if (!property && !effectiveDraftPropertyId) {
+    throw new Error(`La propiedad ${effectivePropertyId} no consta como interés de la demanda ${effectiveDemandId}`);
   }
 
   const comercial = await prisma.comercial.findUnique({
@@ -155,7 +165,7 @@ export async function scheduleManualVisit(
   }
 
   const overlapping = await assertNoOverlap({
-    propertyCode: input.propertyId,
+    propertyCode: effectivePropertyId || `DRAFT-PROPERTY:${effectiveDraftPropertyId}`,
     slotStart,
     slotEnd,
   });
@@ -166,7 +176,28 @@ export async function scheduleManualVisit(
   const calendarResult = await createCalendarEvent(
     buildCalendarInput({
       demandName,
-      property,
+      property: property ?? {
+        propertyId: effectiveDraftPropertyId || "",
+        source: "external",
+        title: "Propiedad provisional",
+        reference: `DRAFT-${effectiveDraftPropertyId}`,
+        cadastralReference: null,
+        address: "Direccion pendiente de completar",
+        city: null,
+        zone: null,
+        price: null,
+        rooms: null,
+        metersBuilt: null,
+        portalUrl: null,
+        contact: {
+          kind: "propietario",
+          name: "Propietario provisional",
+          phones: [],
+          source: "property_current",
+        },
+        missingContactPhone: false,
+        interestedAt: new Date().toISOString(),
+      },
       fecha: input.fecha,
       horaInicio: input.horaInicio,
       horaFin: input.horaFin,
@@ -177,8 +208,10 @@ export async function scheduleManualVisit(
 
   const visitSession = await prisma.visitSchedulingSession.create({
     data: {
-      demandId: input.demandId,
-      propertyCode: input.propertyId,
+      demandId: effectiveDemandId,
+      draftDemandId: effectiveDraftDemandId,
+      draftPropertyId: effectiveDraftPropertyId,
+      propertyCode: effectivePropertyId || `DRAFT-PROPERTY:${effectiveDraftPropertyId}`,
       comercialId: input.comercialId,
       buyerWaId: buyerPhone,
       comercialWaId: comercial.waId || comercial.telefono || "",
@@ -197,7 +230,7 @@ export async function scheduleManualVisit(
 
   await prisma.propertyVisitSlot.create({
     data: {
-      propertyCode: input.propertyId,
+      propertyCode: effectivePropertyId || `DRAFT-PROPERTY:${effectiveDraftPropertyId}`,
       slotStart,
       slotEnd,
       sessionId: visitSession.id,
@@ -207,14 +240,16 @@ export async function scheduleManualVisit(
 
   const event = await appendEvent({
     type: EventType.VISITA_AGENDADA,
-    aggregateType: AggregateType.DEMAND,
-    aggregateId: input.demandId,
+    aggregateType: effectiveDemandId ? AggregateType.DEMAND : AggregateType.LEAD,
+    aggregateId: effectiveDemandId || effectiveDraftDemandId || visitSession.id,
     payload: {
       sessionId: visitSession.id,
       comercialId: input.comercialId,
       comercialNombre: comercial.nombre,
-      demandId: input.demandId,
-      propertyCode: input.propertyId,
+      demandId: effectiveDemandId || null,
+      propertyCode: effectivePropertyId || null,
+      draftDemandId: effectiveDraftDemandId,
+      draftPropertyId: effectiveDraftPropertyId,
       fecha: input.fecha,
       horaInicio: input.horaInicio,
       horaFin: input.horaFin,
@@ -235,7 +270,9 @@ export async function scheduleManualVisit(
     idempotencyKey: `process_event:${event.id}`,
   });
 
-  await updateDemandLeadStatus(input.demandId, "VISITA_CONFIRMADA");
+  if (effectiveDemandId) {
+    await updateDemandLeadStatus(effectiveDemandId, "VISITA_CONFIRMADA");
+  }
   if (input.visitWorkItemId) {
     await markVisitWorkItemScheduled({
       id: input.visitWorkItemId,
@@ -245,14 +282,15 @@ export async function scheduleManualVisit(
 
   await scheduleParteVisitaFromDetails({
     visitSessionId: visitSession.id,
-    propertyCode: input.propertyId,
-    propertyRef: property.reference,
+    propertyCode: effectivePropertyId || `DRAFT-PROPERTY:${effectiveDraftPropertyId}`,
+    propertyRef: property?.reference ?? `DRAFT-${effectiveDraftPropertyId}`,
+    draftDemandId: effectiveDraftDemandId,
     comercialId: input.comercialId,
     buyerPhone,
     visitDateTime: slotStart,
-    direccion: property.address,
+    direccion: property?.address ?? "Direccion pendiente de completar",
     tipoOperacion: "VENTA",
-    precio: property.price ?? 0,
+    precio: property?.price ?? 0,
   });
 
   return {

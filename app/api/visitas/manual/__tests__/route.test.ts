@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetSession = vi.fn();
 const mockDemandFindUnique = vi.fn();
+const mockComercialFindUnique = vi.fn();
+const mockEnumTipoFindFirst = vi.fn();
+const mockEnumCiudadFindFirst = vi.fn();
 const mockCreateManualVisitWorkItem = vi.fn();
 const mockSerializeVisitWorkItem = vi.fn();
 
@@ -19,6 +22,15 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     demandCurrent: {
       findUnique: (...args: unknown[]) => mockDemandFindUnique(...args),
+    },
+    comercial: {
+      findUnique: (...args: unknown[]) => mockComercialFindUnique(...args),
+    },
+    inmovillaEnumTipo: {
+      findFirst: (...args: unknown[]) => mockEnumTipoFindFirst(...args),
+    },
+    inmovillaEnumCiudad: {
+      findFirst: (...args: unknown[]) => mockEnumCiudadFindFirst(...args),
     },
   },
 }));
@@ -43,6 +55,9 @@ describe("POST /api/visitas/manual", () => {
       comercialId: "com-1",
     });
     mockDemandFindUnique.mockResolvedValue({ comercialId: "com-1", telefono: "34600111222" });
+    mockComercialFindUnique.mockResolvedValue({ id: "com-1", ciudad: "Cordoba" });
+    mockEnumTipoFindFirst.mockResolvedValue({ valor: 2799 });
+    mockEnumCiudadFindFirst.mockResolvedValue({ key_loca: 1 });
     mockCreateManualVisitWorkItem.mockResolvedValue({
       created: true,
       workItem: { id: "vwi-manual" },

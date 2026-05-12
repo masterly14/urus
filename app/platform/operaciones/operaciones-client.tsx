@@ -2,7 +2,8 @@
 
 import { useState, useCallback } from "react";
 import useSWR from "swr";
-import { Plus, Search, ChevronLeft, ChevronRight, ArrowRight, CheckCircle, XCircle, Loader2, MoreHorizontal, Eye, Info } from "lucide-react";
+import Image from "next/image";
+import { Plus, Search, ChevronLeft, ChevronRight, ArrowRight, CheckCircle, XCircle, Loader2, MoreHorizontal, Eye, Info, ImageOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -43,6 +44,12 @@ interface Operacion {
   createdAt: string;
   updatedAt: string;
   _count: { asignaciones: number };
+  property?: {
+    codigo: string;
+    mainPhotoUrl: string | null;
+    ref: string | null;
+    numFotos: number;
+  } | null;
 }
 
 const OPERACION_STAGE_FLOW = [
@@ -71,8 +78,13 @@ function estadoBadgeVariant(estado: string): BadgeVariant {
   return "secondary";
 }
 
-function daysInState(updatedAt: string): number {
-  return Math.max(0, Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86_400_000));
+function isTerminal(estado: string) {
+  return estado.startsWith("CERRADA_") || estado === "CANCELADA";
+}
+
+function totalDays(op: Operacion): number {
+  const end = isTerminal(op.estado) ? new Date(op.closedAt || op.updatedAt).getTime() : Date.now();
+  return Math.max(0, Math.floor((end - new Date(op.createdAt).getTime()) / 86_400_000));
 }
 
 function stageProgressInfo(estado: string): { currentIndex: number; progressPct: number } {
@@ -160,9 +172,6 @@ export function OperacionesClient() {
   const [guiaOpen, setGuiaOpen] = useState(false);
 
   const refetch = useCallback(() => { mutate(); }, [mutate]);
-
-  const isTerminal = (estado: string) =>
-    estado.startsWith("CERRADA_") || estado === "CANCELADA";
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const currentPage = Math.floor(offset / limit) + 1;
@@ -263,8 +272,27 @@ export function OperacionesClient() {
                     setDetalleId(op.id);
                   }}
                 >
-                  <TableCell className="font-mono text-xs font-medium">{op.codigo}</TableCell>
-                  <TableCell className="text-xs">{op.propertyCode}</TableCell>
+                  <TableCell className="font-mono text-xs font-medium">
+                    <div>{op.propertyCode}</div>
+                    <div className="text-[10px] text-muted-foreground font-normal">{op.codigo}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="relative h-10 w-16 overflow-hidden rounded bg-muted">
+                      {op.property?.mainPhotoUrl ? (
+                        <Image
+                          src={op.property.mainPhotoUrl}
+                          alt={op.propertyCode}
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center">
+                          <ImageOff className="h-4 w-4 text-muted-foreground/50" />
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-xs text-muted-foreground">{op.ciudad || "—"}</TableCell>
                   <TableCell>
                     <Badge variant={estadoBadgeVariant(op.estado)} className="text-[10px]">
@@ -275,44 +303,70 @@ export function OperacionesClient() {
                     <CompactStepper estado={op.estado} />
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-xs">
-                    {isTerminal(op.estado) ? "—" : daysInState(op.updatedAt)}
+                    {totalDays(op)}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground tabular-nums">
                     {formatDate(op.updatedAt)}
                   </TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          className="h-6 w-6"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreHorizontal className="h-3.5 w-3.5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-36">
-                        <DropdownMenuItem onClick={() => setDetalleId(op.id)} className="text-xs gap-2">
-                          <Eye className="h-3 w-3" /> Ver detalle
-                        </DropdownMenuItem>
-                        {!isTerminal(op.estado) && (
-                          <>
-                            <DropdownMenuItem onClick={() => setAvanzarOp(op)} className="text-xs gap-2">
-                              <ArrowRight className="h-3 w-3" /> Avanzar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setCerrarOp(op)} className="text-xs gap-2">
-                              <CheckCircle className="h-3 w-3" /> Cerrar
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => setCancelarOp(op)} className="text-xs gap-2 text-destructive">
-                              <XCircle className="h-3 w-3" /> Cancelar
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="flex items-center justify-end gap-1">
+                      {!isTerminal(op.estado) && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="h-7 w-7 text-primary hover:text-primary hover:bg-primary/10"
+                            title="Avanzar etapa"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAvanzarOp(op);
+                            }}
+                          >
+                            <ArrowRight className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                            title="Cerrar operación"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCerrarOp(op);
+                            }}
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="h-7 w-7"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-36">
+                          <DropdownMenuItem onClick={() => setDetalleId(op.id)} className="text-xs gap-2">
+                            <Eye className="h-3 w-3" /> Ver detalle
+                          </DropdownMenuItem>
+                          {!isTerminal(op.estado) && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => setCancelarOp(op)} className="text-xs gap-2 text-destructive">
+                                <XCircle className="h-3 w-3" /> Cancelar
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

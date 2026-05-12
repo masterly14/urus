@@ -81,7 +81,10 @@ export const WHATSAPP_TEMPLATES = {
   POSTVENTA_NAVIDAD: process.env.WHATSAPP_TEMPLATE_POSTVENTA_NAVIDAD ?? "postventa_navidad",           // body: 2 vars
   DEV_EJERCICIO: process.env.WHATSAPP_TEMPLATE_DEV_EXERCISE ?? "dev_ejercicio_diario",               // body: 3 vars
   VISITA_PAQUETE_COMERCIAL: process.env.WHATSAPP_TEMPLATE_VISITA_PAQUETE_COMERCIAL ?? "visita_paquete_comercial", // body: 4 vars (demanda, comprador, propiedades, acción)
+  FOLLOW_UP_DEMANDA: process.env.WHATSAPP_TEMPLATE_FOLLOW_UP_DEMANDA ?? "follow_up_demanda", // body: 4 vars (comercial, demanda, propiedad, teléfono demanda)
   NLU_DEMANDA_CONTACTO_INICIAL: process.env.WHATSAPP_TEMPLATE_NLU_DEMANDA_CONTACTO_INICIAL ?? "nlu_demanda_contacto_inicial", // body: 2 vars (nombre, mensaje)
+  MICROSITE_LISTO_COMPRADOR: process.env.WHATSAPP_TEMPLATE_MICROSITE_LISTO_COMPRADOR ?? "microsite_listo_comprador", // body: 2 vars (nombre comprador, URL del micrositio)
+  MICROSITE_PROPIEDAD_ME_ENCAJA: process.env.WHATSAPP_TEMPLATE_MICROSITE_PROPIEDAD_ME_ENCAJA ?? "microsite_propiedad_me_encaja", // body: 2 vars (nombre comprador, título de la propiedad)
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -449,6 +452,13 @@ export interface FollowUpParams {
   daysSinceCreation?: number;
 }
 
+export interface FollowUpDemandaParams {
+  comercialName: string;
+  demandName: string;
+  propertyName: string;
+  demandPhone: string;
+}
+
 const STEP_LABELS: Record<string, string> = {
   "D+1": "1 día sin contacto",
   "D+3": "3 días sin contacto",
@@ -509,6 +519,38 @@ export async function sendFollowUpToCommercial(
   return sendTextMessage(to, lines.join("\n"), options);
 }
 
+/**
+ * Envía al comercial el recordatorio post-visita para seguimiento de demanda.
+ * Plantilla Meta requerida: "follow_up_demanda" (4 variables).
+ */
+export async function sendFollowUpDemandaToCommercial(
+  to: string,
+  params: FollowUpDemandaParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  if (!shouldSendWhatsAppToCommercials()) {
+    return skippedCommercialSend(to, "sendFollowUpDemandaToCommercial");
+  }
+
+  const template: TemplateObject = {
+    name: WHATSAPP_TEMPLATES.FOLLOW_UP_DEMANDA,
+    language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
+    components: [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: params.comercialName },
+          { type: "text", text: params.demandName },
+          { type: "text", text: params.propertyName },
+          { type: "text", text: params.demandPhone },
+        ],
+      },
+    ],
+  };
+
+  return sendTemplateMessage(to, template, options);
+}
+
 export type MicrositeValidationNotifyParams = {
   demandNombre: string;
   demandId: string;
@@ -555,22 +597,70 @@ export type MicrositeBuyerLinkParams = {
 
 /**
  * Envía al comprador el enlace público del microsite tras validación comercial.
+ *
+ * Plantilla Meta requerida: `microsite_listo_comprador` (UTILITY, 2 variables):
+ *   {{1}} = nombre del comprador, {{2}} = URL completa del micrositio.
+ *
+ * Se usa plantilla porque al validar la selección puede haber pasado más de 24h
+ * desde el último mensaje del comprador (fuera de la ventana de servicio).
  */
 export async function sendMicrositeLinkToBuyer(
   to: string,
   params: MicrositeBuyerLinkParams,
   options?: SendOptions,
 ): Promise<SendMessageSuccess> {
-  const firstName = params.demandNombre.trim().split(/\s+/)[0];
-  const lines = [
-    `Hola${firstName ? ` ${firstName}` : ""},`,
-    ``,
-    `Aquí tienes una selección de propiedades que encajan con tu búsqueda:`,
-    params.buyerUrl,
-    ``,
-    `Revísalas con calma y, en este chat, cuéntame cuáles te gustan o qué prefieres cambiar (zona, presupuesto, metros, etc.).`,
-  ];
-  return sendTextMessage(to, lines.join("\n"), { ...options, previewUrl: true });
+  const firstName = params.demandNombre.trim().split(/\s+/)[0] || params.demandNombre.trim();
+  const template: TemplateObject = {
+    name: WHATSAPP_TEMPLATES.MICROSITE_LISTO_COMPRADOR,
+    language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
+    components: [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: firstName },
+          { type: "text", text: params.buyerUrl },
+        ],
+      },
+    ],
+  };
+  return sendTemplateMessage(to, template, options);
+}
+
+export type BuyerInterestAckParams = {
+  buyerName: string;
+  propertyTitle: string;
+};
+
+/**
+ * Acuse al comprador tras pulsar "Me encaja" en una propiedad del micrositio.
+ *
+ * Plantilla Meta requerida: `microsite_propiedad_me_encaja` (UTILITY, 2 variables):
+ *   {{1}} = nombre del comprador, {{2}} = título curado de la propiedad.
+ *
+ * La dedup por `selectionId+propertyId` se hace en el job handler
+ * (`SEND_BUYER_INTEREST_ACK`), no aquí, para mantener esta función como
+ * primitiva de envío reutilizable.
+ */
+export async function sendBuyerInterestAckToBuyer(
+  to: string,
+  params: BuyerInterestAckParams,
+  options?: SendOptions,
+): Promise<SendMessageSuccess> {
+  const firstName = params.buyerName.trim().split(/\s+/)[0] || params.buyerName.trim();
+  const template: TemplateObject = {
+    name: WHATSAPP_TEMPLATES.MICROSITE_PROPIEDAD_ME_ENCAJA,
+    language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
+    components: [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: firstName },
+          { type: "text", text: params.propertyTitle },
+        ],
+      },
+    ],
+  };
+  return sendTemplateMessage(to, template, options);
 }
 
 export type NoStockAvailableToBuyerParams = {

@@ -16,6 +16,7 @@ export type ParteVisitaScheduleDetails = {
   visitSessionId: string;
   propertyCode: string;
   propertyRef: string;
+  draftDemandId?: string | null;
   comercialId: string;
   buyerPhone: string;
   visitDateTime: Date;
@@ -43,6 +44,7 @@ export async function scheduleParteVisitaFromDetails(
       visitSessionId: details.visitSessionId,
       propertyCode: details.propertyCode,
       propertyRef: details.propertyRef,
+      draftDemandId: details.draftDemandId ?? null,
       comercialId: details.comercialId,
       buyerPhone: details.buyerPhone,
       visitDateTime: details.visitDateTime,
@@ -113,6 +115,7 @@ export async function scheduleParteVisita(
     visitSessionId: visitSession.id,
     propertyCode: visitSession.propertyCode,
     propertyRef: property.ref,
+    draftDemandId: visitSession.draftDemandId,
     comercialId: visitSession.comercialId,
     buyerPhone: visitSession.buyerWaId,
     visitDateTime: visitSession.confirmedSlotStart,

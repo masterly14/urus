@@ -54,6 +54,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     visitWorkItem: {
       findUnique: vi.fn().mockImplementation(() => Promise.resolve(store.workItem)),
+      findFirst: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockImplementation(({ data }) => {
         store.workItem = {
           id: "vwi-e2e",
@@ -148,6 +149,7 @@ describe("NLU demand to visit dry-run E2E", () => {
       visitWorkItemId: "vwi-e2e",
       decision: "yellow",
       notes: "Busca otra zona",
+      postVisitContext: "Necesita 3 habitaciones y prioriza luz natural",
       decidedBy: "Comercial E2E",
     });
     expect(decision.branchEventId).toBe("evt-DEMANDA_REPERFILADO_SOLICITADO");
@@ -156,6 +158,15 @@ describe("NLU demand to visit dry-run E2E", () => {
     });
     expect(mockAppendEvent).toHaveBeenCalledWith(expect.objectContaining({
       type: "DEMANDA_REPERFILADO_SOLICITADO",
+      payload: expect.objectContaining({
+        postVisitContext: "Necesita 3 habitaciones y prioriza luz natural",
+        postVisitContextStructured: expect.objectContaining({
+          hardConstraints: expect.objectContaining({ habitacionesMin: 3 }),
+          softPreferences: expect.objectContaining({
+            extras: expect.arrayContaining(["luz natural"]),
+          }),
+        }),
+      }),
     }));
   });
 });

@@ -110,10 +110,12 @@ describe("decideVisitWorkItem", () => {
   });
 
   it("amarillo emite re-perfilado y devuelve la demanda a EN_SELECCION", async () => {
+    const postVisitContext = "Quiere terraza, más luz y evitar planta baja";
     const result = await decideVisitWorkItem({
       visitWorkItemId: "vwi-001",
       decision: "yellow",
       notes: "Quiere otra zona",
+      postVisitContext,
       decidedBy: "Comercial",
     });
 
@@ -124,6 +126,13 @@ describe("decideVisitWorkItem", () => {
     expect(mockAppendEvent).toHaveBeenNthCalledWith(2, expect.objectContaining({
       type: "DEMANDA_REPERFILADO_SOLICITADO",
       aggregateId: "DEM-001",
+      payload: expect.objectContaining({
+        postVisitContext,
+        postVisitContextStructured: expect.objectContaining({
+          rawText: postVisitContext,
+          source: "commercial_post_visit",
+        }),
+      }),
     }));
     expect(mockDemandUpdateMany).toHaveBeenCalledWith({
       where: { codigo: "DEM-001" },

@@ -88,6 +88,27 @@ describe("startNluInitialContactForDemand", () => {
     }));
   });
 
+  it("persiste source y triggeredBy en el evento de contacto", async () => {
+    await startNluInitialContactForDemand({
+      demandId: "DEM-001",
+      source: "manual_ui",
+      triggeredBy: {
+        userId: "user-1",
+        nombre: "Comercial",
+      },
+    });
+
+    expect(mockAppendEvent).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({
+        source: "manual_ui",
+        triggeredBy: {
+          userId: "user-1",
+          nombre: "Comercial",
+        },
+      }),
+    }));
+  });
+
   it("dry-run crea sesion y evento sin enviar WhatsApp real", async () => {
     const result = await startNluInitialContactForDemand({ demandId: "DEM-001", dryRun: true });
 

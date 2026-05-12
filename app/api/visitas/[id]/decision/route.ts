@@ -15,6 +15,7 @@ const BodySchema = z.object({
   decision: z.enum(["green", "yellow", "red"]),
   notes: z.string().optional(),
   reason: z.string().optional(),
+  postVisitContext: z.string().trim().max(2_000).optional(),
 });
 
 const postHandler = async (request: Request, context: RouteContext) => {
@@ -51,6 +52,7 @@ const postHandler = async (request: Request, context: RouteContext) => {
       decision: parsed.data.decision,
       notes: parsed.data.notes,
       reason: parsed.data.reason,
+      postVisitContext: parsed.data.postVisitContext,
       decidedBy: session.nombre ?? session.email ?? session.userId,
     });
 

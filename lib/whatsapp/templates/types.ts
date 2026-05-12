@@ -30,6 +30,22 @@ export type WabaTemplate = {
   components: WabaTemplateComponent[];
 };
 
+export type WabaTemplateCategory = "AUTHENTICATION" | "MARKETING" | "UTILITY";
+
+export type WabaTemplateCreateInput = {
+  name: string;
+  language: string;
+  category: WabaTemplateCategory | string;
+  components: WabaTemplateComponent[];
+  allow_category_change?: boolean;
+};
+
+export type WabaTemplateCreateResult = {
+  id: string;
+  status: string;
+  category?: string;
+};
+
 export type SentTemplateButtonParameter = {
   type: "payload" | "text" | "action";
   payload?: string;

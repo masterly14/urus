@@ -18,6 +18,16 @@ type SkipReason =
   | "opt_out"
   | "recent_session";
 
+type InitialContactSource =
+  | "auto_demand_creada"
+  | "manual_ui"
+  | "script_dry_run";
+
+type InitialContactTriggeredBy = {
+  userId?: string;
+  nombre?: string;
+} | null;
+
 export type InitialContactResult = {
   ok: boolean;
   demandId: string;
@@ -88,6 +98,8 @@ async function appendContactEvent(input: {
   templateName: string;
   messageId?: string | null;
   dryRun?: boolean;
+  source: InitialContactSource;
+  triggeredBy?: InitialContactTriggeredBy;
   causationId?: string | null;
   correlationId?: string | null;
 }) {
@@ -103,6 +115,8 @@ async function appendContactEvent(input: {
       templateName: input.templateName,
       messageId: input.messageId ?? null,
       dryRun: input.dryRun ?? false,
+      source: input.source,
+      triggeredBy: input.triggeredBy ?? null,
     } as unknown as JsonValue,
     causationId: input.causationId ?? undefined,
     correlationId: input.correlationId ?? undefined,
@@ -131,10 +145,13 @@ async function shouldSkipRecentSession(input: {
 export async function startNluInitialContactForDemand(input: {
   demandId: string;
   dryRun?: boolean;
+  source?: InitialContactSource;
+  triggeredBy?: InitialContactTriggeredBy;
   causationId?: string | null;
   correlationId?: string | null;
 }): Promise<InitialContactResult> {
   const templateName = WHATSAPP_TEMPLATES.NLU_DEMANDA_CONTACTO_INICIAL;
+  const source = input.source ?? "auto_demand_creada";
   const demand = await prisma.demandCurrent.findUnique({
     where: { codigo: input.demandId },
     select: {
@@ -157,6 +174,8 @@ export async function startNluInitialContactForDemand(input: {
       skippedReason: "demand_not_found",
       templateName,
       dryRun: input.dryRun,
+      source,
+      triggeredBy: input.triggeredBy,
       causationId: input.causationId,
       correlationId: input.correlationId,
     });
@@ -187,6 +206,8 @@ export async function startNluInitialContactForDemand(input: {
       skippedReason,
       templateName,
       dryRun: input.dryRun,
+      source,
+      triggeredBy: input.triggeredBy,
       causationId: input.causationId,
       correlationId: input.correlationId,
     });
@@ -258,6 +279,8 @@ export async function startNluInitialContactForDemand(input: {
     templateName,
     messageId,
     dryRun: input.dryRun,
+    source,
+    triggeredBy: input.triggeredBy,
     causationId: input.causationId,
     correlationId: input.correlationId,
   });

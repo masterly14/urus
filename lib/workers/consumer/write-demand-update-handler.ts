@@ -59,6 +59,7 @@ export async function handleDemandaActualizada(event: Event): Promise<HandlerRes
   const demandId = event.aggregateId;
   const p = (event.payload ?? {}) as Record<string, unknown>;
   const variables = (p.variables ?? {}) as DemandUpdateVariables;
+  const policy = (p.policy ?? {}) as Record<string, unknown>;
 
   const followUpJobs: EnqueueJobInput[] = [
     {
@@ -159,7 +160,11 @@ export async function handleDemandaActualizada(event: Event): Promise<HandlerRes
   }
 
   const source = (p.source ?? {}) as Record<string, unknown>;
-  if (source.selectionId || source.channel === "whatsapp_feedback") {
+  if (
+    source.selectionId ||
+    source.channel === "whatsapp_feedback" ||
+    source.channel === "post_visit_context"
+  ) {
     followUpJobs.push({
       type: "GENERATE_MICROSITE",
       payload: {
@@ -193,6 +198,12 @@ export async function handleDemandaActualizada(event: Event): Promise<HandlerRes
         `[consumer:smart-matching] DEMANDA_ACTUALIZADA demandId=${demandId} → WRITE_TO_INMOVILLA omitido (identificadores sintéticos)`,
       );
     }
+  }
+
+  if (policy.ruleApplied) {
+    console.log(
+      `[consumer:smart-matching] DEMANDA_ACTUALIZADA demandId=${demandId} policy=${String(policy.ruleApplied)} conflictResolvedBy=${String(policy.conflictResolvedBy ?? "n/a")}`,
+    );
   }
 
   followUpJobs.push({

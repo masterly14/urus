@@ -102,6 +102,12 @@ enum EventType {
   NOTA_ENCARGO_PROPIETARIO_REGISTRADO
   NOTA_ENCARGO_SIN_PROPIEDAD_DEADLINE
   PARTE_VISITA_FORMULARIO_COMPLETADO
+  DEMANDA_PROVISIONAL_CREADA
+  PROPIEDAD_PROVISIONAL_CREADA
+  DEMANDA_PROVISIONAL_PROMOVIDA
+  PROPIEDAD_PROVISIONAL_PROMOVIDA
+  DEMANDA_PROVISIONAL_PROMOCION_FALLIDA
+  PROPIEDAD_PROVISIONAL_PROMOCION_FALLIDA
   PRICING_PRECIO_APLICADO
   OPERACION_CREADA
   OPERACION_AVANZADA
@@ -154,6 +160,7 @@ enum JobType {
   EVALUATE_DEMAND_COVERAGE
   REBUILD_MATCHES_FOR_DEMAND
   UPDATE_PROPERTY_STATUS_INMOVILLA
+  SEND_BUYER_INTEREST_ACK
 }
 
 enum JobStatus {
@@ -629,10 +636,72 @@ enum VisitWorkItemStatus {
   CANCELLED
 }
 
+enum DraftDemandStatus {
+  OPEN
+  PROMOTING
+  PROMOTED
+  CANCELLED
+}
+
+enum DraftPropertyStatus {
+  OPEN
+  PROMOTING
+  PROMOTED
+  CANCELLED
+}
+
+model DraftDemand {
+  id                String            @id @default(cuid())
+  buyerPhone        String
+  buyerName         String?
+  comercialId       String
+  demandPropertyTypes String          @default("2799")
+  budgetMax         Int               @default(9999999)
+  status            DraftDemandStatus @default(OPEN)
+  inmovillaClientId String?
+  inmovillaDemandId String?
+  promotedAt        DateTime?
+  promotionAttempts Int               @default(0)
+  lastPromotionError String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@unique([inmovillaDemandId])
+  @@index([buyerPhone])
+  @@index([comercialId, status])
+  @@map("draft_demands")
+}
+
+model DraftProperty {
+  id                  String              @id @default(cuid())
+  ownerPhone          String
+  cadastralRef        String
+  comercialId         String
+  keyTipo             Int?
+  keyLoca             Int?
+  operationType       String              @default("VENTA")
+  status              DraftPropertyStatus @default(OPEN)
+  inmovillaPropertyCode String?
+  propertyRef         String?
+  promotedAt          DateTime?
+  promotionAttempts   Int                 @default(0)
+  lastPromotionError  String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@unique([inmovillaPropertyCode])
+  @@index([cadastralRef])
+  @@index([ownerPhone])
+  @@index([comercialId, status])
+  @@map("draft_properties")
+}
+
 model VisitSchedulingSession {
   id              String            @id @default(cuid())
-  demandId        String
+  demandId        String            @default("")
   propertyCode    String
+  draftDemandId   String?
+  draftPropertyId String?
   comercialId     String
   buyerWaId       String
   comercialWaId   String
@@ -660,14 +729,18 @@ model VisitSchedulingSession {
   @@index([buyerWaId, state])
   @@index([comercialWaId, state])
   @@index([propertyCode, state])
+  @@index([draftDemandId])
+  @@index([draftPropertyId])
   @@map("visit_scheduling_sessions")
 }
 
 model VisitWorkItem {
   id                 String              @id @default(cuid())
-  demandId           String
+  demandId           String              @default("")
   selectionId        String              @default("")
-  propertyId         String
+  propertyId         String              @default("")
+  draftDemandId      String?
+  draftPropertyId    String?
   propertySource     String
   comercialId        String
   buyerName          String              @default("")
@@ -681,9 +754,11 @@ model VisitWorkItem {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
-  @@unique([demandId, selectionId, propertyId])
+  @@unique([demandId, draftDemandId, selectionId, propertyId, draftPropertyId])
   @@index([comercialId, status])
   @@index([demandId])
+  @@index([draftDemandId])
+  @@index([draftPropertyId])
   @@index([selectionId])
   @@index([propertyId])
   @@map("visit_work_items")
@@ -1682,6 +1757,8 @@ model WhatsAppBuyerSession {
   summary           String?
   conversationPhase String?
   buyerDigest       String?
+  postVisitContextStructured Json?
+  postVisitPolicyState Json?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -1812,6 +1889,7 @@ enum NotaEncargoState {
 model NotaEncargoSession {
   id                  String           @id @default(cuid())
   propertyCode        String?
+  draftPropertyId     String?
   propertyRef         String?
   comercialId         String
   propietarioPhone    String
@@ -1837,6 +1915,7 @@ model NotaEncargoSession {
 
   @@index([state])
   @@index([propertyCode])
+  @@index([draftPropertyId])
   @@index([propertyRef])
   @@index([refCatastral])
   @@index([propietarioPhone, state])
@@ -1893,6 +1972,7 @@ model ParteVisitaSession {
   id                 String           @id @default(cuid())
   visitSessionId     String           @unique
   propertyCode       String
+  draftDemandId      String?
   propertyRef        String
   comercialId        String
   buyerPhone         String
@@ -1914,6 +1994,7 @@ model ParteVisitaSession {
 
   @@index([state])
   @@index([propertyCode])
+  @@index([draftDemandId])
   @@index([buyerPhone, state])
   @@map("parte_visita_sessions")
 }

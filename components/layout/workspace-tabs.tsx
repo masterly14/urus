@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkspaceTabs } from "@/lib/stores/workspace-tabs";
 import {
@@ -55,7 +55,7 @@ function labelFromPathname(pathname: string): string {
 export function WorkspaceTabsBar({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
     const router = useRouter();
     const pathname = usePathname();
-    const { tabs, activeTabId, openTab, closeTab, setActive } = useWorkspaceTabs();
+    const { tabs, activeTabId, openTab, closeTab, clearTabsKeepCurrent, setActive } = useWorkspaceTabs();
     const scrollPositions = useRef<Map<string, number>>(new Map());
 
     useEffect(() => {
@@ -94,14 +94,18 @@ export function WorkspaceTabsBar({ sidebarCollapsed }: { sidebarCollapsed: boole
         router.push(href);
     };
 
+    const handleClearTabs = () => {
+        clearTabsKeepCurrent(pathname, labelFromPathname(pathname));
+    };
+
     return (
         <div
             className={cn(
-                "fixed top-12 left-0 right-0 z-45 flex h-8 items-center border-b border-border bg-white dark:bg-card transition-all duration-300",
-                sidebarCollapsed ? "pl-16" : "pl-64"
+                "fixed top-12 right-0 z-45 flex h-8 items-center border-y border-l border-border bg-white dark:bg-card transition-all duration-300 rounded-tl-2xl",
+                sidebarCollapsed ? "left-16" : "left-64"
             )}
         >
-            <div className="flex h-full flex-1 items-center overflow-x-auto px-1">
+            <div className="flex h-full flex-1 items-center overflow-x-auto px-1.5">
                 {tabs.map((tab) => {
                     const isActive = tab.id === activeTabId;
                     return (
@@ -110,9 +114,9 @@ export function WorkspaceTabsBar({ sidebarCollapsed }: { sidebarCollapsed: boole
                             type="button"
                             onClick={() => handleTabClick(tab.id, tab.href)}
                             className={cn(
-                                "group relative flex h-full shrink-0 items-center gap-1.5 border-r border-border/40 px-3 text-xs font-medium transition-colors duration-150",
+                                "group relative mx-0.5 flex h-full shrink-0 items-center gap-1.5 rounded-t-md px-4 text-xs font-medium transition-colors duration-150",
                                 isActive
-                                    ? "bg-background text-foreground"
+                                    ? "border border-border/70 border-b-background bg-background text-foreground"
                                     : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
                             )}
                         >
@@ -141,7 +145,7 @@ export function WorkspaceTabsBar({ sidebarCollapsed }: { sidebarCollapsed: boole
                     <DropdownMenuTrigger asChild>
                         <button
                             type="button"
-                            className="flex h-full shrink-0 items-center px-2 text-muted-foreground transition-colors hover:text-foreground"
+                            className="ml-1 flex h-full shrink-0 items-center px-2 text-muted-foreground transition-colors hover:text-foreground"
                         >
                             <Plus className="h-3.5 w-3.5" />
                         </button>
@@ -159,6 +163,15 @@ export function WorkspaceTabsBar({ sidebarCollapsed }: { sidebarCollapsed: boole
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
+            <button
+                type="button"
+                onClick={handleClearTabs}
+                className="flex h-full shrink-0 items-center border-l border-border/60 bg-background/95 px-2 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+                aria-label="Limpiar pestañas"
+                title="Limpiar pestañas"
+            >
+                <Trash2 className="h-3.5 w-3.5" />
+            </button>
         </div>
     );
 }

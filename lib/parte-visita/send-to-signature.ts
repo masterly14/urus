@@ -16,6 +16,7 @@ import { computeSha256, buildSigningUrl } from "@/lib/firma/engine";
 import { generateSigningToken } from "@/lib/firma/token";
 import { generateParteVisitaPdf } from "./generate-pdf";
 import { resolveComercial } from "@/lib/routing/resolve-comercial";
+import { promoteDraftDemand } from "@/lib/provisionals/promotion";
 
 export async function handleParteVisitaFlowResponse(
   session: ParteVisitaSession,
@@ -26,6 +27,7 @@ export async function handleParteVisitaFlowResponse(
   const telefono = String(formData.telefono ?? "");
   const aceptaLopd =
     formData.acepta_lopd === true || formData.acepta_lopd === "true";
+  const signerPhone = telefono || session.buyerPhone;
 
   // 1. Update session with form data
   await prisma.parteVisitaSession.update({
@@ -38,6 +40,22 @@ export async function handleParteVisitaFlowResponse(
       aceptaLopd,
     },
   });
+
+  if (session.draftDemandId) {
+    try {
+      await promoteDraftDemand({
+        draftDemandId: session.draftDemandId,
+        comercialId: session.comercialId,
+        buyerName: nombreCompleto || null,
+        buyerPhone: signerPhone,
+        buyerDni: dni || null,
+        correlationId: session.id,
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn(`[parte-visita] Error promoviendo demanda provisional ${session.draftDemandId}: ${reason}`);
+    }
+  }
 
   const comercial = await resolveComercial({
     comercialId: session.comercialId,
@@ -90,7 +108,7 @@ export async function handleParteVisitaFlowResponse(
       status: "SENT",
       signerName: nombreCompleto,
       signerEmail: "",
-      signerPhone: session.buyerPhone,
+      signerPhone,
       sentAt: new Date(),
       slaDeadlineDays: 5,
       slaDeadline,
@@ -117,7 +135,7 @@ export async function handleParteVisitaFlowResponse(
       role: "COMPRADOR",
       fullName: nombreCompleto,
       nifNie: dni,
-      phone: session.buyerPhone,
+      phone: signerPhone,
     },
   });
 
@@ -142,7 +160,7 @@ export async function handleParteVisitaFlowResponse(
       operationId: `PV-${session.id}`,
       documentKind: "PARTE_VISITA",
       signingUrl,
-      signerPhone: session.buyerPhone,
+      signerPhone,
     },
   });
 

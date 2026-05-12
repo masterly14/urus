@@ -19,6 +19,10 @@ import type { PropertySummaryForNLU, ConversationTurn } from "@/lib/agents/types
 import type { JsonValue } from "@/lib/event-store/types";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import type { Event } from "@/types/domain";
+import type {
+  PostVisitPolicyState,
+  PostVisitStructuredContext,
+} from "@/lib/visitas/post-visit-context-types";
 
 // ── Tipos del resultado ─────────────────────────────────────────────────────
 
@@ -35,6 +39,14 @@ export interface ConversationalHandlerContext {
   demandId: string;
   selectionId?: string | null;
   propertyId?: string | null;
+}
+
+function asPostVisitStructuredContext(value: unknown): PostVisitStructuredContext | null {
+  const record = value as Partial<PostVisitStructuredContext> | null | undefined;
+  if (!record || typeof record !== "object") return null;
+  if (record.source !== "commercial_post_visit") return null;
+  if (typeof record.rawText !== "string") return null;
+  return record as PostVisitStructuredContext;
 }
 
 // ── Funciones de carga de datos (reutilizadas del handler principal) ─────────
@@ -134,16 +146,22 @@ export async function handleConversationalFlow(
   // 3. Cargar estado de sesión
   const existingSession = await prisma.whatsAppBuyerSession.findUnique({
     where: { waId },
-    select: { summary: true, turnCount: true, conversationPhase: true, buyerDigest: true },
+    select: {
+      summary: true,
+      turnCount: true,
+      conversationPhase: true,
+      buyerDigest: true,
+      postVisitContextStructured: true,
+      postVisitPolicyState: true,
+    },
   });
 
-  const conversationPhase: ConversationPhase = (
-    existingSession?.conversationPhase as ConversationPhase | null
-  ) ?? resolvePhase(
-    existingSession?.turnCount ?? 0,
-    selectionProperties.length,
-  );
+  const conversationPhase =
+    mapSessionPhase(existingSession?.conversationPhase) ??
+    resolvePhase(existingSession?.turnCount ?? 0, selectionProperties.length);
   const buyerDigest = existingSession?.buyerDigest ?? existingSession?.summary ?? null;
+  const postVisitStructuredContext = asPostVisitStructuredContext(existingSession?.postVisitContextStructured);
+  const policyHints = (existingSession?.postVisitPolicyState ?? null) as PostVisitPolicyState | null;
 
   // 4. Construir input y ejecutar agente
   const agentInput: ConversationalAgentInput = {
@@ -155,6 +173,8 @@ export async function handleConversationalFlow(
     conversationHistory,
     buyerDigest,
     conversationPhase,
+    postVisitStructuredContext,
+    policyHints,
   };
 
   let output;
@@ -252,4 +272,21 @@ function resolvePhase(turnCount: number, propertyCount: number): ConversationPha
   if (propertyCount === 0) return "IDLE_FOLLOWUP";
   if (turnCount <= 2) return "REVIEWING_OPTIONS";
   return "GIVING_FEEDBACK";
+}
+
+function mapSessionPhase(phase: string | null | undefined): ConversationPhase | null {
+  if (!phase) return null;
+  if (phase === "reperfilado_post_visita") return "POST_VISIT_REPROFILING";
+  if (
+    phase === "INITIAL_CONTACT" ||
+    phase === "REVIEWING_OPTIONS" ||
+    phase === "GIVING_FEEDBACK" ||
+    phase === "POST_VISIT_REPROFILING" ||
+    phase === "SCHEDULING_VISIT" ||
+    phase === "IDLE_FOLLOWUP" ||
+    phase === "UNKNOWN"
+  ) {
+    return phase;
+  }
+  return null;
 }

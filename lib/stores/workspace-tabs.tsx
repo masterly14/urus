@@ -20,6 +20,7 @@ interface WorkspaceTabsState {
     activeTabId: string;
     openTab: (tab: Omit<WorkspaceTab, "id">) => void;
     closeTab: (id: string) => void;
+    clearTabsKeepCurrent: (currentHref: string, currentLabel: string) => void;
     setActive: (id: string) => void;
 }
 
@@ -68,13 +69,34 @@ export function WorkspaceTabsProvider({ children }: { children: ReactNode }) {
         []
     );
 
+    const clearTabsKeepCurrent = useCallback((currentHref: string, currentLabel: string) => {
+        const isHome = currentHref === HOME_TAB.href || currentHref === `${HOME_TAB.href}/`;
+        if (isHome) {
+            setTabs([HOME_TAB]);
+            setActiveTabId(HOME_TAB.id);
+            return;
+        }
+
+        const currentId = tabId(currentHref);
+        setTabs([
+            HOME_TAB,
+            {
+                id: currentId,
+                label: currentLabel,
+                href: currentHref,
+                closable: true,
+            },
+        ]);
+        setActiveTabId(currentId);
+    }, []);
+
     const setActive = useCallback((id: string) => {
         setActiveTabId(id);
     }, []);
 
     return (
         <WorkspaceTabsContext.Provider
-            value={{ tabs, activeTabId, openTab, closeTab, setActive }}
+            value={{ tabs, activeTabId, openTab, closeTab, clearTabsKeepCurrent, setActive }}
         >
             {children}
         </WorkspaceTabsContext.Provider>

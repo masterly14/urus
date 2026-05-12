@@ -312,6 +312,32 @@ registerHandler(
   auditOnlyHandler("trazabilidad: API route /api/pricing/apply-price ya actualizó Inmovilla; anti-loop en matching-handler"),
 );
 
+// --- Drafts provisionales (visitas manuales) ---
+registerHandler(
+  "DEMANDA_PROVISIONAL_CREADA",
+  auditOnlyHandler("trazabilidad: demanda provisional creada"),
+);
+registerHandler(
+  "PROPIEDAD_PROVISIONAL_CREADA",
+  auditOnlyHandler("trazabilidad: propiedad provisional creada"),
+);
+registerHandler(
+  "DEMANDA_PROVISIONAL_PROMOVIDA",
+  auditOnlyHandler("trazabilidad: demanda provisional promovida"),
+);
+registerHandler(
+  "PROPIEDAD_PROVISIONAL_PROMOVIDA",
+  auditOnlyHandler("trazabilidad: propiedad provisional promovida"),
+);
+registerHandler(
+  "DEMANDA_PROVISIONAL_PROMOCION_FALLIDA",
+  auditOnlyHandler("trazabilidad: fallo en promoción de demanda provisional"),
+);
+registerHandler(
+  "PROPIEDAD_PROVISIONAL_PROMOCION_FALLIDA",
+  auditOnlyHandler("trazabilidad: fallo en promoción de propiedad provisional"),
+);
+
 // --- Audit-only (eventos de trazabilidad o reservados) ---
 registerHandler("LEAD_SCORED", auditOnlyHandler("evento legacy no emitido; scoring incrustado en LEAD_INGESTADO"));
 registerHandler("LEAD_CONTACTADO", handleLeadContactado);

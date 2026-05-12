@@ -265,3 +265,25 @@ A partir de 2026-04-17, la cadencia canónica es únicamente `lib/postventa/*`:
    - Configura `WHATSAPP_FLOW_POSTVENTA_SURVEY_ID=<flow_id>` en `.env`.
 4. Espera aprobación de Meta (normalmente < 1h para UTILITY).
 5. Una vez aprobadas, no hace falta tocar código: el handler ya las referencia por nombre/env.
+
+### 9.1 Alta de plantilla vía script TypeScript (sin API route)
+
+Para evitar entrar manualmente en Meta, el repositorio incluye scripts TS que llaman directo a Graph API.
+
+Script disponible:
+
+- `npm run whatsapp:template:create:follow-up-demanda`
+- Implementación: `scripts/create-whatsapp-template-follow-up-demanda.ts`
+- Endpoint Meta usado por el script: `POST /{wabaId}/message_templates`
+
+Scripts genéricos:
+
+- Crear plantilla parametrizada: `npm run whatsapp:template:create -- --name <nombre> --category <MARKETING|UTILITY|AUTHENTICATION> --body-text "..." [--language es_ES] [--body-example '["x","y"]']`
+- Crear plantilla con payload completo: `npm run whatsapp:template:create -- --name <nombre> --category MARKETING --components-json '[{"type":"BODY","text":"Hola {{1}}"}]'`
+- Consultar plantilla por nombre: `npm run whatsapp:template:get-by-name -- --name <nombre> [--language es_ES]`
+
+Notas:
+
+- Requiere `WHATSAPP_ACCESS_TOKEN` y `WHATSAPP_BUSINESS_ID`.
+- `name` debe seguir formato Meta (`[a-z0-9_]+`).
+- La plantilla queda en estado de revisión/aprobación según reglas de Meta.

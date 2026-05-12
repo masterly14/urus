@@ -1,16 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   CalendarCheck,
+  CircleHelp,
   ExternalLink,
   Loader2,
   MapPin,
+  Mic,
   Phone,
   Plus,
   RefreshCw,
+  Square,
   UserRound,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +23,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { GlobalPropertySelector, type GlobalPropertyOption } from "@/components/properties/global-property-selector";
+import { GlobalDemandSelector, type GlobalDemandOption } from "@/components/demands/global-demand-selector";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type VisitStatus =
   | "INCOMPLETE"
@@ -33,6 +38,7 @@ type VisitStatus =
   | "CANCELLED";
 
 type VisitDecision = "green" | "yellow" | "red";
+type VoiceCapturePhase = "idle" | "recording" | "transcribing";
 
 type VisitPropertySnapshot = {
   propertyId: string;
@@ -61,8 +67,10 @@ type VisitContactSnapshot = {
 type VisitWorkItemDto = {
   id: string;
   demandId: string;
+  draftDemandId: string | null;
   selectionId: string | null;
   propertyId: string;
+  draftPropertyId: string | null;
   propertySource: string;
   comercialId: string;
   buyerName: string;
@@ -86,14 +94,24 @@ type ApiResponse = {
   legacyFallback?: boolean;
 };
 
-type ManualDemandOption = {
-  codigo: string;
-  nombre: string;
-  telefono: string;
-  leadStatus: string;
-};
+type ManualDemandOption = GlobalDemandOption;
 
 type ManualPropertyOption = GlobalPropertyOption;
+type ComercialOption = {
+  id: string;
+  nombre: string;
+  ciudad: string;
+  inmovillaAgentId: number | null;
+};
+type DemandPropertyTypeOption = {
+  valor: number;
+  nombre: string;
+};
+type LocalidadOption = {
+  key_loca: number;
+  ciudad: string;
+  provincia: string;
+};
 
 const statusLabel: Record<VisitStatus, string> = {
   INCOMPLETE: "Incompleta",
@@ -155,13 +173,34 @@ function statusVariant(status: VisitStatus): "default" | "secondary" | "destruct
   return "outline";
 }
 
+function InlineHelp({ text }: { text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+          aria-label="Más información"
+        >
+          <CircleHelp className="h-4 w-4" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" sideOffset={8} className="max-w-sm text-left leading-relaxed">
+        {text}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function makeMockItems(): VisitWorkItemDto[] {
   const now = new Date().toISOString();
   const base: VisitWorkItemDto = {
     id: "mock-pending-1",
     demandId: "DEM-MOCK-1",
+    draftDemandId: null,
     selectionId: "SEL-MOCK-1",
     propertyId: "PROP-MOCK-1",
+    draftPropertyId: null,
     propertySource: "external",
     comercialId: "com-mock",
     buyerName: "Laura Compradora",
@@ -208,8 +247,10 @@ function makeMockItems(): VisitWorkItemDto[] {
     {
       id: "mock-incomplete-1",
       demandId: "DEM-MOCK-2",
+      draftDemandId: null,
       selectionId: "SEL-MOCK-2",
       propertyId: "PROP-MOCK-2",
+      draftPropertyId: null,
       propertySource: "internal",
       comercialId: "com-mock",
       buyerName: "Carlos Sin Telefono",
@@ -259,6 +300,10 @@ export function VisitasClient() {
   const [horaInicio, setHoraInicio] = useState("10:00");
   const [horaFin, setHoraFin] = useState("11:00");
   const [notas, setNotas] = useState("");
+  const [postVisitContext, setPostVisitContext] = useState("");
+  const [showYellowContext, setShowYellowContext] = useState(false);
+  const [postVisitVoicePhase, setPostVisitVoicePhase] = useState<VoiceCapturePhase>("idle");
+  const [postVisitVoiceError, setPostVisitVoiceError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [deciding, setDeciding] = useState<VisitDecision | null>(null);
@@ -266,12 +311,31 @@ export function VisitasClient() {
   const [manualLoading, setManualLoading] = useState(false);
   const [manualDemands, setManualDemands] = useState<ManualDemandOption[]>([]);
   const [manualProperties, setManualProperties] = useState<ManualPropertyOption[]>([]);
+  const [manualComerciales, setManualComerciales] = useState<ComercialOption[]>([]);
+  const [manualDemandPropertyTypes, setManualDemandPropertyTypes] = useState<DemandPropertyTypeOption[]>([]);
+  const [manualLocalidades, setManualLocalidades] = useState<LocalidadOption[]>([]);
+  const [manualDemandMode, setManualDemandMode] = useState<"existing" | "draft">("existing");
+  const [manualPropertyMode, setManualPropertyMode] = useState<"existing" | "draft">("existing");
+  const [manualDemandAdvancedOpen, setManualDemandAdvancedOpen] = useState(false);
+  const [manualPropertyAdvancedOpen, setManualPropertyAdvancedOpen] = useState(false);
+  const [manualComercialId, setManualComercialId] = useState("");
   const [manualDemandId, setManualDemandId] = useState("");
   const [manualPropertyId, setManualPropertyId] = useState("");
   const [manualBuyerPhone, setManualBuyerPhone] = useState("");
+  const [manualDraftBuyerName, setManualDraftBuyerName] = useState("");
+  const [manualDraftBuyerPhone, setManualDraftBuyerPhone] = useState("");
+  const [manualDraftDemandPropertyType, setManualDraftDemandPropertyType] = useState("");
+  const [manualDraftDemandBudgetMax, setManualDraftDemandBudgetMax] = useState("9999999");
+  const [manualDraftOwnerPhone, setManualDraftOwnerPhone] = useState("");
+  const [manualDraftCadastralRef, setManualDraftCadastralRef] = useState("");
+  const [manualDraftPropertyKeyTipo, setManualDraftPropertyKeyTipo] = useState("");
+  const [manualDraftPropertyKeyLoca, setManualDraftPropertyKeyLoca] = useState("");
+  const [manualDraftPropertyOperationType, setManualDraftPropertyOperationType] = useState<"VENTA" | "ALQUILER">("VENTA");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const postVisitRecorderRef = useRef<MediaRecorder | null>(null);
+  const postVisitChunksRef = useRef<BlobPart[]>([]);
 
   const selected = useMemo(
     () => items.find((item) => item.id === selectedId) ?? null,
@@ -282,7 +346,10 @@ export function VisitasClient() {
     [manualDemands, manualDemandId],
   );
   const selectedManualDemandNeedsPhone = Boolean(
-    showManualCreate && selectedManualDemand && !selectedManualDemand.telefono?.trim(),
+    showManualCreate &&
+      manualDemandMode === "existing" &&
+      selectedManualDemand &&
+      !selectedManualDemand.telefono?.trim(),
   );
 
   const load = useCallback(async () => {
@@ -332,6 +399,16 @@ export function VisitasClient() {
     return () => window.clearInterval(intervalId);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      const rec = postVisitRecorderRef.current;
+      if (rec && rec.state === "recording") {
+        rec.stop();
+      }
+      postVisitRecorderRef.current = null;
+    };
+  }, []);
+
   const loadManualOptions = async () => {
     setManualLoading(true);
     setError(null);
@@ -341,11 +418,33 @@ export function VisitasClient() {
         ok?: boolean;
         demands?: ManualDemandOption[];
         properties?: ManualPropertyOption[];
+        comerciales?: ComercialOption[];
+        demandPropertyTypes?: DemandPropertyTypeOption[];
+        localidades?: LocalidadOption[];
+        currentComercialId?: string | null;
         error?: string;
       };
       if (!response.ok || !data.ok) throw new Error(data.error ?? "No se pudieron cargar demandas/propiedades");
       setManualDemands(data.demands ?? []);
       setManualProperties(data.properties ?? []);
+      setManualComerciales(data.comerciales ?? []);
+      setManualDemandPropertyTypes(data.demandPropertyTypes ?? []);
+      setManualLocalidades(data.localidades ?? []);
+      setManualComercialId((current) =>
+        current ||
+        data.currentComercialId ||
+        data.comerciales?.[0]?.id ||
+        "",
+      );
+      setManualDraftDemandPropertyType((current) =>
+        current || String(data.demandPropertyTypes?.[0]?.valor ?? "2799"),
+      );
+      setManualDraftPropertyKeyTipo((current) =>
+        current || String(data.demandPropertyTypes?.[0]?.valor ?? ""),
+      );
+      setManualDraftPropertyKeyLoca((current) =>
+        current || String(data.localidades?.[0]?.key_loca ?? ""),
+      );
       setManualDemandId((current) =>
         current && data.demands?.some((demand) => demand.codigo === current) ? current : "",
       );
@@ -385,6 +484,28 @@ export function VisitasClient() {
     }
   };
 
+  const searchManualDemands = async (query: string) => {
+    if (useMock) return;
+    try {
+      const params = new URLSearchParams({ limit: "50" });
+      if (query) params.set("q", query);
+      const response = await fetch(`/api/visitas/manual-options?${params.toString()}`, { cache: "no-store" });
+      const data = (await response.json()) as {
+        ok?: boolean;
+        demands?: ManualDemandOption[];
+      };
+      if (response.ok && data.ok) {
+        setManualDemands(data.demands ?? []);
+        setManualDemandId((current) => {
+          if (current && data.demands?.some((demand) => demand.codigo === current)) return current;
+          return "";
+        });
+      }
+    } catch {
+      /* keep previous options while the user keeps typing */
+    }
+  };
+
   const openManualCreate = () => {
     setShowManualCreate((current) => !current);
     if (!showManualCreate && manualDemands.length === 0 && !useMock) {
@@ -411,9 +532,26 @@ export function VisitasClient() {
           propietarioPhone: "34666777888",
         },
       ]);
+      setManualComerciales([{ id: "com-mock", nombre: "Comercial Mock", ciudad: "Cordoba", inmovillaAgentId: 1 }]);
+      setManualDemandPropertyTypes([{ valor: 2799, nombre: "Piso" }]);
+      setManualLocalidades([{ key_loca: 1, ciudad: "Cordoba", provincia: "Cordoba" }]);
       setManualDemandId("");
       setManualBuyerPhone("");
       setManualPropertyId("");
+      setManualDemandMode("existing");
+      setManualPropertyMode("existing");
+      setManualDemandAdvancedOpen(false);
+      setManualPropertyAdvancedOpen(false);
+      setManualComercialId("com-mock");
+      setManualDraftBuyerName("");
+      setManualDraftBuyerPhone("");
+      setManualDraftDemandPropertyType("2799");
+      setManualDraftDemandBudgetMax("9999999");
+      setManualDraftOwnerPhone("");
+      setManualDraftCadastralRef("");
+      setManualDraftPropertyKeyTipo("2799");
+      setManualDraftPropertyKeyLoca("1");
+      setManualDraftPropertyOperationType("VENTA");
     }
   };
 
@@ -430,6 +568,7 @@ export function VisitasClient() {
   }
 
   async function ensureManualDemandPhone(): Promise<void> {
+    if (manualDemandMode !== "existing") return;
     if (!selectedManualDemandNeedsPhone) return;
     if (!isValidManualPhone(manualBuyerPhone)) {
       throw new Error("Introduce un teléfono válido para el comprador antes de crear la visita.");
@@ -514,8 +653,24 @@ export function VisitasClient() {
   };
 
   const createManualAndSchedule = async () => {
-    if (!manualDemandId || !manualPropertyId) {
-      setError("Selecciona demanda y propiedad para crear la visita manual.");
+    const isExistingDemand = manualDemandMode === "existing";
+    const isExistingProperty = manualPropertyMode === "existing";
+    const hasDemandSelection = isExistingDemand
+      ? Boolean(manualDemandId)
+      : isValidManualPhone(manualDraftBuyerPhone);
+    const hasPropertySelection = isExistingProperty
+      ? Boolean(manualPropertyId)
+      : isValidManualPhone(manualDraftOwnerPhone) && Boolean(manualDraftCadastralRef.trim());
+    if (!hasDemandSelection || !hasPropertySelection || !manualComercialId) {
+      setError("Completa demanda y propiedad (existentes o provisionales) para crear la visita manual.");
+      return;
+    }
+    if (manualDemandMode === "draft" && !manualDraftDemandPropertyType) {
+      setError("Selecciona tipo de propiedad para la demanda provisional.");
+      return;
+    }
+    if (manualPropertyMode === "draft" && (!manualDraftPropertyKeyTipo || !manualDraftPropertyKeyLoca)) {
+      setError("Selecciona tipo y localidad para la propiedad provisional.");
       return;
     }
     if (horaInicio >= horaFin) {
@@ -531,8 +686,20 @@ export function VisitasClient() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          demandId: manualDemandId,
-          propertyId: manualPropertyId,
+          demandMode: manualDemandMode,
+          propertyMode: manualPropertyMode,
+          comercialId: manualComercialId,
+          demandId: isExistingDemand ? manualDemandId : undefined,
+          propertyId: isExistingProperty ? manualPropertyId : undefined,
+          buyerName: isExistingDemand ? undefined : manualDraftBuyerName,
+          buyerPhone: isExistingDemand ? undefined : manualDraftBuyerPhone,
+          demandPropertyType: isExistingDemand ? undefined : manualDraftDemandPropertyType,
+          demandBudgetMax: isExistingDemand ? undefined : Number(manualDraftDemandBudgetMax || "0"),
+          ownerPhone: isExistingProperty ? undefined : manualDraftOwnerPhone,
+          cadastralRef: isExistingProperty ? undefined : manualDraftCadastralRef,
+          draftPropertyKeyTipo: isExistingProperty ? undefined : Number(manualDraftPropertyKeyTipo),
+          draftPropertyKeyLoca: isExistingProperty ? undefined : Number(manualDraftPropertyKeyLoca),
+          draftPropertyOperationType: isExistingProperty ? undefined : manualDraftPropertyOperationType,
           nluSummary: notas || "Visita inicial creada manualmente antes de intervención NLU.",
         }),
       });
@@ -550,8 +717,8 @@ export function VisitasClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           visitId: createData.workItem.id,
-          demandId: manualDemandId,
-          propertyId: manualPropertyId,
+          demandId: createData.workItem.demandId || undefined,
+          propertyId: createData.workItem.propertyId || undefined,
           fecha,
           horaInicio,
           horaFin,
@@ -593,6 +760,7 @@ export function VisitasClient() {
           decision,
           notes: notas,
           reason: notas,
+          postVisitContext: decision === "yellow" ? postVisitContext : undefined,
         }),
       });
       const data = (await response.json()) as {
@@ -610,6 +778,12 @@ export function VisitasClient() {
             ? "Busca algo diferente: NLU reactivado"
             : "Demanda dada de baja";
       setSuccess(`Decision registrada. ${label}.`);
+      if (decision === "yellow") {
+        setPostVisitContext("");
+        setShowYellowContext(false);
+        setPostVisitVoiceError(null);
+        setPostVisitVoicePhase("idle");
+      }
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error registrando decision");
@@ -619,6 +793,83 @@ export function VisitasClient() {
   };
 
   const selectedVisitHasEnded = selected ? hasVisitEnded(selected) : false;
+  const isRecordingPostVisitContext = postVisitVoicePhase === "recording";
+  const isTranscribingPostVisitContext = postVisitVoicePhase === "transcribing";
+
+  const stopPostVisitRecording = useCallback(() => {
+    const rec = postVisitRecorderRef.current;
+    if (rec && rec.state === "recording") {
+      rec.stop();
+    }
+    postVisitRecorderRef.current = null;
+  }, []);
+
+  const startPostVisitRecording = useCallback(async () => {
+    setPostVisitVoiceError(null);
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setPostVisitVoiceError("Tu navegador no soporta grabación de audio.");
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+          ? "audio/webm"
+          : "audio/mp4";
+      const rec = new MediaRecorder(stream, { mimeType: mime });
+      postVisitChunksRef.current = [];
+      rec.ondataavailable = (event) => {
+        if (event.data.size > 0) postVisitChunksRef.current.push(event.data);
+      };
+      rec.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        void (async () => {
+          const blob = new Blob(postVisitChunksRef.current, { type: mime });
+          postVisitChunksRef.current = [];
+          if (blob.size === 0) {
+            setPostVisitVoiceError("No se capturó audio.");
+            setPostVisitVoicePhase("idle");
+            return;
+          }
+          setPostVisitVoicePhase("transcribing");
+          try {
+            const form = new FormData();
+            form.append("audio", blob, "visita-post-context.webm");
+            form.append("language", "es");
+            const response = await fetch("/api/stt/transcribe", {
+              method: "POST",
+              body: form,
+            });
+            const data = (await response.json()) as { text?: string; error?: string };
+            if (!response.ok) {
+              setPostVisitVoiceError(data.error ?? "Error al transcribir");
+              setPostVisitVoicePhase("idle");
+              return;
+            }
+            if (typeof data.text === "string" && data.text.trim()) {
+              const transcript = data.text.trim();
+              setPostVisitContext((current) => {
+                if (!current.trim()) return transcript;
+                return `${current.trim()}\n${transcript}`;
+              });
+            }
+            setPostVisitVoicePhase("idle");
+          } catch {
+            setPostVisitVoiceError("Error de red al transcribir.");
+            setPostVisitVoicePhase("idle");
+          }
+        })();
+      };
+      postVisitRecorderRef.current = rec;
+      rec.start();
+      setPostVisitVoicePhase("recording");
+    } catch {
+      setPostVisitVoiceError("No se pudo acceder al micrófono.");
+      setPostVisitVoicePhase("idle");
+    }
+  }, []);
+
   const selectedCanSchedule = Boolean(
     selected && (selected.status === "PENDING_SCHEDULE" || selected.status === "INCOMPLETE"),
   );
@@ -667,30 +918,128 @@ export function VisitasClient() {
           <CardHeader>
             <CardTitle>Crear visita manualmente</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-6">
+            <TooltipProvider>
+              <div className="rounded-lg border border-border/50 bg-muted/5 p-4 space-y-2">
+                <Label htmlFor="manualComercial">Comercial asignado</Label>
+                <select
+                  id="manualComercial"
+                  className="h-9 w-full max-w-sm rounded-md border border-input bg-background px-3 text-sm"
+                  value={manualComercialId}
+                  onChange={(event) => setManualComercialId(event.target.value)}
+                  disabled={manualLoading}
+                >
+                  <option value="">Selecciona comercial</option>
+                  {manualComerciales.map((comercial) => (
+                    <option key={comercial.id} value={comercial.id}>
+                      {comercial.nombre} ({comercial.ciudad})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Se usará este comercial para asignación y promoción en Inmovilla.
+                </p>
+              </div>
             <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]">
               <div className="space-y-4 rounded-xl bg-muted/10 p-4 shadow-inner shadow-background/20">
                 <div className="space-y-2">
-                  <Label htmlFor="manualDemand">Demanda</Label>
-                  <select
-                    id="manualDemand"
-                    value={manualDemandId}
-                    onChange={(event) => {
-                      const demandId = event.target.value;
-                      const demand = manualDemands.find((item) => item.codigo === demandId);
-                      setManualDemandId(demandId);
-                      setManualBuyerPhone(demand?.telefono ?? "");
-                    }}
-                    className="h-10 w-full rounded-md border border-border/55 bg-background/70 px-3 text-sm outline-none transition-colors focus:border-primary/70 focus:ring-2 focus:ring-primary/20"
-                    disabled={manualLoading}
-                  >
-                    <option value="">Selecciona una demanda...</option>
-                    {manualDemands.map((demand) => (
-                      <option key={demand.codigo} value={demand.codigo}>
-                        {demand.nombre || demand.codigo} · {demand.telefono || "sin telefono"}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-2">
+                    <Label>Modo demanda</Label>
+                    <InlineHelp text="Existente: usa una demanda ya creada en Inmovilla. Provisional: arranca la visita solo con teléfono y completa la demanda al enviar firma del Parte de Visita." />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={manualDemandMode === "existing" ? "default" : "outline"}
+                      onClick={() => {
+                        setManualDemandMode("existing");
+                        setManualDemandAdvancedOpen(false);
+                      }}
+                    >
+                      Existente
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={manualDemandMode === "draft" ? "default" : "outline"}
+                      onClick={() => {
+                        setManualDemandMode("draft");
+                        setManualDemandAdvancedOpen(true);
+                      }}
+                    >
+                      Provisional
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Elige si trabajas con una demanda ya existente o una demanda provisional.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Demanda</Label>
+                  {manualDemandMode === "existing" ? (
+                    <GlobalDemandSelector
+                      demands={manualDemands}
+                      value={manualDemandId}
+                      onChange={(demandId) => {
+                        const demand = manualDemands.find((item) => item.codigo === demandId);
+                        setManualDemandId(demandId);
+                        setManualBuyerPhone(demand?.telefono ?? "");
+                      }}
+                      onSearch={searchManualDemands}
+                      disabled={manualLoading}
+                    />
+                  ) : (
+                    <div className="space-y-2">
+                      <Input
+                        value={manualDraftBuyerPhone}
+                        onChange={(event) => setManualDraftBuyerPhone(event.target.value)}
+                        placeholder="Teléfono comprador (obligatorio)"
+                      />
+                      <Input
+                        value={manualDraftBuyerName}
+                        onChange={(event) => setManualDraftBuyerName(event.target.value)}
+                        placeholder="Nombre comprador (opcional)"
+                      />
+                      <details
+                        className="rounded-md border border-border/50 bg-background"
+                        open={manualDemandAdvancedOpen}
+                        onToggle={(event) =>
+                          setManualDemandAdvancedOpen((event.currentTarget as HTMLDetailsElement).open)
+                        }
+                      >
+                        <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
+                          Configuración avanzada de demanda
+                        </summary>
+                        <div className="space-y-2 border-t border-border/40 p-3">
+                          <select
+                            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                            value={manualDraftDemandPropertyType}
+                            onChange={(event) => setManualDraftDemandPropertyType(event.target.value)}
+                          >
+                            <option value="">Tipo de inmueble buscado (obligatorio)</option>
+                            {manualDemandPropertyTypes.map((tipo) => (
+                              <option key={tipo.valor} value={String(tipo.valor)}>
+                                {tipo.nombre}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-muted-foreground">
+                            Tipo de inmueble que busca el comprador para crear la demanda en Inmovilla.
+                          </p>
+                          <Input
+                            type="number"
+                            value={manualDraftDemandBudgetMax}
+                            onChange={(event) => setManualDraftDemandBudgetMax(event.target.value)}
+                            placeholder="Presupuesto máximo comprador (EUR)"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Presupuesto máximo de la demanda provisional. Ejemplo: 250000.
+                          </p>
+                        </div>
+                      </details>
+                    </div>
+                  )}
                 </div>
                 {selectedManualDemandNeedsPhone ? (
                   <div className="space-y-2">
@@ -708,15 +1057,114 @@ export function VisitasClient() {
                 ) : null}
               </div>
 
-              <div className="space-y-2">
-                <Label>Propiedad</Label>
-                <GlobalPropertySelector
-                  properties={manualProperties}
-                  value={manualPropertyId}
-                  onChange={setManualPropertyId}
-                  onSearch={searchManualProperties}
-                  disabled={manualLoading}
-                />
+              <div className="space-y-4 rounded-xl bg-muted/10 p-4 shadow-inner shadow-background/20">
+                <div className="flex items-center gap-2">
+                  <Label>Modo propiedad</Label>
+                  <InlineHelp text="Existente: selecciona una propiedad ya cargada. Provisional: crea una propiedad prospecto con referencia catastral y se promociona automáticamente en FIRMA_ENVIADA de Nota de Encargo." />
+                </div>
+                <div className="flex gap-2 pb-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={manualPropertyMode === "existing" ? "default" : "outline"}
+                    onClick={() => {
+                      setManualPropertyMode("existing");
+                      setManualPropertyAdvancedOpen(false);
+                    }}
+                  >
+                    Existente
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={manualPropertyMode === "draft" ? "default" : "outline"}
+                    onClick={() => {
+                      setManualPropertyMode("draft");
+                      setManualPropertyAdvancedOpen(true);
+                    }}
+                  >
+                    Provisional
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Elige si la propiedad ya existe o se registrará como prospecto provisional.
+                </p>
+                {manualPropertyMode === "existing" ? (
+                  <GlobalPropertySelector
+                    properties={manualProperties}
+                    value={manualPropertyId}
+                    onChange={setManualPropertyId}
+                    onSearch={searchManualProperties}
+                    disabled={manualLoading}
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    <Input
+                      value={manualDraftOwnerPhone}
+                      onChange={(event) => setManualDraftOwnerPhone(event.target.value)}
+                      placeholder="Teléfono propietario (obligatorio)"
+                    />
+                    <Input
+                      value={manualDraftCadastralRef}
+                      onChange={(event) => setManualDraftCadastralRef(event.target.value)}
+                      placeholder="Referencia catastral (obligatoria)"
+                    />
+                    <details
+                      className="rounded-md border border-border/50 bg-background"
+                      open={manualPropertyAdvancedOpen}
+                      onToggle={(event) =>
+                        setManualPropertyAdvancedOpen((event.currentTarget as HTMLDetailsElement).open)
+                      }
+                    >
+                      <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
+                        Configuración avanzada de propiedad
+                      </summary>
+                      <div className="space-y-2 border-t border-border/40 p-3">
+                        <select
+                          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                          value={manualDraftPropertyOperationType}
+                          onChange={(event) => setManualDraftPropertyOperationType(event.target.value as "VENTA" | "ALQUILER")}
+                        >
+                          <option value="VENTA">Venta</option>
+                          <option value="ALQUILER">Alquiler</option>
+                        </select>
+                        <p className="text-xs text-muted-foreground">
+                          Operación del prospecto a crear: venta o alquiler.
+                        </p>
+                        <select
+                          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                          value={manualDraftPropertyKeyTipo}
+                          onChange={(event) => setManualDraftPropertyKeyTipo(event.target.value)}
+                        >
+                          <option value="">Tipo de inmueble del prospecto (obligatorio)</option>
+                          {manualDemandPropertyTypes.map((tipo) => (
+                            <option key={tipo.valor} value={String(tipo.valor)}>
+                              {tipo.nombre}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-muted-foreground">
+                          Tipo inmobiliario en catálogo Inmovilla (`key_tipo`).
+                        </p>
+                        <select
+                          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                          value={manualDraftPropertyKeyLoca}
+                          onChange={(event) => setManualDraftPropertyKeyLoca(event.target.value)}
+                        >
+                          <option value="">Localidad del prospecto (obligatoria)</option>
+                          {manualLocalidades.map((localidad) => (
+                            <option key={localidad.key_loca} value={String(localidad.key_loca)}>
+                              {localidad.ciudad} ({localidad.provincia})
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-muted-foreground">
+                          Ciudad/localidad de publicación en Inmovilla (`key_loca`).
+                        </p>
+                      </div>
+                    </details>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -744,8 +1192,17 @@ export function VisitasClient() {
                   disabled={
                     submitting ||
                     manualLoading ||
-                    !manualDemandId ||
-                    !manualPropertyId ||
+                    !manualComercialId ||
+                    (manualDemandMode === "existing" && !manualDemandId) ||
+                    (manualDemandMode === "draft" && !isValidManualPhone(manualDraftBuyerPhone)) ||
+                    (manualDemandMode === "draft" && !manualDraftDemandPropertyType) ||
+                    (manualDemandMode === "draft" && Number(manualDraftDemandBudgetMax || "0") <= 0) ||
+                    (manualPropertyMode === "existing" && !manualPropertyId) ||
+                    (manualPropertyMode === "draft" &&
+                      (!isValidManualPhone(manualDraftOwnerPhone) ||
+                        !manualDraftCadastralRef.trim() ||
+                        !manualDraftPropertyKeyTipo ||
+                        !manualDraftPropertyKeyLoca)) ||
                     (selectedManualDemandNeedsPhone && !isValidManualPhone(manualBuyerPhone))
                   }
                 >
@@ -754,6 +1211,7 @@ export function VisitasClient() {
                 </Button>
               </div>
             </div>
+            </TooltipProvider>
           </CardContent>
         </Card>
       ) : null}
@@ -785,6 +1243,11 @@ export function VisitasClient() {
                     setSelectedId(item.id);
                     setError(null);
                     setSuccess(null);
+                    stopPostVisitRecording();
+                    setPostVisitVoicePhase("idle");
+                    setPostVisitVoiceError(null);
+                    setPostVisitContext("");
+                    setShowYellowContext(false);
                   }}
                   className={cn(
                     "w-full rounded-lg border p-4 text-left transition-colors",
@@ -794,9 +1257,11 @@ export function VisitasClient() {
                   )}
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{item.buyerName || item.demandId}</span>
+                    <span className="font-medium">{item.buyerName || item.demandId || item.draftDemandId}</span>
                     <Badge variant={statusVariant(item.status)}>{statusLabel[item.status]}</Badge>
                     {item.source === "legacy_interest" ? <Badge variant="outline">Legacy</Badge> : null}
+                    {item.draftDemandId ? <Badge variant="outline">Demanda provisional</Badge> : null}
+                    {item.draftPropertyId ? <Badge variant="outline">Propiedad provisional</Badge> : null}
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
                     {item.propertySnapshot.title}
@@ -830,8 +1295,13 @@ export function VisitasClient() {
                       Comprador
                     </div>
                     <p>{selected.buyerName || selected.demandId}</p>
+                    {selected.draftDemandId ? (
+                      <p className="mt-1 text-xs text-muted-foreground">Demanda provisional: {selected.draftDemandId}</p>
+                    ) : null}
                     <p className="mt-1 text-sm text-muted-foreground">{selected.buyerPhone || "Sin telefono"}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Demanda: {selected.demandId}</p>
+                    {selected.demandId ? (
+                      <p className="mt-1 text-xs text-muted-foreground">Demanda: {selected.demandId}</p>
+                    ) : null}
                   </div>
 
                   <div className="rounded-lg bg-muted/20 p-4">
@@ -856,6 +1326,9 @@ export function VisitasClient() {
                   <p className="mt-1 text-muted-foreground">
                     Ref: {selected.propertySnapshot.reference} · Ref. catastral: {selected.propertySnapshot.cadastralReference ?? "no disponible"}
                   </p>
+                  {selected.draftPropertyId ? (
+                    <p className="mt-1 text-xs text-muted-foreground">Propiedad provisional: {selected.draftPropertyId}</p>
+                  ) : null}
                   <p className="mt-1 flex items-center gap-1 text-muted-foreground">
                     <MapPin className="h-3.5 w-3.5" />
                     {selected.propertySnapshot.address}
@@ -935,11 +1408,32 @@ export function VisitasClient() {
                           type="button"
                           variant="outline"
                           disabled={Boolean(deciding)}
-                          onClick={() => void decide("yellow")}
+                          onClick={() => {
+                            setShowYellowContext(true);
+                            setError(null);
+                            setSuccess(null);
+                            setPostVisitVoiceError(null);
+                          }}
                         >
                           {deciding === "yellow" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                           Amarillo: Busca algo diferente
                         </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/50 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                aria-label="Qué pasará con la demanda si marcas Busca algo diferente"
+                              >
+                                <CircleHelp className="h-4 w-4" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs text-sm leading-relaxed">
+                              La demanda seguirá activa. El sistema contactará al comprador para entender qué no encajó y qué busca ahora. Con esa información, ajustará la búsqueda y preparará nuevas opciones para revisar.
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         <Button
                           type="button"
                           variant="destructive"
@@ -951,6 +1445,90 @@ export function VisitasClient() {
                         </Button>
                       </>
                     ) : null}
+                  </div>
+                ) : null}
+                {selectedCanDecide && showYellowContext ? (
+                  <div className="space-y-3 rounded-lg border border-border/40 bg-muted/15 p-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label htmlFor="postVisitContext">
+                          Contexto para reactivar la busqueda
+                        </Label>
+                        {!isRecordingPostVisitContext ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void startPostVisitRecording()}
+                            disabled={Boolean(deciding) || isTranscribingPostVisitContext}
+                          >
+                            {isTranscribingPostVisitContext ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Mic className="mr-2 h-4 w-4" />
+                            )}
+                            {isTranscribingPostVisitContext ? "Transcribiendo..." : "Dictar"}
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={stopPostVisitRecording}
+                            disabled={Boolean(deciding)}
+                          >
+                            <Square className="mr-2 h-4 w-4" />
+                            Detener
+                          </Button>
+                        )}
+                      </div>
+                      <Textarea
+                        id="postVisitContext"
+                        value={postVisitContext}
+                        onChange={(e) => setPostVisitContext(e.target.value)}
+                        placeholder={
+                          isRecordingPostVisitContext
+                            ? "Grabando... pulsa Detener para transcribir"
+                            : isTranscribingPostVisitContext
+                              ? "Transcribiendo audio..."
+                              : "Ej: Quiere 3 habitaciones, mas luz natural y evitar planta baja."
+                        }
+                        rows={4}
+                        maxLength={2000}
+                        disabled={isTranscribingPostVisitContext || Boolean(deciding)}
+                      />
+                      {postVisitVoiceError ? (
+                        <p className="text-xs text-urus-danger">{postVisitVoiceError}</p>
+                      ) : null}
+                      <p className="text-xs text-muted-foreground">
+                        Usa el icono de micrófono para dictar por voz. La transcripción se enviará al agente NLU como contexto explícito.
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={Boolean(deciding)}
+                        onClick={() => void decide("yellow")}
+                      >
+                        {deciding === "yellow" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Confirmar amarillo y enviar contexto
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={Boolean(deciding)}
+                        onClick={() => {
+                          stopPostVisitRecording();
+                          setPostVisitVoicePhase("idle");
+                          setPostVisitVoiceError(null);
+                          setShowYellowContext(false);
+                          setPostVisitContext("");
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
                   </div>
                 ) : null}
               </form>

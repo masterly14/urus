@@ -14,6 +14,8 @@ El flujo es seguro frente a duplicados: no envia mensajes si falta telefono, si 
 | `lib/nlu/welcome-message.ts` | Constructor determinista del cuerpo de bienvenida y del seed del digest. |
 | `lib/workers/consumer/nlu-initial-contact-handler.ts` | Handler del consumer para enganchar `DEMANDA_CREADA`. |
 | `lib/workers/consumer/handlers.ts` | Encadena proyeccion de demanda y primer contacto NLU. |
+| `app/api/demands/[codigo]/nlu-initial-contact/route.ts` | Activacion manual desde UI para una demanda existente. |
+| `app/platform/demandas/page.tsx` | Boton `Poner en contacto` por demanda. |
 | `lib/nlu/__tests__/initial-contact.test.ts` | Tests unitarios del servicio. |
 | `lib/nlu/__tests__/welcome-message.test.ts` | Tests del helper de variantes de copy y sanitizacion. |
 | `scripts/test-nlu-initial-contact-dry-run.ts` | Dry-run cercano a produccion sin WhatsApp real. |
@@ -31,8 +33,43 @@ Payload principal:
 - `templateName`
 - `messageId`
 - `dryRun`
+- `source` (`auto_demand_creada`, `manual_ui`, `script_dry_run`)
+- `triggeredBy` (usuario que inicio el contacto manual, si aplica)
 
 Se emite tanto cuando se envia como cuando se omite el envio por una regla de seguridad.
+
+## Activacion Manual Desde UI
+
+Las demandas existentes se pueden contactar desde `/platform/demandas` con el boton `Poner en contacto`.
+
+Reglas:
+
+- Usa el mismo servicio `startNluInitialContactForDemand` y la misma plantilla `NLU_DEMANDA_CONTACTO_INICIAL`.
+- No crea plantilla nueva ni flujo alternativo.
+- Solo esta disponible para demandas no terminales (`CERRADO` y `PERDIDO` no muestran el boton).
+- Si falta telefono, el boton abre el modal para completar datos antes de intentar enviar.
+- Si la demanda esta en un estado posterior a `CONTACTADO`, la UI pide confirmacion antes de llamar al endpoint.
+- La API permite actuar al CEO/admin o al comercial asignado a la demanda.
+- Si el servicio devuelve `recent_session`, `opt_out`, `missing_phone` o `terminal_status`, la UI muestra el motivo y no fuerza reenvio.
+
+Endpoint:
+
+```bash
+POST /api/demands/:codigo/nlu-initial-contact
+```
+
+Respuesta relevante:
+
+```json
+{
+  "ok": true,
+  "demandId": "DEM-001",
+  "sent": true,
+  "skippedReason": null,
+  "waId": "34600111222",
+  "messageId": "wamid..."
+}
+```
 
 ## Plantilla WhatsApp
 

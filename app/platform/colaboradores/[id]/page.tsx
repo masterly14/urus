@@ -17,7 +17,7 @@ import {
   Loader2,
   Building2,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -167,15 +167,15 @@ export default function ColaboradorDetallePage({
 
   if (!detail) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-5xl mx-auto pb-10">
         <Link href="/platform/colaboradores" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-4 w-4" />
           Volver a Colaboradores
         </Link>
-        <Card className="border-border/50">
-          <CardContent className="flex flex-col items-center justify-center py-20 text-center">
-            <p className="text-lg font-semibold mb-2">Colaborador no encontrado</p>
-            <p className="text-sm text-muted-foreground">El colaborador solicitado no existe.</p>
+        <Card className="shadow-sm border-border/60">
+          <CardContent className="flex flex-col items-center justify-center py-20 text-center bg-accent/10">
+            <p className="text-lg font-semibold mb-2 text-foreground">Colaborador no encontrado</p>
+            <p className="text-sm text-muted-foreground">El colaborador solicitado no existe o ha sido eliminado.</p>
           </CardContent>
         </Card>
       </div>
@@ -189,7 +189,8 @@ export default function ColaboradorDetallePage({
       : "var(--urus-danger)";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-6xl mx-auto pb-10">
+      {/* Back link */}
       <Link
         href="/platform/colaboradores"
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
@@ -198,23 +199,26 @@ export default function ColaboradorDetallePage({
         Volver a Colaboradores
       </Link>
 
-      {/* Header */}
-      <Card className="border-border/50 overflow-hidden">
-        <div className="h-1.5" style={{ backgroundColor: slaColor }} />
-        <CardContent className="p-6">
-          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-            <div className="space-y-3 flex-1">
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="h-12 w-12 rounded-lg bg-accent/40 flex items-center justify-center text-lg font-bold text-secondary">
+      {/* Header Profile Card */}
+      <Card className="shadow-sm border-border/60 overflow-hidden">
+        <div className="h-1.5 w-full" style={{ backgroundColor: slaColor }} />
+        <CardContent className="p-6 sm:p-8">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+            <div className="space-y-6 flex-1">
+              {/* Profile Info */}
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="h-16 w-16 rounded-full bg-secondary/10 flex items-center justify-center text-xl font-bold text-secondary border border-secondary/20 shrink-0">
                   {detail.nombre.split(" ")[0].slice(0, 2).toUpperCase()}
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold tracking-tight">{detail.nombre}</h1>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <Badge variant="outline" className="text-[10px]">{detail.tipo}</Badge>
+                  <h1 className="text-2xl font-bold tracking-tight text-foreground">{detail.nombre}</h1>
+                  <div className="flex items-center gap-3 mt-2 flex-wrap">
+                    <Badge variant="secondary" className="font-normal bg-accent text-foreground hover:bg-accent">
+                      {detail.tipo}
+                    </Badge>
                     {detail.ciudad && (
-                      <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
-                        <MapPin className="h-3 w-3" /> {detail.ciudad}
+                      <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <MapPin className="h-3.5 w-3.5" /> {detail.ciudad}
                       </span>
                     )}
                     <ClasificacionBadge clasificacion={detail.clasificacion.clasificacion} />
@@ -223,57 +227,60 @@ export default function ColaboradorDetallePage({
               </div>
 
               {detail.especialidad && (
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <Wrench className="h-3.5 w-3.5 shrink-0" />
-                  {detail.especialidad}
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-accent/30 inline-flex px-3 py-1.5 rounded-md border border-border/50">
+                  <Wrench className="h-4 w-4 shrink-0" />
+                  <span className="font-medium text-foreground mr-1">Especialidad:</span> {detail.especialidad}
                 </div>
               )}
 
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 pt-2">
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">SLA</p>
-                  <p className="text-lg font-bold font-mono" style={{ color: slaColor }}>
+              {/* KPIs Row */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 pt-4 border-t border-border/40">
+                <div className="flex flex-col gap-1">
+                  <p className="text-xs text-muted-foreground font-medium">Cumplimiento SLA</p>
+                  <p className="text-2xl font-bold font-mono" style={{ color: slaColor }}>
                     {detail.slaCumplimiento}%
                   </p>
                 </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Ops Activas</p>
-                  <p className="text-lg font-bold font-mono">{detail.asignacionesActivas}</p>
+                <div className="flex flex-col gap-1">
+                  <p className="text-xs text-muted-foreground font-medium">Ops Activas</p>
+                  <p className="text-2xl font-bold font-mono text-foreground">{detail.asignacionesActivas}</p>
                 </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Ops Total</p>
-                  <p className="text-lg font-bold font-mono">{detail.asignacionesTotales}</p>
+                <div className="flex flex-col gap-1">
+                  <p className="text-xs text-muted-foreground font-medium">Ops Totales</p>
+                  <p className="text-2xl font-bold font-mono text-foreground">{detail.asignacionesTotales}</p>
                 </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Hitos</p>
-                  <p className="text-lg font-bold font-mono">
-                    {detail.hitosCompletados}<span className="text-sm text-muted-foreground">/{detail.hitosTotales}</span>
+                <div className="flex flex-col gap-1">
+                  <p className="text-xs text-muted-foreground font-medium">Hitos Completados</p>
+                  <p className="text-2xl font-bold font-mono text-foreground">
+                    {detail.hitosCompletados}<span className="text-base text-muted-foreground ml-1">/ {detail.hitosTotales}</span>
                   </p>
                 </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Tiempo Medio</p>
-                  <p className="text-lg font-bold font-mono">
+                <div className="flex flex-col gap-1">
+                  <p className="text-xs text-muted-foreground font-medium">Tiempo Medio</p>
+                  <p className="text-2xl font-bold font-mono text-foreground">
                     {detail.avgDiasHito !== null ? `${detail.avgDiasHito}d` : "—"}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-2 shrink-0">
-              <Button variant="outline" size="sm" className="gap-1" onClick={() => setEditOpen(true)}>
-                <Edit2 className="h-3 w-3" />
-                Editar
-              </Button>
+            {/* Actions */}
+            <div className="flex flex-row lg:flex-col gap-3 shrink-0 w-full lg:w-auto">
               <AsignarDialog
                 colaboradorId={detail.id}
                 colaboradorTipo={detail.tipo}
                 onAssigned={fetchDetail}
               />
+              <Button variant="outline" className="gap-2 w-full lg:w-auto bg-card shadow-sm" onClick={() => setEditOpen(true)}>
+                <Edit2 className="h-4 w-4 text-muted-foreground" />
+                Editar Perfil
+              </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
+      {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -288,113 +295,159 @@ export default function ColaboradorDetallePage({
         </DialogContent>
       </Dialog>
 
-      {/* Asignaciones con kanban */}
-      {detail.asignaciones.length === 0 ? (
-        <Card className="border-border/50">
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Briefcase className="h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm font-medium">Sin operaciones asignadas</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Usa &quot;Asignar a Operación&quot; para vincular este colaborador.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        detail.asignaciones.map((asig) => (
-          <Card key={asig.id} className="border-border/50">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-secondary" />
-                  <CardTitle className="text-sm font-semibold font-mono">
-                    {asig.operacionCodigo}
-                  </CardTitle>
-                  <Badge variant="outline" className="text-[9px]">{asig.operacionEstado}</Badge>
-                  <Badge
-                    variant="outline"
-                    className="text-[9px]"
-                    style={{
-                      color: asig.estado === "COMPLETADA"
-                        ? "var(--urus-success)"
-                        : asig.estado === "EN_PROGRESO"
-                          ? "var(--urus-info)"
-                          : asig.estado === "BLOQUEADA"
-                            ? "var(--urus-danger)"
-                            : "var(--muted-foreground)",
-                    }}
-                  >
-                    {asig.estado}
-                  </Badge>
-                </div>
-                <span className="text-[10px] text-muted-foreground">
-                  Propiedad: {asig.operacionPropertyCode}
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0 space-y-4">
-              {asig.hitos.length > 0 && (
-                <HitoKanban
-                  hitos={asig.hitos}
-                  onChangeEstado={(hitoId, estado) =>
-                    handleChangeHitoEstado(asig.id, hitoId, estado)
-                  }
-                />
-              )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Column: Asignaciones (2/3 width on large screens) */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="flex items-center gap-2 pb-2 border-b border-border/60">
+            <Briefcase className="h-5 w-5 text-muted-foreground" />
+            <h2 className="text-lg font-semibold text-foreground">Operaciones Asignadas</h2>
+            <Badge variant="secondary" className="ml-2 bg-accent text-foreground">{detail.asignaciones.length}</Badge>
+          </div>
 
-              <div className="border-t border-border/20 pt-3">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">
-                  Documentos de la asignación
+          {detail.asignaciones.length === 0 ? (
+            <Card className="shadow-sm border-border/60">
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center bg-accent/10">
+                <Briefcase className="h-10 w-10 text-muted-foreground/30 mb-4" />
+                <p className="text-base font-medium text-foreground">Sin operaciones asignadas</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Usa el botón &quot;Asignar a Operación&quot; arriba para vincular este colaborador a un proyecto.
                 </p>
-                <DocumentoUpload
-                  asignacionId={asig.id}
-                  documentos={asig.documentos}
-                  onUploaded={fetchDetail}
-                />
-              </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {detail.asignaciones.map((asig) => (
+                <Card key={asig.id} className="shadow-sm border-border/60 overflow-hidden">
+                  <div className="p-4 border-b border-border/40 bg-accent/10">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-semibold font-mono text-foreground">
+                            {asig.operacionCodigo}
+                          </span>
+                        </div>
+                        <div className="h-4 w-px bg-border/60 hidden sm:block" />
+                        <span className="text-sm text-muted-foreground">
+                          Ref: <span className="font-medium text-foreground">{asig.operacionPropertyCode}</span>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="font-normal bg-card border-border/50 text-muted-foreground">
+                          {asig.operacionEstado}
+                        </Badge>
+                        <Badge
+                          variant="secondary"
+                          className="font-medium"
+                          style={{
+                            backgroundColor: asig.estado === "COMPLETADA"
+                              ? "color-mix(in oklch, var(--urus-success) 15%, transparent)"
+                              : asig.estado === "EN_PROGRESO"
+                                ? "color-mix(in oklch, var(--urus-info) 15%, transparent)"
+                                : asig.estado === "BLOQUEADA"
+                                  ? "color-mix(in oklch, var(--urus-danger) 15%, transparent)"
+                                  : "var(--accent)",
+                            color: asig.estado === "COMPLETADA"
+                              ? "var(--urus-success)"
+                              : asig.estado === "EN_PROGRESO"
+                                ? "var(--urus-info)"
+                                : asig.estado === "BLOQUEADA"
+                                  ? "var(--urus-danger)"
+                                  : "var(--muted-foreground)",
+                          }}
+                        >
+                          {asig.estado}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                  <CardContent className="p-5 space-y-6">
+                    {asig.hitos.length > 0 ? (
+                      <div>
+                        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Seguimiento de Hitos</h4>
+                        <HitoKanban
+                          hitos={asig.hitos}
+                          onChangeEstado={(hitoId, estado) =>
+                            handleChangeHitoEstado(asig.id, hitoId, estado)
+                          }
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">Esta asignación no tiene hitos configurados.</p>
+                    )}
+
+                    <div className="pt-4 border-t border-border/40">
+                      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Documentos Adjuntos</h4>
+                      <DocumentoUpload
+                        asignacionId={asig.id}
+                        documentos={asig.documentos}
+                        onUploaded={fetchDetail}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Sidebar Column: Contacto & Notas (1/3 width on large screens) */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-2 pb-2 border-b border-border/60">
+            <Users className="h-5 w-5 text-muted-foreground" />
+            <h2 className="text-lg font-semibold text-foreground">Información de Contacto</h2>
+          </div>
+
+          <Card className="shadow-sm border-border/60">
+            <CardContent className="p-5">
+              {!(detail.contactoNombre || detail.contactoEmail || detail.contactoTelefono || detail.notas) ? (
+                <div className="text-center py-6">
+                  <p className="text-sm text-muted-foreground">No hay información de contacto registrada.</p>
+                  <Button variant="link" size="sm" className="mt-2 text-secondary" onClick={() => setEditOpen(true)}>
+                    Añadir detalles
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {detail.contactoNombre && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Persona de Contacto</p>
+                      <p className="text-sm font-medium text-foreground">{detail.contactoNombre}</p>
+                    </div>
+                  )}
+                  
+                  {detail.contactoEmail && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Correo Electrónico</p>
+                      <a href={`mailto:${detail.contactoEmail}`} className="text-sm text-secondary hover:underline">
+                        {detail.contactoEmail}
+                      </a>
+                    </div>
+                  )}
+                  
+                  {detail.contactoTelefono && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Teléfono</p>
+                      <a href={`tel:${detail.contactoTelefono}`} className="text-sm text-foreground hover:text-secondary transition-colors">
+                        {detail.contactoTelefono}
+                      </a>
+                    </div>
+                  )}
+
+                  {detail.notas && (
+                    <div className="pt-4 border-t border-border/40">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Notas Internas</p>
+                      <div className="bg-accent/20 rounded-md p-3 border border-border/30">
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{detail.notas}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
-        ))
-      )}
-
-      {/* Contacto */}
-      {(detail.contactoNombre || detail.contactoEmail || detail.contactoTelefono) && (
-        <Card className="border-border/50">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-secondary" />
-              <CardTitle className="text-sm font-semibold">Contacto</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {detail.contactoNombre && (
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase">Nombre</p>
-                  <p className="text-sm">{detail.contactoNombre}</p>
-                </div>
-              )}
-              {detail.contactoEmail && (
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase">Email</p>
-                  <p className="text-sm">{detail.contactoEmail}</p>
-                </div>
-              )}
-              {detail.contactoTelefono && (
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase">Teléfono</p>
-                  <p className="text-sm">{detail.contactoTelefono}</p>
-                </div>
-              )}
-            </div>
-            {detail.notas && (
-              <div className="mt-3 pt-3 border-t border-border/20">
-                <p className="text-[10px] text-muted-foreground uppercase mb-1">Notas</p>
-                <p className="text-sm text-muted-foreground">{detail.notas}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+        </div>
+      </div>
     </div>
   );
 }

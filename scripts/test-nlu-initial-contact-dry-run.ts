@@ -22,6 +22,7 @@ async function main() {
   const result = await startNluInitialContactForDemand({
     demandId,
     dryRun: true,
+    source: "script_dry_run",
   });
 
   console.log(JSON.stringify({

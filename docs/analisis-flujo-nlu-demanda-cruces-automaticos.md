@@ -321,15 +321,17 @@ Esta es la rama mas importante del nuevo modelo.
 **Acciones:**
 
 1. Registra la visita como realizada sin compra.
-2. El comercial puede anadir una nota breve de contexto si quiere, pero no debe ser obligatorio.
-3. El NLU escribe al comprador retomando el contexto de la visita.
-4. El NLU pregunta que no encajo y que cambiaria.
-5. Extrae nuevas variables o preferencias alternativas.
-6. Actualiza la demanda en Neon.
-7. Escribe los criterios modificados en Inmovilla mediante Egestion Worker/RPA legacy.
-8. Ejecuta nuevo cruce automatico.
-9. Presenta nuevas propiedades al comprador.
-10. Si detecta interes real, vuelve a crear una visita pre-creada para el comercial.
+2. Al marcar "Busca algo diferente", la UI abre un textarea dedicado para contexto post-visita en lenguaje natural.
+3. Ese contexto se envia como `postVisitContext` junto a la decision amarilla y queda disponible para el agente.
+4. El sistema normaliza el texto en `postVisitContextStructured`: restricciones duras, preferencias blandas, rechazos, ambiguedades y confianza por campo.
+5. El NLU escribe al comprador retomando el contexto de la visita y pidiendo confirmacion cuando corresponda.
+6. La politica hibrida convierte automaticamente a `DEMANDA_ACTUALIZADA` solo restricciones duras claras y sin conflicto.
+7. Preferencias blandas, ambiguas o corregidas esperan confirmacion del comprador; si hay conflicto, prevalece el comprador.
+8. Tras `DEMANDA_ACTUALIZADA`, se actualiza la demanda en Neon.
+9. Escribe los criterios modificados en Inmovilla mediante Egestion Worker/RPA legacy.
+10. Ejecuta nuevo cruce automatico.
+11. Presenta nuevas propiedades al comprador.
+12. Si detecta interes real, vuelve a crear una visita pre-creada para el comercial.
 
 **Mensaje de reactivacion sugerido:**
 
@@ -338,6 +340,12 @@ Esta es la rama mas importante del nuevo modelo.
 **Regla de negocio:**
 
 El sistema debe conservar lo aprendido. Si una propiedad no encajo por precio, zona o estado, ese rechazo debe afectar los siguientes cruces. No basta con mostrar mas propiedades aleatorias.
+
+**Politica de promocion a criterios:**
+
+- Campos duros (`precioMin`, `precioMax`, `habitacionesMin`, `metrosMin`, `metrosMax`, `ciudad`, `zonas`, `tipos`) pueden promocionarse automaticamente si la deteccion es explicita y supera el umbral de confianza.
+- Campos blandos (`extras`, `extrasNoDeseados`) y motivos cualitativos de rechazo requieren confirmacion del comprador.
+- Si el comprador corrige el briefing del comercial, manda la informacion del comprador y queda auditado con `conflictResolvedBy="buyer_priority"`.
 
 ### 12. Rama Roja: Dar de baja
 

@@ -80,14 +80,10 @@ const navGroups: NavGroup[] = [
         items: [
             { label: "Captación", href: "/platform/captacion", icon: ClipboardList },
             {
-                label: "Cruces",
-                href: "/platform/matching",
+                label: "Cruces Automáticos",
+                href: "/platform/matching/cruces",
                 icon: Shuffle,
                 badge: "IA",
-                children: [
-                    { label: "Cruces Automáticos", href: "/platform/matching/cruces", icon: Shuffle },
-                    { label: "Ciclo de Mejora", href: "/platform/matching/feedback", icon: MessageSquare },
-                ],
             },
             {
                 label: "Análisis de mercado",
@@ -218,7 +214,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 collapsed ? "w-16" : "w-64"
             )}
         >
-            <div className="border-b border-border p-2">
+            <div className="-mt-px border-b border-border p-2">
                 <Button
                     onClick={onToggle}
                     className={cn(
@@ -238,7 +234,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 </Button>
             </div>
 
-            <nav className="flex-1 overflow-y-auto px-2.5 py-3">
+            <nav className="flex-1 overflow-y-auto px-2.5 pb-3 pt-0">
                 {navGroups.map((group) => {
                     const visibleItems = group.items.filter(filterItem);
                     if (visibleItems.length === 0) return null;

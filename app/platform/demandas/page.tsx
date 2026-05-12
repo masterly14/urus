@@ -1,15 +1,12 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Users2,
   Search,
   RefreshCw,
   Phone,
-  MapPin,
-  Home,
   Calendar,
   ChevronLeft,
   ChevronRight,
@@ -18,13 +15,14 @@ import {
   Loader2,
   CheckCircle2,
   AlertTriangle,
-  Pencil,
   UserRoundPen,
   UserCog,
   Ban,
+  FileSignature,
+  MessageCircle,
 } from "lucide-react";
 import { useSession } from "@/lib/hooks/use-session";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,14 +34,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -52,6 +42,7 @@ import { cn } from "@/lib/utils";
 import { useDemands, type DemandsFilters, type DemandRow } from "@/lib/hooks/use-demands";
 import type { LeadStatus } from "@prisma/client";
 import { DeactivateConfirmDialog } from "./deactivate-confirm-dialog";
+import { Badge } from "@/components/ui/badge";
 
 // ---------------------------------------------------------------------------
 // LeadStatus metadata
@@ -59,60 +50,20 @@ import { DeactivateConfirmDialog } from "./deactivate-confirm-dialog";
 
 interface StatusMeta {
   label: string;
-  className: string;
+  color: string;
 }
 
 const STATUS_META: Record<LeadStatus, StatusMeta> = {
-  NUEVO: {
-    label: "Nuevo",
-    className:
-      "bg-zinc-100 text-zinc-800 border-zinc-200 dark:bg-zinc-800/90 dark:text-zinc-100 dark:border-zinc-600",
-  },
-  CONTACTADO: {
-    label: "Contactado",
-    className:
-      "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/60 dark:text-blue-200 dark:border-blue-800",
-  },
-  EN_SELECCION: {
-    label: "En Selección",
-    className:
-      "bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950/50 dark:text-sky-200 dark:border-sky-800",
-  },
-  VISITA_PENDIENTE: {
-    label: "Visita Pendiente",
-    className:
-      "bg-orange-100 text-orange-900 border-orange-200 dark:bg-orange-950/50 dark:text-orange-200 dark:border-orange-800",
-  },
-  VISITA_CONFIRMADA: {
-    label: "Visita Confirmada",
-    className:
-      "bg-green-100 text-green-800 border-green-200 dark:bg-green-950/50 dark:text-green-200 dark:border-green-800",
-  },
-  VISITA_REALIZADA: {
-    label: "Visita Realizada",
-    className:
-      "bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-950/50 dark:text-teal-200 dark:border-teal-800",
-  },
-  EN_NEGOCIACION: {
-    label: "En Negociación",
-    className:
-      "bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950/55 dark:text-purple-200 dark:border-purple-800",
-  },
-  EN_FIRMA: {
-    label: "En Firma",
-    className:
-      "bg-urus-warning/10 text-urus-warning border-urus-warning/30 dark:bg-urus-warning/15 dark:text-urus-warning dark:border-urus-warning/30",
-  },
-  CERRADO: {
-    label: "Cerrado",
-    className:
-      "bg-urus-success/10 text-urus-success border-urus-success/30 dark:bg-urus-success/15 dark:text-urus-success dark:border-urus-success/30",
-  },
-  PERDIDO: {
-    label: "Perdido",
-    className:
-      "bg-urus-danger/10 text-urus-danger border-urus-danger/30 dark:bg-urus-danger/15 dark:text-urus-danger dark:border-urus-danger/30",
-  },
+  NUEVO: { label: "Nuevo", color: "var(--muted-foreground)" },
+  CONTACTADO: { label: "Contactado", color: "#3b82f6" },
+  EN_SELECCION: { label: "En Selección", color: "#0ea5e9" },
+  VISITA_PENDIENTE: { label: "Visita Pendiente", color: "#f97316" },
+  VISITA_CONFIRMADA: { label: "Visita Confirmada", color: "#84cc16" },
+  VISITA_REALIZADA: { label: "Visita Realizada", color: "#14b8a6" },
+  EN_NEGOCIACION: { label: "En Negociación", color: "#a855f7" },
+  EN_FIRMA: { label: "En Firma", color: "var(--urus-warning)" },
+  CERRADO: { label: "Cerrado", color: "var(--urus-success)" },
+  PERDIDO: { label: "Perdido", color: "var(--urus-danger)" },
 };
 
 const ALL_STATUSES: LeadStatus[] = [
@@ -136,9 +87,8 @@ const STAT_GROUPS = [
   {
     label: "Nuevos / Contactados",
     statuses: ["NUEVO", "CONTACTADO"] as LeadStatus[],
-    colorClass: "text-blue-600 dark:text-blue-400",
-    bgClass:
-      "bg-blue-50/90 border-blue-100 dark:bg-blue-950/35 dark:border-blue-900/60",
+    colorClass: "text-blue-500",
+    icon: Users2,
   },
   {
     label: "En Proceso",
@@ -148,23 +98,20 @@ const STAT_GROUPS = [
       "VISITA_CONFIRMADA",
       "VISITA_REALIZADA",
     ] as LeadStatus[],
-    colorClass: "text-orange-600 dark:text-orange-400",
-    bgClass:
-      "bg-orange-50/90 border-orange-100 dark:bg-orange-950/30 dark:border-orange-900/50",
+    colorClass: "text-orange-500",
+    icon: Calendar,
   },
   {
     label: "Negociación / Firma",
     statuses: ["EN_NEGOCIACION", "EN_FIRMA"] as LeadStatus[],
-    colorClass: "text-purple-600 dark:text-purple-400",
-    bgClass:
-      "bg-purple-50/90 border-purple-100 dark:bg-purple-950/35 dark:border-purple-900/55",
+    colorClass: "text-purple-500",
+    icon: FileSignature,
   },
   {
     label: "Cerrados / Perdidos",
     statuses: ["CERRADO", "PERDIDO"] as LeadStatus[],
-    colorClass: "text-urus-success dark:text-urus-success",
-    bgClass:
-      "bg-urus-success/5 border-urus-success/20 dark:bg-urus-success/10 dark:border-urus-success/20",
+    colorClass: "text-[var(--urus-success)]",
+    icon: CheckCircle2,
   },
 ];
 
@@ -172,7 +119,6 @@ const STAT_GROUPS = [
 // Helper formatters
 // ---------------------------------------------------------------------------
 
-/** Rango numérico sin símbolo € (el símbolo se muestra una sola vez en la celda). */
 function formatBudget(min: number, max: number): string {
   const fmt = (n: number) =>
     n >= 1000 ? `${(n / 1000).toLocaleString("es-ES", { maximumFractionDigits: 0 })}k` : n.toLocaleString("es-ES");
@@ -217,6 +163,31 @@ interface RematchResult {
   firstEmittedMatchId?: string | null;
 }
 
+type NluContactState = "idle" | "loading" | "success" | "skipped" | "error";
+
+type NluSkippedReason =
+  | "demand_not_found"
+  | "missing_phone"
+  | "terminal_status"
+  | "opt_out"
+  | "recent_session";
+
+interface NluContactResult {
+  sent: boolean;
+  skippedReason?: NluSkippedReason | null;
+  waId?: string | null;
+  messageId?: string | null;
+  eventId?: string;
+}
+
+const SKIPPED_REASON_LABELS: Record<NluSkippedReason, string> = {
+  demand_not_found: "Demanda no encontrada",
+  missing_phone: "Falta teléfono",
+  terminal_status: "Demanda en estado terminal",
+  opt_out: "Comprador marcado como no contactar",
+  recent_session: "Ya hay conversación activa (<24h)",
+};
+
 function ForceMatchButton({
   demandCodigo,
   state,
@@ -243,12 +214,11 @@ function ForceMatchButton({
           e.stopPropagation();
           onTrigger(demandCodigo);
         }}
-        className="gap-1.5 text-xs h-8 border-[var(--urus-warning)]/40 text-[var(--urus-warning)] hover:text-[var(--urus-warning)] hover:bg-[var(--urus-warning)]/10 whitespace-nowrap"
+        className="gap-1.5 text-xs h-7 px-2 border-[var(--urus-warning)]/40 text-[var(--urus-warning)] hover:text-[var(--urus-warning)] hover:bg-[var(--urus-warning)]/10 whitespace-nowrap"
         title={blockedReason ?? "Faltan datos para cruzar"}
       >
-        <AlertTriangle className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">Completar datos</span>
-        <span className="sm:hidden">Datos</span>
+        <AlertTriangle className="h-3 w-3" />
+        <span>Completar</span>
       </Button>
     );
   }
@@ -257,7 +227,7 @@ function ForceMatchButton({
     return (
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Loader2 className="h-3.5 w-3.5 animate-spin text-secondary" />
-        <span className="hidden sm:inline">Cruzando...</span>
+        <span>Cruzando...</span>
       </div>
     );
   }
@@ -298,17 +268,115 @@ function ForceMatchButton({
 
   return (
     <Button
-      variant="secondary"
+      variant="outline"
       size="sm"
       onClick={(e) => {
         e.stopPropagation();
         onTrigger(demandCodigo);
       }}
-      className="gap-1.5 text-xs h-8 border border-secondary/25 shadow-sm whitespace-nowrap"
+      className="gap-1.5 text-xs h-7 px-2 border-border shadow-sm whitespace-nowrap hover:bg-accent"
     >
-      <ArrowLeftRight className="h-3.5 w-3.5" />
-      <span className="hidden sm:inline">Forzar cruce</span>
-      <span className="sm:hidden">Cruce</span>
+      <ArrowLeftRight className="h-3 w-3 text-muted-foreground" />
+      <span>Forzar cruce</span>
+    </Button>
+  );
+}
+
+function NluContactButton({
+  demandCodigo,
+  state,
+  result,
+  errorMsg,
+  onTrigger,
+  blocked = false,
+  blockedReason,
+}: {
+  demandCodigo: string;
+  state: NluContactState;
+  result: NluContactResult | null;
+  errorMsg: string | null;
+  onTrigger: (codigo: string) => void;
+  blocked?: boolean;
+  blockedReason?: string;
+}) {
+  if (blocked && state === "idle") {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={(e) => {
+          e.stopPropagation();
+          onTrigger(demandCodigo);
+        }}
+        className="gap-1.5 text-xs h-7 px-2 border-[var(--urus-warning)]/40 text-[var(--urus-warning)] hover:text-[var(--urus-warning)] hover:bg-[var(--urus-warning)]/10 whitespace-nowrap"
+        title={blockedReason ?? "Falta teléfono para iniciar contacto NLU"}
+      >
+        <AlertTriangle className="h-3 w-3" />
+        <span>Completar teléfono</span>
+      </Button>
+    );
+  }
+
+  if (state === "loading") {
+    return (
+      <div className="flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-secondary" />
+        <span>Contactando...</span>
+      </div>
+    );
+  }
+
+  if (state === "success") {
+    return (
+      <div className="flex items-center justify-end gap-1.5 text-xs text-[var(--urus-success)] font-medium">
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        Mensaje enviado
+      </div>
+    );
+  }
+
+  if (state === "skipped" && result?.skippedReason) {
+    return (
+      <div className="flex items-center justify-end gap-1.5 text-xs text-[var(--urus-warning)]">
+        <AlertTriangle className="h-3.5 w-3.5" />
+        <span className="max-w-[150px] text-right leading-tight">
+          {SKIPPED_REASON_LABELS[result.skippedReason]}
+        </span>
+      </div>
+    );
+  }
+
+  if (state === "error") {
+    return (
+      <div className="flex flex-col items-end gap-1">
+        <div className="flex items-center gap-1 text-xs text-[var(--urus-danger)]">
+          <AlertTriangle className="h-3 w-3" />
+          <span className="max-w-[120px] truncate">{errorMsg ?? "Error"}</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => onTrigger(demandCodigo)}
+          className="text-[10px] text-muted-foreground hover:text-foreground underline"
+        >
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={(e) => {
+        e.stopPropagation();
+        onTrigger(demandCodigo);
+      }}
+      className="gap-1.5 text-xs h-7 px-2 border-border shadow-sm whitespace-nowrap hover:bg-accent"
+      title="Iniciar conversación NLU de preferencias con este comprador"
+    >
+      <MessageCircle className="h-3 w-3 text-muted-foreground" />
+      <span>Poner en contacto</span>
     </Button>
   );
 }
@@ -602,15 +670,12 @@ function ReassignPopover({
           type="button"
           variant="outline"
           size="sm"
-          className="h-auto min-h-8 w-full max-w-[200px] justify-start gap-2 px-2.5 py-1.5 text-left font-normal border-border shadow-sm hover:bg-muted/50"
+          className="h-7 w-full max-w-[160px] justify-start gap-2 px-2 text-left font-normal border-border shadow-sm hover:bg-accent"
           title="Cambiar comercial asignado"
         >
-          <UserCog className="h-3.5 w-3.5 shrink-0 text-secondary" aria-hidden />
-          <span className="flex min-w-0 flex-1 flex-col items-start gap-0 leading-tight">
-            <span className="truncate text-xs font-medium text-foreground">
-              {currentAgente || "Sin asignar"}
-            </span>
-            <span className="text-[10px] text-muted-foreground">Reasignar</span>
+          <UserCog className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="truncate text-xs text-foreground">
+            {currentAgente || "Sin asignar"}
           </span>
         </Button>
       </PopoverTrigger>
@@ -648,12 +713,6 @@ function ReassignPopover({
   );
 }
 
-function isMissingBuyerData(demand: DemandRow): boolean {
-  const noName = !demand.nombre?.trim() || /^(null|undefined|sin nombre)$/i.test(demand.nombre.trim());
-  const noPhone = !demand.telefono?.trim();
-  return noName || noPhone;
-}
-
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -661,14 +720,16 @@ function isMissingBuyerData(demand: DemandRow): boolean {
 function StatusBadge({ status }: { status: LeadStatus }) {
   const meta = STATUS_META[status];
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap",
-        meta.className,
-      )}
+    <Badge 
+      variant="secondary" 
+      className="font-normal bg-accent text-foreground hover:bg-accent border border-transparent"
+      style={{
+        backgroundColor: `color-mix(in oklch, ${meta.color} 10%, transparent)`,
+        color: meta.color,
+      }}
     >
       {meta.label}
-    </span>
+    </Badge>
   );
 }
 
@@ -684,32 +745,36 @@ function StatsBar({
   const total = Object.values(stats).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {STAT_GROUPS.map((group) => {
         const count = group.statuses.reduce((a, s) => a + (stats[s] ?? 0), 0);
         const isActive = group.statuses.every((s) => activeStatuses.includes(s));
+        const Icon = group.icon;
+        
         return (
-          <button
+          <Card 
             key={group.label}
-            type="button"
-            onClick={() => onGroupClick(group.statuses)}
             className={cn(
-              "flex flex-col gap-1 rounded-lg border p-4 text-left transition-all hover:shadow-[var(--shadow-elevated)] hover:border-foreground/15",
-              group.bgClass,
-              isActive &&
-                "ring-2 ring-primary/35 ring-offset-2 ring-offset-background dark:ring-primary/45",
+              "shadow-sm border-border/60 cursor-pointer transition-all hover:border-border",
+              isActive && "ring-1 ring-primary border-primary"
             )}
+            onClick={() => onGroupClick(group.statuses)}
           >
-            <span className={cn("text-2xl font-bold tabular-nums", group.colorClass)}>
-              {count}
-            </span>
-            <span className="text-xs text-muted-foreground leading-tight">{group.label}</span>
-            {total > 0 && (
-              <span className={cn("text-xs font-medium", group.colorClass)}>
-                {Math.round((count / total) * 100)}%
-              </span>
-            )}
-          </button>
+            <CardContent className="p-5 flex flex-col gap-2">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span className="text-xs font-medium">{group.label}</span>
+                <Icon className="h-4 w-4" style={{ color: group.colorClass.replace('text-', '') }} />
+              </div>
+              <div className="flex items-end gap-2">
+                <p className="text-2xl font-bold text-foreground">{count}</p>
+                {total > 0 && (
+                  <p className="text-sm font-medium text-muted-foreground mb-1">
+                    {Math.round((count / total) * 100)}%
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         );
       })}
     </div>
@@ -729,7 +794,6 @@ function FilterChips({
 }) {
   return (
     <div className="flex flex-wrap gap-2 items-center">
-      <span className="text-xs text-muted-foreground font-medium mr-1">Estado:</span>
       {ALL_STATUSES.map((status) => {
         const meta = STATUS_META[status];
         const active = activeStatuses.includes(status);
@@ -740,22 +804,15 @@ function FilterChips({
             type="button"
             onClick={() => onToggle(status)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all",
+              "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all border",
               active
-                ? cn(meta.className, "border border-border shadow-sm")
-                : cn(
-                    "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground",
-                    count === 0 && "opacity-55",
-                  ),
+                ? "bg-accent border-border text-foreground shadow-sm"
+                : "bg-transparent border-transparent text-muted-foreground hover:bg-accent/50",
+              count === 0 && !active && "opacity-50"
             )}
           >
             {meta.label}
-            <span
-              className={cn(
-                "tabular-nums rounded-full px-1",
-                active ? "bg-black/10" : "bg-muted",
-              )}
-            >
+            <span className="text-[10px] text-muted-foreground ml-0.5">
               {count}
             </span>
           </button>
@@ -765,10 +822,10 @@ function FilterChips({
         <button
           type="button"
           onClick={onClearAll}
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground ml-2"
         >
           <X className="h-3 w-3" />
-          Limpiar filtros
+          Limpiar
         </button>
       )}
     </div>
@@ -783,7 +840,11 @@ function DemandTableRow({
   rematchState,
   rematchResult,
   rematchError,
+  nluContactState,
+  nluContactResult,
+  nluContactError,
   onForceMatch,
+  onContactNlu,
   onRefresh,
 }: {
   demand: DemandRow;
@@ -793,145 +854,123 @@ function DemandTableRow({
   rematchState: RematchState;
   rematchResult: RematchResult | null;
   rematchError: string | null;
+  nluContactState: NluContactState;
+  nluContactResult: NluContactResult | null;
+  nluContactError: string | null;
   onForceMatch: (codigo: string) => void;
+  onContactNlu: (codigo: string) => void;
   onRefresh: () => void;
 }) {
   const budgetLabel = formatBudget(demand.presupuestoMin, demand.presupuestoMax);
-  const hasBudgetRange =
-    demand.presupuestoMin > 0 || demand.presupuestoMax > 0;
-  const incomplete = isMissingBuyerData(demand);
+  const hasBudgetRange = demand.presupuestoMin > 0 || demand.presupuestoMax > 0;
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [guardModalOpen, setGuardModalOpen] = useState(false);
+  const [guardContext, setGuardContext] = useState<string | undefined>(undefined);
+  const [nluConfirmOpen, setNluConfirmOpen] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const isTerminal = demand.leadStatus === "CERRADO" || demand.leadStatus === "PERDIDO";
+  const needsNluContactConfirmation =
+    demand.leadStatus !== "NUEVO" && demand.leadStatus !== "CONTACTADO";
 
   const handleForceMatchGuarded = useCallback(() => {
     if (!demand.telefono?.trim()) {
+      setGuardContext("Esta demanda no tiene teléfono de contacto. Completa los datos del comprador antes de forzar el cruce — sin teléfono, el sistema no puede enviar WhatsApp al comprador.");
       setGuardModalOpen(true);
       return;
     }
     onForceMatch(demand.codigo);
   }, [demand.telefono, demand.codigo, onForceMatch]);
 
+  const handleNluContactGuarded = useCallback(() => {
+    if (!demand.telefono?.trim()) {
+      setGuardContext("Esta demanda no tiene teléfono de contacto. Añade un teléfono antes de iniciar el contacto NLU de preferencias por WhatsApp.");
+      setGuardModalOpen(true);
+      return;
+    }
+    if (needsNluContactConfirmation) {
+      setNluConfirmOpen(true);
+      return;
+    }
+    onContactNlu(demand.codigo);
+  }, [demand.telefono, demand.codigo, needsNluContactConfirmation, onContactNlu]);
+
   return (
     <>
-    <TableRow className="border-border/80 transition-colors hover:bg-muted/60 group/row">
-      <TableCell className="max-w-[220px] py-3 pl-4 align-top">
-        <div className="flex flex-col gap-2">
+    <tr className="hover:bg-accent/30 transition-colors group/row border-b border-border/40 last:border-0">
+      <td className="px-5 py-4 align-top">
+        <div className="flex flex-col gap-1.5">
           <div className="flex items-start justify-between gap-2">
-            <span className="min-w-0 flex-1 font-medium leading-snug line-clamp-2">
+            <span className="font-medium text-foreground leading-snug truncate max-w-[200px]">
               {displayBuyerName(demand.nombre)}
             </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setEditModalOpen(true)}
-              className={cn(
-                "h-7 shrink-0 gap-1 px-2 text-[11px] font-medium shadow-sm",
-                incomplete
-                  ? "border-[var(--urus-warning)]/40 text-[var(--urus-warning)] hover:bg-[var(--urus-warning)]/10"
-                  : "border-border",
-              )}
-              title={
-                incomplete
-                  ? "Completar nombre, teléfono o email del comprador"
-                  : "Editar datos del comprador"
-              }
-            >
-              {incomplete ? (
-                <>
-                  <AlertTriangle className="h-3 w-3 shrink-0" />
-                  Completar
-                </>
-              ) : (
-                <>
-                  <Pencil className="h-3 w-3 shrink-0" />
-                  Editar
-                </>
-              )}
-            </Button>
           </div>
-          {demand.telefono && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          {demand.telefono ? (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Phone className="h-3 w-3 shrink-0" />
               <span>{demand.telefono}</span>
             </div>
+          ) : (
+            <span className="text-xs text-[var(--urus-warning)] flex items-center gap-1.5">
+              <AlertTriangle className="h-3 w-3" /> Sin teléfono
+            </span>
           )}
-          {!demand.telefono && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setEditModalOpen(true)}
-              className="h-7 w-fit gap-1 px-2 text-[11px] border-[var(--urus-warning)]/35 text-[var(--urus-warning)] hover:bg-[var(--urus-warning)]/10"
-            >
-              <Phone className="h-3 w-3 shrink-0" />
-              Sin teléfono — añadir
-            </Button>
-          )}
+          <button
+            onClick={() => setEditModalOpen(true)}
+            className="text-[10px] text-muted-foreground hover:text-foreground underline w-fit mt-1"
+          >
+            Editar datos
+          </button>
         </div>
-      </TableCell>
+      </td>
 
-      <TableCell className="max-w-[200px] py-3 align-top">
-        {demand.zonas && (
-          <div className="flex items-start gap-1.5 text-sm">
-            <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
-            <span className="text-xs leading-relaxed text-foreground/90 line-clamp-3">
+      <td className="px-5 py-4 align-top">
+        <div className="flex flex-col gap-1.5">
+          {demand.zonas ? (
+            <span className="text-xs text-foreground line-clamp-2 max-w-[180px]">
               {demand.zonas}
             </span>
-          </div>
-        )}
-        {demand.tipos && (
-          <div className="flex items-center gap-1 mt-1">
-            <Home className="h-3 w-3 shrink-0 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground line-clamp-2">{demand.tipos}</span>
-          </div>
-        )}
-        {!demand.zonas && !demand.tipos && (
-          <span className="text-xs text-muted-foreground">—</span>
-        )}
-      </TableCell>
-
-      <TableCell className="tabular-nums text-sm whitespace-nowrap py-3 align-top">
-        <div className="flex items-baseline gap-1.5">
-          {hasBudgetRange && (
-            <span
-              className="text-muted-foreground text-[0.8rem] font-medium select-none"
-              aria-hidden
-            >
-              €
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+          {demand.tipos && (
+            <span className="text-[10px] text-muted-foreground truncate max-w-[180px]">
+              {demand.tipos}
             </span>
           )}
-          <span className={!hasBudgetRange ? "text-muted-foreground" : undefined}>
-            {budgetLabel}
-          </span>
         </div>
-        {demand.habitacionesMin > 0 && (
-          <div className="text-xs text-muted-foreground mt-1">
-            {demand.habitacionesMin}+ hab.
-          </div>
-        )}
-      </TableCell>
+      </td>
 
-      <TableCell className="py-3 align-middle">
-        <div className="flex items-center gap-1.5">
+      <td className="px-5 py-4 align-top">
+        <div className="flex flex-col gap-1">
+          <span className={`text-sm ${!hasBudgetRange ? "text-muted-foreground" : "text-foreground font-medium"}`}>
+            {hasBudgetRange && "€ "}{budgetLabel}
+          </span>
+          {demand.habitacionesMin > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {demand.habitacionesMin}+ hab.
+            </span>
+          )}
+        </div>
+      </td>
+
+      <td className="px-5 py-4 align-top">
+        <div className="flex items-center gap-2">
           <StatusBadge status={demand.leadStatus} />
           {!isTerminal && (
             <button
               type="button"
               onClick={() => setDeactivateOpen(true)}
-              className="shrink-0 opacity-0 group-hover/row:opacity-50 hover:!opacity-100 transition-opacity"
+              className="shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity p-1 hover:bg-accent rounded"
               title="Dar de baja esta demanda"
             >
-              <Ban className="h-3 w-3 text-destructive" />
+              <Ban className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive transition-colors" />
             </button>
           )}
         </div>
-      </TableCell>
+      </td>
 
       {showComercial && (
-        <TableCell className="py-3 align-top">
+        <td className="px-5 py-4 align-top">
           {isCeoOrAdmin ? (
             <ReassignPopover
               demandCodigo={demand.codigo}
@@ -943,18 +982,33 @@ function DemandTableRow({
               {demand.agente || "—"}
             </span>
           )}
-        </TableCell>
+        </td>
       )}
 
-      <TableCell className="text-xs text-muted-foreground whitespace-nowrap py-3 align-top">
-        <div className="flex items-center gap-1.5 pt-0.5">
-          <Calendar className="h-3.5 w-3.5 shrink-0 opacity-80" />
-          <span>{formatRelativeDate(demand.updatedAt)}</span>
-        </div>
-      </TableCell>
+      <td className="px-5 py-4 align-top">
+        <span className="text-xs text-muted-foreground">
+          {formatRelativeDate(demand.updatedAt)}
+        </span>
+      </td>
+
+      <td className="px-5 py-4 align-top text-right">
+        {isTerminal ? (
+          <span className="text-xs text-muted-foreground">—</span>
+        ) : (
+          <NluContactButton
+            demandCodigo={demand.codigo}
+            state={nluContactState}
+            result={nluContactResult}
+            errorMsg={nluContactError}
+            onTrigger={handleNluContactGuarded}
+            blocked={!demand.telefono?.trim()}
+            blockedReason="El comprador no tiene teléfono — completa los datos para iniciar contacto NLU por WhatsApp."
+          />
+        )}
+      </td>
 
       {showForceMatch && (
-        <TableCell className="py-3 pr-4 align-middle text-right">
+        <td className="px-5 py-4 align-top text-right">
           <ForceMatchButton
             demandCodigo={demand.codigo}
             state={rematchState}
@@ -964,9 +1018,9 @@ function DemandTableRow({
             blocked={!demand.telefono?.trim()}
             blockedReason="El comprador no tiene teléfono — completa los datos para poder enviar ofertas por WhatsApp."
           />
-        </TableCell>
+        </td>
       )}
-    </TableRow>
+    </tr>
 
     <EditBuyerModal
       open={editModalOpen}
@@ -983,9 +1037,47 @@ function DemandTableRow({
       demandCodigo={demand.codigo}
       currentNombre={demand.nombre}
       currentTelefono={demand.telefono}
-      contextMessage="Esta demanda no tiene teléfono de contacto. Completa los datos del comprador antes de forzar el cruce — sin teléfono, el sistema no puede enviar WhatsApp al comprador."
+      contextMessage={guardContext}
       onSuccess={onRefresh}
     />
+
+    <Dialog open={nluConfirmOpen} onOpenChange={setNluConfirmOpen}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MessageCircle className="h-4 w-4 text-secondary" />
+            Poner en contacto
+          </DialogTitle>
+          <DialogDescription>
+            La demanda de <strong>{displayBuyerName(demand.nombre)}</strong> está en estado{" "}
+            <strong>{STATUS_META[demand.leadStatus].label}</strong>. ¿Quieres iniciar el contacto NLU de preferencias?
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 pt-1">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Se usará la plantilla actual de primer contacto. Si ya hay una conversación reciente, el sistema no reenviará el mensaje y mostrará el motivo.
+          </p>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setNluConfirmOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setNluConfirmOpen(false);
+                onContactNlu(demand.codigo);
+              }}
+              className="gap-1.5"
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              Contactar
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
 
     <DeactivateConfirmDialog
       open={deactivateOpen}
@@ -1002,15 +1094,16 @@ function TableSkeleton({ rows = 8, showComercial, showForceMatch }: { rows?: num
   return (
     <>
       {Array.from({ length: rows }).map((_, i) => (
-        <TableRow key={i}>
-          <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-          <TableCell><Skeleton className="h-4 w-28" /></TableCell>
-          <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-          <TableCell><Skeleton className="h-5 w-24 rounded-full" /></TableCell>
-          {showComercial && <TableCell><Skeleton className="h-4 w-20" /></TableCell>}
-          <TableCell><Skeleton className="h-4 w-14" /></TableCell>
-          {showForceMatch && <TableCell><Skeleton className="h-8 w-24 rounded-md" /></TableCell>}
-        </TableRow>
+        <tr key={i} className="border-b border-border/40">
+          <td className="px-5 py-4"><Skeleton className="h-4 w-32 mb-2" /><Skeleton className="h-3 w-24" /></td>
+          <td className="px-5 py-4"><Skeleton className="h-4 w-28 mb-2" /><Skeleton className="h-3 w-20" /></td>
+          <td className="px-5 py-4"><Skeleton className="h-4 w-20 mb-2" /><Skeleton className="h-3 w-16" /></td>
+          <td className="px-5 py-4"><Skeleton className="h-5 w-24 rounded-full" /></td>
+          {showComercial && <td className="px-5 py-4"><Skeleton className="h-6 w-28 rounded-md" /></td>}
+          <td className="px-5 py-4"><Skeleton className="h-4 w-14" /></td>
+          <td className="px-5 py-4 text-right"><Skeleton className="h-7 w-32 rounded-md ml-auto" /></td>
+          {showForceMatch && <td className="px-5 py-4 text-right"><Skeleton className="h-7 w-24 rounded-md ml-auto" /></td>}
+        </tr>
       ))}
     </>
   );
@@ -1035,6 +1128,11 @@ export default function DemandasPage() {
   const [rematchStates, setRematchStates] = useState<Record<string, RematchState>>({});
   const [rematchResults, setRematchResults] = useState<Record<string, RematchResult>>({});
   const [rematchErrors, setRematchErrors] = useState<Record<string, string>>({});
+
+  // Per-demand manual NLU initial contact state
+  const [nluContactStates, setNluContactStates] = useState<Record<string, NluContactState>>({});
+  const [nluContactResults, setNluContactResults] = useState<Record<string, NluContactResult>>({});
+  const [nluContactErrors, setNluContactErrors] = useState<Record<string, string>>({});
 
   // Debounce search input
   const [searchTimer, setSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
@@ -1143,31 +1241,68 @@ export default function DemandasPage() {
     }
   }, [router]);
 
+  const handleContactNlu = useCallback(async (codigo: string) => {
+    setNluContactStates((prev) => ({ ...prev, [codigo]: "loading" }));
+    setNluContactErrors((prev) => {
+      const next = { ...prev };
+      delete next[codigo];
+      return next;
+    });
+
+    try {
+      const res = await fetch(`/api/demands/${encodeURIComponent(codigo)}/nlu-initial-contact`, {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setNluContactStates((prev) => ({ ...prev, [codigo]: "error" }));
+        setNluContactErrors((prev) => ({ ...prev, [codigo]: data.error ?? `Error ${res.status}` }));
+        return;
+      }
+
+      const result: NluContactResult = {
+        sent: Boolean(data.sent),
+        skippedReason: data.skippedReason ?? null,
+        waId: data.waId ?? null,
+        messageId: data.messageId ?? null,
+        eventId: data.eventId,
+      };
+
+      setNluContactResults((prev) => ({ ...prev, [codigo]: result }));
+      setNluContactStates((prev) => ({
+        ...prev,
+        [codigo]: result.sent ? "success" : "skipped",
+      }));
+
+      setTimeout(() => {
+        setNluContactStates((prev) => {
+          const current = prev[codigo];
+          if (current !== "success" && current !== "skipped") return prev;
+          const next = { ...prev };
+          delete next[codigo];
+          return next;
+        });
+      }, 8_000);
+    } catch (err) {
+      setNluContactStates((prev) => ({ ...prev, [codigo]: "error" }));
+      setNluContactErrors((prev) => ({
+        ...prev,
+        [codigo]: err instanceof Error ? err.message : "Error de red",
+      }));
+    }
+  }, []);
+
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="space-y-6 max-w-7xl mx-auto pb-10">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <nav
-            className="mb-2 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground"
-            aria-label="Migas de pan"
-          >
-            <Link href="/platform" className="hover:text-foreground transition-colors">
-              Panel
-            </Link>
-            <span className="text-muted-foreground/70" aria-hidden>
-              /
-            </span>
-            <span className="font-medium text-foreground">Demandas</span>
-          </nav>
-          <div className="flex items-center gap-2">
-            <Users2 className="h-6 w-6 text-primary" />
-            <h1 className="text-2xl font-bold tracking-tight">Demandas</h1>
-          </div>
-          <p className="text-sm text-muted-foreground mt-1 max-w-xl">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Demandas</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {isCeoOrAdmin
-              ? "Todas las demandas activas del sistema con estado de pipeline"
-              : "Tus demandas asignadas con estado de pipeline"}
+              ? "Todas las demandas activas del sistema con estado de pipeline."
+              : "Tus demandas asignadas con estado de pipeline."}
           </p>
         </div>
         <Button
@@ -1175,9 +1310,9 @@ export default function DemandasPage() {
           size="sm"
           onClick={() => refetch()}
           disabled={isLoading}
-          className="gap-2"
+          className="gap-2 bg-card shadow-sm"
         >
-          <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+          <RefreshCw className={cn("h-4 w-4 text-muted-foreground", isLoading && "animate-spin")} />
           Actualizar
         </Button>
       </div>
@@ -1189,122 +1324,127 @@ export default function DemandasPage() {
         activeStatuses={selectedStatuses}
       />
 
-      {/* Filters */}
-      <Card className="border-border/80 shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">Filtros</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-            <Input
-              placeholder="Buscar por nombre, código, zona o teléfono..."
-              value={searchQuery}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-9 h-10"
-            />
-          </div>
-
-          {/* Status chips */}
+      {/* Toolbar (Filters & Search) */}
+      <div className="flex flex-col gap-4 bg-card border border-border/60 rounded-lg p-3 shadow-sm">
+        <div className="relative w-full sm:max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="Buscar por nombre, código, zona o teléfono..."
+            className="w-full bg-transparent border-none focus:ring-0 text-sm pl-9 pr-4 py-1.5 placeholder:text-muted-foreground"
+          />
+        </div>
+        
+        <div className="pt-3 border-t border-border/40">
           <FilterChips
             activeStatuses={selectedStatuses}
             onToggle={toggleStatus}
             onClearAll={clearFilters}
             stats={stats}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Table */}
-      <Card className="border-border/80 shadow-sm overflow-hidden">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent border-b bg-muted/35 dark:bg-muted/20">
-                  <TableHead className="pl-4">Comprador</TableHead>
-                  <TableHead>Zonas / Tipos</TableHead>
-                  <TableHead>Presupuesto</TableHead>
-                  <TableHead>Estado Pipeline</TableHead>
-                  {isCeoOrAdmin && <TableHead>Comercial</TableHead>}
-                  <TableHead>Última actividad</TableHead>
-                  {isCeoOrAdmin && <TableHead className="pr-4 text-right">Cruces</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableSkeleton rows={PAGE_LIMIT} showComercial={isCeoOrAdmin} showForceMatch={isCeoOrAdmin} />
-                ) : error ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={isCeoOrAdmin ? 7 : 5}
-                      className="text-center py-10 text-destructive"
-                    >
-                      Error al cargar demandas: {error}
-                    </TableCell>
-                  </TableRow>
-                ) : demands.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={isCeoOrAdmin ? 7 : 5}
-                      className="text-center py-10 text-muted-foreground"
-                    >
+      <Card className="shadow-sm border-border/60 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-accent/40 border-b border-border/60">
+              <tr>
+                <th className="px-5 py-3 font-medium text-muted-foreground">Comprador</th>
+                <th className="px-5 py-3 font-medium text-muted-foreground">Zonas / Tipos</th>
+                <th className="px-5 py-3 font-medium text-muted-foreground">Presupuesto</th>
+                <th className="px-5 py-3 font-medium text-muted-foreground">Estado Pipeline</th>
+                {isCeoOrAdmin && <th className="px-5 py-3 font-medium text-muted-foreground">Comercial</th>}
+                <th className="px-5 py-3 font-medium text-muted-foreground">Última actividad</th>
+                <th className="px-5 py-3 font-medium text-muted-foreground text-right">Contacto</th>
+                {isCeoOrAdmin && <th className="px-5 py-3 font-medium text-muted-foreground text-right">Cruces</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40 bg-card">
+              {isLoading ? (
+                <TableSkeleton rows={PAGE_LIMIT} showComercial={isCeoOrAdmin} showForceMatch={isCeoOrAdmin} />
+              ) : error ? (
+                <tr>
+                  <td
+                    colSpan={isCeoOrAdmin ? 8 : 6}
+                    className="text-center py-10 text-destructive"
+                  >
+                    Error al cargar demandas: {error}
+                  </td>
+                </tr>
+              ) : demands.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={isCeoOrAdmin ? 8 : 6}
+                    className="text-center py-16"
+                  >
+                    <Users2 className="h-10 w-10 text-muted-foreground/30 mx-auto mb-4" />
+                    <p className="text-base font-medium text-foreground">No se encontraron demandas</p>
+                    <p className="text-sm text-muted-foreground mt-1">
                       No hay demandas que coincidan con los filtros seleccionados.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  demands.map((demand) => (
-                    <DemandTableRow
-                      key={demand.codigo}
-                      demand={demand}
-                      showComercial={isCeoOrAdmin}
-                      showForceMatch={isCeoOrAdmin}
-                      isCeoOrAdmin={isCeoOrAdmin}
-                      rematchState={rematchStates[demand.codigo] ?? "idle"}
-                      rematchResult={rematchResults[demand.codigo] ?? null}
-                      rematchError={rematchErrors[demand.codigo] ?? null}
-                      onForceMatch={handleForceMatch}
-                      onRefresh={refetch}
-                    />
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                demands.map((demand) => (
+                  <DemandTableRow
+                    key={demand.codigo}
+                    demand={demand}
+                    showComercial={isCeoOrAdmin}
+                    showForceMatch={isCeoOrAdmin}
+                    isCeoOrAdmin={isCeoOrAdmin}
+                    rematchState={rematchStates[demand.codigo] ?? "idle"}
+                    rematchResult={rematchResults[demand.codigo] ?? null}
+                    rematchError={rematchErrors[demand.codigo] ?? null}
+                    nluContactState={nluContactStates[demand.codigo] ?? "idle"}
+                    nluContactResult={nluContactResults[demand.codigo] ?? null}
+                    nluContactError={nluContactErrors[demand.codigo] ?? null}
+                    onForceMatch={handleForceMatch}
+                    onContactNlu={handleContactNlu}
+                    onRefresh={refetch}
+                  />
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
-          {/* Pagination */}
-          {!isLoading && total > 0 && (
-            <div className="flex items-center justify-between border-t px-4 py-3">
-              <span className="text-sm text-muted-foreground">
-                {total} demanda{total !== 1 ? "s" : ""}
-                {selectedStatuses.length > 0 || debouncedQuery
-                  ? " (filtradas)"
-                  : " en total"}
-                {" · "}
-                página {page} de {totalPages}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1 || isLoading}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages || isLoading}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
+        {/* Pagination */}
+        {!isLoading && total > 0 && (
+          <div className="flex items-center justify-between border-t border-border/40 px-5 py-3 bg-accent/10">
+            <span className="text-sm text-muted-foreground">
+              {total} demanda{total !== 1 ? "s" : ""}
+              {selectedStatuses.length > 0 || debouncedQuery
+                ? " (filtradas)"
+                : " en total"}
+              {" · "}
+              página {page} de {totalPages}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1 || isLoading}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages || isLoading}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
-          )}
-        </CardContent>
+          </div>
+        )}
       </Card>
     </div>
   );
