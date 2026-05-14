@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
+import type { MarketOperation, MarketSource } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { enqueueJob } from "@/lib/job-queue";
 import { runCrawlTick } from "@/lib/market/scheduler";
@@ -126,8 +127,8 @@ async function activateAndLoadIdealistaSeeds(city: string) {
 async function enqueueCrawlJobs(
   seeds: Array<{
     id: string;
-    source: "source_d";
-    operation: "sale" | "rent";
+    source: MarketSource;
+    operation: MarketOperation;
     url: string;
     lastCursor: string | null;
     priority: number;

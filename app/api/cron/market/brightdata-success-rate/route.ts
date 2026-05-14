@@ -113,6 +113,7 @@ const postHandler = async (request: Request) => {
         type: "MARKET_SNAPSHOT_REFRESHED",
         occurredAt,
         fingerprint,
+        correlationId: fingerprint,
         payload: {
           metric: "brightdata_success_rate",
           domain: DOMAIN,

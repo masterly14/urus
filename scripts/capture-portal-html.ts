@@ -726,6 +726,7 @@ async function main(): Promise<void> {
   const meta: CaptureMeta = {
     portal: opts.portal,
     city: opts.city,
+    via: opts.viaWebUnlocker ? "web-unlocker" : "playwright",
     startedAt: new Date().toISOString(),
     finishedAt: "",
     listingPages: [],

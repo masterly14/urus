@@ -134,7 +134,7 @@ export async function handleMarketPushAdvertiserToInmovilla(
   }
 
   try {
-    const matches = await searchClient(client, { telefono: phoneLocal });
+    const matches = await searchClient(client, { telefono: String(phoneLocal) });
     let codCli: string | null = pickCodCli(matches);
     let outcome: "linked_existing" | "created" = "linked_existing";
 
