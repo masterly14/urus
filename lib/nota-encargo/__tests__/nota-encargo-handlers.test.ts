@@ -173,6 +173,13 @@ describe("handleNotaEncargoRecordatorio", () => {
         propertyRef: "URUS36VMA",
         direccion: "Calle Flamencos 8",
       }),
+      expect.objectContaining({
+        trace: expect.objectContaining({
+          source: "nota_encargo_recordatorio_job",
+          kind: "nota_encargo_recordatorio",
+          aggregateId: "34666777888",
+        }),
+      }),
     );
     expect(sessionUpdateMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -266,6 +273,13 @@ describe("handleNotaEncargoCheckConfirmacion", () => {
     expect(sendNoConfirmadaMock).toHaveBeenCalledWith(
       "34600111222",
       expect.objectContaining({ propertyRef: "URUS36VMA" }),
+      expect.objectContaining({
+        trace: expect.objectContaining({
+          source: "nota_encargo_check_confirmacion_job",
+          kind: "nota_encargo_no_confirmada",
+          aggregateId: "34600111222",
+        }),
+      }),
     );
     expect(sessionUpdateMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -331,6 +345,13 @@ describe("handleNotaEncargoEnviarFormulario", () => {
         direccion: "Calle Flamencos 8",
         tipoOperacion: "VENTA",
         precio: 275000,
+      }),
+      expect.objectContaining({
+        trace: expect.objectContaining({
+          source: "nota_encargo_enviar_formulario_job",
+          kind: "nota_encargo_formulario",
+          aggregateId: "34666777888",
+        }),
       }),
     );
     expect(sessionUpdateMock).toHaveBeenCalledWith(

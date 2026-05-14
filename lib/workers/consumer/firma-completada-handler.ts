@@ -86,6 +86,20 @@ export async function handleFirmaCompletada(
           propertyRef:
             notaSession.propertyRef ?? notaSession.refCatastral ?? notaSession.id,
           signedDocumentUrl: signedUrl,
+        }, {
+          trace: {
+            source: "firma_completada_handler",
+            kind: "nota_encargo_documento_firmado",
+            aggregateId: notaSession.propietarioPhone,
+            causationId: event.id,
+            correlationId: event.correlationId,
+            payload: {
+              signatureRequestId,
+              operationId,
+              notaEncargoSessionId: notaSession.id,
+              documentKind: "NOTA_ENCARGO",
+            },
+          },
         });
 
         await prisma.notaEncargoSession.update({

@@ -7,11 +7,16 @@ import {
   sendInteractiveMessage,
   sendDocumentMessage,
 } from "@/lib/whatsapp/send";
+import type { WhatsAppTraceOptions } from "@/lib/whatsapp/send";
 import type {
   TemplateObject,
   InteractiveObject,
   SendMessageSuccess,
 } from "@/lib/whatsapp/types";
+
+type NotaEncargoSendOptions = {
+  trace?: WhatsAppTraceOptions;
+};
 
 const WHATSAPP_TEMPLATE_LANGUAGE_CODE =
   process.env.WHATSAPP_TEMPLATE_LANGUAGE?.trim() || "es";
@@ -36,6 +41,7 @@ function propertyLocationLabel(
 export async function sendNotaEncargoRecordatorio(
   to: string,
   params: { propertyRef: string; direccion?: string | null; visitTime: Date },
+  options?: NotaEncargoSendOptions,
 ): Promise<SendMessageSuccess> {
   const hora = params.visitTime.toLocaleTimeString("es-ES", {
     hour: "2-digit",
@@ -58,7 +64,7 @@ export async function sendNotaEncargoRecordatorio(
     ],
   };
 
-  return sendTemplateMessage(to, template);
+  return sendTemplateMessage(to, template, options);
 }
 
 // ---------------------------------------------------------------------------
@@ -72,6 +78,7 @@ const NO_CONFIRMADA_TEMPLATE =
 export async function sendNotaEncargoNoConfirmada(
   to: string,
   params: { propertyRef: string; direccion?: string | null; visitTime: Date },
+  options?: NotaEncargoSendOptions,
 ): Promise<SendMessageSuccess> {
   const hora = params.visitTime.toLocaleTimeString("es-ES", {
     hour: "2-digit",
@@ -94,7 +101,7 @@ export async function sendNotaEncargoNoConfirmada(
     ],
   };
 
-  return sendTemplateMessage(to, template);
+  return sendTemplateMessage(to, template, options);
 }
 
 // ---------------------------------------------------------------------------
@@ -118,12 +125,13 @@ export async function sendNotaEncargoFlow(
     refCatastral?: string | null;
     propietarioNombre?: string;
   },
+  options?: NotaEncargoSendOptions,
 ): Promise<SendMessageSuccess> {
   const precioFmt =
     new Intl.NumberFormat("es-ES").format(params.precio) + " €";
 
   if (FLOW_ID) {
-    return sendNotaEncargoFlowInteractive(to, params, precioFmt);
+    return sendNotaEncargoFlowInteractive(to, params, precioFmt, options);
   }
 
   const template: TemplateObject = {
@@ -163,7 +171,7 @@ export async function sendNotaEncargoFlow(
     ],
   };
 
-  return sendTemplateMessage(to, template);
+  return sendTemplateMessage(to, template, options);
 }
 
 /**
@@ -181,6 +189,7 @@ async function sendNotaEncargoFlowInteractive(
     refCatastral?: string | null;
   },
   precioFmt: string,
+  options?: NotaEncargoSendOptions,
 ): Promise<SendMessageSuccess> {
   const interactive: InteractiveObject = {
     type: "flow",
@@ -211,7 +220,7 @@ async function sendNotaEncargoFlowInteractive(
     },
   };
 
-  return sendInteractiveMessage(to, interactive);
+  return sendInteractiveMessage(to, interactive, options);
 }
 
 // ---------------------------------------------------------------------------
@@ -228,6 +237,7 @@ export async function sendNotaEncargoDocumentoFirmado(
     propertyRef: string;
     signedDocumentUrl: string;
   },
+  options?: NotaEncargoSendOptions,
 ): Promise<SendMessageSuccess> {
   return sendDocumentMessage(
     to,
@@ -238,5 +248,6 @@ export async function sendNotaEncargoDocumentoFirmado(
         `✅ Aquí tiene su Nota de Encargo firmada (ref: ${params.propertyRef}). ` +
         `Guarde este documento para sus registros. Gracias por confiar en URUS Capital Group.`,
     },
+    options,
   );
 }

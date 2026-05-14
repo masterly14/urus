@@ -48,6 +48,19 @@ export async function handleNotaEncargoRecordatorio(
     propertyRef: displayRef,
     direccion: session.direccion,
     visitTime: session.visitDateTime,
+  }, {
+    trace: {
+      source: "nota_encargo_recordatorio_job",
+      kind: "nota_encargo_recordatorio",
+      aggregateId: session.propietarioPhone,
+      correlationId: job.id,
+      causationId: job.sourceEventId,
+      payload: {
+        sessionId,
+        notaEncargoState: session.state,
+        propertyCode: session.propertyCode,
+      },
+    },
   });
 
   await prisma.notaEncargoSession.update({
@@ -103,6 +116,20 @@ export async function handleNotaEncargoCheckConfirmacion(
       propertyRef: displayRef,
       direccion: session.direccion,
       visitTime: session.visitDateTime,
+    }, {
+      trace: {
+        source: "nota_encargo_check_confirmacion_job",
+        kind: "nota_encargo_no_confirmada",
+        aggregateId: comercial.telefono,
+        correlationId: job.id,
+        causationId: job.sourceEventId,
+        payload: {
+          sessionId,
+          notaEncargoState: session.state,
+          comercialId: session.comercialId,
+          propertyCode: session.propertyCode,
+        },
+      },
     });
   }
 
@@ -147,6 +174,19 @@ export async function handleNotaEncargoEnviarFormulario(
     precio: session.precio,
     propertyRef: displayRef,
     refCatastral: session.refCatastral,
+  }, {
+    trace: {
+      source: "nota_encargo_enviar_formulario_job",
+      kind: "nota_encargo_formulario",
+      aggregateId: session.propietarioPhone,
+      correlationId: job.id,
+      causationId: job.sourceEventId,
+      payload: {
+        sessionId,
+        notaEncargoState: session.state,
+        propertyCode: session.propertyCode,
+      },
+    },
   });
 
   await prisma.notaEncargoSession.update({
