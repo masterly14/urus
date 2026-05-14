@@ -1,17 +1,14 @@
 /**
- * Job handler for the Parte de Visita flow.
+ * Handler legacy del Parte de Visita.
  *
- * PARTE_VISITA_ENVIAR_FORMULARIO:
- *   Triggered at the visit start time (confirmedSlotStart).
- *   Sends the WhatsApp Flow to the buyer to collect their data.
+ * El flujo canónico es **QStash schedule → `/api/parte-visita/send`** (ver
+ * `lib/parte-visita/schedule.ts`). Este handler se mantiene únicamente como
+ * red de seguridad para drenar jobs `PARTE_VISITA_ENVIAR_FORMULARIO` que
+ * quedaran en `job_queue` antes del cambio de arquitectura. Delega en
+ * `sendParteVisitaForSession`, que es idempotente.
  */
 
-import { prisma } from "@/lib/prisma";
-import { resolveComercial } from "@/lib/routing/resolve-comercial";
-import {
-  sendParteVisitaContexto,
-  sendParteVisitaFlow,
-} from "@/lib/parte-visita/whatsapp";
+import { sendParteVisitaForSession } from "@/lib/parte-visita/send";
 import type { JobRecord } from "@/lib/job-queue/types";
 import type { HandlerResult } from "./types";
 
@@ -29,89 +26,9 @@ export async function handleParteVisitaEnviarFormulario(
     };
   }
 
-  const session = await prisma.parteVisitaSession.findUnique({
-    where: { id: sessionId },
-  });
-
-  if (!session) {
-    return {
-      success: false,
-      error: `ParteVisitaSession ${sessionId} not found`,
-      permanent: true,
-    };
+  const result = await sendParteVisitaForSession(sessionId);
+  if (!result.ok) {
+    return { success: false, error: result.error, permanent: result.permanent };
   }
-
-  if (session.state !== "PENDING") {
-    console.log(
-      `[parte-visita] Session ${sessionId} not in PENDING state (${session.state}) — skipping`,
-    );
-    return { success: true };
-  }
-
-  const comercial = await resolveComercial({
-    comercialId: session.comercialId,
-    requireActive: false,
-  });
-  const agenteName = comercial?.nombre ?? "URUS Capital Group";
-
-  const fechaVisita = session.visitDateTime.toLocaleDateString("es-ES", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-  const horaVisita = session.visitDateTime.toLocaleTimeString("es-ES", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const property = await prisma.propertyCurrent.findUnique({
-    where: { codigo: session.propertyCode },
-    select: { titulo: true, portalUrl: true },
-  });
-  const propertyTitle =
-    property?.titulo?.trim() ||
-    session.direccion ||
-    session.propertyRef ||
-    "propiedad";
-  const propertyUrl =
-    property?.portalUrl?.trim() ||
-    // Fallback cuando aún no existe portalUrl sincronizado.
-    "https://www.idealista.com/";
-
-  try {
-    // 1) Contexto previo (plantilla)
-    await sendParteVisitaContexto(session.buyerPhone, {
-      sessionId: session.id,
-      propertyRef: session.propertyRef,
-      propertyTitle,
-      propertyUrl,
-    });
-    // 2) Flow de parte de visita
-    await sendParteVisitaFlow(session.buyerPhone, {
-      sessionId: session.id,
-      direccion: session.direccion,
-      tipoOperacion: session.tipoOperacion,
-      precio: session.precio,
-      propertyRef: session.propertyRef,
-      agenteName,
-      fechaVisita,
-      horaVisita,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[parte-visita] Error sending Flow to ${session.buyerPhone}: ${message}`,
-    );
-    return { success: false, error: message };
-  }
-
-  await prisma.parteVisitaSession.update({
-    where: { id: sessionId },
-    data: { state: "FORMULARIO_ENVIADO" },
-  });
-
-  console.log(
-    `[parte-visita] Flow sent to buyer ${session.buyerPhone} — session=${sessionId}`,
-  );
-
   return { success: true };
 }

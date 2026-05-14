@@ -1,16 +1,23 @@
 /**
- * Schedules the Parte de Visita flow after a visit is confirmed.
+ * Programación del Parte de Visita.
  *
- * Called from the visit-scheduling orchestrator when the session
- * transitions to VISIT_CONFIRMED. Creates a ParteVisitaSession
- * with pre-filled property data and enqueues a job to send the
- * WhatsApp Flow at the visit start time.
+ * Cuando se confirma una visita, se crea la `ParteVisitaSession` y se publica
+ * un mensaje diferido en **Upstash QStash** con `notBefore = visitDateTime`
+ * que apunta al endpoint dedicado `/api/parte-visita/send`. QStash invocará
+ * ese endpoint en el instante exacto de la visita y se enviará el WhatsApp
+ * Flow en caliente, sin pasar por la cola interna ni por ningún cron poller.
+ *
+ * No se usa `job_queue` para este flujo: la cola compartida tiene throughput
+ * limitado y puede acumular backlog (ver `docs/visitas-gestion-comercial.md`).
  */
 
+import { Client } from "@upstash/qstash";
 import { prisma } from "@/lib/prisma";
-import { enqueueJob } from "@/lib/job-queue";
 import { extractPropertyDataFromRaw } from "@/lib/nota-encargo/utils";
+import { getPublicAppUrl } from "@/lib/microsite/app-url";
 import type { VisitSchedulingSession } from "@prisma/client";
+
+const SEND_ROUTE = "/api/parte-visita/send";
 
 export type ParteVisitaScheduleDetails = {
   visitSessionId: string;
@@ -24,6 +31,55 @@ export type ParteVisitaScheduleDetails = {
   tipoOperacion: string;
   precio: number;
 };
+
+export class ParteVisitaScheduleError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ParteVisitaScheduleError";
+  }
+}
+
+function getQstashClient(): Client {
+  const token = process.env.QSTASH_TOKEN?.trim();
+  if (!token) {
+    throw new ParteVisitaScheduleError(
+      "QSTASH_TOKEN no configurado: imposible programar el Parte de Visita en QStash",
+    );
+  }
+  return new Client({ token });
+}
+
+/**
+ * Publica en QStash el envío del Parte de Visita para una sesión existente,
+ * apuntando a `visitDateTime` (o ejecución inmediata si la fecha ya pasó).
+ * Devuelve el `messageId` de QStash para trazabilidad.
+ */
+export async function publishParteVisitaSendSchedule(params: {
+  parteVisitaSessionId: string;
+  visitDateTime: Date;
+}): Promise<{ messageId: string; sendAtIso: string }> {
+  const client = getQstashClient();
+  const baseUrl = getPublicAppUrl();
+  const now = Date.now();
+  const sendAt = Math.max(Math.floor(params.visitDateTime.getTime() / 1000), Math.floor(now / 1000));
+
+  const response = await client.publishJSON({
+    url: `${baseUrl}${SEND_ROUTE}`,
+    body: { sessionId: params.parteVisitaSessionId },
+    notBefore: sendAt,
+    retries: 3,
+  });
+
+  const messageId =
+    typeof (response as { messageId?: unknown }).messageId === "string"
+      ? ((response as { messageId: string }).messageId)
+      : "";
+
+  return {
+    messageId,
+    sendAtIso: new Date(sendAt * 1000).toISOString(),
+  };
+}
 
 export async function scheduleParteVisitaFromDetails(
   details: ParteVisitaScheduleDetails,
@@ -54,15 +110,13 @@ export async function scheduleParteVisitaFromDetails(
     },
   });
 
-  await enqueueJob({
-    type: "PARTE_VISITA_ENVIAR_FORMULARIO",
-    payload: { sessionId: session.id },
-    availableAt: details.visitDateTime,
-    idempotencyKey: `parte_visita_formulario:${session.id}`,
+  const { messageId, sendAtIso } = await publishParteVisitaSendSchedule({
+    parteVisitaSessionId: session.id,
+    visitDateTime: details.visitDateTime,
   });
 
   console.log(
-    `[parte-visita] Scheduled for visit ${details.visitSessionId} — session=${session.id} at=${details.visitDateTime.toISOString()}`,
+    `[parte-visita] QStash scheduled for visit ${details.visitSessionId} — session=${session.id} sendAt=${sendAtIso} qstashMessageId=${messageId || "(unknown)"}`,
   );
 }
 

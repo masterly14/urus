@@ -26,6 +26,17 @@ const CONTEXTO_TEMPLATE =
   process.env.WHATSAPP_TEMPLATE_PARTE_VISITA_CONTEXTO ||
   "visita_contexto_propiedad";
 
+// Idiomas específicos por plantilla. Cada plantilla en Meta puede estar
+// aprobada en un código distinto (p. ej. "es" vs "es_ES"). Si la plantilla
+// global `WHATSAPP_TEMPLATE_LANGUAGE` no coincide, Meta responde
+// `#132001 Template name does not exist in the translation`.
+const FORMULARIO_LANGUAGE =
+  process.env.WHATSAPP_TEMPLATE_PARTE_VISITA_FORMULARIO_LANGUAGE?.trim() ||
+  WHATSAPP_TEMPLATE_LANGUAGE_CODE;
+const CONTEXTO_LANGUAGE =
+  process.env.WHATSAPP_TEMPLATE_PARTE_VISITA_CONTEXTO_LANGUAGE?.trim() ||
+  WHATSAPP_TEMPLATE_LANGUAGE_CODE;
+
 // ---------------------------------------------------------------------------
 // Send Flow (formulario parte de visita)
 // ---------------------------------------------------------------------------
@@ -77,7 +88,7 @@ export async function sendParteVisitaContexto(
 ): Promise<SendMessageSuccess> {
   const template: TemplateObject = {
     name: CONTEXTO_TEMPLATE,
-    language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
+    language: { code: CONTEXTO_LANGUAGE },
     components: [
       {
         type: "body",
@@ -116,7 +127,7 @@ export async function sendParteVisitaFlow(
 
   const template: TemplateObject = {
     name: FORMULARIO_TEMPLATE,
-    language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
+    language: { code: FORMULARIO_LANGUAGE },
     components: [
       {
         type: "body",

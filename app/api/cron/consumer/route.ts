@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import { withObservedRoute } from "@/lib/observability";
 
 
-const DEFAULT_BATCH_SIZE = 10;
+const DEFAULT_BATCH_SIZE = 30;
 const MAX_BATCH_SIZE = 50;
 
 const postHandler = async (request: Request) => {
