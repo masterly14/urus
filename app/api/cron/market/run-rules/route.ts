@@ -1,27 +1,48 @@
 /**
  * POST /api/cron/market/run-rules (cada 10 min)
  *
- * Esqueleto no-op. En MVP no hay reglas de negocio configuradas; este
- * endpoint queda cableado para activarlas en V2 sin mover infra.
+ * Evaluador de alertas guardadas (`MarketSavedAlert`). Para cada alerta
+ * activa cuya `lastEvaluatedAt` haya superado el intervalo de su `frequency`,
+ * busca matches nuevos (MarketEvent CREATED/PRICE_CHANGED/REACTIVATED desde
+ * la ultima evaluacion) y entrega por los canales configurados:
+ *   - in_app: persiste Notification y dispara Pusher al canal del usuario.
+ *   - whatsapp: envia plantilla `WHATSAPP_TEMPLATE_MARKET_ALERT` al telefono
+ *     del comercial con un resumen agregado (max 5 matches por mensaje).
  *
- * Cuando se implementen reglas (alta nueva en zona, bajada relevante,
- * reactivacion, anuncios de particular en cobertura) este handler
- * encolara MARKET_RUN_RULES por cada regla activa.
+ * Idempotencia: cada delivery se persiste en MarketAlertDelivery con
+ * `dedupeKey = sha256(alertId|listingId|channel|day)` unique.
+ *
+ * Si MARKET_FEATURE_ENABLED=false, no hace nada y devuelve { skipped: true }.
  */
 
 import { NextResponse } from "next/server";
 import { isQstashAuthorized } from "@/lib/api/cron-auth";
 import { withObservedRoute } from "@/lib/observability";
+import { evaluateAllDueAlerts } from "@/lib/market/alerts";
 
 const postHandler = async (request: Request) => {
   if (!(await isQstashAuthorized(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (process.env.MARKET_FEATURE_ENABLED === "false") {
+    return NextResponse.json({
+      skipped: true,
+      reason: "MARKET_FEATURE_ENABLED=false",
+    });
+  }
 
-  return NextResponse.json({
-    skipped: true,
-    reason: "no rules configured (V2 placeholder)",
-  });
+  try {
+    const result = await evaluateAllDueAlerts();
+    return NextResponse.json({ ok: true, ...result });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[cron/market/run-rules] error: ${message}`);
+    return NextResponse.json({
+      skipped: true,
+      reason: "evaluator threw",
+      error: message,
+    });
+  }
 };
 
 export const POST = withObservedRoute(
@@ -29,4 +50,4 @@ export const POST = withObservedRoute(
   postHandler,
 );
 
-export const maxDuration = 30;
+export const maxDuration = 120;
