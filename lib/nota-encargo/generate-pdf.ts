@@ -161,7 +161,9 @@ export async function generateNotaEncargoPdf(
   });
   y -= lineHeight;
 
-  const dateStr = data.fecha.toLocaleDateString("es-ES");
+  const dateStr = data.fecha.toLocaleDateString("es-ES", {
+    timeZone: "Europe/Madrid",
+  });
   page.drawText(
     `Fecha: ${dateStr}   Hora: ${data.hora}   Agente: ${data.agente}`,
     {

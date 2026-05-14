@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession, unauthorized, forbidden, isCeoOrAdmin } from "@/lib/auth/session";
+import {
+  getSession,
+  unauthorized,
+  forbidden,
+  isCeoOrAdmin,
+} from "@/lib/auth/session";
 
 export async function GET() {
   const session = await getSession();
@@ -16,7 +21,7 @@ export async function GET() {
     where.comercialId = session.comercialId;
   }
 
-  const sesiones = await prisma.notaEncargoSession.findMany({
+  const rows = await prisma.notaEncargoSession.findMany({
     where,
     select: {
       id: true,
@@ -36,6 +41,25 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
     take: 100,
   });
+
+  // Hidratamos el nombre del comercial con una sola query. Evitamos N+1 sin
+  // alterar la estructura del modelo (NotaEncargoSession no tiene relación
+  // Prisma con Comercial; el join se hace en aplicación).
+  const comercialIds = Array.from(
+    new Set(rows.map((r) => r.comercialId).filter((id): id is string => Boolean(id))),
+  );
+  const comerciales = comercialIds.length
+    ? await prisma.comercial.findMany({
+        where: { id: { in: comercialIds } },
+        select: { id: true, nombre: true },
+      })
+    : [];
+  const nameById = new Map(comerciales.map((c) => [c.id, c.nombre]));
+
+  const sesiones = rows.map((r) => ({
+    ...r,
+    comercialNombre: nameById.get(r.comercialId) ?? null,
+  }));
 
   return NextResponse.json({ sesiones });
 }

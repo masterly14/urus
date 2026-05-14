@@ -90,6 +90,7 @@ export async function handleNotaEncargoFlowResponse(
     aceptaLopd,
     fecha: new Date(),
     hora: new Date().toLocaleTimeString("es-ES", {
+      timeZone: "Europe/Madrid",
       hour: "2-digit",
       minute: "2-digit",
     }),

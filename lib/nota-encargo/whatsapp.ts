@@ -43,7 +43,11 @@ export async function sendNotaEncargoRecordatorio(
   params: { propertyRef: string; direccion?: string | null; visitTime: Date },
   options?: NotaEncargoSendOptions,
 ): Promise<SendMessageSuccess> {
+  // Negocio en España: forzamos zona Europe/Madrid en lugar de la zona del
+  // host (Vercel usa UTC por defecto), para que el propietario reciba la hora
+  // civil de Madrid y no la UTC.
   const hora = params.visitTime.toLocaleTimeString("es-ES", {
+    timeZone: "Europe/Madrid",
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -81,6 +85,7 @@ export async function sendNotaEncargoNoConfirmada(
   options?: NotaEncargoSendOptions,
 ): Promise<SendMessageSuccess> {
   const hora = params.visitTime.toLocaleTimeString("es-ES", {
+    timeZone: "Europe/Madrid",
     hour: "2-digit",
     minute: "2-digit",
   });

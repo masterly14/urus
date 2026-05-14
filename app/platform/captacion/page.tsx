@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
+import { fromZonedTime } from "date-fns-tz";
 import {
   Card,
   CardContent,
@@ -28,6 +29,16 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { CadastralRefInput } from "@/components/captacion/cadastral-ref-input";
 import { normalizeCadastralRef } from "@/lib/nota-encargo/cadastral-ref";
 import {
@@ -38,7 +49,11 @@ import {
   Phone,
   AlertTriangle,
   RefreshCw,
+  Trash2,
+  User,
 } from "lucide-react";
+
+const BUSINESS_TZ = "Europe/Madrid";
 
 interface NotaEncargoSesion {
   id: string;
@@ -52,6 +67,8 @@ interface NotaEncargoSesion {
   tipoOperacion: string;
   precio: number;
   createdAt: string;
+  comercialId: string;
+  comercialNombre: string | null;
 }
 
 const STATE_LABELS: Record<string, string> = {
@@ -87,6 +104,7 @@ const STATE_VARIANT: Record<
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("es-ES", {
+    timeZone: BUSINESS_TZ,
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -95,6 +113,7 @@ function fmtDate(iso: string) {
 
 function fmtDateTime(iso: string) {
   return new Date(iso).toLocaleString("es-ES", {
+    timeZone: BUSINESS_TZ,
     day: "2-digit",
     month: "short",
     hour: "2-digit",
@@ -106,30 +125,61 @@ function fmtPrice(precio: number) {
   return new Intl.NumberFormat("es-ES").format(precio) + " \u20AC";
 }
 
-function todayLocalISO(): string {
-  const d = new Date();
-  const offset = d.getTimezoneOffset() * 60000;
-  return new Date(d.getTime() - offset).toISOString().slice(0, 10);
+/**
+ * Devuelve la fecha YYYY-MM-DD en zona Europe/Madrid, independientemente de la
+ * zona horaria del navegador del comercial. Previene que un comercial fuera de
+ * España vea "hoy" desfasado un día.
+ */
+function todayMadridISO(): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BUSINESS_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const map: Record<string, string> = {};
+  for (const p of parts) {
+    if (p.type !== "literal") map[p.type] = p.value;
+  }
+  return `${map.year}-${map.month}-${map.day}`;
 }
 
-function getTomorrow(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  const offset = d.getTimezoneOffset() * 60000;
-  return new Date(d.getTime() - offset).toISOString().slice(0, 10);
+function tomorrowMadridISO(): string {
+  const today = todayMadridISO();
+  const d = new Date(`${today}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Hora mínima para hoy en Madrid (now + 1h con minuto truncado). Si la fecha
+ * elegida no es hoy en Madrid, no se aplica mínimo. Evita desfases por la zona
+ * local del navegador.
+ */
 function minTimeForDate(fecha: string): string | undefined {
-  const today = todayLocalISO();
-  if (fecha !== today) return undefined;
-  const d = new Date();
-  d.setHours(d.getHours() + 1);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  if (fecha !== todayMadridISO()) return undefined;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: BUSINESS_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(Date.now() + 60 * 60 * 1000));
+  const map: Record<string, string> = {};
+  for (const p of parts) {
+    if (p.type !== "literal") map[p.type] = p.value;
+  }
+  if (!map.hour || !map.minute) return undefined;
+  return `${map.hour}:${map.minute}`;
+}
+
+/** Combina fecha+hora interpretándolas como hora civil de Europe/Madrid. */
+function madridDateTime(fecha: string, hora: string): Date {
+  return fromZonedTime(`${fecha}T${hora}:00`, BUSINESS_TZ);
 }
 
 function isDateTimeInPast(fecha: string, hora: string): boolean {
-  const dt = new Date(`${fecha}T${hora}:00`);
-  return dt.getTime() <= Date.now();
+  if (!fecha || !hora) return false;
+  return madridDateTime(fecha, hora).getTime() <= Date.now();
 }
 
 // ---------------------------------------------------------------------------
@@ -149,6 +199,8 @@ const MOCK_SESIONES: NotaEncargoSesion[] = [
     tipoOperacion: "VENTA",
     precio: 0,
     createdAt: new Date().toISOString(),
+    comercialId: "mock-com-1",
+    comercialNombre: "Demo Comercial",
   },
   {
     id: "mock-2",
@@ -162,6 +214,8 @@ const MOCK_SESIONES: NotaEncargoSesion[] = [
     tipoOperacion: "VENTA",
     precio: 275000,
     createdAt: new Date().toISOString(),
+    comercialId: "mock-com-1",
+    comercialNombre: "Demo Comercial",
   },
   {
     id: "mock-3",
@@ -175,6 +229,8 @@ const MOCK_SESIONES: NotaEncargoSesion[] = [
     tipoOperacion: "ALQUILER",
     precio: 850,
     createdAt: new Date(Date.now() - 86400000).toISOString(),
+    comercialId: "mock-com-2",
+    comercialNombre: "Otra Comercial",
   },
   {
     id: "mock-4",
@@ -188,6 +244,8 @@ const MOCK_SESIONES: NotaEncargoSesion[] = [
     tipoOperacion: "VENTA",
     precio: 180000,
     createdAt: new Date(Date.now() - 604800000).toISOString(),
+    comercialId: "mock-com-1",
+    comercialNombre: "Demo Comercial",
   },
 ];
 
@@ -208,10 +266,16 @@ function CaptacionPageContent() {
   const sheetContentRef = useRef<HTMLDivElement>(null);
   const [refCatastral, setRefCatastral] = useState("");
   const [phone, setPhone] = useState("");
-  const [fecha, setFecha] = useState(getTomorrow());
+  const [fecha, setFecha] = useState(tomorrowMadridISO());
   const [hora, setHora] = useState("10:00");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const [pendingCancel, setPendingCancel] = useState<NotaEncargoSesion | null>(
+    null,
+  );
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const fetchSesiones = useCallback(() => {
     if (isMock) {
@@ -248,7 +312,7 @@ function CaptacionPageContent() {
   function resetForm() {
     setRefCatastral("");
     setPhone("");
-    setFecha(getTomorrow());
+    setFecha(tomorrowMadridISO());
     setHora("10:00");
     setFormError(null);
   }
@@ -256,6 +320,38 @@ function CaptacionPageContent() {
   function handleOpenSheet() {
     resetForm();
     setSheetOpen(true);
+  }
+
+  async function handleCancel() {
+    if (!pendingCancel) return;
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      if (isMock) {
+        setSesiones((prev) => prev.filter((s) => s.id !== pendingCancel.id));
+        setPendingCancel(null);
+        return;
+      }
+      const res = await fetch(
+        `/api/captacion/nota-encargo/${pendingCancel.id}/cancel`,
+        { method: "POST" },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setCancelError(
+          body.error ?? `Error ${res.status} al cancelar la nota`,
+        );
+        return;
+      }
+      setPendingCancel(null);
+      fetchSesiones();
+    } catch (err) {
+      setCancelError(
+        err instanceof Error ? err.message : "Error de conexión",
+      );
+    } finally {
+      setCancelling(false);
+    }
   }
 
   const dateTimeInPast = useMemo(
@@ -278,7 +374,10 @@ function CaptacionPageContent() {
     setSubmitting(true);
     setFormError(null);
 
-    const visitDateTime = new Date(`${fecha}T${hora}:00`).toISOString();
+    // Interpretamos `fecha`+`hora` como hora civil Europe/Madrid (la zona del
+    // negocio) y enviamos al backend el equivalente UTC. Esto evita que un
+    // comercial fuera de España agende a una hora distinta de la tecleada.
+    const visitDateTime = madridDateTime(fecha, hora).toISOString();
 
     try {
       const res = await fetch("/api/captacion/nota-encargo", {
@@ -392,43 +491,80 @@ function CaptacionPageContent() {
                   <TableHead>Visita</TableHead>
                   <TableHead>Precio</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Comercial</TableHead>
                   <TableHead>Creada</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex flex-col gap-1">
-                        <span>{s.refCatastral ?? "—"}</span>
-                        {s.propertyRef && (
-                          <span className="font-mono text-xs text-muted-foreground">
-                            {s.propertyRef}
-                          </span>
-                        )}
-                        <Badge
-                          variant={s.propertyCode ? "secondary" : "outline"}
-                          className="w-fit"
-                        >
-                          {s.propertyCode ? "Vinculada" : "Pendiente"}
+                {filtered.map((s) => {
+                  const isTerminal =
+                    s.state === "CANCELADA" ||
+                    s.state === "FIRMADA" ||
+                    s.state === "DOCUMENTO_ENVIADO";
+                  return (
+                    <TableRow key={s.id}>
+                      <TableCell className="font-medium">
+                        <div className="flex flex-col gap-1">
+                          <span>{s.refCatastral ?? "—"}</span>
+                          {s.propertyRef && (
+                            <span className="font-mono text-xs text-muted-foreground">
+                              {s.propertyRef}
+                            </span>
+                          )}
+                          <Badge
+                            variant={s.propertyCode ? "secondary" : "outline"}
+                            className="w-fit"
+                          >
+                            {s.propertyCode ? "Vinculada" : "Pendiente"}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell className="max-w-[220px] truncate">
+                        {s.direccion || "\u2014"}
+                      </TableCell>
+                      <TableCell>{fmtDateTime(s.visitDateTime)}</TableCell>
+                      <TableCell>{fmtPrice(s.precio)}</TableCell>
+                      <TableCell>
+                        <Badge variant={STATE_VARIANT[s.state] ?? "outline"}>
+                          {STATE_LABELS[s.state] ?? s.state}
                         </Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell className="max-w-[220px] truncate">
-                      {s.direccion || "\u2014"}
-                    </TableCell>
-                    <TableCell>{fmtDateTime(s.visitDateTime)}</TableCell>
-                    <TableCell>{fmtPrice(s.precio)}</TableCell>
-                    <TableCell>
-                      <Badge variant={STATE_VARIANT[s.state] ?? "outline"}>
-                        {STATE_LABELS[s.state] ?? s.state}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {fmtDate(s.createdAt)}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className="gap-1 font-normal"
+                          title={s.comercialId}
+                        >
+                          <User className="h-3 w-3" />
+                          {s.comercialNombre ?? s.comercialId}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {fmtDate(s.createdAt)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={isTerminal}
+                          onClick={() => {
+                            setCancelError(null);
+                            setPendingCancel(s);
+                          }}
+                          title={
+                            isTerminal
+                              ? "No se puede cancelar una nota en estado final"
+                              : "Cancelar nota de encargo"
+                          }
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                          <span className="sr-only">Cancelar</span>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -488,7 +624,7 @@ function CaptacionPageContent() {
                   id="sheet-fecha"
                   type="date"
                   value={fecha}
-                  min={todayLocalISO()}
+                  min={todayMadridISO()}
                   onChange={(e) => setFecha(e.target.value)}
                   required
                 />
@@ -535,6 +671,69 @@ function CaptacionPageContent() {
           </form>
         </SheetContent>
       </Sheet>
+
+      {/* ── Confirmación de cancelación ── */}
+      <AlertDialog
+        open={pendingCancel !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingCancel(null);
+            setCancelError(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar nota de encargo</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Esta acción marcará la nota como <strong>cancelada</strong> y
+                  detendrá cualquier recordatorio o envío pendiente al
+                  propietario. La nota se conservará en el historial.
+                </p>
+                {pendingCancel && (
+                  <div className="rounded border bg-muted/30 p-3 text-xs">
+                    <div>
+                      <span className="font-medium">Referencia: </span>
+                      {pendingCancel.refCatastral ?? "—"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Visita: </span>
+                      {fmtDateTime(pendingCancel.visitDateTime)}
+                    </div>
+                    <div>
+                      <span className="font-medium">Propietario: </span>
+                      {pendingCancel.propietarioPhone}
+                    </div>
+                    <div>
+                      <span className="font-medium">Estado actual: </span>
+                      {STATE_LABELS[pendingCancel.state] ?? pendingCancel.state}
+                    </div>
+                  </div>
+                )}
+                {cancelError && (
+                  <p className="font-medium text-destructive">{cancelError}</p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelling}>Volver</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleCancel();
+              }}
+              disabled={cancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {cancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Cancelar nota
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
