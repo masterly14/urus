@@ -109,7 +109,114 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { MOCK_LISTINGS } from "./mock";
-import type { LngLat, ListingOpportunity, ListingsApiResponse } from "./types";
+import type {
+  ClusterPortalEntry,
+  LngLat,
+  ListingOpportunity,
+  ListingsApiResponse,
+} from "./types";
+
+/**
+ * Shape devuelto por `GET/POST /api/market/properties/search`.
+ * Lo aplanamos a `ListingOpportunity` con `toListingOpportunity` para mantener
+ * la UI existente (que muta acciones por listing) sin reescribirla entera.
+ */
+interface PropertyClusterApiItem {
+  propertyId: string;
+  clustered: boolean;
+  representativeListingId: string;
+  housingType: string;
+  operation: string;
+  city: string;
+  zone: string | null;
+  addressApprox: string | null;
+  lat: number | null;
+  lng: number | null;
+  builtArea: number | null;
+  rooms: number | null;
+  bathrooms: number | null;
+  floor: string | null;
+  mainImageUrl: string | null;
+  imageUrls: string[];
+  portals: ClusterPortalEntry[];
+  representativePrice: number | null;
+  representativePricePerMeter: number | null;
+  minPrice: number | null;
+  maxPrice: number | null;
+  priceSpreadPct: number | null;
+  description: string | null;
+  listingReference: string | null;
+  cadastralRef: string | null;
+  detailFetchedAt: string | null;
+  phoneCanonical: string | null;
+  advertiserId: string | null;
+  advertiserDisplayName: string | null;
+  advertiserType: "particular" | "agency" | null;
+  inmovillaContactId: string | null;
+  assignedComercialId: string | null;
+  assignedComercialNombre: string | null;
+  assignedAt: string | null;
+  captacionStage: ListingOpportunity["captacionStage"];
+  inmovillaProspectRef: string | null;
+  inmovillaPropertyCodOfer: number | null;
+  captacionLastError: string | null;
+  captacionUpdatedAt: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+function toListingOpportunity(c: PropertyClusterApiItem): ListingOpportunity {
+  const representativePortal =
+    c.portals.find((p) => p.listingId === c.representativeListingId) ??
+    c.portals[0]!;
+  return {
+    id: c.representativeListingId,
+    propertyId: c.propertyId,
+    clustered: c.clustered,
+    portals: c.portals,
+    minPrice: c.minPrice,
+    maxPrice: c.maxPrice,
+    priceSpreadPct: c.priceSpreadPct,
+    source: representativePortal.source,
+    operation: c.operation,
+    housingType: c.housingType,
+    status: representativePortal.status,
+    canonicalUrl: representativePortal.canonicalUrl,
+    addressApprox: c.addressApprox,
+    city: c.city,
+    zone: c.zone,
+    lat: c.lat,
+    lng: c.lng,
+    builtArea: c.builtArea,
+    rooms: c.rooms,
+    bathrooms: c.bathrooms,
+    floor: c.floor,
+    price: c.representativePrice,
+    pricePerMeter: c.representativePricePerMeter,
+    currency: "EUR",
+    mainImageUrl: c.mainImageUrl,
+    imageUrls: c.imageUrls,
+    description: c.description,
+    listingReference: c.listingReference,
+    cadastralRef: c.cadastralRef,
+    detailFetchedAt: c.detailFetchedAt,
+    phoneCanonical: c.phoneCanonical,
+    advertiserId: c.advertiserId,
+    advertiserDisplayName: c.advertiserDisplayName,
+    advertiserType: c.advertiserType,
+    inmovillaContactId: c.inmovillaContactId,
+    assignedComercialId: c.assignedComercialId,
+    assignedComercialNombre: c.assignedComercialNombre,
+    assignedAt: c.assignedAt,
+    captacionStage: c.captacionStage,
+    inmovillaProspectRef: c.inmovillaProspectRef,
+    inmovillaPropertyCodOfer: c.inmovillaPropertyCodOfer,
+    captacionLastError: c.captacionLastError,
+    captacionUpdatedAt: c.captacionUpdatedAt,
+    firstSeenAt: c.firstSeenAt,
+    lastSeenAt: c.lastSeenAt,
+  };
+}
 
 const ZoneMap = dynamic(() => import("./zone-map").then((m) => m.ZoneMap), {
   ssr: false,
@@ -474,36 +581,42 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
         if (polygon) body.polygon = polygon;
         if (nextCursor) body.cursor = nextCursor;
 
-        const response = await fetch("/api/market/listings/opportunities", {
+        const response = await fetch("/api/market/properties/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        const json = (await response.json().catch(() => ({}))) as
-          | ListingsApiResponse
+        const raw = (await response.json().catch(() => ({}))) as
+          | {
+              ok: true;
+              items: PropertyClusterApiItem[];
+              cursor: string | null;
+              meta: ListingsApiResponse["meta"];
+            }
           | { ok: false; error?: { message?: string } };
-        if (!response.ok || !("ok" in json) || !json.ok) {
+        if (!response.ok || !("ok" in raw) || !raw.ok) {
           const msg =
-            "error" in json && json.error?.message
-              ? json.error.message
+            "error" in raw && raw.error?.message
+              ? raw.error.message
               : `HTTP ${response.status}`;
           setError(msg);
           return;
         }
-        setMeta(json.meta);
-        setCursor(json.cursor);
+        const items = raw.items.map(toListingOpportunity);
+        setMeta(raw.meta);
+        setCursor(raw.cursor);
         setItems((prev) => {
-          if (append) return [...prev, ...json.items];
+          if (append) return [...prev, ...items];
           // Detectar IDs nuevos para resaltar (cuando es refresco automatico).
           if (autoRefresh && prev.length > 0) {
             const prevIds = new Set(prev.map((p) => p.id));
-            const fresh = json.items.find((i) => !prevIds.has(i.id));
+            const fresh = items.find((i) => !prevIds.has(i.id));
             if (fresh) {
               setHighlightId(fresh.id);
               setTimeout(() => setHighlightId(null), 4_000);
             }
           }
-          return json.items;
+          return items;
         });
         lastFetchRef.current = Date.now();
         setSecondsToRefresh(POLLING_INTERVAL_MS / 1000);
@@ -1635,10 +1748,32 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                         </span>
                         <span className="text-[10px] text-muted-foreground">
                           {row.builtArea ?? "—"} m² · {row.rooms ?? "—"} hab ·{" "}
-                          {row.bathrooms ?? "—"} baños ·{" "}
-                          {SOURCE_LABEL[row.source] ?? row.source}
+                          {row.bathrooms ?? "—"} baños
                         </span>
-                        {partial && (
+                        <div className="flex flex-wrap items-center gap-1">
+                          {row.portals.map((portal) => (
+                            <Badge
+                              key={portal.listingId}
+                              variant="outline"
+                              className="text-[9px] font-normal"
+                              title={
+                                portal.price != null
+                                  ? `${SOURCE_LABEL[portal.source] ?? portal.source}: ${formatPrice(portal.price)}`
+                                  : SOURCE_LABEL[portal.source] ?? portal.source
+                              }
+                            >
+                              {SOURCE_LABEL[portal.source] ?? portal.source}
+                            </Badge>
+                          ))}
+                          {row.portals.length > 1 && row.priceSpreadPct != null
+                            ? (
+                                <span className="text-[9px] font-medium text-amber-700 dark:text-amber-300">
+                                  Δ {(row.priceSpreadPct * 100).toFixed(1)}%
+                                </span>
+                              )
+                            : null}
+                        </div>
+                        {partial && row.portals.length === 1 && (
                           <Badge
                             variant="outline"
                             className="w-fit text-[9px] font-normal"
@@ -1728,13 +1863,24 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                           </a>
                         </Button>
                         <Button
+                          asChild
                           size="sm"
                           variant="outline"
                           className="h-7 px-2 text-xs"
-                          onClick={() => openDetailModal(row)}
-                          title="Abrir modal de gestión"
+                          title="Abrir ficha completa"
                         >
-                          Gestionar
+                          <a href={`/platform/market/properties/${encodeURIComponent(row.propertyId)}`}>
+                            Ficha
+                          </a>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => openDetailModal(row)}
+                          title="Abrir modal rápido"
+                        >
+                          Gestión rápida
                         </Button>
                       </div>
                     </TableCell>
