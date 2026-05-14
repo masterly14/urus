@@ -8,6 +8,7 @@ export type ConversationMessageKind =
   | "template"
   | "interactive"
   | "button"
+  | "audio"
   | "image"
   | "document"
   | "unknown";

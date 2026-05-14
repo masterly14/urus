@@ -8,6 +8,8 @@
 import { prisma } from "@/lib/prisma";
 import { handleParteVisitaFlowResponse } from "./send-to-signature";
 import { completeVisit } from "@/lib/visit-scheduling/session-manager";
+import { sendParteVisitaFlow } from "./whatsapp";
+import { resolveComercial } from "@/lib/routing/resolve-comercial";
 
 export async function handleParteVisitaNfmReply(
   from: string,
@@ -51,6 +53,74 @@ export async function handleParteVisitaNfmReply(
         err instanceof Error ? err.message : err,
       );
     }
+  }
+
+  return true;
+}
+
+/**
+ * Mitigación: si el comprador envía un mensaje fuera del Flow (audio/texto)
+ * y la sesión sigue en FORMULARIO_ENVIADO, reenviamos el Flow para guiarlo.
+ */
+export async function handleParteVisitaOffFlowMessage(
+  from: string,
+): Promise<boolean> {
+  const resendCooldownMs = 2 * 60 * 1000;
+  const recentFlow = await prisma.event.findFirst({
+    where: {
+      type: "WHATSAPP_ENVIADO",
+      aggregateType: "WHATSAPP_CONVERSATION",
+      aggregateId: from,
+      payload: { path: ["kind"], equals: "parte_visita_formulario_flow" },
+      occurredAt: { gte: new Date(Date.now() - resendCooldownMs) },
+    },
+    select: { id: true, occurredAt: true },
+    orderBy: { occurredAt: "desc" },
+  });
+  if (recentFlow) {
+    return false;
+  }
+
+  const session = await prisma.parteVisitaSession.findFirst({
+    where: { buyerPhone: from, state: "FORMULARIO_ENVIADO" },
+    orderBy: { updatedAt: "desc" },
+  });
+  if (!session) return false;
+
+  const comercial = await resolveComercial({
+    comercialId: session.comercialId,
+    requireActive: false,
+  });
+  const agenteName = comercial?.nombre ?? "URUS Capital Group";
+  const fechaVisita = session.visitDateTime.toLocaleDateString("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  const horaVisita = session.visitDateTime.toLocaleTimeString("es-ES", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  try {
+    await sendParteVisitaFlow(session.buyerPhone, {
+      sessionId: session.id,
+      direccion: session.direccion,
+      tipoOperacion: session.tipoOperacion,
+      precio: session.precio,
+      propertyRef: session.propertyRef,
+      agenteName,
+      fechaVisita,
+      horaVisita,
+    });
+    console.log(
+      `[parte-visita-webhook] Off-flow message from ${from}. Flow resent for session ${session.id}`,
+    );
+  } catch (err) {
+    console.warn(
+      `[parte-visita-webhook] Could not resend flow for ${from}:`,
+      err instanceof Error ? err.message : err,
+    );
   }
 
   return true;

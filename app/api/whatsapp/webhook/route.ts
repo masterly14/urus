@@ -29,9 +29,17 @@ import {
   handleNotaEncargoButtonReply,
   handleNotaEncargoNfmReply,
 } from "@/lib/nota-encargo";
-import { handleParteVisitaNfmReply } from "@/lib/parte-visita/webhook-handler";
+import {
+  handleParteVisitaNfmReply,
+  handleParteVisitaOffFlowMessage,
+} from "@/lib/parte-visita/webhook-handler";
 import { handlePostventaFormNfmReply } from "@/lib/postventa/form-response-handler";
 import { tryInlineProcessing } from "@/lib/whatsapp/inline-processor";
+import {
+  downloadWhatsAppMedia,
+  getWhatsAppMediaMetadata,
+} from "@/lib/whatsapp/media";
+import { uploadWhatsAppAudio } from "@/lib/cloudinary/upload-whatsapp-audio";
 
 
 // ---- GET: verificación del challenge ----
@@ -88,8 +96,8 @@ const postHandler = async (request: NextRequest): Promise<NextResponse> => {
     const from = evt.waId;
     const interactive = msg.interactive as Record<string, unknown> | undefined;
 
-    if (msg.type === "interactive" && interactive) {
-      try {
+    try {
+      if (msg.type === "interactive" && interactive) {
         if (interactive.type === "button_reply") {
           const btnReply = interactive.button_reply as { id: string } | undefined;
           if (btnReply?.id) {
@@ -114,12 +122,22 @@ const postHandler = async (request: NextRequest): Promise<NextResponse> => {
             if (handledPostventa) continue;
           }
         }
-      } catch (err) {
-        console.error(
-          "[whatsapp/webhook] Nota de Encargo intercept error:",
-          err instanceof Error ? err.message : err,
-        );
       }
+
+      // Mitigación: si llega un mensaje fuera del Flow mientras parte-visita
+      // está en FORMULARIO_ENVIADO, reenviar el Flow para guiar al comprador.
+      if (
+        msg.type === "audio" ||
+        msg.type === "text" ||
+        msg.type === "button"
+      ) {
+        await handleParteVisitaOffFlowMessage(from);
+      }
+    } catch (err) {
+      console.error(
+        "[whatsapp/webhook] Nota de Encargo intercept error:",
+        err instanceof Error ? err.message : err,
+      );
     }
   }
 
@@ -152,6 +170,51 @@ const postHandler = async (request: NextRequest): Promise<NextResponse> => {
           if (e.message.type === "text" && "text" in msg) content["text"] = msg["text"];
           if (e.message.type === "interactive" && "interactive" in msg) content["interactive"] = msg["interactive"];
           if (e.message.type === "button" && "button" in msg) content["button"] = msg["button"];
+          if (e.message.type === "audio" && "audio" in msg) {
+            const audio = msg["audio"];
+            if (audio && typeof audio === "object") {
+              const audioRecord = audio as Record<string, unknown>;
+              const audioId =
+                typeof audioRecord.id === "string" ? audioRecord.id : "";
+              const audioPayload: Record<string, unknown> = {
+                id: audioId,
+                mime_type:
+                  typeof audioRecord.mime_type === "string"
+                    ? audioRecord.mime_type
+                    : null,
+                sha256:
+                  typeof audioRecord.sha256 === "string"
+                    ? audioRecord.sha256
+                    : null,
+                voice:
+                  typeof audioRecord.voice === "boolean"
+                    ? audioRecord.voice
+                    : null,
+              };
+              if (audioId) {
+                try {
+                  const metadata = await getWhatsAppMediaMetadata(audioId);
+                  const downloaded = await downloadWhatsAppMedia(metadata.url);
+                  const uploaded = await uploadWhatsAppAudio({
+                    buffer: downloaded.buffer,
+                    mediaId: audioId,
+                    waId: e.waId,
+                    mimeType: metadata.mimeType ?? downloaded.mimeType,
+                    messageId: waMessageId,
+                  });
+                  audioPayload["cloudinaryUrl"] = uploaded.secureUrl;
+                  audioPayload["cloudinaryPublicId"] = uploaded.publicId;
+                  audioPayload["bytes"] = uploaded.bytes;
+                } catch (err) {
+                  console.warn(
+                    `[whatsapp/webhook] audio upload failed (messageId=${waMessageId}, mediaId=${audioId}):`,
+                    err instanceof Error ? err.message : err,
+                  );
+                }
+              }
+              content["audio"] = audioPayload;
+            }
+          }
           if ("context" in msg) content["context"] = msg["context"];
 
           const eventPayload = content as import("@/lib/event-store").JsonValue;

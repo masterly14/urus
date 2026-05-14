@@ -48,8 +48,8 @@ Formato: `<tipo>(<alcance>): <descripción imperativa en español>`
 
 - Commits atómicos: un commit = un cambio lógico.
 - Alcance: ID del módulo (`M0`–`M14`), `deps`, `ci`, etc.
-- Ramas: `<tipo>/<módulo>-<descripción-kebab>` desde `develop`.
-- PRs: siempre a `develop`, nunca directo a `main`.
+- Ramas: `<tipo>/<módulo>-<descripción-kebab>` (base habitual `develop`; `main` si el flujo del equipo lo indica).
+- PRs: base `develop` para integración; `main` cuando proceda (sin prohibición automática de merge a `main`).
 - **Nunca** commitear `.env`, secretos ni credenciales.
 
 ## Antes de cada tarea

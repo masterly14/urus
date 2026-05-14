@@ -46,7 +46,7 @@ chore(deps): actualizar playwright a v1.42
 
 - **Título:** misma convención que commits.
 - **Descripción:** qué cambia, por qué, cómo probarlo.
-- **Base branch:** `develop` (nunca directo a `main`).
+- **Base branch:** `develop` para integración habitual; `main` cuando el equipo lo requiera (p. ej. hotfix o flujo directo a producción).
 - Checklist obligatorio:
   - [ ] Build pasa sin errores
   - [ ] Tests relevantes añadidos o actualizados

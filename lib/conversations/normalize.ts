@@ -92,18 +92,21 @@ function extractLegacySentText(payload: Record<string, unknown>): string | null 
 function extractMediaText(payload: Record<string, unknown>): string | null {
   const image = asRecord(payload.image);
   const document = asRecord(payload.document);
+  const audio = asRecord(payload.audio);
 
   const imageCaption = stringValue(image.caption);
   const imageLink = firstString(image.link, image.id, payload.link, payload.id);
   const documentCaption = stringValue(document.caption);
   const documentFilename = stringValue(document.filename);
   const documentRef = firstString(document.link, document.id);
+  const audioUrl = firstString(audio.cloudinaryUrl, audio.link, audio.id);
 
   if (imageCaption) return imageCaption;
   if (documentCaption) return documentCaption;
   if (documentFilename) return `Documento: ${documentFilename}`;
   if (imageLink) return `Imagen adjunta: ${imageLink}`;
   if (documentRef) return `Documento adjunto: ${documentRef}`;
+  if (audioUrl) return `Audio recibido: ${audioUrl}`;
 
   return null;
 }
@@ -132,6 +135,7 @@ function inferKind(payload: Record<string, unknown>): ConversationMessageKind {
     explicit === "template" ||
     explicit === "interactive" ||
     explicit === "button" ||
+    explicit === "audio" ||
     explicit === "image" ||
     explicit === "document"
   ) {
@@ -140,6 +144,7 @@ function inferKind(payload: Record<string, unknown>): ConversationMessageKind {
   if (payload.template) return "template";
   if (payload.interactive) return "interactive";
   if (payload.button) return "button";
+  if (payload.audio) return "audio";
   if (payload.image) return "image";
   if (payload.document) return "document";
   if (payload.body || payload.text) return "text";

@@ -2,7 +2,7 @@ import "dotenv/config";
 import { createWabaTemplatesClient } from "@/lib/whatsapp/templates/meta-client";
 
 const TEMPLATE_NAME = "visita_contexto_propiedad";
-const TEMPLATE_LANGUAGE = "es_ES";
+const TEMPLATE_LANGUAGE = "es";
 const TEMPLATE_CATEGORY = "UTILITY" as const;
 
 async function main(): Promise<void> {

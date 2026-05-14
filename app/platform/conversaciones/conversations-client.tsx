@@ -99,6 +99,25 @@ function formatMoney(value: number | null): string | null {
   }).format(value);
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function audioUrlFromPayload(payload: unknown): string | null {
+  const record = asRecord(payload);
+  if (!record) return null;
+  const audio = asRecord(record.audio);
+  if (!audio) return null;
+  const cloudinaryUrl =
+    typeof audio.cloudinaryUrl === "string" ? audio.cloudinaryUrl : null;
+  if (cloudinaryUrl) return cloudinaryUrl;
+  const link = typeof audio.link === "string" ? audio.link : null;
+  if (link) return link;
+  return null;
+}
+
 export function ConversationsClient() {
   const [q, setQ] = useState("");
   const [direction, setDirection] = useState<Direction>("all");
@@ -398,6 +417,18 @@ export function ConversationsClient() {
                                 {message.templateRender ? (
                                   <div className={cn("opacity-90", isOutbound ? "text-primary-foreground" : "text-foreground")}>
                                     <TemplateMessageCard template={message.templateRender} />
+                                  </div>
+                                ) : message.kind === "audio" ? (
+                                  <div className="space-y-2">
+                                    <p className="whitespace-pre-wrap">{message.text}</p>
+                                    {audioUrlFromPayload(message.rawPayload) ? (
+                                      <audio
+                                        controls
+                                        preload="none"
+                                        className="max-w-full"
+                                        src={audioUrlFromPayload(message.rawPayload) ?? undefined}
+                                      />
+                                    ) : null}
                                   </div>
                                 ) : (
                                   <p className="whitespace-pre-wrap">{message.text}</p>
