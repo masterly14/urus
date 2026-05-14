@@ -51,6 +51,7 @@ import {
   RefreshCw,
   Trash2,
   User,
+  XCircle,
 } from "lucide-react";
 
 const BUSINESS_TZ = "Europe/Madrid";
@@ -69,6 +70,12 @@ interface NotaEncargoSesion {
   createdAt: string;
   comercialId: string;
   comercialNombre: string | null;
+}
+
+interface ComercialOption {
+  id: string;
+  nombre: string;
+  ciudad: string | null;
 }
 
 const STATE_LABELS: Record<string, string> = {
@@ -261,6 +268,14 @@ function CaptacionPageContent() {
   const [loading, setLoading] = useState(!isMock);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [stateFilter, setStateFilter] = useState<string>("ALL");
+  const [canChooseComercial, setCanChooseComercial] = useState(false);
+  const [assignableComerciales, setAssignableComerciales] = useState<
+    ComercialOption[]
+  >([]);
+  const [currentComercialId, setCurrentComercialId] = useState<string | null>(
+    null,
+  );
+  const [selectedComercialId, setSelectedComercialId] = useState("");
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const sheetContentRef = useRef<HTMLDivElement>(null);
@@ -276,10 +291,22 @@ function CaptacionPageContent() {
   );
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<NotaEncargoSesion | null>(
+    null,
+  );
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const fetchSesiones = useCallback(() => {
     if (isMock) {
       setSesiones(MOCK_SESIONES);
+      setCanChooseComercial(true);
+      setAssignableComerciales([
+        { id: "mock-com-1", nombre: "Demo Comercial", ciudad: "Córdoba" },
+        { id: "mock-com-2", nombre: "Otra Comercial", ciudad: "Sevilla" },
+      ]);
+      setCurrentComercialId("mock-com-1");
+      setSelectedComercialId("mock-com-1");
       setLoading(false);
       return;
     }
@@ -295,12 +322,30 @@ function CaptacionPageContent() {
         }
         return res.json();
       })
-      .then((data) => setSesiones(data.sesiones ?? []))
+      .then((data) => {
+        setSesiones(data.sesiones ?? []);
+        const nextCanChoose = Boolean(data.canChooseComercial);
+        setCanChooseComercial(nextCanChoose);
+        setCurrentComercialId(data.currentComercialId ?? null);
+        setAssignableComerciales(data.assignableComerciales ?? []);
+        if (nextCanChoose) {
+          setSelectedComercialId((prev) => {
+            if (prev) return prev;
+            return data.currentComercialId ?? data.assignableComerciales?.[0]?.id ?? "";
+          });
+        } else {
+          setSelectedComercialId(data.currentComercialId ?? "");
+        }
+      })
       .catch((err) => {
         setFetchError(
           err instanceof Error ? err.message : "Error de conexión",
         );
         setSesiones([]);
+        setCanChooseComercial(false);
+        setAssignableComerciales([]);
+        setCurrentComercialId(null);
+        setSelectedComercialId("");
       })
       .finally(() => setLoading(false));
   }, [isMock]);
@@ -309,12 +354,35 @@ function CaptacionPageContent() {
     fetchSesiones();
   }, [fetchSesiones]);
 
+  useEffect(() => {
+    if (!canChooseComercial) {
+      setSelectedComercialId(currentComercialId ?? "");
+      return;
+    }
+    if (!selectedComercialId) {
+      setSelectedComercialId(
+        currentComercialId ?? assignableComerciales[0]?.id ?? "",
+      );
+    }
+  }, [
+    canChooseComercial,
+    currentComercialId,
+    assignableComerciales,
+    selectedComercialId,
+  ]);
+
   function resetForm() {
     setRefCatastral("");
     setPhone("");
     setFecha(tomorrowMadridISO());
     setHora("10:00");
     setFormError(null);
+    setSelectedComercialId((prev) => {
+      if (canChooseComercial) {
+        return prev || currentComercialId || assignableComerciales[0]?.id || "";
+      }
+      return currentComercialId ?? "";
+    });
   }
 
   function handleOpenSheet() {
@@ -354,6 +422,38 @@ function CaptacionPageContent() {
     }
   }
 
+  async function handleDelete() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      if (isMock) {
+        setSesiones((prev) => prev.filter((s) => s.id !== pendingDelete.id));
+        setPendingDelete(null);
+        return;
+      }
+      const res = await fetch(
+        `/api/captacion/nota-encargo/${pendingDelete.id}/delete`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setDeleteError(
+          body.error ?? `Error ${res.status} al eliminar la nota`,
+        );
+        return;
+      }
+      setPendingDelete(null);
+      fetchSesiones();
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : "Error de conexión",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const dateTimeInPast = useMemo(
     () => fecha && hora && isDateTimeInPast(fecha, hora),
     [fecha, hora],
@@ -364,6 +464,7 @@ function CaptacionPageContent() {
     phone.replace(/\s/g, "").length >= 9 &&
     fecha &&
     hora &&
+    (!canChooseComercial || selectedComercialId.length > 0) &&
     !dateTimeInPast &&
     !submitting;
 
@@ -387,6 +488,7 @@ function CaptacionPageContent() {
           refCatastral: normalizeCadastralRef(refCatastral),
           propietarioPhone: phone.replace(/\s/g, ""),
           visitDateTime,
+          ...(canChooseComercial ? { comercialId: selectedComercialId } : {}),
         }),
       });
 
@@ -544,23 +646,42 @@ function CaptacionPageContent() {
                         {fmtDate(s.createdAt)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={isTerminal}
-                          onClick={() => {
-                            setCancelError(null);
-                            setPendingCancel(s);
-                          }}
-                          title={
-                            isTerminal
-                              ? "No se puede cancelar una nota en estado final"
-                              : "Cancelar nota de encargo"
-                          }
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                          <span className="sr-only">Cancelar</span>
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={isTerminal}
+                            onClick={() => {
+                              setCancelError(null);
+                              setPendingCancel(s);
+                            }}
+                            title={
+                              isTerminal
+                                ? "No se puede cancelar una nota en estado final"
+                                : "Cancelar nota de encargo"
+                            }
+                          >
+                            <XCircle className="h-4 w-4 text-destructive" />
+                            <span className="sr-only">Cancelar</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={s.state !== "CANCELADA"}
+                            onClick={() => {
+                              setDeleteError(null);
+                              setPendingDelete(s);
+                            }}
+                            title={
+                              s.state === "CANCELADA"
+                                ? "Eliminar definitivamente"
+                                : "Primero cancela la nota para poder eliminarla"
+                            }
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                            <span className="sr-only">Eliminar definitivamente</span>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -612,6 +733,30 @@ function CaptacionPageContent() {
                 required
               />
             </div>
+
+            {canChooseComercial && (
+              <div className="space-y-2">
+                <Label htmlFor="sheet-comercial">Comercial responsable *</Label>
+                <select
+                  id="sheet-comercial"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={selectedComercialId}
+                  onChange={(e) => setSelectedComercialId(e.target.value)}
+                  required
+                >
+                  <option value="">Selecciona un comercial</option>
+                  {assignableComerciales.map((comercial) => (
+                    <option key={comercial.id} value={comercial.id}>
+                      {comercial.nombre}
+                      {comercial.ciudad ? ` · ${comercial.ciudad}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Como CEO/Admin, debes indicar qué comercial gestionará esta nota.
+                </p>
+              </div>
+            )}
 
             {/* Fecha y hora */}
             <div className="grid grid-cols-2 gap-4">
@@ -730,6 +875,64 @@ function CaptacionPageContent() {
             >
               {cancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Cancelar nota
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Confirmación de eliminación definitiva ── */}
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDelete(null);
+            setDeleteError(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar nota de encargo</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Esta acción elimina la nota <strong>de forma definitiva</strong>{" "}
+                  y la quita de la vista. No se puede deshacer.
+                </p>
+                {pendingDelete && (
+                  <div className="rounded border bg-muted/30 p-3 text-xs">
+                    <div>
+                      <span className="font-medium">Referencia: </span>
+                      {pendingDelete.refCatastral ?? "—"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Visita: </span>
+                      {fmtDateTime(pendingDelete.visitDateTime)}
+                    </div>
+                    <div>
+                      <span className="font-medium">Estado: </span>
+                      {STATE_LABELS[pendingDelete.state] ?? pendingDelete.state}
+                    </div>
+                  </div>
+                )}
+                {deleteError && (
+                  <p className="font-medium text-destructive">{deleteError}</p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Volver</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Eliminar definitivamente
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

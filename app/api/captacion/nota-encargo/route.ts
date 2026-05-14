@@ -26,6 +26,7 @@ const bodySchema = z.object({
     .transform(normalizeCadastralRef),
   propietarioPhone: z.string().regex(/^\d{9,15}$/, "Teléfono inválido"),
   visitDateTime: z.string().datetime(),
+  comercialId: z.string().min(1).optional(),
 });
 
 function startOfTodayMadrid(): Date {
@@ -106,7 +107,37 @@ export async function POST(request: Request) {
     );
   }
 
-  const requestComercialId = session.comercialId ?? session.userId;
+  let comercialId: string;
+  if (isCeoOrAdmin(session.role)) {
+    const selectedComercialId = parsed.data.comercialId?.trim();
+    if (!selectedComercialId) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Debe seleccionar el comercial responsable al crear la nota de encargo",
+        },
+        { status: 400 },
+      );
+    }
+    const selectedComercial = await prisma.comercial.findFirst({
+      where: { id: selectedComercialId, activo: true },
+      select: { id: true },
+    });
+    if (!selectedComercial) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "El comercial seleccionado no existe o está inactivo",
+        },
+        { status: 400 },
+      );
+    }
+    comercialId = selectedComercial.id;
+  } else {
+    if (!session.comercialId) return forbidden();
+    comercialId = session.comercialId;
+  }
 
   const existingActiveByRef = await prisma.notaEncargoSession.findFirst({
     where: {
@@ -114,7 +145,7 @@ export async function POST(request: Request) {
       state: { notIn: ["CANCELADA", "FIRMADA", "DOCUMENTO_ENVIADO"] },
       NOT: {
         visitDateTime: visitDate,
-        comercialId: requestComercialId,
+        comercialId,
       },
     },
     select: { id: true },
@@ -162,9 +193,6 @@ export async function POST(request: Request) {
     ? resolveOperationType(propertyCurrent.tipoOfer)
     : "";
   const precio = propertyCurrent?.precio ?? 0;
-
-  const comercialId =
-    session.comercialId ?? propertyCurrent?.comercialId ?? session.userId;
 
   // --- Idempotency: check for existing active session with same key ---
   const existingSession = await prisma.notaEncargoSession.findFirst({

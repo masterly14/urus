@@ -42,6 +42,8 @@ export async function GET() {
     take: 100,
   });
 
+  const canChooseComercial = isCeoOrAdmin(session.role);
+
   // Hidratamos el nombre del comercial con una sola query. Evitamos N+1 sin
   // alterar la estructura del modelo (NotaEncargoSession no tiene relación
   // Prisma con Comercial; el join se hace en aplicación).
@@ -61,5 +63,19 @@ export async function GET() {
     comercialNombre: nameById.get(r.comercialId) ?? null,
   }));
 
-  return NextResponse.json({ sesiones });
+  const assignableComerciales = canChooseComercial
+    ? await prisma.comercial.findMany({
+        where: { activo: true },
+        select: { id: true, nombre: true, ciudad: true },
+        orderBy: { nombre: "asc" },
+      })
+    : [];
+
+  return NextResponse.json({
+    sesiones,
+    role: session.role,
+    currentComercialId: session.comercialId,
+    canChooseComercial,
+    assignableComerciales,
+  });
 }

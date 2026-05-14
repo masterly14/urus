@@ -33,6 +33,7 @@ async function cleanup() {
       OR: [
         { id: { startsWith: TEST_PREFIX } },
         { comercialId: `${TEST_PREFIX}-comercial` },
+        { comercialId: `${TEST_PREFIX}-comercial-alt` },
       ],
     },
     select: { id: true },
@@ -58,6 +59,7 @@ async function cleanup() {
       OR: [
         { id: { startsWith: TEST_PREFIX } },
         { comercialId: `${TEST_PREFIX}-comercial` },
+        { comercialId: `${TEST_PREFIX}-comercial-alt` },
       ],
     },
   });
@@ -68,7 +70,7 @@ async function cleanup() {
     where: { codigo: { startsWith: TEST_PREFIX } },
   });
   await prisma.comercial.deleteMany({
-    where: { id: `${TEST_PREFIX}-comercial` },
+    where: { id: { in: [`${TEST_PREFIX}-comercial`, `${TEST_PREFIX}-comercial-alt`] } },
   });
 }
 
@@ -97,6 +99,14 @@ beforeEach(async () => {
       nombre: "Comercial Test",
       ciudad: "Córdoba",
       inmovillaRefCode: "ZZTEST",
+    },
+  });
+  await prisma.comercial.create({
+    data: {
+      id: `${TEST_PREFIX}-comercial-alt`,
+      nombre: "Comercial Alt",
+      ciudad: "Sevilla",
+      inmovillaRefCode: "ZZALT",
     },
   });
 });
@@ -212,5 +222,40 @@ describe("POST /api/captacion/nota-encargo", () => {
     expect(response.status).toBe(201);
     const body = await response.json();
     expect(body.warnings[0]).toContain("se guardará igualmente");
+  });
+
+  it("si crea un CEO, exige comercialId y asigna la nota al comercial elegido", async () => {
+    mockGetSession.mockResolvedValue({
+      userId: `${TEST_PREFIX}-ceo-user`,
+      role: "ceo",
+      comercialId: null,
+      nombre: "CEO Test",
+      email: "ceo@example.com",
+    });
+
+    const missingComercialResponse = await POST(
+      request({
+        refCatastral: `TESTCEO${TEST_CATASTRAL_SUFFIX}`,
+        propietarioPhone: "600111222",
+        visitDateTime: VISIT_DATE,
+      }),
+    );
+    expect(missingComercialResponse.status).toBe(400);
+
+    const response = await POST(
+      request({
+        refCatastral: `TESTCEO${TEST_CATASTRAL_SUFFIX}`,
+        propietarioPhone: "600111222",
+        visitDateTime: VISIT_DATE,
+        comercialId: `${TEST_PREFIX}-comercial-alt`,
+      }),
+    );
+    expect(response.status).toBe(201);
+    const body = await response.json();
+
+    const session = await prisma.notaEncargoSession.findUniqueOrThrow({
+      where: { id: body.sessionId },
+    });
+    expect(session.comercialId).toBe(`${TEST_PREFIX}-comercial-alt`);
   });
 });
