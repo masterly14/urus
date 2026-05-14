@@ -34,7 +34,7 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
 
   const target = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, role: true },
+    select: { id: true, role: true, comercialId: true },
   });
 
   if (!target) {
@@ -48,7 +48,22 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
     );
   }
 
-  await prisma.user.delete({ where: { id: userId } });
+  // Borramos en transacción el `User` y la ficha `Comercial` vinculada para
+  // que no queden registros huérfanos. `referrals` tiene FK a Comercial sin
+  // onDelete: hay que desvincular antes de borrar el Comercial.
+  await prisma.$transaction(async (tx) => {
+    await tx.user.delete({ where: { id: userId } });
+
+    const comercialId = target.comercialId;
+    if (!comercialId) return;
+
+    await tx.referral.updateMany({
+      where: { comercialId },
+      data: { comercialId: null, assignedAt: null },
+    });
+
+    await tx.comercial.delete({ where: { id: comercialId } });
+  });
 
   return NextResponse.json({ ok: true });
 }

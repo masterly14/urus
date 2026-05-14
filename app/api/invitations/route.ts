@@ -123,7 +123,8 @@ export async function POST(request: NextRequest) {
   });
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
-  const registerUrl = `${appUrl}/register?token=${token}`;
+  const registerQuery = new URLSearchParams({ token }).toString();
+  const registerUrl = `${appUrl}/register?${registerQuery}`;
 
   await sendInvitationEmail({
     to: email,
@@ -138,7 +139,7 @@ export async function POST(request: NextRequest) {
   });
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
 
   if (!session?.user) {
@@ -150,7 +151,13 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "Sin permisos" }, { status: 403 });
   }
 
+  // Por defecto excluimos las invitaciones ya aceptadas (`used=true`): el
+  // miembro del equipo aparece en la lista de Usuarios, así que mostrarlas
+  // aquí solo añade ruido visual. Se puede traer todo con ?includeUsed=1.
+  const includeUsed = request.nextUrl.searchParams.get("includeUsed") === "1";
+
   const invitations = await prisma.invitation.findMany({
+    where: includeUsed ? undefined : { used: false },
     orderBy: { createdAt: "desc" },
     take: 50,
   });

@@ -124,6 +124,10 @@ export function UserManagement() {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  const [invitationDeleteTarget, setInvitationDeleteTarget] = useState<InvitationRow | null>(null);
+  const [deletingInvitationId, setDeletingInvitationId] = useState<string | null>(null);
+  const [invitationDeleteError, setInvitationDeleteError] = useState<string | null>(null);
+
   const userTableColSpan = isCeoOrAdmin ? 6 : 5;
 
   const fetchData = useCallback(async () => {
@@ -250,6 +254,29 @@ export function UserManagement() {
       setDeleteError("Error de red al eliminar el usuario");
     } finally {
       setDeletingUserId(null);
+    }
+  }
+
+  async function handleConfirmDeleteInvitation() {
+    if (!invitationDeleteTarget) return;
+    setDeletingInvitationId(invitationDeleteTarget.id);
+    setInvitationDeleteError(null);
+    try {
+      const res = await fetch(
+        `/api/invitations/${encodeURIComponent(invitationDeleteTarget.id)}`,
+        { method: "DELETE" },
+      );
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setInvitationDeleteError(data.error ?? "No se pudo eliminar la invitación");
+        return;
+      }
+      setInvitationDeleteTarget(null);
+      void fetchData();
+    } catch {
+      setInvitationDeleteError("Error de red al eliminar la invitación");
+    } finally {
+      setDeletingInvitationId(null);
     }
   }
 
@@ -618,13 +645,22 @@ export function UserManagement() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
-            Invitaciones ({invitations.length})
+            Invitaciones pendientes ({invitations.length})
           </CardTitle>
           <CardDescription>
-            Invitaciones enviadas. Las no utilizadas expirarán automáticamente.
+            Invitaciones que todavía no se han aceptado. Las aceptadas dejan
+            de mostrarse aquí porque el miembro ya aparece en la lista de
+            usuarios. Puedes eliminar cualquier invitación pendiente o
+            expirada para mantener la lista limpia.
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {invitationDeleteError && (
+            <div className="mb-4 flex items-center gap-2 text-sm text-destructive">
+              <XCircle className="h-4 w-4" />
+              {invitationDeleteError}
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
@@ -635,13 +671,21 @@ export function UserManagement() {
                 <TableHead>Estado</TableHead>
                 <TableHead>Expira</TableHead>
                 <TableHead>Enviada</TableHead>
+                {isCeoOrAdmin && (
+                  <TableHead className="w-[72px] text-right text-muted-foreground">
+                    Acciones
+                  </TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
               {invitations.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                    No hay invitaciones.
+                  <TableCell
+                    colSpan={isCeoOrAdmin ? 8 : 7}
+                    className="py-8 text-center text-muted-foreground"
+                  >
+                    No hay invitaciones pendientes.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -682,6 +726,24 @@ export function UserManagement() {
                       <TableCell className="text-xs text-muted-foreground">
                         {new Date(inv.createdAt).toLocaleDateString("es-ES")}
                       </TableCell>
+                      {isCeoOrAdmin && (
+                        <TableCell className="text-right">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            title="Eliminar invitación"
+                            aria-label={`Eliminar invitación de ${inv.email}`}
+                            onClick={() => {
+                              setInvitationDeleteError(null);
+                              setInvitationDeleteTarget(inv);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })
@@ -690,6 +752,49 @@ export function UserManagement() {
           </Table>
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={invitationDeleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setInvitationDeleteTarget(null);
+            setInvitationDeleteError(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar invitación?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminará permanentemente la invitación enviada a{" "}
+              <strong>{invitationDeleteTarget?.email}</strong>. Si todavía no
+              ha sido aceptada, ese enlace dejará de funcionar y deberás
+              enviarla de nuevo si la persona quiere registrarse.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {invitationDeleteError ? (
+            <p className="text-sm text-destructive" role="alert">
+              {invitationDeleteError}
+            </p>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingInvitationId !== null}>
+              Cancelar
+            </AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={deletingInvitationId !== null}
+              onClick={() => void handleConfirmDeleteInvitation()}
+            >
+              {deletingInvitationId ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Eliminar"
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
