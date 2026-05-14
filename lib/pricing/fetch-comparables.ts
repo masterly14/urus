@@ -157,10 +157,38 @@ function toComparable(id: string, prop: StatefoxSnapshotProperty): PricingCompar
   };
 }
 
+/**
+ * Devuelve comparables para pricing. Source elegida via env:
+ *   - MARKET_PRICING_SOURCE=marketlisting => `lib/market/comparables.ts`
+ *     (in-house, sin coste por request, multi-portal). Recomendado para
+ *     ciudades con seeds activos (Cordoba en V1).
+ *   - MARKET_PRICING_SOURCE=statefox (default) => Statefox /snapshot.
+ *
+ * El adapter en MarketListing falla suave a Statefox si devuelve cero
+ * comparables, para no romper pricing en ciudades sin seeds.
+ */
 export async function fetchPricingComparables(
   input: PricingPropertyInput,
   options?: FetchComparablesOptions,
 ): Promise<FetchComparablesResult> {
+  const source = (process.env.MARKET_PRICING_SOURCE ?? "statefox").toLowerCase();
+  if (source === "marketlisting") {
+    const { fetchMarketComparables } = await import("@/lib/market/comparables");
+    const result = await fetchMarketComparables(input, {
+      priceRangePercent: options?.priceRangePercent,
+      metersRangePercent: options?.metersRangePercent,
+      minComparables: options?.minComparables,
+    });
+    if (result.comparables.length > 0) {
+      return result;
+    }
+    // Fallback explicito a Statefox si MarketListing no devuelve nada
+    // (ciudad sin seeds activos, p. ej.). Loguamos para tener visibilidad.
+    console.log(
+      `[pricing] MARKET_PRICING_SOURCE=marketlisting devolvio 0 comparables para ${input.propertyCode} ` +
+        `(ciudad=${input.ciudad}); cayendo a Statefox.`,
+    );
+  }
   const priceRange = options?.priceRangePercent ?? DEFAULT_PRICE_RANGE_PERCENT;
   const metersRange = options?.metersRangePercent ?? DEFAULT_METERS_RANGE_PERCENT;
   const maxPages = options?.maxPages ?? DEFAULT_MAX_PAGES;

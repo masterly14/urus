@@ -29,6 +29,13 @@ async function loadCache(
   }
 }
 
+/**
+ * @deprecated Cache de imagenes Statefox en migracion. El cache propio para
+ * MarketListing vive en el modelo `MarketListingImage`. Cuando el consumidor
+ * lee desde MarketListing las URLs Cloudinary se sirven directamente desde
+ * `comparables.ts`/`search.ts` (campo `images` del listing). Ver
+ * docs/statefox-deprecation.md.
+ */
 export async function hydrateComparablesWithImageCache<T extends PricingComparable>(
   comparables: T[],
 ): Promise<T[]> {

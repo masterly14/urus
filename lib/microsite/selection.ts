@@ -428,10 +428,31 @@ export async function generateMicrositeSelection(
   let totalStock = 0;
   let lastSearchMeta = { pagesScanned: 0, totalScanned: 0, earlyExit: false };
 
+  // Source de busqueda: MarketListing (in-house) o Statefox legacy.
+  // Si MARKET_PRICING_SOURCE=marketlisting y la primera ejecucion devuelve
+  // resultados, se usa esa source; si devuelve 0 (p.ej. ciudad sin seeds),
+  // caemos a Statefox para no romper microsites en otras ciudades.
+  const useMarketListing =
+    (process.env.MARKET_PRICING_SOURCE ?? "statefox").toLowerCase() ===
+    "marketlisting";
+  const { searchMarketForDemand } = useMarketListing
+    ? await import("@/lib/market/search")
+    : { searchMarketForDemand: null as never };
+
   for (const step of expansionSteps) {
     let searchResult;
     try {
-      searchResult = await searchSnapshotForDemand(step.demand, searchOpts);
+      if (useMarketListing) {
+        const marketResult = await searchMarketForDemand(step.demand, searchOpts);
+        if (marketResult.properties.length === 0) {
+          // Sin matches en MarketListing → fallback a Statefox para esta busqueda.
+          searchResult = await searchSnapshotForDemand(step.demand, searchOpts);
+        } else {
+          searchResult = marketResult;
+        }
+      } else {
+        searchResult = await searchSnapshotForDemand(step.demand, searchOpts);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("requires token")) {

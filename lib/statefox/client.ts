@@ -173,6 +173,11 @@ export async function getProperties(
 /**
  * Obtiene el estado actual de las propiedades rastreadas (activas/inactivas).
  * GET /snapshot — paginación cursor-based, hasta 250 ítems por página.
+ *
+ * @deprecated Migracion a MarketListing in-house en curso. Los nuevos
+ * consumidores deben usar `lib/market/comparables.ts` o
+ * `lib/market/search.ts`. Statefox queda como fallback. Ver
+ * docs/statefox-deprecation.md.
  */
 export async function getSnapshot(
   client: StatefoxClient,
