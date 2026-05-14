@@ -949,6 +949,7 @@ import {
   handleMarketResolveAdvertiser,
   handleMarketDiffAndVersion,
   handleMarketRefreshSnapshot,
+  handleMarketImportListingImages,
   handleMarketPushAdvertiserToInmovilla,
 } from "@/lib/market/jobs";
 
@@ -958,6 +959,7 @@ registerJobHandler("MARKET_RESOLVE_IDENTITY", handleMarketResolveIdentity);
 registerJobHandler("MARKET_RESOLVE_ADVERTISER", handleMarketResolveAdvertiser);
 registerJobHandler("MARKET_DIFF_AND_VERSION", handleMarketDiffAndVersion);
 registerJobHandler("MARKET_REFRESH_SNAPSHOT", handleMarketRefreshSnapshot);
+registerJobHandler("MARKET_IMPORT_LISTING_IMAGES", handleMarketImportListingImages);
 registerJobHandler(
   "MARKET_PUSH_ADVERTISER_TO_INMOVILLA",
   handleMarketPushAdvertiserToInmovilla,

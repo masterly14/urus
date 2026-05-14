@@ -16,4 +16,5 @@ export { handleMarketResolveIdentity } from "./resolve-identity-handler";
 export { handleMarketResolveAdvertiser } from "./resolve-advertiser-handler";
 export { handleMarketDiffAndVersion } from "./diff-handler";
 export { handleMarketRefreshSnapshot } from "./snapshot-handler";
+export { handleMarketImportListingImages } from "./import-listing-images-handler";
 export { handleMarketPushAdvertiserToInmovilla } from "./push-advertiser-inmovilla-handler";
