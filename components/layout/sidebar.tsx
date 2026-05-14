@@ -84,6 +84,11 @@ const navGroups: NavGroup[] = [
                 icon: ClipboardList,
                 children: [
                     {
+                        label: "Notas de encargo",
+                        href: "/platform/captacion",
+                        icon: FileSignature,
+                    },
+                    {
                         label: "Oportunidades de mercado",
                         href: "/platform/captacion/oportunidades",
                         icon: Target,
