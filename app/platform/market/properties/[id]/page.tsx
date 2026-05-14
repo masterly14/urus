@@ -31,7 +31,10 @@ interface PageProps {
 }
 
 export default async function MarketPropertyPage({ params }: PageProps) {
-  const { id } = await params;
+  const { id: rawId } = await params;
+  // Next.js 15 no decodifica el dynamic segment ('%3A' llega tal cual). Para los
+  // ids virtuales (`virtual:<listingId>`) hay que decodificar manualmente.
+  const id = decodeURIComponent(rawId);
   const session = await getSession();
   if (!session) {
     redirect(

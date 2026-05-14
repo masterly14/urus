@@ -26,7 +26,10 @@ const getHandler = async (
   const session = await getSession();
   if (!session) return unauthorized();
 
-  const { id } = await context.params;
+  const { id: rawId } = await context.params;
+  // Next.js 15 no decodifica el dynamic segment, los ids `virtual:<cuid>`
+  // llegan como `virtual%3A<cuid>`.
+  const id = decodeURIComponent(rawId);
   const entries = await getPropertyClusterTimeline(id, 100);
   return NextResponse.json({ ok: true, propertyId: id, entries });
 };
