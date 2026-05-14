@@ -30,7 +30,12 @@ RUN cd workers/market-worker \
     && npx --no-install prisma generate --schema ../../prisma/schema.prisma
 
 # 3) Código fuente: lib/ relevante + src del Worker
+# IMPORTANTE: el worker importa código del root del repo via paths relativos
+# (../../../../lib/...). Hay que copiar TODOS los directorios de los que
+# depende. Cualquier import nuevo a `lib/<otro>/...` desde `workers/market-worker`
+# requiere añadir aquí su `COPY` correspondiente.
 COPY lib/market ./lib/market
+COPY lib/scraping ./lib/scraping
 COPY lib/workers/contracts ./lib/workers/contracts
 COPY lib/workers/market-worker ./lib/workers/market-worker
 COPY workers/market-worker/src ./workers/market-worker/src
