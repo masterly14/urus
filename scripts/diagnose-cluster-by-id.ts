@@ -23,12 +23,16 @@ async function main() {
     }
     console.log(`✅ cluster encontrado:`);
     console.log(JSON.stringify({
-      id: cluster.id,
+      propertyId: cluster.propertyId,
       clustered: cluster.clustered,
       city: cluster.city,
       addressApprox: cluster.addressApprox,
       portalsCount: cluster.portals?.length,
-      portals: cluster.portals?.map((p) => ({ source: p.source, price: p.price, url: p.url })),
+      portals: cluster.portals?.map((p) => ({
+        source: p.source,
+        price: p.price,
+        url: p.canonicalUrl,
+      })),
     }, null, 2));
   } catch (err) {
     console.error(`❌ Excepción: ${err instanceof Error ? err.message : err}`);

@@ -39,7 +39,7 @@ async function main() {
       const candidates = await prisma.marketListing.findMany({
         where: { id: { startsWith: id.slice(0, 6) } },
         take: 3,
-        select: { id: true, source: true, city: true, priceEur: true },
+        select: { id: true, source: true, city: true, price: true },
       });
       if (candidates.length > 0) {
         console.log(`Candidatos con prefijo similar:`);
