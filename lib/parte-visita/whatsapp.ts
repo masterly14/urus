@@ -19,6 +19,20 @@ const WHATSAPP_TEMPLATE_LANGUAGE_CODE =
 
 const FLOW_ID = process.env.WHATSAPP_FLOW_PARTE_VISITA_ID || "";
 
+/**
+ * Forzar la rama `interactive` para el envío del Flow (mensaje interactivo de
+ * Meta, no plantilla). Solo entrega cuando hay ventana de 24 h abierta. Usar
+ * SOLO en escenarios donde se garantiza la ventana (p. ej. pruebas internas).
+ *
+ * Por defecto el sistema usa la plantilla `parte_visita_formulario` con botón
+ * Flow vinculado en Meta, que se entrega siempre (business-initiated) y no
+ * depende de la ventana de 24 h. Esto evita el fallo silencioso de Meta:
+ * acepta el `interactive` y devuelve `wamid` aunque luego no lo entregue al
+ * usuario por estar fuera de ventana.
+ */
+const PREFER_INTERACTIVE =
+  process.env.WHATSAPP_PARTE_VISITA_PREFER_INTERACTIVE === "1";
+
 const FORMULARIO_TEMPLATE =
   process.env.WHATSAPP_TEMPLATE_PARTE_VISITA_FORMULARIO ||
   "parte_visita_formulario";
@@ -109,6 +123,7 @@ export async function sendParteVisitaFlow(
   to: string,
   params: {
     sessionId: string;
+    buyerName?: string | null;
     direccion: string;
     tipoOperacion: string;
     precio: number;
@@ -120,8 +135,12 @@ export async function sendParteVisitaFlow(
 ): Promise<SendMessageSuccess> {
   const precioFmt =
     new Intl.NumberFormat("es-ES").format(params.precio) + " €";
+  const buyerName = params.buyerName?.trim() || "interesado";
 
-  if (FLOW_ID) {
+  // Plantilla por defecto. La rama `interactive` solo se usa con override
+  // explícito (WHATSAPP_PARTE_VISITA_PREFER_INTERACTIVE=1) y necesita ventana
+  // de 24 h abierta para entregarse.
+  if (PREFER_INTERACTIVE && FLOW_ID) {
     return sendParteVisitaFlowInteractive(to, params, precioFmt);
   }
 
@@ -132,7 +151,7 @@ export async function sendParteVisitaFlow(
       {
         type: "body",
         parameters: [
-          { type: "text", text: "interesado" },
+          { type: "text", text: buyerName },
           { type: "text", text: params.direccion || params.propertyRef },
         ],
       },
@@ -170,6 +189,7 @@ async function sendParteVisitaFlowInteractive(
   to: string,
   params: {
     sessionId: string;
+    buyerName?: string | null;
     direccion: string;
     tipoOperacion: string;
     precio: number;

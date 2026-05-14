@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { handleParteVisitaFlowResponse } from "./send-to-signature";
 import { completeVisit } from "@/lib/visit-scheduling/session-manager";
 import { sendParteVisitaFlow } from "./whatsapp";
+import { resolveParteVisitaBuyerName } from "./resolve-buyer-name";
 import { resolveComercial } from "@/lib/routing/resolve-comercial";
 
 export async function handleParteVisitaNfmReply(
@@ -101,10 +102,16 @@ export async function handleParteVisitaOffFlowMessage(
     hour: "2-digit",
     minute: "2-digit",
   });
+  const buyerName = await resolveParteVisitaBuyerName({
+    buyerPhone: session.buyerPhone,
+    sessionBuyerName: session.buyerNombre,
+    draftDemandId: session.draftDemandId,
+  });
 
   try {
     await sendParteVisitaFlow(session.buyerPhone, {
       sessionId: session.id,
+      buyerName,
       direccion: session.direccion,
       tipoOperacion: session.tipoOperacion,
       precio: session.precio,

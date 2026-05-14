@@ -19,6 +19,7 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TemplateMessageCard } from "@/components/conversations/template-message-card";
 import { useConversation, useConversations } from "@/lib/hooks/use-conversations";
+import { cloudinaryAudioMp3DeliveryUrl } from "@/lib/cloudinary/audio-playback-url";
 import { cn } from "@/lib/utils";
 
 type Direction = "all" | "inbound" | "outbound";
@@ -105,16 +106,28 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function audioUrlFromPayload(payload: unknown): string | null {
+type AudioSource = { src: string; type: string };
+
+/** Fuentes para `<audio>`: MP3 vía Cloudinary primero (OGG/Opus de WhatsApp falla en Safari). */
+function audioSourcesFromPayload(payload: unknown): AudioSource[] | null {
   const record = asRecord(payload);
   if (!record) return null;
   const audio = asRecord(record.audio);
   if (!audio) return null;
+  const mime =
+    typeof audio.mime_type === "string" && audio.mime_type.trim()
+      ? audio.mime_type.trim()
+      : "audio/ogg";
   const cloudinaryUrl =
     typeof audio.cloudinaryUrl === "string" ? audio.cloudinaryUrl : null;
-  if (cloudinaryUrl) return cloudinaryUrl;
+  if (cloudinaryUrl) {
+    return [
+      { src: cloudinaryAudioMp3DeliveryUrl(cloudinaryUrl), type: "audio/mpeg" },
+      { src: cloudinaryUrl, type: mime },
+    ];
+  }
   const link = typeof audio.link === "string" ? audio.link : null;
-  if (link) return link;
+  if (link) return [{ src: link, type: mime }];
   return null;
 }
 
@@ -421,14 +434,26 @@ export function ConversationsClient() {
                                 ) : message.kind === "audio" ? (
                                   <div className="space-y-2">
                                     <p className="whitespace-pre-wrap">{message.text}</p>
-                                    {audioUrlFromPayload(message.rawPayload) ? (
-                                      <audio
-                                        controls
-                                        preload="none"
-                                        className="max-w-full"
-                                        src={audioUrlFromPayload(message.rawPayload) ?? undefined}
-                                      />
-                                    ) : null}
+                                    {(() => {
+                                      const sources = audioSourcesFromPayload(message.rawPayload);
+                                      if (!sources?.length) return null;
+                                      return (
+                                        <audio
+                                          controls
+                                          preload="metadata"
+                                          className="max-w-full w-full min-w-[220px]"
+                                          key={sources[0]?.src}
+                                        >
+                                          {sources.map((source) => (
+                                            <source
+                                              key={`${source.src}:${source.type}`}
+                                              src={source.src}
+                                              type={source.type}
+                                            />
+                                          ))}
+                                        </audio>
+                                      );
+                                    })()}
                                   </div>
                                 ) : (
                                   <p className="whitespace-pre-wrap">{message.text}</p>

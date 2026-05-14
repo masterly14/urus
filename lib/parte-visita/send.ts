@@ -14,6 +14,7 @@ import {
   sendParteVisitaContexto,
   sendParteVisitaFlow,
 } from "@/lib/parte-visita/whatsapp";
+import { resolveParteVisitaBuyerName } from "@/lib/parte-visita/resolve-buyer-name";
 
 export type SendParteVisitaResult =
   | { ok: true; status: "sent" | "already_sent" | "not_pending"; sessionState?: string }
@@ -78,6 +79,11 @@ export async function sendParteVisitaForSession(
     property?.portalUrl?.trim() ||
     // Fallback cuando aún no hay portalUrl sincronizado.
     "https://www.idealista.com/";
+  const buyerName = await resolveParteVisitaBuyerName({
+    buyerPhone: session.buyerPhone,
+    sessionBuyerName: session.buyerNombre,
+    draftDemandId: session.draftDemandId,
+  });
 
   try {
     await sendParteVisitaContexto(session.buyerPhone, {
@@ -88,6 +94,7 @@ export async function sendParteVisitaForSession(
     });
     await sendParteVisitaFlow(session.buyerPhone, {
       sessionId: session.id,
+      buyerName,
       direccion: session.direccion,
       tipoOperacion: session.tipoOperacion,
       precio: session.precio,
