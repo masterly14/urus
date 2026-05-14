@@ -21,6 +21,7 @@ ENV NODE_ENV=production \
 COPY workers/market-worker/package.json workers/market-worker/package-lock.json workers/market-worker/
 WORKDIR /app/workers/market-worker
 RUN npm ci --omit=dev --no-audit --no-fund
+RUN ln -s /app/workers/market-worker/node_modules /app/node_modules
 
 # 2) Schema Prisma + cliente generado (apuntamos al schema del raíz)
 WORKDIR /app
