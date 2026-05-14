@@ -163,6 +163,7 @@ enum JobType {
   MARKET_RESOLVE_ADVERTISER
   MARKET_DIFF_AND_VERSION
   MARKET_REFRESH_SNAPSHOT
+  MARKET_IMPORT_LISTING_IMAGES
   MARKET_RUN_RULES
   MARKET_REINDEX_PROPERTY
   MARKET_PUSH_ADVERTISER_TO_INMOVILLA
@@ -2333,6 +2334,10 @@ model MarketListing {
   inmovillaProspectRef      String?
   inmovillaPropertyCodOfer  Int?
   captacionLastError        String?
+  /// Razon explicita del comercial cuando descarta la oportunidad (move a FAILED
+  /// desde el kanban). Distinto de `captacionLastError` que captura fallos
+  /// tecnicos del pipeline.
+  captacionFailureReason    String?
   captacionUpdatedAt        DateTime             @default(now())
 
   propertyId   String?
@@ -2348,6 +2353,7 @@ model MarketListing {
   assignedComercial Comercial?    @relation("MarketListingAssignedComercial", fields: [assignedComercialId], references: [id], onDelete: SetNull)
   assignedByUser  User?           @relation("MarketListingAssignedByUser", fields: [assignedByUserId], references: [id], onDelete: SetNull)
   versions   MarketListingVersion[]
+  images     MarketListingImage[]
 
   @@unique([source, externalId])
   @@index([city, zone])
@@ -2402,6 +2408,42 @@ model MarketListingVersion {
   @@map("market_listing_versions")
 }
 
+/// Cache propio de imagenes para MarketListing (paralelo a
+/// StatefoxComparableImage). Permite servir URLs Cloudinary estables a
+/// pricing/microsites sin depender del CDN del portal (que caduca/firma).
+/// Ver docs/statefox-deprecation.md para el plan de portado.
+model MarketListingImage {
+  id                  String    @id @default(cuid())
+  listingId           String
+  imageIndex          Int
+  originalImageUrl    String
+  originalImageSha256 String?
+  cloudinaryPublicId  String?
+  cloudinarySecureUrl String?
+  width               Int?
+  height              Int?
+  bytes               Int?
+  format              String?
+  /// PENDING | IMPORTING | IMPORTED | FAILED | BLOCKED | CAPTCHA |
+  /// LISTING_REMOVED | NO_IMAGES_FOUND. String porque el set crece con
+  /// la chain anti-bot.
+  status              String    @default("PENDING")
+  errorReason         String?
+  attempts            Int       @default(0)
+  lastAttemptAt       DateTime?
+  importedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  listing MarketListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, imageIndex])
+  @@index([listingId, status])
+  @@index([status, updatedAt])
+  @@index([originalImageSha256])
+  @@map("market_listing_images")
+}
+
 /// Inmueble subyacente probable. Agrupa MarketListing del mismo bien físico
 /// publicado en múltiples portales. La resolución se hace por fingerprint
 /// determinístico + similitud (ver lib/market/identity.ts).
@@ -2429,15 +2471,22 @@ model MarketProperty {
 /// no inflarlo con el alto volumen de eventos de mercado. La idempotencia se
 /// garantiza con (type, fingerprint) único por evento.
 model MarketEvent {
-  id            String          @id @default(cuid())
-  type          MarketEventType
-  listingId     String?
-  propertyId    String?
-  source        MarketSource?
-  payload       Json
-  fingerprint   String
-  correlationId String
-  occurredAt    DateTime        @default(now())
+  id               String          @id @default(cuid())
+  type             MarketEventType
+  listingId        String?
+  propertyId       String?
+  source           MarketSource?
+  payload          Json
+  fingerprint      String
+  correlationId    String
+  occurredAt       DateTime        @default(now())
+  /// Resolucion para eventos accionables (MARKET_PROPERTY_REVIEW_REQUIRED).
+  /// NULL = pendiente. Cuando un admin actua desde
+  /// /platform/market/identity/review se rellena con timestamp + userId +
+  /// accion (merge | split | ignore).
+  resolvedAt       DateTime?
+  resolvedBy       String?
+  resolutionAction String?
 
   @@unique([type, fingerprint])
   @@index([type, occurredAt])
@@ -2469,6 +2518,56 @@ model MarketSnapshotIndex {
 
 /// Estado del circuit breaker por fuente. Se abre cuando hay tasa alta de
 /// bloqueos/errores y degrada la chain anti-bot a modo conservador.
+/// Alerta guardada por usuario sobre el inventario de mercado.
+/// Una alerta es una "busqueda persistente": filtros + canales de entrega +
+/// frecuencia. El cron `run-rules` evalua periodicamente y entrega cada match
+/// nuevo (no presente en MarketAlertDelivery con misma dedupeKey).
+model MarketSavedAlert {
+  id              String   @id @default(cuid())
+  /// userId del owner. Solo el owner ve/edita la alerta.
+  userId          String
+  name            String
+  /// Filtros JSON con la misma forma que /api/market/properties/search:
+  /// { city, sources, operation, advertiserType, hasPhone, priceMin, priceMax,
+  ///   areaMin, areaMax, roomsMin, polygon }.
+  filters         Json
+  /// Canales de entrega: in_app | whatsapp.
+  channels        String[]
+  /// Frecuencia de evaluacion: realtime | hourly | daily.
+  frequency       String   @default("hourly")
+  active          Boolean  @default(true)
+  lastEvaluatedAt DateTime?
+  lastDeliveredAt DateTime?
+  deliveryCount   Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  deliveries MarketAlertDelivery[]
+
+  @@index([userId, active])
+  @@index([active, lastEvaluatedAt])
+  @@map("market_saved_alerts")
+}
+
+/// Registro idempotente de cada entrega. dedupeKey unique evita reenviar el
+/// mismo match en una segunda evaluacion.
+model MarketAlertDelivery {
+  id          String   @id @default(cuid())
+  alertId     String
+  listingId   String
+  channel     String
+  deliveredAt DateTime @default(now())
+  /// Hash determinista: sha256(alertId|listingId|eventType|fechaUTC).
+  dedupeKey   String   @unique
+  payload     Json?
+
+  alert MarketSavedAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@index([alertId, deliveredAt])
+  @@index([listingId, deliveredAt])
+  @@map("market_alert_deliveries")
+}
+
 model MarketCircuitBreaker {
   source       MarketSource               @id
   status       MarketCircuitBreakerStatus @default(CLOSED)
