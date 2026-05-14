@@ -16,6 +16,18 @@ vi.mock("@/lib/auth/session", () => ({
   isCeoOrAdmin: (role: string) => role === "ceo" || role === "admin",
 }));
 
+const { scheduleInitialMock } = vi.hoisted(() => ({
+  scheduleInitialMock: vi.fn(),
+}));
+
+vi.mock("@/lib/nota-encargo/schedule", () => ({
+  scheduleNotaEncargoInitialSteps: scheduleInitialMock,
+  publishNotaEncargoRecordatorioSchedule: vi.fn(),
+  publishNotaEncargoCheckConfirmacionSchedule: vi.fn(),
+  publishNotaEncargoFormularioSchedule: vi.fn(),
+  publishNotaEncargoMatchingCheckSchedule: vi.fn(),
+}));
+
 import { POST } from "../route";
 
 const TEST_PREFIX = `nota-api-${Date.now()}`;
@@ -85,6 +97,11 @@ function request(body: Record<string, unknown>) {
 beforeEach(async () => {
   process.env.WHATSAPP_ACCESS_TOKEN = "test";
   process.env.WHATSAPP_PHONE_NUMBER_ID = "test";
+  scheduleInitialMock.mockReset();
+  scheduleInitialMock.mockResolvedValue({
+    recordatorio: { messageId: "msg-1", sendAtIso: "2026-01-01T00:00:00.000Z" },
+    matchingCheck: { messageId: "msg-2", sendAtIso: "2026-01-08T00:00:00.000Z" },
+  });
   mockGetSession.mockResolvedValue({
     userId: `${TEST_PREFIX}-user`,
     role: "comercial",
@@ -137,13 +154,12 @@ describe("POST /api/captacion/nota-encargo", () => {
     expect(session.refCatastral).toBe(PENDING_CATASTRAL_REF);
     expect(session.state).toBe("PENDIENTE_PROPIEDAD");
 
-    const matchingJob = await prisma.jobQueue.findFirst({
-      where: {
-        type: "NOTA_ENCARGO_MATCHING_CHECK",
-        payload: { path: ["sessionId"], equals: session.id },
-      },
-    });
-    expect(matchingJob).not.toBeNull();
+    expect(scheduleInitialMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: session.id,
+        withMatchingCheck: true,
+      }),
+    );
   });
 
   it("vincula inmediatamente si la referencia catastral ya existe en PropertyCurrent", async () => {

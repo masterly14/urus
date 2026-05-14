@@ -8,7 +8,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store";
-import { enqueueJob } from "@/lib/job-queue";
+import { publishNotaEncargoFormularioSchedule } from "@/lib/nota-encargo/schedule";
 import { handleNotaEncargoFlowResponse } from "./send-to-signature";
 
 // ---------------------------------------------------------------------------
@@ -43,12 +43,20 @@ export async function handleNotaEncargoButtonReply(
       data: { state: "CONFIRMADA" },
     });
 
-    await enqueueJob({
-      type: "NOTA_ENCARGO_ENVIAR_FORMULARIO",
-      payload: { sessionId: session.id },
-      availableAt: session.visitDateTime,
-      idempotencyKey: `nota_encargo_formulario:${session.id}`,
-    });
+    try {
+      await publishNotaEncargoFormularioSchedule({
+        sessionId: session.id,
+        sendAt: session.visitDateTime,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[nota-encargo-webhook] Error programando FORMULARIO en QStash para ${session.id}: ${message}`,
+      );
+      // No abortamos el webhook: el estado CONFIRMADA ya quedó persistido.
+      // El script de rescate `scripts/force-send-nota-encargo.ts` o el endpoint
+      // admin permiten reprogramar manualmente.
+    }
 
     await appendEvent({
       type: "NOTA_ENCARGO_CONFIRMADA",

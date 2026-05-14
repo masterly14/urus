@@ -1,243 +1,69 @@
 /**
- * Job + Event handlers for the Nota de Encargo flow.
+ * Handlers legacy de Nota de Encargo en el consumer.
  *
- * Jobs:
- *  - NOTA_ENCARGO_RECORDATORIO        → sends WhatsApp reminder 2h before visit
- *  - NOTA_ENCARGO_CHECK_CONFIRMACION  → checks if owner confirmed; notifies comercial if not
- *  - NOTA_ENCARGO_ENVIAR_FORMULARIO   → sends WhatsApp Flow form at visit time
+ * Estos handlers ya **no se usan en el camino feliz**: el flujo se programa
+ * directamente en QStash y se ejecuta vía
+ * `/api/nota-encargo/{recordatorio,check-confirmacion,formulario,matching-check}`.
  *
- * Event:
- *  - NOTA_ENCARGO_FORMULARIO_COMPLETADO → generates PDF + initiates signature
+ * Se mantienen como **red de seguridad** para drenar cualquier job que aún
+ * quede en `job_queue` por la migración (ver `scripts/migrate-nota-encargo-to-qstash.ts`)
+ * o por un rescate manual. Cada handler delega en la función pura idempotente
+ * de `lib/nota-encargo/send.ts`, que ya respeta la transición de estados y
+ * encadena el siguiente paso vía QStash (recordatorio → check_confirmacion).
+ *
+ * El handler de evento `NOTA_ENCARGO_FORMULARIO_COMPLETADO` sigue activo y
+ * procesa la firma del propietario.
  */
 
 import type { JobRecord } from "@/lib/job-queue/types";
 import type { Event } from "@/types/domain";
 import type { HandlerResult } from "./types";
 import { prisma } from "@/lib/prisma";
-import { appendEvent } from "@/lib/event-store";
-import { enqueueJob } from "@/lib/job-queue";
-import { resolveComercial } from "@/lib/routing/resolve-comercial";
 import {
-  sendNotaEncargoRecordatorio,
-  sendNotaEncargoNoConfirmada,
-  sendNotaEncargoFlow,
-} from "@/lib/nota-encargo/whatsapp";
+  sendNotaEncargoRecordatorioForSession,
+  checkNotaEncargoConfirmacionForSession,
+  sendNotaEncargoFormularioForSession,
+  runNotaEncargoMatchingCheckForSession,
+  type NotaEncargoSendResult,
+} from "@/lib/nota-encargo/send";
 import { handleNotaEncargoFlowResponse } from "@/lib/nota-encargo/send-to-signature";
 
-// ---------------------------------------------------------------------------
-// Job: NOTA_ENCARGO_RECORDATORIO
-// ---------------------------------------------------------------------------
+function toHandlerResult(r: NotaEncargoSendResult): HandlerResult {
+  if (r.ok) return { success: true };
+  return { success: false, error: r.error, permanent: r.permanent };
+}
 
 export async function handleNotaEncargoRecordatorio(
   job: JobRecord,
 ): Promise<HandlerResult> {
   const { sessionId } = job.payload as { sessionId: string };
-  const session = await prisma.notaEncargoSession.findUniqueOrThrow({
-    where: { id: sessionId },
-  });
-
-  if (
-    session.state !== "PENDING" &&
-    session.state !== "PENDIENTE_PROPIEDAD"
-  ) {
-    return { success: true };
-  }
-
-  const displayRef = session.propertyRef ?? session.refCatastral ?? session.id;
-  await sendNotaEncargoRecordatorio(session.propietarioPhone, {
-    propertyRef: displayRef,
-    direccion: session.direccion,
-    visitTime: session.visitDateTime,
-  }, {
-    trace: {
-      source: "nota_encargo_recordatorio_job",
-      kind: "nota_encargo_recordatorio",
-      aggregateId: session.propietarioPhone,
-      correlationId: job.id,
-      causationId: job.sourceEventId,
-      payload: {
-        sessionId,
-        notaEncargoState: session.state,
-        propertyCode: session.propertyCode,
-      },
-    },
-  });
-
-  await prisma.notaEncargoSession.update({
-    where: { id: sessionId },
-    data: { state: "RECORDATORIO_ENVIADO" },
-  });
-
-  const horizonMs = session.visitDateTime.getTime() - Date.now();
-  if (horizonMs >= 45 * 60 * 1000) {
-    const checkAt = new Date(
-      session.visitDateTime.getTime() - 30 * 60 * 1000,
-    );
-    await enqueueJob({
-      type: "NOTA_ENCARGO_CHECK_CONFIRMACION",
-      payload: { sessionId },
-      availableAt: new Date(Math.max(checkAt.getTime(), Date.now() + 60_000)),
-      idempotencyKey: `nota_encargo_check:${sessionId}`,
-    });
-  }
-
-  return { success: true };
+  const result = await sendNotaEncargoRecordatorioForSession(sessionId);
+  return toHandlerResult(result);
 }
-
-// ---------------------------------------------------------------------------
-// Job: NOTA_ENCARGO_CHECK_CONFIRMACION
-// ---------------------------------------------------------------------------
 
 export async function handleNotaEncargoCheckConfirmacion(
   job: JobRecord,
 ): Promise<HandlerResult> {
   const { sessionId } = job.payload as { sessionId: string };
-  const session = await prisma.notaEncargoSession.findUniqueOrThrow({
-    where: { id: sessionId },
-  });
-
-  if (
-    session.state === "CONFIRMADA" ||
-    session.state === "FORMULARIO_ENVIADO"
-  ) {
-    return { success: true };
-  }
-
-  if (session.state !== "RECORDATORIO_ENVIADO") return { success: true };
-
-  const comercial = await resolveComercial({
-    comercialId: session.comercialId,
-    requireActive: false,
-  });
-
-  if (comercial?.telefono) {
-    const displayRef = session.propertyRef ?? session.refCatastral ?? session.id;
-    await sendNotaEncargoNoConfirmada(comercial.telefono, {
-      propertyRef: displayRef,
-      direccion: session.direccion,
-      visitTime: session.visitDateTime,
-    }, {
-      trace: {
-        source: "nota_encargo_check_confirmacion_job",
-        kind: "nota_encargo_no_confirmada",
-        aggregateId: comercial.telefono,
-        correlationId: job.id,
-        causationId: job.sourceEventId,
-        payload: {
-          sessionId,
-          notaEncargoState: session.state,
-          comercialId: session.comercialId,
-          propertyCode: session.propertyCode,
-        },
-      },
-    });
-  }
-
-  await prisma.notaEncargoSession.update({
-    where: { id: sessionId },
-    data: { state: "NO_CONFIRMADA" },
-  });
-
-  await appendEvent({
-    type: "NOTA_ENCARGO_NO_CONFIRMADA",
-    aggregateType: "PROPERTY",
-    aggregateId: session.propertyCode ?? session.refCatastral ?? session.id,
-    payload: {
-      sessionId,
-      propertyRef: session.propertyRef,
-      refCatastral: session.refCatastral,
-    },
-  });
-
-  return { success: true };
+  const result = await checkNotaEncargoConfirmacionForSession(sessionId);
+  return toHandlerResult(result);
 }
-
-// ---------------------------------------------------------------------------
-// Job: NOTA_ENCARGO_ENVIAR_FORMULARIO
-// ---------------------------------------------------------------------------
 
 export async function handleNotaEncargoEnviarFormulario(
   job: JobRecord,
 ): Promise<HandlerResult> {
   const { sessionId } = job.payload as { sessionId: string };
-  const session = await prisma.notaEncargoSession.findUniqueOrThrow({
-    where: { id: sessionId },
-  });
-
-  if (session.state !== "CONFIRMADA") return { success: true };
-
-  const displayRef = session.propertyRef ?? session.refCatastral ?? session.id;
-  await sendNotaEncargoFlow(session.propietarioPhone, {
-    sessionId: session.id,
-    direccion: session.direccion,
-    tipoOperacion: session.tipoOperacion,
-    precio: session.precio,
-    propertyRef: displayRef,
-    refCatastral: session.refCatastral,
-  }, {
-    trace: {
-      source: "nota_encargo_enviar_formulario_job",
-      kind: "nota_encargo_formulario",
-      aggregateId: session.propietarioPhone,
-      correlationId: job.id,
-      causationId: job.sourceEventId,
-      payload: {
-        sessionId,
-        notaEncargoState: session.state,
-        propertyCode: session.propertyCode,
-      },
-    },
-  });
-
-  await prisma.notaEncargoSession.update({
-    where: { id: sessionId },
-    data: { state: "FORMULARIO_ENVIADO" },
-  });
-
-  return { success: true };
+  const result = await sendNotaEncargoFormularioForSession(sessionId);
+  return toHandlerResult(result);
 }
-
-// ---------------------------------------------------------------------------
-// Job: NOTA_ENCARGO_MATCHING_CHECK
-// ---------------------------------------------------------------------------
 
 export async function handleNotaEncargoMatchingCheck(
   job: JobRecord,
 ): Promise<HandlerResult> {
   const { sessionId } = job.payload as { sessionId: string };
-  const session = await prisma.notaEncargoSession.findUnique({
-    where: { id: sessionId },
-  });
-
-  if (!session || session.propertyCode || session.state === "CANCELADA") {
-    return { success: true };
-  }
-
-  const daysElapsed = Math.max(
-    0,
-    Math.floor(
-      (Date.now() - session.visitDateTime.getTime()) / (24 * 60 * 60 * 1000),
-    ),
-  );
-
-  await appendEvent({
-    type: "NOTA_ENCARGO_SIN_PROPIEDAD_DEADLINE",
-    aggregateType: "PROPERTY",
-    aggregateId: session.refCatastral ?? session.id,
-    payload: {
-      sessionId: session.id,
-      propertyRef: session.propertyRef,
-      refCatastral: session.refCatastral,
-      daysElapsed,
-    },
-  });
-
-  return { success: true };
+  const result = await runNotaEncargoMatchingCheckForSession(sessionId);
+  return toHandlerResult(result);
 }
-
-// ---------------------------------------------------------------------------
-// Event: NOTA_ENCARGO_FORMULARIO_COMPLETADO
-// ---------------------------------------------------------------------------
 
 export async function handleNotaEncargoFormularioCompletado(
   event: Event,
@@ -266,4 +92,3 @@ export async function handleNotaEncargoFormularioCompletado(
   await handleNotaEncargoFlowResponse(session, payload.formData);
   return { success: true };
 }
-

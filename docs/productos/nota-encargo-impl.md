@@ -7,6 +7,18 @@ Sistema que automatiza la "Nota de Encargo Inmobiliaria": desde que el comercial
 > **Nota (abril 2026):** El trigger original era un cron que detectaba tareas en Inmovilla (tasks ingestion worker). Se refactorizó a un formulario local en la plataforma para eliminar la dependencia de Inmovilla como punto de entrada, reducir la latencia de 20 min a inmediata, y simplificar la superficie de mantenimiento. La creación de prospecto en Inmovilla al final del flujo también se eliminó.
 >
 > **Nota (abril 2026 — matching diferido):** La creación desde plataforma ya no selecciona una propiedad existente ni pide la referencia interna URUS. El comercial introduce la referencia catastral; si ya existe una propiedad sincronizada con `PropertyCurrent.refCatastral` se vincula al instante, y si no existe todavía la sesión queda en `PENDIENTE_PROPIEDAD`. Cuando el worker de ingesta emite `PROPIEDAD_CREADA` para una propiedad con esa misma referencia catastral (`raw.rcatastral`), `lib/nota-encargo/ref-matcher.ts` completa `propertyCode`, `propertyRef`, dirección, precio y tipo de operación, copia los datos de propietario a `PropertyCurrent` y rebindea documentos/firma que se hubieran creado con `operationId = NOTA:<sessionId>`. Detalle operativo en `docs/nota-encargo-matching-diferido.md`.
+>
+> **Nota (mayo 2026 — envío en caliente con QStash):** Los cuatro pasos temporales del flujo (`recordatorio` 2h antes, `check-confirmacion` 30 min antes, `formulario` en el instante exacto de la visita y `matching-check` N días después) **ya no se encolan en `job_queue`**: se programan directamente en Upstash QStash con `notBefore = <instante objetivo>` apuntando a endpoints dedicados:
+> - `POST /api/nota-encargo/recordatorio`
+> - `POST /api/nota-encargo/check-confirmacion`
+> - `POST /api/nota-encargo/formulario`
+> - `POST /api/nota-encargo/matching-check`
+>
+> QStash invoca el endpoint en el instante exacto y la lógica de envío vive en `lib/nota-encargo/send.ts` (funciones puras idempotentes). La confirmación del propietario (`nota_encargo_confirmo`) programa el `formulario` mediante `publishNotaEncargoFormularioSchedule`. La idempotencia se asegura por el chequeo de `session.state` antes de actuar, sin necesidad de cancelar mensajes en QStash al cancelar la nota: el callback llega, ve `CANCELADA` y devuelve `noop_cancelled`.
+>
+> Los handlers legacy en `lib/workers/consumer/nota-encargo-handlers.ts` se conservan como red de seguridad para drenar cualquier job remanente en `job_queue`; delegan en las mismas funciones puras. Para migrar el remanente tras el despliegue: `npm run nota-encargo:migrate-qstash --confirm` (o el endpoint admin `POST /api/admin/nota-encargo/migrate-to-qstash`). Para rescate puntual de un paso: `npm run nota-encargo:force-send -- --session-id <id> --step <recordatorio|check-confirmacion|formulario|matching-check> --confirm [--force]`.
+>
+> **Requisitos de entorno:** `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `NEXT_PUBLIC_APP_URL` apuntando al dominio público. Las rutas anteriores y los endpoints admin están whitelisted en `proxy.ts` (verificación de firma QStash + `CRON_SECRET` como fallback).
 
 ---
 

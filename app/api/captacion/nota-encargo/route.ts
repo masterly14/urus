@@ -11,6 +11,7 @@ import {
   normalizeCadastralRef,
 } from "@/lib/nota-encargo/cadastral-ref";
 import { normalizePhoneES } from "@/lib/whatsapp/phone";
+import { scheduleNotaEncargoInitialSteps } from "@/lib/nota-encargo/schedule";
 
 const NOTA_ENCARGO_MAX_FUTURE_DAYS = Number(
   process.env.NOTA_ENCARGO_MAX_FUTURE_DAYS || "180",
@@ -253,37 +254,6 @@ export async function POST(request: Request) {
         },
       });
 
-      const twoHoursBefore = new Date(
-        visitDate.getTime() - 2 * 60 * 60 * 1000,
-      );
-      const availableAt = new Date(
-        Math.max(twoHoursBefore.getTime(), Date.now() + 60_000),
-      );
-
-      await tx.jobQueue.create({
-        data: {
-          type: "NOTA_ENCARGO_RECORDATORIO",
-          payload: { sessionId: notaSession.id },
-          availableAt,
-          idempotencyKey: `nota_encargo_recordatorio:${notaSession.id}`,
-        },
-      });
-
-      if (!propertyCurrent) {
-        const matchingDeadline = new Date(
-          visitDate.getTime() +
-            NOTA_ENCARGO_MATCHING_DEADLINE_DAYS * 24 * 60 * 60 * 1000,
-        );
-        await tx.jobQueue.create({
-          data: {
-            type: "NOTA_ENCARGO_MATCHING_CHECK",
-            payload: { sessionId: notaSession.id, refCatastral },
-            availableAt: matchingDeadline,
-            idempotencyKey: `nota_encargo_matching:${notaSession.id}`,
-          },
-        });
-      }
-
       return notaSession.id;
     });
   } catch (err: unknown) {
@@ -314,6 +284,30 @@ export async function POST(request: Request) {
       }
     }
     throw err;
+  }
+
+  try {
+    await scheduleNotaEncargoInitialSteps({
+      sessionId: notaSessionId,
+      visitDateTime: visitDate,
+      withMatchingCheck: !propertyCurrent,
+      matchingDeadlineDays: NOTA_ENCARGO_MATCHING_DEADLINE_DAYS,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[captacion/nota-encargo] Error programando recordatorio en QStash para sesión ${notaSessionId}: ${message}`,
+    );
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Nota de encargo creada pero falló la programación del recordatorio. Reintenta o contacta a soporte.",
+        sessionId: notaSessionId,
+        warnings,
+      },
+      { status: 502 },
+    );
   }
 
   return NextResponse.json(

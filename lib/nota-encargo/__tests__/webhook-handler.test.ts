@@ -24,17 +24,21 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-const { appendEventMock, enqueueJobMock } = vi.hoisted(() => ({
+const { appendEventMock, publishFormularioMock } = vi.hoisted(() => ({
   appendEventMock: vi.fn(),
-  enqueueJobMock: vi.fn(),
+  publishFormularioMock: vi.fn(),
 }));
 
 vi.mock("@/lib/event-store", () => ({
   appendEvent: appendEventMock,
 }));
 
-vi.mock("@/lib/job-queue", () => ({
-  enqueueJob: enqueueJobMock,
+vi.mock("@/lib/nota-encargo/schedule", () => ({
+  publishNotaEncargoFormularioSchedule: publishFormularioMock,
+  publishNotaEncargoRecordatorioSchedule: vi.fn(),
+  publishNotaEncargoCheckConfirmacionSchedule: vi.fn(),
+  publishNotaEncargoMatchingCheckSchedule: vi.fn(),
+  scheduleNotaEncargoInitialSteps: vi.fn(),
 }));
 
 const { handleFlowResponseMock } = vi.hoisted(() => ({
@@ -74,7 +78,10 @@ describe("handleNotaEncargoButtonReply", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sessionUpdateMock.mockResolvedValue({});
-    enqueueJobMock.mockResolvedValue({ id: "job-1" });
+    publishFormularioMock.mockResolvedValue({
+      messageId: "qstash-1",
+      sendAtIso: "2026-04-16T16:00:00.000Z",
+    });
     appendEventMock.mockResolvedValue({ id: "evt-1" });
   });
 
@@ -86,7 +93,7 @@ describe("handleNotaEncargoButtonReply", () => {
     expect(result).toBe(false);
   });
 
-  it("handles 'nota_encargo_confirmo': updates state and enqueues formulario job", async () => {
+  it("handles 'nota_encargo_confirmo': updates state and schedules formulario in QStash", async () => {
     sessionFindFirstMock.mockResolvedValue(makeSession());
 
     const result = await handleNotaEncargoButtonReply(
@@ -100,10 +107,10 @@ describe("handleNotaEncargoButtonReply", () => {
         data: { state: "CONFIRMADA" },
       }),
     );
-    expect(enqueueJobMock).toHaveBeenCalledWith(
+    expect(publishFormularioMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "NOTA_ENCARGO_ENVIAR_FORMULARIO",
-        payload: { sessionId: "session-1" },
+        sessionId: "session-1",
+        sendAt: expect.any(Date),
       }),
     );
     expect(appendEventMock).toHaveBeenCalledWith(
@@ -124,7 +131,7 @@ describe("handleNotaEncargoButtonReply", () => {
 
     expect(result).toBe(true);
     expect(sessionUpdateMock).not.toHaveBeenCalled();
-    expect(enqueueJobMock).not.toHaveBeenCalled();
+    expect(publishFormularioMock).not.toHaveBeenCalled();
   });
 
   it("returns false when no session matches the phone", async () => {

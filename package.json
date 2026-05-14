@@ -62,6 +62,8 @@
     "backfill:parte-visita": "tsx scripts/backfill-parte-visita.ts",
     "parte-visita:force-send": "tsx scripts/force-send-parte-visita.ts",
     "parte-visita:migrate-qstash": "tsx scripts/migrate-parte-visita-to-qstash.ts",
+    "nota-encargo:force-send": "tsx scripts/force-send-nota-encargo.ts",
+    "nota-encargo:migrate-qstash": "tsx scripts/migrate-nota-encargo-to-qstash.ts",
     "list:properties-by-comercial": "tsx scripts/list-properties-by-comercial.ts",
     "raw:nonempty": "tsx scripts/analyze-nonempty-raw.ts",
     "microsite:from-db": "tsx scripts/create-microsite-from-db-property.ts",

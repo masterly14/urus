@@ -46,17 +46,24 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-const { appendEventMock, enqueueJobMock } = vi.hoisted(() => ({
+const { appendEventMock } = vi.hoisted(() => ({
   appendEventMock: vi.fn(),
-  enqueueJobMock: vi.fn(),
 }));
 
 vi.mock("@/lib/event-store", () => ({
   appendEvent: appendEventMock,
 }));
 
-vi.mock("@/lib/job-queue", () => ({
-  enqueueJob: enqueueJobMock,
+const { publishCheckConfirmacionMock } = vi.hoisted(() => ({
+  publishCheckConfirmacionMock: vi.fn(),
+}));
+
+vi.mock("@/lib/nota-encargo/schedule", () => ({
+  publishNotaEncargoCheckConfirmacionSchedule: publishCheckConfirmacionMock,
+  publishNotaEncargoRecordatorioSchedule: vi.fn(),
+  publishNotaEncargoFormularioSchedule: vi.fn(),
+  publishNotaEncargoMatchingCheckSchedule: vi.fn(),
+  scheduleNotaEncargoInitialSteps: vi.fn(),
 }));
 
 const { sendRecordatorioMock, sendNoConfirmadaMock, sendFlowMock } =
@@ -124,10 +131,7 @@ function makeJob(payload: Record<string, unknown>): JobRecord {
   } as unknown as JobRecord;
 }
 
-function makeEvent(
-  type: string,
-  payload: unknown,
-): Event {
+function makeEvent(type: string, payload: unknown): Event {
   return {
     id: "evt-1",
     position: BigInt(1),
@@ -153,12 +157,15 @@ describe("handleNotaEncargoRecordatorio", () => {
     vi.clearAllMocks();
     sendRecordatorioMock.mockResolvedValue({ messages: [{ id: "wamid" }] });
     sessionUpdateMock.mockResolvedValue({});
-    enqueueJobMock.mockResolvedValue({ id: "job-2" });
+    publishCheckConfirmacionMock.mockResolvedValue({
+      messageId: "msg-1",
+      sendAtIso: "2026-01-01T00:00:00.000Z",
+    });
   });
 
-  it("sends reminder and transitions to RECORDATORIO_ENVIADO", async () => {
+  it("sends reminder, transitions state, and schedules CHECK in QStash", async () => {
     const futureVisit = new Date(Date.now() + 3 * 60 * 60 * 1000);
-    sessionFindUniqueOrThrowMock.mockResolvedValue(
+    sessionFindUniqueMock.mockResolvedValue(
       makeSession({ visitDateTime: futureVisit }),
     );
 
@@ -186,16 +193,14 @@ describe("handleNotaEncargoRecordatorio", () => {
         data: { state: "RECORDATORIO_ENVIADO" },
       }),
     );
-    expect(enqueueJobMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "NOTA_ENCARGO_CHECK_CONFIRMACION",
-      }),
+    expect(publishCheckConfirmacionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: "session-1" }),
     );
   });
 
-  it("skips CHECK_CONFIRMACION when visit is < 45 min away", async () => {
+  it("skips CHECK schedule when visit is < 45 min away", async () => {
     const nearVisit = new Date(Date.now() + 20 * 60 * 1000);
-    sessionFindUniqueOrThrowMock.mockResolvedValue(
+    sessionFindUniqueMock.mockResolvedValue(
       makeSession({ visitDateTime: nearVisit }),
     );
 
@@ -210,12 +215,12 @@ describe("handleNotaEncargoRecordatorio", () => {
         data: { state: "RECORDATORIO_ENVIADO" },
       }),
     );
-    expect(enqueueJobMock).not.toHaveBeenCalled();
+    expect(publishCheckConfirmacionMock).not.toHaveBeenCalled();
   });
 
-  it("enqueues CHECK_CONFIRMACION when visit is >= 45 min away", async () => {
+  it("schedules CHECK in QStash when visit is >= 45 min away", async () => {
     const futureVisit = new Date(Date.now() + 3 * 60 * 60 * 1000);
-    sessionFindUniqueOrThrowMock.mockResolvedValue(
+    sessionFindUniqueMock.mockResolvedValue(
       makeSession({ visitDateTime: futureVisit }),
     );
 
@@ -224,15 +229,13 @@ describe("handleNotaEncargoRecordatorio", () => {
     );
 
     expect(result.success).toBe(true);
-    expect(enqueueJobMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "NOTA_ENCARGO_CHECK_CONFIRMACION",
-      }),
+    expect(publishCheckConfirmacionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: "session-1" }),
     );
   });
 
-  it("is idempotent: no-op if state is not PENDING", async () => {
-    sessionFindUniqueOrThrowMock.mockResolvedValue(
+  it("is idempotent: no-op if state is not PENDING/PENDIENTE_PROPIEDAD", async () => {
+    sessionFindUniqueMock.mockResolvedValue(
       makeSession({ state: "RECORDATORIO_ENVIADO" }),
     );
 
@@ -255,7 +258,7 @@ describe("handleNotaEncargoCheckConfirmacion", () => {
   });
 
   it("notifies comercial when owner did not confirm", async () => {
-    sessionFindUniqueOrThrowMock.mockResolvedValue(
+    sessionFindUniqueMock.mockResolvedValue(
       makeSession({ state: "RECORDATORIO_ENVIADO" }),
     );
     comercialFindUniqueMock.mockResolvedValue({
@@ -294,7 +297,7 @@ describe("handleNotaEncargoCheckConfirmacion", () => {
   });
 
   it("no-op if already confirmed", async () => {
-    sessionFindUniqueOrThrowMock.mockResolvedValue(
+    sessionFindUniqueMock.mockResolvedValue(
       makeSession({ state: "CONFIRMADA" }),
     );
 
@@ -307,7 +310,7 @@ describe("handleNotaEncargoCheckConfirmacion", () => {
   });
 
   it("no-op if formulario already sent", async () => {
-    sessionFindUniqueOrThrowMock.mockResolvedValue(
+    sessionFindUniqueMock.mockResolvedValue(
       makeSession({ state: "FORMULARIO_ENVIADO" }),
     );
 
@@ -328,7 +331,7 @@ describe("handleNotaEncargoEnviarFormulario", () => {
   });
 
   it("sends Flow and transitions to FORMULARIO_ENVIADO", async () => {
-    sessionFindUniqueOrThrowMock.mockResolvedValue(
+    sessionFindUniqueMock.mockResolvedValue(
       makeSession({ state: "CONFIRMADA" }),
     );
 
@@ -362,7 +365,7 @@ describe("handleNotaEncargoEnviarFormulario", () => {
   });
 
   it("no-op if state is not CONFIRMADA", async () => {
-    sessionFindUniqueOrThrowMock.mockResolvedValue(
+    sessionFindUniqueMock.mockResolvedValue(
       makeSession({ state: "RECORDATORIO_ENVIADO" }),
     );
 
