@@ -12,29 +12,21 @@ function hostOf(url: string): string | null {
   }
 }
 
-function logImageProxy(message: string, data: Record<string, unknown>, hypothesisId = "H3"): void {
-  // #region agent log
-  fetch("http://127.0.0.1:7478/ingest/3a86774c-7051-4ca6-b6e8-a92160972b21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "bfe3e0" }, body: JSON.stringify({ sessionId: "bfe3e0", runId: "post-fix", hypothesisId, location: "app/api/statefox/image/route.ts:GET", message, data, timestamp: Date.now() }) }).catch(() => {});
-  // #endregion
-}
-
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const target = url.searchParams.get("url");
 
   if (!target || !isAllowedStatefoxImageUrl(target)) {
-    logImageProxy("Statefox image proxy rejected URL", {
-      hasTarget: Boolean(target),
-      host: target ? hostOf(target) : null,
-    });
+    console.warn(
+      `[statefox:image-proxy] URL rechazada hasTarget=${Boolean(target)} host=${target ? hostOf(target) : null}`,
+    );
     return NextResponse.json({ error: "Invalid image URL" }, { status: 400 });
   }
 
   if (isExpiredStatefoxImageUrl(target)) {
-    logImageProxy("Statefox image proxy rejected expired URL", {
-      host: hostOf(target),
-      expiresAt: getStatefoxImageExpiresAt(target),
-    });
+    console.warn(
+      `[statefox:image-proxy] URL caducada host=${hostOf(target)} expiresAt=${getStatefoxImageExpiresAt(target)}`,
+    );
     return NextResponse.json({ error: "Expired image URL" }, { status: 410 });
   }
 
@@ -49,19 +41,8 @@ export async function GET(request: Request) {
 
     const contentType = response.headers.get("content-type") ?? "application/octet-stream";
     if (!response.ok || !contentType.startsWith("image/")) {
-      logImageProxy("Statefox image proxy upstream failed", {
-        host: hostOf(target),
-        status: response.status,
-        contentType,
-      });
       return NextResponse.json({ error: "Image unavailable" }, { status: 502 });
     }
-
-    logImageProxy("Statefox image proxy served image", {
-      host: hostOf(target),
-      status: response.status,
-      contentType,
-    });
 
     return new Response(response.body, {
       status: 200,
@@ -71,10 +52,11 @@ export async function GET(request: Request) {
       },
     });
   } catch (err) {
-    logImageProxy("Statefox image proxy request failed", {
-      host: hostOf(target),
-      error: err instanceof Error ? err.message : String(err),
-    });
+    console.warn(
+      `[statefox:image-proxy] fetch falló host=${hostOf(target)} error=${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
     return NextResponse.json({ error: "Image fetch failed" }, { status: 502 });
   }
 }

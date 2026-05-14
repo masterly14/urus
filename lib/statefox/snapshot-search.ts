@@ -1,6 +1,12 @@
 /**
  * Motor de búsqueda sobre GET /snapshot de Statefox.
  *
+ * @deprecated Migracion a MarketListing in-house en curso. Cuando
+ * `MARKET_PRICING_SOURCE=marketlisting`, el consumidor debe usar
+ * `lib/market/search.ts:searchMarketForDemand`. Statefox queda como
+ * fallback hasta que MarketListing tenga cobertura multi-ciudad.
+ * Ver docs/statefox-deprecation.md.
+ *
  * Reemplaza la consulta a GET /properties para matching y microsite.
  * /snapshot contiene el inventario completo rastreado (todos los portales),
  * paginado con cursor, lo que permite filtrar en memoria con volumen real.

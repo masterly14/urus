@@ -24,6 +24,95 @@ Para el volumen actual (3 comerciales, ~37 propiedades), una sola instancia es m
 
 Los puntos de entrada que crean un evento y encolan su `PROCESS_EVENT` usan `appendEventAndEnqueueJob()` (`lib/event-store/event-store.ts`), que ejecuta ambas operaciones en una transacción Prisma. Esto garantiza que nunca quede un evento huérfano sin job ni un job apuntando a un evento inexistente.
 
+## Statefox Image Cache (M6/M7)
+
+El job `IMPORT_STATEFOX_PORTAL_IMAGES` recupera imágenes frescas desde el `pLink`
+del anuncio y las persiste en Cloudinary. Lo usan pricing y microsites cuando las
+URLs `pImages` de Statefox llegan caducadas.
+
+| Pieza | Archivo |
+|-------|---------|
+| Modelo cache | `prisma/schema.prisma` (`StatefoxComparableImage`, `statefox_comparable_images`) |
+| Detección portal + idempotencia | `lib/statefox/image-cache/portal.ts` |
+| Encolado idempotente | `lib/statefox/image-cache/enqueue.ts` |
+| Discovery Playwright (DOM + scripts + network) | `lib/statefox/image-cache/extract.ts` |
+| Descarga con headers de portal y subida Cloudinary | `lib/statefox/image-cache/upload.ts` |
+| Orquestador del job (importStatefoxPortalImages) | `lib/statefox/image-cache/importer.ts` |
+| Warm import en caliente (1 imagen por comparable) | `lib/statefox/image-cache/warm.ts` |
+| Hidratación pricing + cache miss → enqueue | `lib/statefox/image-cache/select.ts` |
+| Orquestador híbrido Vercel↔Railway | `lib/statefox/image-cache/orchestrator.ts` |
+| Contrato HTTP del worker (cliente + tipos) | `lib/workers/contracts/image-worker*.ts` |
+| Runtime del worker (auth + concurrencia + deadline) | `lib/workers/image-worker/runtime.ts` |
+| Entrypoint Railway | `scripts/run-image-worker.ts` (`npm run image-worker`) |
+| Endpoint de status para polling UI | `app/api/statefox/image-cache/status/route.ts` |
+| Handler del consumer | `lib/workers/consumer/statefox-image-import-handler.ts` |
+| Script live dry-run / upload | `scripts/test-statefox-image-import.ts` (`npm run statefox:images:test`) |
+
+### Modos del image worker (`STATEFOX_IMAGE_WORKER_MODE`)
+
+| Modo | Comportamiento |
+|------|----------------|
+| `local` | Vercel ejecuta el warm import en proceso. No se contacta Railway. |
+| `railway` | Vercel siempre delega al worker. Si el worker no está alcanzable, cae a local con warning (degradación segura). |
+| `hybrid` (default cuando hay `STATEFOX_IMAGE_WORKER_URL`) | Vercel intenta el worker primero con ventana síncrona corta (`STATEFOX_IMAGE_WORKER_SYNC_DEADLINE_MS`, default 3 s). Si responde `completed`, las imágenes se devuelven en el mismo informe. Si el worker hace timeout / falla / responde `accepted`, se encola un job idempotente para que el consumer termine de poblar la galería y el frontend hace polling al endpoint de status. |
+
+### Endpoint de status para polling
+
+`GET /api/statefox/image-cache/status?ids=a,b,c` o `POST { ids: [...] }`. Devuelve por cada id:
+
+| Campo | Descripción |
+|-------|-------------|
+| `status` | `IMPORTED \| PENDING \| FAILED \| BLOCKED \| CAPTCHA \| LISTING_REMOVED \| NO_IMAGES_FOUND \| UNKNOWN` |
+| `cachedUrls` | URLs Cloudinary listas para servir (vacío hasta que `IMPORTED`) |
+| `importedCount` | Imágenes ya en cache |
+| `attempts` | Intentos del worker |
+| `errorReason` | Motivo del último error (si aplica) |
+| `updatedAt` | ISO del último cambio |
+
+Auth: sesión Better Auth (cualquier rol con sesión válida). Pensado para que el frontend de Pricing refresque sin recargar el informe completo.
+
+### Health del worker
+
+`GET /internal/health` en el servicio Railway (no expuesto al público). El bloque `image-worker` también aparece en `GET /api/workers/status` (con auth) usando como prueba de vida el último `IMPORT_STATEFOX_PORTAL_IMAGES` completado en la cola.
+
+### Estados terminales
+
+`IMPORTED`, `BLOCKED`, `CAPTCHA`, `LISTING_REMOVED`, `NO_IMAGES_FOUND`. Estos no
+se reintentan automáticamente: requieren acción manual (re-encolar el job tras
+limpiar la fila, o usar `npm run statefox:images:test --upload`). Solo `FAILED`
+es retriable mediante backoff de la cola.
+
+### Mitigación antibots
+
+- Backend Bright Data:
+  - `BRIGHTDATA_SCRAPING_BROWSER_URL` conecta Playwright a Scraping Browser por CDP
+    y habilita `Captcha.waitForSolve`.
+  - Para Idealista, el worker primero intenta una `PortalWarmSession`: una cookie
+    `datadome`/sesión calentada por CDP que se guarda en Neon y se reutiliza con
+    proxy residencial hasta agotar TTL o número de usos.
+  - `BRIGHTDATA_RESIDENTIAL_PROXY_URL`,
+    `BRIGHTDATA_RESIDENTIAL_PROXY_USERNAME` y
+    `BRIGHTDATA_RESIDENTIAL_PROXY_PASSWORD` usan el proxy residencial HTTP de
+    Bright Data en Chromium local cuando no hay URL CDP.
+    `BRIGHTDATA_RESIDENTIAL_PROXY_SESSION` añade sesión sticky para mantener la
+    misma IP durante una navegación.
+- Sesión persistente vía `IDEALISTA_STORAGE_STATE` (mismo formato que el scraper de
+  Idealista). El navegador acepta el banner de cookies y respeta el jitter de
+  `IDEALISTA_IMAGE_IMPORT_DELAY_MS`.
+- Detección explícita de `403`, CAPTCHA, "uso indebido" y "anuncio no disponible"
+  en `lib/statefox/image-cache/extract.ts`; mapea a `BLOCKED`/`CAPTCHA`/`LISTING_REMOVED`.
+  En Idealista, esos estados invalidan la warm session activa para forzar re-warm.
+- `STATEFOX_WARM_SESSION_REQUIRE_CDP=true` corta el job como `BLOCKED` si no hay
+  CDP ni cookie cálida, evitando consumir residencial contra el muro de DataDome.
+- `STATEFOX_HUMAN_BEHAVIOR_ENABLED` y `STATEFOX_WARMUP_NAVIGATION_ENABLED`
+  activan trayectorias `ghost-cursor` y navegación home → anuncio.
+- Circuit breaker por portal: `statefox-image-import:idealista`,
+  `statefox-image-import:fotocasa`, etc. Tras 3 fallos consecutivos cierra el
+  flujo del portal durante 5 min.
+- Proxy opcional configurable con `IDEALISTA_PROXY_SERVER` (+ user/pass).
+- Las URLs `pImages` aún válidas siguen siendo fallback en la UI hasta que el job
+  termine de poblar Cloudinary.
+
 ## Cron-jobs (QStash)
 
 | Ruta | Script / Worker |

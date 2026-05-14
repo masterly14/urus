@@ -41,6 +41,7 @@ import type { PricingRecommendation } from "@/lib/pricing/recommendation-types";
 import { isExpiredStatefoxImageUrl } from "@/lib/statefox/image-expiry";
 import { formatStatefoxHousingLabel } from "@/lib/statefox/housing-label";
 import { proxiedStatefoxImageUrl } from "@/lib/statefox/image-url";
+import { useStatefoxImageCachePolling } from "@/lib/statefox/image-cache/use-image-cache-polling";
 import { pricingFixture } from "@/lib/mock-data/pricing-fixture";
 
 type ViewState =
@@ -729,51 +730,50 @@ function isValidImageUrl(url: string): boolean {
   return url.startsWith("http://") || url.startsWith("https://");
 }
 
-function imageDebugHost(url: string): string | null {
+function isCloudinaryImageUrl(url: string): boolean {
   try {
-    return new URL(url).host;
+    return new URL(url).hostname.endsWith("res.cloudinary.com");
   } catch {
-    return null;
+    return false;
   }
 }
 
-function debugPricingImageRender(
-  message: string,
-  data: Record<string, unknown>,
-  hypothesisId = "H3",
-): void {
-  // #region agent log
-  fetch("http://127.0.0.1:7478/ingest/3a86774c-7051-4ca6-b6e8-a92160972b21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "bfe3e0" }, body: JSON.stringify({ sessionId: "bfe3e0", runId: "initial", hypothesisId, location: "app/platform/pricing/informe/[code]/page.tsx:ComparablePhotoCarousel", message, data, timestamp: Date.now() }) }).catch(() => {});
-  // #endregion
-}
-
-function ComparablePhotoCarousel({ fotos, alt }: { fotos: string[]; alt: string }) {
-  const validFotos = fotos.filter((url) => isValidImageUrl(url) && !isExpiredStatefoxImageUrl(url));
+function ComparablePhotoCarousel({
+  fotos,
+  alt,
+  liveCachedUrls,
+  isProcessing = false,
+}: {
+  fotos: string[];
+  alt: string;
+  /** URLs Cloudinary recibidas por polling. Si están presentes, pisan a `fotos`. */
+  liveCachedUrls?: string[];
+  /** Si true, el worker sigue trabajando: muestra indicador de "cargando fotos". */
+  isProcessing?: boolean;
+}) {
+  const sourceFotos = liveCachedUrls && liveCachedUrls.length > 0 ? liveCachedUrls : fotos;
+  const validFotos = sourceFotos.filter(
+    (url) => isValidImageUrl(url) && (isCloudinaryImageUrl(url) || !isExpiredStatefoxImageUrl(url)),
+  );
   const [idx, setIdx] = useState(0);
   const [failedUrls, setFailedUrls] = useState<Set<string>>(new Set());
 
   const visibleFotos = validFotos.filter((u) => !failedUrls.has(u));
 
-  useEffect(() => {
-    debugPricingImageRender(
-      "Pricing carousel image URL validation",
-      {
-        rawCount: fotos.length,
-        validCount: validFotos.length,
-        firstRawType: typeof fotos[0],
-        firstValidHost: validFotos[0] ? imageDebugHost(validFotos[0]) : null,
-      },
-      "H1,H3",
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   if (visibleFotos.length === 0) {
     return (
       <div className="w-full h-44 bg-accent/10 rounded-lg flex flex-col items-center justify-center gap-2">
-        <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
+        {isProcessing ? (
+          <Loader2 className="h-6 w-6 text-muted-foreground/60 animate-spin" />
+        ) : (
+          <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
+        )}
         <span className="text-[10px] text-muted-foreground">
-          {fotos.length > 0 ? `${fotos.length} fotos (no disponibles)` : "Sin fotos"}
+          {isProcessing
+            ? "Recuperando fotos del portal..."
+            : fotos.length > 0
+              ? `${fotos.length} fotos (no disponibles)`
+              : "Sin fotos"}
         </span>
       </div>
     );
@@ -781,7 +781,9 @@ function ComparablePhotoCarousel({ fotos, alt }: { fotos: string[]; alt: string 
 
   const safeIdx = idx % visibleFotos.length;
   const currentOriginalUrl = visibleFotos[safeIdx];
-  const currentDisplayUrl = proxiedStatefoxImageUrl(currentOriginalUrl);
+  const currentDisplayUrl = isCloudinaryImageUrl(currentOriginalUrl)
+    ? currentOriginalUrl
+    : proxiedStatefoxImageUrl(currentOriginalUrl);
 
   return (
     <div className="relative w-full h-44 rounded-lg overflow-hidden bg-black/5">
@@ -793,12 +795,6 @@ function ComparablePhotoCarousel({ fotos, alt }: { fotos: string[]; alt: string 
         loading="lazy"
         referrerPolicy="no-referrer"
         onError={() => {
-          debugPricingImageRender("Pricing carousel image load failed", {
-            host: imageDebugHost(currentOriginalUrl),
-            proxied: currentDisplayUrl !== currentOriginalUrl,
-            visibleCount: visibleFotos.length,
-            failedCount: failedUrls.size + 1,
-          });
           setFailedUrls((prev) => new Set(prev).add(currentOriginalUrl));
         }}
       />
@@ -827,7 +823,17 @@ function ComparablePhotoCarousel({ fotos, alt }: { fotos: string[]; alt: string 
 
 // ── Expandable comparable detail card ────────────────────────────────────────
 
-function ComparableDetailCard({ c, input }: { c: PricingComparable; input: PricingAnalysisResult["input"] }) {
+function ComparableDetailCard({
+  c,
+  input,
+  liveCachedUrls,
+  isProcessing,
+}: {
+  c: PricingComparable;
+  input: PricingAnalysisResult["input"];
+  liveCachedUrls?: string[];
+  isProcessing?: boolean;
+}) {
   const diff = pctDiff(c.precioM2, input.precioM2);
   const isLower = c.precioM2 < input.precioM2;
 
@@ -836,7 +842,12 @@ function ComparableDetailCard({ c, input }: { c: PricingComparable; input: Prici
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr]">
         {/* Left: photo */}
         <div className="lg:border-r border-border/20">
-          <ComparablePhotoCarousel fotos={c.fotos ?? []} alt={c.zona || c.ciudad} />
+          <ComparablePhotoCarousel
+            fotos={c.fotos ?? []}
+            liveCachedUrls={liveCachedUrls}
+            isProcessing={isProcessing}
+            alt={c.zona || c.ciudad}
+          />
         </div>
 
         {/* Right: info */}
@@ -946,6 +957,8 @@ function ComparableRow({
   isLower,
   isExpanded,
   onToggle,
+  liveCachedUrls,
+  isProcessing,
 }: {
   c: PricingComparable;
   input: PricingAnalysisResult["input"];
@@ -953,6 +966,8 @@ function ComparableRow({
   isLower: boolean;
   isExpanded: boolean;
   onToggle: () => void;
+  liveCachedUrls?: string[];
+  isProcessing?: boolean;
 }) {
   return (
     <>
@@ -1001,7 +1016,12 @@ function ComparableRow({
         <tr>
           <td colSpan={9} className="p-0">
             <div className="p-4 bg-accent/5 animate-in fade-in slide-in-from-top-2 duration-200">
-              <ComparableDetailCard c={c} input={input} />
+              <ComparableDetailCard
+                c={c}
+                input={input}
+                liveCachedUrls={liveCachedUrls}
+                isProcessing={isProcessing}
+              />
             </div>
           </td>
         </tr>
@@ -1015,6 +1035,14 @@ function ComparableRow({
 function SectionComparables({ data }: { data: PricingAnalysisResult }) {
   const { input, comparables } = data;
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const pendingIds = comparables
+    .filter((c) => c.imageCacheStatus !== "IMPORTED" && Boolean(c.statefoxId))
+    .map((c) => c.statefoxId);
+  const { items: imageStatusByid } = useStatefoxImageCachePolling({
+    ids: pendingIds,
+    enabled: pendingIds.length > 0,
+  });
 
   return (
     <Card className="border border-border">
@@ -1065,6 +1093,11 @@ function SectionComparables({ data }: { data: PricingAnalysisResult }) {
                 const diff = pctDiff(c.precioM2, input.precioM2);
                 const isLower = c.precioM2 < input.precioM2;
                 const isExpanded = expandedId === c.statefoxId;
+                const liveStatus = imageStatusByid.get(c.statefoxId);
+                const liveCachedUrls = liveStatus?.cachedUrls;
+                const isProcessing =
+                  c.imageCacheStatus !== "IMPORTED" &&
+                  (!liveStatus || (liveStatus.status !== "IMPORTED" && liveStatus.cachedUrls.length === 0));
                 return (
                   <ComparableRow
                     key={c.statefoxId}
@@ -1074,6 +1107,8 @@ function SectionComparables({ data }: { data: PricingAnalysisResult }) {
                     isLower={isLower}
                     isExpanded={isExpanded}
                     onToggle={() => setExpandedId(isExpanded ? null : c.statefoxId)}
+                    liveCachedUrls={liveCachedUrls}
+                    isProcessing={isProcessing}
                   />
                 );
               })}

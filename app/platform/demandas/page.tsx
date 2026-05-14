@@ -1336,7 +1336,7 @@ export default function DemandasPage() {
             className="w-full bg-transparent border-none focus:ring-0 text-sm pl-9 pr-4 py-1.5 placeholder:text-muted-foreground"
           />
         </div>
-        
+
         <div className="pt-3 border-t border-border/40">
           <FilterChips
             activeStatuses={selectedStatuses}
