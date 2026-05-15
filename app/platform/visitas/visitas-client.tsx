@@ -39,6 +39,7 @@ type VisitStatus =
 
 type VisitDecision = "green" | "yellow" | "red";
 type VoiceCapturePhase = "idle" | "recording" | "transcribing";
+type VisitTab = "ALL" | "TODAY" | "SCHEDULED" | "DONE" | "DOCUMENTED";
 
 type VisitPropertySnapshot = {
   propertyId: string;
@@ -64,6 +65,20 @@ type VisitContactSnapshot = {
   missingContactPhone: boolean;
 };
 
+type ParteVisitaTrace = {
+  state:
+    | "PENDING"
+    | "FORMULARIO_ENVIADO"
+    | "FORMULARIO_COMPLETADO"
+    | "FIRMA_ENVIADA"
+    | "FIRMADA"
+    | "DOCUMENTO_ENVIADO"
+    | "CANCELADA";
+  documentUrl: string | null;
+  signedDocumentUrl: string | null;
+  updatedAt: string;
+};
+
 type VisitWorkItemDto = {
   id: string;
   demandId: string;
@@ -86,6 +101,7 @@ type VisitWorkItemDto = {
   createdAt: string;
   updatedAt: string;
   source: "work_item" | "legacy_interest";
+  parteVisita?: ParteVisitaTrace | null;
 };
 
 type ApiResponse = {
@@ -122,6 +138,16 @@ const statusLabel: Record<VisitStatus, string> = {
   DECIDED_YELLOW: "Busca diferente",
   DECIDED_RED: "Dar de baja",
   CANCELLED: "Cancelada",
+};
+
+const parteVisitaStatusLabel: Record<ParteVisitaTrace["state"], string> = {
+  PENDING: "Pendiente de envío",
+  FORMULARIO_ENVIADO: "Formulario enviado",
+  FORMULARIO_COMPLETADO: "Formulario completado",
+  FIRMA_ENVIADA: "Firma enviada",
+  FIRMADA: "Firmada",
+  DOCUMENTO_ENVIADO: "Documento enviado",
+  CANCELADA: "Cancelada",
 };
 
 function tomorrow(): string {
@@ -161,6 +187,40 @@ function formatMoney(value: number | null): string {
     currency: "EUR",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function isMadridToday(iso: string | null | undefined): boolean {
+  if (!iso) return false;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return false;
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Madrid",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const visitDay = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Madrid",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+  return today === visitDay;
+}
+
+function formatMadridDateTime(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone: "Europe/Madrid",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
 }
 
 function propertyMeta(property: VisitPropertySnapshot): string {
@@ -319,6 +379,7 @@ export function VisitasClient() {
   const useMock = searchParams.get("mock") === "1" || searchParams.get("uiMock") === "1";
   const initialVisitId = searchParams.get("visitId") ?? "";
   const [items, setItems] = useState<VisitWorkItemDto[]>([]);
+  const [activeTab, setActiveTab] = useState<VisitTab>("ALL");
   const [selectedId, setSelectedId] = useState(initialVisitId);
   const [fecha, setFecha] = useState(tomorrow());
   const [horaInicio, setHoraInicio] = useState("10:00");
@@ -368,6 +429,61 @@ export function VisitasClient() {
     () => items.find((item) => item.id === selectedId) ?? null,
     [items, selectedId],
   );
+  const todaysVisits = useMemo(
+    () =>
+      items.filter((item) => {
+        const slot = item.scheduledSlotStart ?? item.scheduledSlotEnd;
+        return isMadridToday(slot);
+      }),
+    [items],
+  );
+  const completedVisits = useMemo(
+    () =>
+      items.filter((item) =>
+        [
+          "COMPLETED",
+          "DECIDED_GREEN",
+          "DECIDED_YELLOW",
+          "DECIDED_RED",
+        ].includes(item.status),
+      ),
+    [items],
+  );
+  const documentedVisits = useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          Boolean(item.parteVisita?.documentUrl) ||
+          Boolean(item.parteVisita?.signedDocumentUrl) ||
+          item.parteVisita?.state === "DOCUMENTO_ENVIADO",
+      ),
+    [items],
+  );
+  const pendingScheduleVisits = useMemo(
+    () =>
+      items.filter((item) =>
+        ["PENDING_SCHEDULE", "INCOMPLETE"].includes(item.status),
+      ),
+    [items],
+  );
+  const scheduledVisits = useMemo(
+    () => items.filter((item) => item.status === "SCHEDULED"),
+    [items],
+  );
+  const visibleItems = useMemo(() => {
+    if (activeTab === "TODAY") return todaysVisits;
+    if (activeTab === "SCHEDULED") return scheduledVisits;
+    if (activeTab === "DONE") return completedVisits;
+    if (activeTab === "DOCUMENTED") return documentedVisits;
+    return items;
+  }, [
+    activeTab,
+    todaysVisits,
+    scheduledVisits,
+    completedVisits,
+    documentedVisits,
+    items,
+  ]);
   const selectedManualDemand = useMemo(
     () => manualDemands.find((demand) => demand.codigo === manualDemandId) ?? null,
     [manualDemands, manualDemandId],
@@ -459,7 +575,7 @@ export function VisitasClient() {
       setHoraInicio("10:00");
       setHoraFin("11:00");
     }
-  }, [selected?.id, selected?.scheduledSlotStart, selected?.scheduledSlotEnd]);
+  }, [selected]);
 
   const loadManualOptions = async () => {
     setManualLoading(true);
@@ -965,6 +1081,33 @@ export function VisitasClient() {
         </div>
       ) : null}
 
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="border-border/25 bg-card/90">
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Para hoy</p>
+            <p className="mt-1 text-2xl font-semibold">{todaysVisits.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/25 bg-card/90">
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Pendientes de agenda</p>
+            <p className="mt-1 text-2xl font-semibold">{pendingScheduleVisits.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/25 bg-card/90">
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Realizadas / decididas</p>
+            <p className="mt-1 text-2xl font-semibold">{completedVisits.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/25 bg-card/90">
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Con documentación</p>
+            <p className="mt-1 text-2xl font-semibold">{documentedVisits.length}</p>
+          </CardContent>
+        </Card>
+      </div>
+
       {showManualCreate ? (
         <Card className="border-border/25 bg-card/90 shadow-sm">
           <CardHeader>
@@ -1273,21 +1416,63 @@ export function VisitasClient() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CalendarCheck className="h-5 w-5" />
-              Visitas por programar
+              Visitas organizadas
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={activeTab === "ALL" ? "default" : "outline"}
+                onClick={() => setActiveTab("ALL")}
+              >
+                Todas ({items.length})
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={activeTab === "TODAY" ? "default" : "outline"}
+                onClick={() => setActiveTab("TODAY")}
+              >
+                Hoy ({todaysVisits.length})
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={activeTab === "SCHEDULED" ? "default" : "outline"}
+                onClick={() => setActiveTab("SCHEDULED")}
+              >
+                Programadas ({scheduledVisits.length})
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={activeTab === "DONE" ? "default" : "outline"}
+                onClick={() => setActiveTab("DONE")}
+              >
+                Hechas ({completedVisits.length})
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={activeTab === "DOCUMENTED" ? "default" : "outline"}
+                onClick={() => setActiveTab("DOCUMENTED")}
+              >
+                Documentadas ({documentedVisits.length})
+              </Button>
+            </div>
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Cargando...
               </div>
-            ) : items.length === 0 ? (
+            ) : visibleItems.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No hay visitas por programar para los filtros actuales.
               </p>
             ) : (
-              items.map((item) => (
+              visibleItems.map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -1321,6 +1506,19 @@ export function VisitasClient() {
                   <p className="mt-1 text-xs text-muted-foreground">
                     {propertyMeta(item.propertySnapshot)}
                   </p>
+                  {item.scheduledSlotStart ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Agenda: {formatMadridDateTime(item.scheduledSlotStart) ?? "sin fecha"}
+                    </p>
+                  ) : null}
+                  {item.parteVisita ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Parte de visita: {parteVisitaStatusLabel[item.parteVisita.state]}
+                    </p>
+                  ) : null}
+                  {item.parteVisita?.signedDocumentUrl ? (
+                    <p className="mt-1 text-xs text-urus-success">Documento firmado enviado</p>
+                  ) : null}
                   {item.missingContactPhone ? (
                     <p className="mt-2 flex items-center gap-1 text-xs text-urus-danger">
                       <AlertTriangle className="h-3.5 w-3.5" />
@@ -1403,6 +1601,46 @@ export function VisitasClient() {
                   <p className="mt-2 text-sm text-muted-foreground">
                     {selected.nluSummary || "Sin resumen NLU registrado para esta visita."}
                   </p>
+                </div>
+
+                <div className="rounded-lg bg-muted/15 p-4 text-sm">
+                  <p className="font-medium">Trazabilidad documental</p>
+                  {selected.parteVisita ? (
+                    <div className="mt-2 space-y-1 text-muted-foreground">
+                      <p>
+                        Estado parte de visita:{" "}
+                        {parteVisitaStatusLabel[selected.parteVisita.state]}
+                      </p>
+                      <p>
+                        Última actualización:{" "}
+                        {formatMadridDateTime(selected.parteVisita.updatedAt) ?? "sin dato"}
+                      </p>
+                      {selected.parteVisita.documentUrl ? (
+                        <a
+                          href={selected.parteVisita.documentUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-primary underline"
+                        >
+                          Ver documento generado <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      ) : null}
+                      {selected.parteVisita.signedDocumentUrl ? (
+                        <a
+                          href={selected.parteVisita.signedDocumentUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-primary underline"
+                        >
+                          Ver documento firmado <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-muted-foreground">
+                      Todavía no hay sesión documental asociada a esta visita.
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-3">

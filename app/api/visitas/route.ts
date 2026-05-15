@@ -66,15 +66,44 @@ const getHandler = async (request: Request) => {
     const scheduledSessionById = new Map(
       scheduledSessions.map((session) => [session.id, session]),
     );
+    const parteVisitaSessions = scheduledSessionIds.length > 0
+      ? await prisma.parteVisitaSession.findMany({
+          where: { visitSessionId: { in: scheduledSessionIds } },
+          select: {
+            visitSessionId: true,
+            state: true,
+            documentUrl: true,
+            signedDocumentUrl: true,
+            updatedAt: true,
+          },
+        })
+      : [];
+    const parteVisitaByVisitSessionId = new Map(
+      parteVisitaSessions.map((session) => [session.visitSessionId, session]),
+    );
 
     return NextResponse.json({
       ok: true,
-      workItems: workItems.map((item) =>
-        serializeVisitWorkItem(
+      workItems: workItems.map((item) => {
+        const base = serializeVisitWorkItem(
           item,
           item.scheduledSessionId ? scheduledSessionById.get(item.scheduledSessionId) : null,
-        ),
-      ),
+        );
+        const parteVisita = item.scheduledSessionId
+          ? parteVisitaByVisitSessionId.get(item.scheduledSessionId)
+          : null;
+        return {
+          ...base,
+          parteVisita: parteVisita
+            ? {
+                state: parteVisita.state,
+                documentUrl: parteVisita.documentUrl,
+                signedDocumentUrl: parteVisita.signedDocumentUrl,
+                updatedAt: parteVisita.updatedAt.toISOString(),
+              }
+            : null,
+        };
+      }),
       legacyFallback: false,
     });
   }

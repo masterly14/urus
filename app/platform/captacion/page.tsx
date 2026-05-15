@@ -67,7 +67,12 @@ interface NotaEncargoSesion {
   state: string;
   tipoOperacion: string;
   precio: number;
+  documentUrl: string | null;
+  signedDocumentUrl: string | null;
+  signatureRequestId: string | null;
+  legalDocumentId: string | null;
   createdAt: string;
+  updatedAt: string;
   comercialId: string;
   comercialNombre: string | null;
 }
@@ -130,6 +135,20 @@ function fmtDateTime(iso: string) {
 
 function fmtPrice(precio: number) {
   return new Intl.NumberFormat("es-ES").format(precio) + " \u20AC";
+}
+
+function isSessionForTodayMadrid(iso: string): boolean {
+  const sessionDay = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BUSINESS_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
+  return sessionDay === todayMadridISO();
+}
+
+function hasDocumentation(session: NotaEncargoSesion): boolean {
+  return Boolean(session.documentUrl) || Boolean(session.signedDocumentUrl);
 }
 
 /**
@@ -205,7 +224,12 @@ const MOCK_SESIONES: NotaEncargoSesion[] = [
     state: "PENDIENTE_PROPIEDAD",
     tipoOperacion: "VENTA",
     precio: 0,
+    documentUrl: null,
+    signedDocumentUrl: null,
+    signatureRequestId: null,
+    legalDocumentId: null,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     comercialId: "mock-com-1",
     comercialNombre: "Demo Comercial",
   },
@@ -220,7 +244,12 @@ const MOCK_SESIONES: NotaEncargoSesion[] = [
     state: "PENDING",
     tipoOperacion: "VENTA",
     precio: 275000,
+    documentUrl: null,
+    signedDocumentUrl: null,
+    signatureRequestId: null,
+    legalDocumentId: null,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     comercialId: "mock-com-1",
     comercialNombre: "Demo Comercial",
   },
@@ -235,7 +264,12 @@ const MOCK_SESIONES: NotaEncargoSesion[] = [
     state: "RECORDATORIO_ENVIADO",
     tipoOperacion: "ALQUILER",
     precio: 850,
+    documentUrl: "https://example.com/mock-3.pdf",
+    signedDocumentUrl: null,
+    signatureRequestId: "sig-mock-3",
+    legalDocumentId: "doc-mock-3",
     createdAt: new Date(Date.now() - 86400000).toISOString(),
+    updatedAt: new Date().toISOString(),
     comercialId: "mock-com-2",
     comercialNombre: "Otra Comercial",
   },
@@ -250,7 +284,12 @@ const MOCK_SESIONES: NotaEncargoSesion[] = [
     state: "FIRMADA",
     tipoOperacion: "VENTA",
     precio: 180000,
+    documentUrl: "https://example.com/mock-4.pdf",
+    signedDocumentUrl: "https://example.com/mock-4-signed.pdf",
+    signatureRequestId: "sig-mock-4",
+    legalDocumentId: "doc-mock-4",
     createdAt: new Date(Date.now() - 604800000).toISOString(),
+    updatedAt: new Date().toISOString(),
     comercialId: "mock-com-1",
     comercialNombre: "Demo Comercial",
   },
@@ -268,6 +307,7 @@ function CaptacionPageContent() {
   const [loading, setLoading] = useState(!isMock);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [stateFilter, setStateFilter] = useState<string>("ALL");
+  const [viewFilter, setViewFilter] = useState<"ALL" | "TODAY" | "DOCUMENTED" | "DONE">("ALL");
   const [canChooseComercial, setCanChooseComercial] = useState(false);
   const [assignableComerciales, setAssignableComerciales] = useState<
     ComercialOption[]
@@ -509,15 +549,32 @@ function CaptacionPageContent() {
     }
   }
 
-  const filtered =
+  const byState =
     stateFilter === "ALL"
       ? sesiones
       : sesiones.filter((s) => s.state === stateFilter);
+  const filtered = byState.filter((session) => {
+    if (viewFilter === "TODAY") return isSessionForTodayMadrid(session.visitDateTime);
+    if (viewFilter === "DOCUMENTED") return hasDocumentation(session);
+    if (viewFilter === "DONE") {
+      return ["FIRMADA", "DOCUMENTO_ENVIADO", "CANCELADA"].includes(session.state);
+    }
+    return true;
+  });
 
   const stateOptions = [
     "ALL",
     ...Array.from(new Set(sesiones.map((s) => s.state))),
   ];
+  const sessionsTodayCount = sesiones.filter((session) =>
+    isSessionForTodayMadrid(session.visitDateTime),
+  ).length;
+  const sessionsDocumentedCount = sesiones.filter((session) =>
+    hasDocumentation(session),
+  ).length;
+  const sessionsDoneCount = sesiones.filter((session) =>
+    ["FIRMADA", "DOCUMENTO_ENVIADO", "CANCELADA"].includes(session.state),
+  ).length;
 
   const timeMin = minTimeForDate(fecha);
 
@@ -536,22 +593,85 @@ function CaptacionPageContent() {
         </Button>
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Total visibles</p>
+            <p className="mt-1 text-2xl font-semibold">{sesiones.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Para hoy</p>
+            <p className="mt-1 text-2xl font-semibold">{sessionsTodayCount}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Con documentación</p>
+            <p className="mt-1 text-2xl font-semibold">{sessionsDocumentedCount}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Finalizadas / canceladas</p>
+            <p className="mt-1 text-2xl font-semibold">{sessionsDoneCount}</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Sesiones</CardTitle>
           <CardDescription>
-            <span className="mr-4">Filtrar por estado:</span>
-            <select
-              className="rounded border px-2 py-1 text-sm"
-              value={stateFilter}
-              onChange={(e) => setStateFilter(e.target.value)}
-            >
-              {stateOptions.map((s) => (
-                <option key={s} value={s}>
-                  {s === "ALL" ? "Todos" : (STATE_LABELS[s] ?? s)}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="mr-2">Filtrar por estado:</span>
+              <select
+                className="rounded border px-2 py-1 text-sm"
+                value={stateFilter}
+                onChange={(e) => setStateFilter(e.target.value)}
+              >
+                {stateOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {s === "ALL" ? "Todos" : (STATE_LABELS[s] ?? s)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant={viewFilter === "ALL" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewFilter("ALL")}
+              >
+                Todo
+              </Button>
+              <Button
+                type="button"
+                variant={viewFilter === "TODAY" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewFilter("TODAY")}
+              >
+                Hoy
+              </Button>
+              <Button
+                type="button"
+                variant={viewFilter === "DOCUMENTED" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewFilter("DOCUMENTED")}
+              >
+                Con documentación
+              </Button>
+              <Button
+                type="button"
+                variant={viewFilter === "DONE" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewFilter("DONE")}
+              >
+                Finalizadas
+              </Button>
+            </div>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -592,6 +712,7 @@ function CaptacionPageContent() {
                   <TableHead>Dirección</TableHead>
                   <TableHead>Visita</TableHead>
                   <TableHead>Precio</TableHead>
+                  <TableHead>Documentación</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Comercial</TableHead>
                   <TableHead>Creada</TableHead>
@@ -625,8 +746,46 @@ function CaptacionPageContent() {
                       <TableCell className="max-w-[220px] truncate">
                         {s.direccion || "\u2014"}
                       </TableCell>
-                      <TableCell>{fmtDateTime(s.visitDateTime)}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <span>{fmtDateTime(s.visitDateTime)}</span>
+                          {isSessionForTodayMadrid(s.visitDateTime) ? (
+                            <Badge variant="secondary" className="w-fit">
+                              Hoy
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </TableCell>
                       <TableCell>{fmtPrice(s.precio)}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          {!s.documentUrl && !s.signedDocumentUrl ? (
+                            <Badge variant="outline" className="w-fit">
+                              Pendiente
+                            </Badge>
+                          ) : null}
+                          {s.documentUrl ? (
+                            <a
+                              href={s.documentUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs text-primary underline"
+                            >
+                              Ver borrador
+                            </a>
+                          ) : null}
+                          {s.signedDocumentUrl ? (
+                            <a
+                              href={s.signedDocumentUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs text-primary underline"
+                            >
+                              Ver firmado
+                            </a>
+                          ) : null}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant={STATE_VARIANT[s.state] ?? "outline"}>
                           {STATE_LABELS[s.state] ?? s.state}
