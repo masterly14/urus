@@ -8,7 +8,7 @@ import {
   unauthorized,
 } from "@/lib/auth/session";
 import { withObservedRoute } from "@/lib/observability";
-import { scheduleManualVisit } from "@/lib/visitas/manual-schedule";
+import { rescheduleManualVisit, scheduleManualVisit } from "@/lib/visitas/manual-schedule";
 import { getVisitWorkItem } from "@/lib/visitas/work-items";
 
 const BodySchema = z.object({
@@ -133,6 +133,24 @@ const postHandler = async (request: Request) => {
   }
 
   try {
+    if (
+      workItem &&
+      workItem.status === VisitWorkItemStatus.SCHEDULED &&
+      workItem.scheduledSessionId &&
+      parsed.data.allowReschedule
+    ) {
+      const result = await rescheduleManualVisit({
+        visitWorkItemId: workItem.id,
+        comercialId: effectiveComercialId,
+        fecha: parsed.data.fecha,
+        horaInicio: parsed.data.horaInicio,
+        horaFin: parsed.data.horaFin,
+        notas: parsed.data.notas,
+        reason: parsed.data.notas,
+      });
+      return NextResponse.json({ ok: true, reprogrammed: true, ...result });
+    }
+
     const result = await scheduleManualVisit({
       ...parsed.data,
       visitWorkItemId: workItem?.id,
@@ -142,7 +160,7 @@ const postHandler = async (request: Request) => {
       draftPropertyId: draftPropertyId || undefined,
       comercialId: effectiveComercialId,
     });
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({ ok: true, reprogrammed: false, ...result });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error interno";
     const status = message.includes("no encontrada") ? 404 : 409;

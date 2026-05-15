@@ -174,7 +174,7 @@ export async function generateParteVisitaPdf(
     color: GOLD,
   });
 
-  page.drawText("Nota de Encargo Inmobiliaria", {
+  page.drawText("Parte de Visita Inmobiliaria", {
     x: width - MARGIN - 200,
     y,
     size: BODY_SIZE + 2,
@@ -184,6 +184,7 @@ export async function generateParteVisitaPdf(
   y -= HEADER_SIZE + 4;
 
   const dateStr = data.fecha.toLocaleDateString("es-ES", {
+    timeZone: "Europe/Madrid",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

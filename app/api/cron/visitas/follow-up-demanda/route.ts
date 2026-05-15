@@ -43,6 +43,24 @@ const postHandler = async (request: Request) => {
   }
 
   const payload = parsed.data;
+  const visitSession = await prisma.visitSchedulingSession.findUnique({
+    where: { id: payload.visitSessionId },
+    select: { state: true },
+  });
+  if (!visitSession) {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      reason: "Session de visita no encontrada",
+    });
+  }
+  if (visitSession.state !== "VISIT_CONFIRMED" && visitSession.state !== "VISIT_COMPLETED") {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      reason: `Session en estado ${visitSession.state}; se omite follow-up`,
+    });
+  }
 
   const comercial = await prisma.comercial.findUnique({
     where: { id: payload.comercialId },

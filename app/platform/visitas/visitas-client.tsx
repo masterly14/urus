@@ -394,6 +394,8 @@ export function VisitasClient() {
   const [postVisitVoiceError, setPostVisitVoiceError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [rescheduling, setRescheduling] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [deciding, setDeciding] = useState<VisitDecision | null>(null);
   const [showManualCreate, setShowManualCreate] = useState(false);
   const [manualLoading, setManualLoading] = useState(false);
@@ -791,8 +793,8 @@ export function VisitasClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           visitId: selected.source === "work_item" ? selected.id : undefined,
-          demandId: selected.demandId,
-          propertyId: selected.propertyId,
+          demandId: selected.demandId || undefined,
+          propertyId: selected.propertyId || undefined,
           fecha,
           horaInicio,
           horaFin,
@@ -817,6 +819,88 @@ export function VisitasClient() {
       setError(err instanceof Error ? err.message : "Error agendando visita");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const reschedule = async () => {
+    if (!selected || selected.source !== "work_item") {
+      setError("Selecciona una visita pre-creada para reprogramar.");
+      return;
+    }
+    if (horaInicio >= horaFin) {
+      setError("La hora de fin debe ser posterior a la hora de inicio.");
+      return;
+    }
+    setRescheduling(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await fetch("/api/visitas/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          visitId: selected.id,
+          demandId: selected.demandId || undefined,
+          propertyId: selected.propertyId || undefined,
+          fecha,
+          horaInicio,
+          horaFin,
+          notas,
+          allowReschedule: true,
+        }),
+      });
+      const data = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        calendar?: { link?: string };
+      };
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? "No se pudo reprogramar la visita");
+      }
+      setSuccess(
+        data.calendar?.link
+          ? `Visita reprogramada. Calendario: ${data.calendar.link}`
+          : "Visita reprogramada correctamente.",
+      );
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error reprogramando visita");
+    } finally {
+      setRescheduling(false);
+    }
+  };
+
+  const cancelVisit = async () => {
+    if (!selected || selected.source !== "work_item") {
+      setError("Selecciona una visita pre-creada para cancelar.");
+      return;
+    }
+    const confirmed = window.confirm(
+      "¿Seguro que quieres cancelar esta visita? Esta acción cancela la sesión actual.",
+    );
+    if (!confirmed) return;
+
+    setCancelling(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await fetch(`/api/visitas/${selected.id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reason: notas?.trim() || undefined,
+        }),
+      });
+      const data = (await response.json()) as { ok?: boolean; error?: string };
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? "No se pudo cancelar la visita");
+      }
+      setSuccess("Visita cancelada correctamente.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error cancelando visita");
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -1041,6 +1125,15 @@ export function VisitasClient() {
   const selectedCanSchedule = Boolean(
     selected && (selected.status === "PENDING_SCHEDULE" || selected.status === "INCOMPLETE"),
   );
+  const selectedCanManageSchedule = Boolean(
+    selected &&
+      selected.source === "work_item" &&
+      selected.status === "SCHEDULED" &&
+      Boolean(selected.scheduledSessionId) &&
+      !selectedVisitHasEnded,
+  );
+  const selectedCanReschedule = selectedCanManageSchedule;
+  const selectedCanCancel = selectedCanManageSchedule;
   const selectedCanDecide = Boolean(
     selected &&
     selected.source === "work_item" &&
@@ -1675,12 +1768,34 @@ export function VisitasClient() {
                   </p>
                 ) : null}
 
-                {selectedCanSchedule || selectedCanDecide ? (
+                {selectedCanSchedule || selectedCanReschedule || selectedCanCancel || selectedCanDecide ? (
                   <div className="flex flex-col gap-3 sm:flex-row">
                     {selectedCanSchedule ? (
                       <Button type="submit" disabled={submitting}>
                         {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                         Agendar y activar Flow
+                      </Button>
+                    ) : null}
+                    {selectedCanReschedule ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={rescheduling || cancelling || submitting}
+                        onClick={() => void reschedule()}
+                      >
+                        {rescheduling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Reprogramar visita
+                      </Button>
+                    ) : null}
+                    {selectedCanCancel ? (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        disabled={cancelling || rescheduling || submitting}
+                        onClick={() => void cancelVisit()}
+                      >
+                        {cancelling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Cancelar visita
                       </Button>
                     ) : null}
                     {selectedCanDecide ? (

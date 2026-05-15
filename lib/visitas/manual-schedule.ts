@@ -4,8 +4,10 @@ import { appendEvent } from "@/lib/event-store/event-store";
 import { enqueueJob } from "@/lib/job-queue";
 import { prisma } from "@/lib/prisma";
 import { createCalendarEvent, type CalendarEventInput } from "@/lib/composio";
+import { cancelCalendarEvent } from "@/lib/composio/calendar";
 import { scheduleParteVisitaFromDetails } from "@/lib/parte-visita/schedule";
 import { updateDemandLeadStatus } from "@/lib/projections/update-lead-status";
+import { cancelVisitAtomically } from "@/lib/visit-scheduling/confirm-visit";
 import {
   getVisitInterestPackageByDemand,
   type VisitInterestProperty,
@@ -28,6 +30,42 @@ export type ManualVisitScheduleInput = {
 export type ManualVisitScheduleResult = {
   eventId: string;
   visitSessionId: string;
+  calendar: {
+    success: boolean;
+    eventId?: string;
+    link?: string;
+  };
+};
+
+export type ManualVisitCancelInput = {
+  visitWorkItemId: string;
+  comercialId: string;
+  reason?: string;
+  cancelledBy?: "commercial" | "system";
+};
+
+export type ManualVisitCancelResult = {
+  eventId: string;
+  visitSessionId: string;
+  calendarCancelled: boolean;
+};
+
+export type ManualVisitRescheduleInput = {
+  visitWorkItemId: string;
+  comercialId: string;
+  fecha: string;
+  horaInicio: string;
+  horaFin: string;
+  notas?: string;
+  reason?: string;
+};
+
+export type ManualVisitRescheduleResult = {
+  reprogrammedEventId: string;
+  previousSessionId: string;
+  newSessionId: string;
+  scheduleEventId: string;
+  calendarCancelled: boolean;
   calendar: {
     success: boolean;
     eventId?: string;
@@ -121,6 +159,62 @@ function propertyFromWorkItem(workItem: NonNullable<Awaited<ReturnType<typeof ge
     missingContactPhone: contact.missingContactPhone ?? workItem.missingContactPhone,
     interestedAt: workItem.createdAt.toISOString(),
   };
+}
+
+function buildVisitAggregate(input: {
+  demandId: string;
+  draftDemandId: string | null;
+  fallback: string;
+}) {
+  if (input.demandId) {
+    return {
+      aggregateType: AggregateType.DEMAND,
+      aggregateId: input.demandId,
+    };
+  }
+  return {
+    aggregateType: AggregateType.LEAD,
+    aggregateId: input.draftDemandId || input.fallback,
+  };
+}
+
+async function cancelCalendarForSession(input: {
+  comercialId: string;
+  calendarEventId: string | null;
+}) {
+  if (!input.calendarEventId) return false;
+  const comercial = await prisma.comercial.findUnique({
+    where: { id: input.comercialId },
+    select: { composioConnectionId: true },
+  });
+  if (!comercial?.composioConnectionId) return false;
+
+  const result = await cancelCalendarEvent(
+    comercial.composioConnectionId,
+    input.calendarEventId,
+  );
+  if (!result.success) {
+    console.warn(
+      `[visitas] No se pudo cancelar evento de calendario ${input.calendarEventId}: ${result.error ?? "unknown"}`,
+    );
+    return false;
+  }
+  return true;
+}
+
+async function cancelParteVisitaSessionForVisit(visitSessionId: string) {
+  const parte = await prisma.parteVisitaSession.findUnique({
+    where: { visitSessionId },
+    select: { id: true, state: true },
+  });
+  if (!parte) return;
+  if (parte.state === "CANCELADA" || parte.state === "FIRMADA" || parte.state === "DOCUMENTO_ENVIADO") {
+    return;
+  }
+  await prisma.parteVisitaSession.update({
+    where: { id: parte.id },
+    data: { state: "CANCELADA" },
+  });
 }
 
 export async function scheduleManualVisit(
@@ -301,5 +395,168 @@ export async function scheduleManualVisit(
       eventId: calendarResult.eventId,
       link: calendarResult.link,
     },
+  };
+}
+
+export async function cancelManualVisit(
+  input: ManualVisitCancelInput,
+): Promise<ManualVisitCancelResult> {
+  const workItem = await getVisitWorkItem(input.visitWorkItemId);
+  if (!workItem) throw new Error("Visita pre-creada no encontrada");
+  if (!workItem.scheduledSessionId) {
+    throw new Error("La visita no tiene una sesión agendada para cancelar");
+  }
+  if (workItem.comercialId !== input.comercialId) {
+    throw new Error("No puedes cancelar una visita de otro comercial");
+  }
+
+  const session = await prisma.visitSchedulingSession.findUnique({
+    where: { id: workItem.scheduledSessionId },
+  });
+  if (!session) {
+    throw new Error("La sesión de visita agendada no existe");
+  }
+
+  await cancelVisitAtomically(session.id);
+  const calendarCancelled = await cancelCalendarForSession({
+    comercialId: input.comercialId,
+    calendarEventId: session.calendarEventId,
+  });
+  await cancelParteVisitaSessionForVisit(session.id);
+
+  await prisma.visitWorkItem.update({
+    where: { id: workItem.id },
+    data: {
+      status: "CANCELLED",
+      scheduledSessionId: null,
+    },
+  });
+
+  const aggregate = buildVisitAggregate({
+    demandId: workItem.demandId,
+    draftDemandId: workItem.draftDemandId,
+    fallback: session.id,
+  });
+  const event = await appendEvent({
+    type: EventType.VISITA_CANCELADA,
+    aggregateType: aggregate.aggregateType,
+    aggregateId: aggregate.aggregateId,
+    payload: {
+      sessionId: session.id,
+      demandId: workItem.demandId || null,
+      propertyCode: workItem.propertyId || null,
+      draftDemandId: workItem.draftDemandId,
+      draftPropertyId: workItem.draftPropertyId,
+      visitWorkItemId: workItem.id,
+      cancelledBy: input.cancelledBy ?? "commercial",
+      reason: input.reason ?? "",
+      calendarEventId: session.calendarEventId || null,
+      calendarCancelled,
+      source: "manual_visitas_ui",
+    },
+  });
+  await enqueueJob({
+    type: "PROCESS_EVENT",
+    payload: { eventId: event.id },
+    sourceEventId: event.id,
+    idempotencyKey: `process_event:${event.id}`,
+  });
+
+  if (workItem.demandId) {
+    await updateDemandLeadStatus(workItem.demandId, "EN_SELECCION");
+  }
+
+  return {
+    eventId: event.id,
+    visitSessionId: session.id,
+    calendarCancelled,
+  };
+}
+
+export async function rescheduleManualVisit(
+  input: ManualVisitRescheduleInput,
+): Promise<ManualVisitRescheduleResult> {
+  const workItem = await getVisitWorkItem(input.visitWorkItemId);
+  if (!workItem) throw new Error("Visita pre-creada no encontrada");
+  if (!workItem.scheduledSessionId) {
+    throw new Error("La visita no tiene sesión previa para reprogramar");
+  }
+  if (workItem.comercialId !== input.comercialId) {
+    throw new Error("No puedes reprogramar una visita de otro comercial");
+  }
+
+  const previousSession = await prisma.visitSchedulingSession.findUnique({
+    where: { id: workItem.scheduledSessionId },
+  });
+  if (!previousSession) {
+    throw new Error("La sesión previa de visita no existe");
+  }
+
+  await cancelVisitAtomically(previousSession.id);
+  const calendarCancelled = await cancelCalendarForSession({
+    comercialId: input.comercialId,
+    calendarEventId: previousSession.calendarEventId,
+  });
+  await cancelParteVisitaSessionForVisit(previousSession.id);
+
+  const aggregate = buildVisitAggregate({
+    demandId: workItem.demandId,
+    draftDemandId: workItem.draftDemandId,
+    fallback: previousSession.id,
+  });
+  const reprogrammedEvent = await appendEvent({
+    type: EventType.VISITA_REPROGRAMADA,
+    aggregateType: aggregate.aggregateType,
+    aggregateId: aggregate.aggregateId,
+    payload: {
+      sessionId: previousSession.id,
+      demandId: workItem.demandId || null,
+      propertyCode: workItem.propertyId || null,
+      draftDemandId: workItem.draftDemandId,
+      draftPropertyId: workItem.draftPropertyId,
+      visitWorkItemId: workItem.id,
+      reason: input.reason ?? input.notas ?? "",
+      previousSlotStart: previousSession.confirmedSlotStart?.toISOString() ?? null,
+      previousSlotEnd: previousSession.confirmedSlotEnd?.toISOString() ?? null,
+      previousCalendarEventId: previousSession.calendarEventId || null,
+      calendarCancelled,
+      source: "manual_visitas_ui",
+    },
+  });
+  await enqueueJob({
+    type: "PROCESS_EVENT",
+    payload: { eventId: reprogrammedEvent.id },
+    sourceEventId: reprogrammedEvent.id,
+    idempotencyKey: `process_event:${reprogrammedEvent.id}`,
+  });
+
+  await prisma.visitWorkItem.update({
+    where: { id: workItem.id },
+    data: {
+      status: "PENDING_SCHEDULE",
+      scheduledSessionId: null,
+    },
+  });
+
+  const scheduleResult = await scheduleManualVisit({
+    visitWorkItemId: workItem.id,
+    demandId: workItem.demandId || undefined,
+    draftDemandId: workItem.draftDemandId || undefined,
+    propertyId: workItem.propertyId || undefined,
+    draftPropertyId: workItem.draftPropertyId || undefined,
+    fecha: input.fecha,
+    horaInicio: input.horaInicio,
+    horaFin: input.horaFin,
+    comercialId: input.comercialId,
+    notas: input.notas,
+  });
+
+  return {
+    reprogrammedEventId: reprogrammedEvent.id,
+    previousSessionId: previousSession.id,
+    newSessionId: scheduleResult.visitSessionId,
+    scheduleEventId: scheduleResult.eventId,
+    calendarCancelled,
+    calendar: scheduleResult.calendar,
   };
 }
