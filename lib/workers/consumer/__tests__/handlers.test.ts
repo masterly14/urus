@@ -1,7 +1,23 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EventRecord } from "@/lib/event-store/types";
 import type { EventType } from "@prisma/client";
-import { getHandler, getRegisteredTypes } from "../handlers";
+
+const { mockApplyDemandProjectionInline } = vi.hoisted(() => ({
+  mockApplyDemandProjectionInline: vi.fn(),
+}));
+
+vi.mock("@/lib/projections/projection-worker", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("@/lib/projections/projection-worker")
+  >();
+  return {
+    ...actual,
+    applyDemandProjectionInline: (...args: unknown[]) =>
+      mockApplyDemandProjectionInline(...args),
+  };
+});
+
+const { getHandler, getRegisteredTypes } = await import("../handlers");
 
 function makeEvent(
   type: EventType,
@@ -34,6 +50,7 @@ describe("handler registry", () => {
       "DEMANDA_CREADA",
       "DEMANDA_MODIFICADA",
       "DEMANDA_ESTADO_CAMBIADO",
+      "DEMANDA_ELIMINADA",
       "LEAD_INGESTADO",
       "LEAD_SCORED",
       "SLA_INICIADO",
@@ -101,31 +118,202 @@ describe("property handlers", () => {
 });
 
 describe("demand handlers", () => {
-  const demandEventTypes: EventType[] = [
-    "DEMANDA_CREADA",
-    "DEMANDA_MODIFICADA",
-    "DEMANDA_ESTADO_CAMBIADO",
-  ];
-
-  for (const eventType of demandEventTypes) {
-    it(`${eventType}: debe retornar success con follow-up UPDATE_DEMAND_PROJECTION + EVALUATE_DEMAND_COVERAGE`, async () => {
-      const handler = getHandler(eventType)!;
-      expect(handler).toBeDefined();
-
-      const event = makeEvent(eventType, {
-        aggregateType: "DEMAND",
-        aggregateId: "dem-456",
-      });
-      const result = await handler(event);
-
-      expect(result.success).toBe(true);
-      expect(result.followUpJobs!.length).toBeGreaterThanOrEqual(2);
-      const types = result.followUpJobs!.map((j) => j.type);
-      expect(types).toContain("UPDATE_DEMAND_PROJECTION");
-      expect(types).toContain("EVALUATE_DEMAND_COVERAGE");
-      expect(result.followUpJobs![0].sourceEventId).toBe(event.id);
+  beforeEach(() => {
+    mockApplyDemandProjectionInline.mockReset();
+    mockApplyDemandProjectionInline.mockResolvedValue({
+      success: true,
+      aggregateId: "dem-456",
     });
-  }
+  });
+
+  it("DEMANDA_CREADA: aplica proyección inline y encola MATCH_DEMAND_AGAINST_INTERNAL + START_NLU_INITIAL_CONTACT (sin EVALUATE_DEMAND_COVERAGE directo)", async () => {
+    const handler = getHandler("DEMANDA_CREADA")!;
+    expect(handler).toBeDefined();
+
+    const event = makeEvent("DEMANDA_CREADA", {
+      aggregateType: "DEMAND",
+      aggregateId: "dem-456",
+    });
+    const result = await handler(event);
+
+    expect(mockApplyDemandProjectionInline).toHaveBeenCalledWith(event);
+    expect(result.success).toBe(true);
+    const types = result.followUpJobs!.map((j) => j.type);
+    expect(types).not.toContain("UPDATE_DEMAND_PROJECTION");
+    expect(types).not.toContain("EVALUATE_DEMAND_COVERAGE");
+    expect(types).toContain("MATCH_DEMAND_AGAINST_INTERNAL");
+    expect(types).toContain("START_NLU_INITIAL_CONTACT");
+
+    const matchJob = result.followUpJobs!.find(
+      (j) => j.type === "MATCH_DEMAND_AGAINST_INTERNAL",
+    )!;
+    expect(matchJob.sourceEventId).toBe(event.id);
+    expect(matchJob.idempotencyKey).toBe(`match_internal:${event.id}`);
+    const matchPayload = matchJob.payload as Record<string, unknown>;
+    expect(matchPayload.demandId).toBe("dem-456");
+    expect(matchPayload.source).toBe("auto_demand_creada");
+
+    const nluJob = result.followUpJobs!.find(
+      (j) => j.type === "START_NLU_INITIAL_CONTACT",
+    )!;
+    expect(nluJob.idempotencyKey).toBe(`nlu_initial_contact:${event.id}`);
+    const nluPayload = nluJob.payload as Record<string, unknown>;
+    expect(nluPayload.source).toBe("auto_demand_creada");
+  });
+
+  it("DEMANDA_CREADA: si la proyección inline falla, devuelve error y no encola jobs", async () => {
+    mockApplyDemandProjectionInline.mockResolvedValueOnce({
+      success: false,
+      aggregateId: "dem-456",
+      error: "boom",
+    });
+
+    const handler = getHandler("DEMANDA_CREADA")!;
+    const event = makeEvent("DEMANDA_CREADA", {
+      aggregateType: "DEMAND",
+      aggregateId: "dem-456",
+    });
+    const result = await handler(event);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("boom");
+    expect(result.followUpJobs).toBeUndefined();
+  });
+
+  it("DEMANDA_MODIFICADA con changedFields en MATCHING_RELEVANT_DEMAND_FIELDS: encola MATCH_DEMAND_AGAINST_INTERNAL", async () => {
+    const handler = getHandler("DEMANDA_MODIFICADA")!;
+    const event = makeEvent("DEMANDA_MODIFICADA", {
+      aggregateType: "DEMAND",
+      aggregateId: "dem-456",
+      payload: {
+        changedFields: ["presupuestoMax"],
+        after: { telefono: "34600111222" },
+      },
+    });
+    const result = await handler(event);
+
+    expect(result.success).toBe(true);
+    const types = result.followUpJobs!.map((j) => j.type);
+    expect(types).toContain("MATCH_DEMAND_AGAINST_INTERNAL");
+    // No se encola coverage directo cuando hay match: el match handler lo encadena
+    expect(types).not.toContain("EVALUATE_DEMAND_COVERAGE");
+    expect(types).not.toContain("START_NLU_INITIAL_CONTACT");
+
+    const matchJob = result.followUpJobs!.find(
+      (j) => j.type === "MATCH_DEMAND_AGAINST_INTERNAL",
+    )!;
+    const matchPayload = matchJob.payload as Record<string, unknown>;
+    expect(matchPayload.source).toBe("auto_demand_modificada");
+  });
+
+  it("DEMANDA_MODIFICADA sin cambios en MATCHING_RELEVANT_DEMAND_FIELDS: encola solo EVALUATE_DEMAND_COVERAGE", async () => {
+    const handler = getHandler("DEMANDA_MODIFICADA")!;
+    const event = makeEvent("DEMANDA_MODIFICADA", {
+      aggregateType: "DEMAND",
+      aggregateId: "dem-456",
+      payload: {
+        changedFields: ["nombre"],
+        after: { telefono: "" },
+      },
+    });
+    const result = await handler(event);
+
+    expect(result.success).toBe(true);
+    const types = result.followUpJobs!.map((j) => j.type);
+    expect(types).toContain("EVALUATE_DEMAND_COVERAGE");
+    expect(types).not.toContain("MATCH_DEMAND_AGAINST_INTERNAL");
+    expect(types).not.toContain("START_NLU_INITIAL_CONTACT");
+  });
+
+  it("DEMANDA_MODIFICADA con teléfono recién añadido y cambio en criterios: encola match + NLU", async () => {
+    const handler = getHandler("DEMANDA_MODIFICADA")!;
+    const event = makeEvent("DEMANDA_MODIFICADA", {
+      aggregateType: "DEMAND",
+      aggregateId: "dem-456",
+      payload: {
+        changedFields: ["presupuestoMax", "telefono"],
+        after: { telefono: "34600111222" },
+      },
+    });
+    const result = await handler(event);
+
+    expect(result.success).toBe(true);
+    const types = result.followUpJobs!.map((j) => j.type);
+    expect(types).toContain("MATCH_DEMAND_AGAINST_INTERNAL");
+    expect(types).toContain("START_NLU_INITIAL_CONTACT");
+    expect(types).not.toContain("EVALUATE_DEMAND_COVERAGE");
+
+    const nluJob = result.followUpJobs!.find(
+      (j) => j.type === "START_NLU_INITIAL_CONTACT",
+    )!;
+    expect((nluJob.payload as Record<string, unknown>).source).toBe(
+      "auto_demand_modificada_phone",
+    );
+  });
+
+  it("DEMANDA_MODIFICADA con teléfono recién añadido pero sin cambio en criterios: encola coverage + NLU", async () => {
+    const handler = getHandler("DEMANDA_MODIFICADA")!;
+    const event = makeEvent("DEMANDA_MODIFICADA", {
+      aggregateType: "DEMAND",
+      aggregateId: "dem-456",
+      payload: {
+        changedFields: ["telefono"],
+        after: { telefono: "34600111222" },
+      },
+    });
+    const result = await handler(event);
+
+    expect(result.success).toBe(true);
+    const types = result.followUpJobs!.map((j) => j.type);
+    expect(types).toContain("EVALUATE_DEMAND_COVERAGE");
+    expect(types).toContain("START_NLU_INITIAL_CONTACT");
+    expect(types).not.toContain("MATCH_DEMAND_AGAINST_INTERNAL");
+  });
+
+  it("DEMANDA_MODIFICADA con changedFields=['telefono'] pero after.telefono vacío: no encola NLU", async () => {
+    const handler = getHandler("DEMANDA_MODIFICADA")!;
+    const event = makeEvent("DEMANDA_MODIFICADA", {
+      aggregateType: "DEMAND",
+      aggregateId: "dem-456",
+      payload: {
+        changedFields: ["telefono"],
+        after: { telefono: "" },
+      },
+    });
+    const result = await handler(event);
+
+    const types = result.followUpJobs!.map((j) => j.type);
+    expect(types).not.toContain("START_NLU_INITIAL_CONTACT");
+  });
+
+  it("DEMANDA_ESTADO_CAMBIADO: aplica proyección inline y encola solo EVALUATE_DEMAND_COVERAGE", async () => {
+    const handler = getHandler("DEMANDA_ESTADO_CAMBIADO")!;
+    const event = makeEvent("DEMANDA_ESTADO_CAMBIADO", {
+      aggregateType: "DEMAND",
+      aggregateId: "dem-456",
+    });
+    const result = await handler(event);
+
+    expect(mockApplyDemandProjectionInline).toHaveBeenCalledWith(event);
+    expect(result.success).toBe(true);
+    const types = result.followUpJobs!.map((j) => j.type);
+    expect(types).toEqual(["EVALUATE_DEMAND_COVERAGE"]);
+  });
+
+  it("DEMANDA_ELIMINADA: aplica proyección inline y no encola ningún follow-up", async () => {
+    const handler = getHandler("DEMANDA_ELIMINADA")!;
+    expect(handler).toBeDefined();
+
+    const event = makeEvent("DEMANDA_ELIMINADA", {
+      aggregateType: "DEMAND",
+      aggregateId: "dem-456",
+    });
+    const result = await handler(event);
+
+    expect(mockApplyDemandProjectionInline).toHaveBeenCalledWith(event);
+    expect(result.success).toBe(true);
+    expect(result.followUpJobs).toEqual([]);
+  });
 });
 
 describe("audit-only handlers", () => {

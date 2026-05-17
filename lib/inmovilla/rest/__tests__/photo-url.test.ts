@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildInmovillaPhotoUrl,
+  buildInmovillaPhotoUrlsFromRaw,
   buildMainPhotoUrlFromRaw,
 } from "../photo-url";
 
@@ -91,5 +92,33 @@ describe("buildMainPhotoUrlFromRaw", () => {
         numfotos: 10,
       }),
     ).toBeNull();
+  });
+});
+
+describe("buildInmovillaPhotoUrlsFromRaw", () => {
+  it("genera una URL por foto hasta maxPhotos", () => {
+    const urls = buildInmovillaPhotoUrlsFromRaw(
+      {
+        numagencia: "11636",
+        cod_ofer: 26178808,
+        fotoletra: "2",
+        numfotos: 5,
+      },
+      { size: "full", maxPhotos: 3 },
+    );
+    expect(urls).toHaveLength(3);
+    expect(urls[0]).toBe("https://fotos15.apinmo.com/11636/26178808/2-1.jpg");
+    expect(urls[2]).toBe("https://fotos15.apinmo.com/11636/26178808/2-3.jpg");
+  });
+
+  it("devuelve array vacío si numfotos es 0", () => {
+    expect(
+      buildInmovillaPhotoUrlsFromRaw({
+        numagencia: "11636",
+        cod_ofer: 26178808,
+        fotoletra: "2",
+        numfotos: 0,
+      }),
+    ).toEqual([]);
   });
 });

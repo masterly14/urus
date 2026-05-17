@@ -64,10 +64,46 @@ const getHandler = async (request: Request) => {
       : {}),
   };
 
+  const matchingDemandCodes = await prisma.demandCurrent.findMany({
+    where,
+    select: { codigo: true },
+  });
+  const allCodes = matchingDemandCodes.map((row) => row.codigo);
+
+  if (allCodes.length === 0) {
+    return NextResponse.json({
+      ok: true,
+      demands: [],
+      total: 0,
+      page,
+      limit,
+      stats: await getDemandStats({
+        comercialIdFilter,
+        searchConditions,
+      }),
+    });
+  }
+
+  const orderedSnapshots = await prisma.demandSnapshot.findMany({
+    where: { codigo: { in: allCodes } },
+    select: { codigo: true },
+    orderBy: [
+      { lastSeenAt: "desc" },
+      { fechaActualizacion: "desc" },
+      { updatedAt: "desc" },
+      { codigo: "desc" },
+    ],
+  });
+
+  const orderedCodes = orderedSnapshots.map((row) => row.codigo);
+  const seenCodes = new Set(orderedCodes);
+  const missingSnapshotCodes = allCodes.filter((codigo) => !seenCodes.has(codigo));
+  const pagedCodes = [...orderedCodes, ...missingSnapshotCodes].slice(skip, skip + limit);
+
   // Run queries in parallel: paged list + total count + stats grouped by leadStatus
-  const [demands, total, rawStats] = await Promise.all([
+  const [demands, rawStats] = await Promise.all([
     prisma.demandCurrent.findMany({
-      where,
+      where: { codigo: { in: pagedCodes } },
       select: {
         codigo: true,
         nombre: true,
@@ -86,11 +122,7 @@ const getHandler = async (request: Request) => {
         updatedAt: true,
         lastEventAt: true,
       },
-      orderBy: { updatedAt: "desc" },
-      skip,
-      take: limit,
     }),
-    prisma.demandCurrent.count({ where }),
     // Stats always reflect the SAME base filter (comercial restriction + search) but ignoring status
     prisma.demandCurrent.groupBy({
       by: ["leadStatus"],
@@ -104,6 +136,11 @@ const getHandler = async (request: Request) => {
     }),
   ]);
 
+  const demandByCode = new Map(demands.map((demand) => [demand.codigo, demand]));
+  const orderedDemands = pagedCodes
+    .map((codigo) => demandByCode.get(codigo))
+    .filter((demand): demand is NonNullable<typeof demand> => Boolean(demand));
+
   const stats = buildEmptyStats();
   for (const row of rawStats) {
     stats[row.leadStatus] = row._count._all;
@@ -111,13 +148,38 @@ const getHandler = async (request: Request) => {
 
   return NextResponse.json({
     ok: true,
-    demands,
-    total,
+    demands: orderedDemands,
+    total: allCodes.length,
     page,
     limit,
     stats,
   });
 };
+
+async function getDemandStats({
+  comercialIdFilter,
+  searchConditions,
+}: {
+  comercialIdFilter: string | null;
+  searchConditions: Prisma.DemandCurrentWhereInput[];
+}): Promise<Record<LeadStatus, number>> {
+  const rawStats = await prisma.demandCurrent.groupBy({
+    by: ["leadStatus"],
+    where: {
+      ...(comercialIdFilter ? { comercialId: comercialIdFilter } : {}),
+      ...(searchConditions.length > 0
+        ? { OR: searchConditions }
+        : {}),
+    },
+    _count: { _all: true },
+  });
+
+  const stats = buildEmptyStats();
+  for (const row of rawStats) {
+    stats[row.leadStatus] = row._count._all;
+  }
+  return stats;
+}
 
 function buildEmptyStats(): Record<LeadStatus, number> {
   return {

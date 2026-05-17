@@ -13,7 +13,10 @@
 
 import { Client } from "@upstash/qstash";
 import { prisma } from "@/lib/prisma";
-import { extractPropertyDataFromRaw } from "@/lib/nota-encargo/utils";
+import {
+  extractDireccionFromRaw,
+  resolveOperationType,
+} from "@/lib/nota-encargo/utils";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
 import type { VisitSchedulingSession } from "@prisma/client";
 
@@ -146,24 +149,18 @@ export async function scheduleParteVisita(
     select: { raw: true },
   });
 
-  let direccion: string;
-  let tipoOperacion: string;
-  let precio: number;
-
-  if (snapshot?.raw && typeof snapshot.raw === "object") {
-    const raw = snapshot.raw as Record<string, unknown>;
-    const extracted = extractPropertyDataFromRaw(raw, {
-      ciudad: property.ciudad,
-      zona: property.zona,
-    });
-    direccion = extracted.direccion;
-    tipoOperacion = extracted.tipoOperacion;
-    precio = extracted.precio;
-  } else {
-    direccion = [property.zona, property.ciudad].filter(Boolean).join(", ");
-    tipoOperacion = "VENTA";
-    precio = property.precio;
-  }
+  // Prioridad: dirección real desde el snapshot (calle/numero/cp). Si no hay
+  // datos de calle, fallback a zona/ciudad de PropertyCurrent. El precio y el
+  // tipo de operación los tomamos de PropertyCurrent (siempre presente, no del
+  // raw que puede no traer precioinmo/precioalq).
+  const direccion = snapshot?.raw && typeof snapshot.raw === "object"
+    ? extractDireccionFromRaw(snapshot.raw as Record<string, unknown>, {
+        ciudad: property.ciudad,
+        zona: property.zona,
+      }) || [property.zona, property.ciudad].filter(Boolean).join(", ")
+    : [property.zona, property.ciudad].filter(Boolean).join(", ");
+  const tipoOperacion = resolveOperationType(property.tipoOfer);
+  const precio = property.precio;
 
   await scheduleParteVisitaFromDetails({
     visitSessionId: visitSession.id,

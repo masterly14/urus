@@ -12,9 +12,11 @@ import {
   Mic,
   Phone,
   Plus,
-  RefreshCw,
   Square,
   UserRound,
+  Search,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +28,7 @@ import { GlobalPropertySelector, type GlobalPropertyOption } from "@/components/
 import { GlobalDemandSelector, type GlobalDemandOption } from "@/components/demands/global-demand-selector";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { VisitPropertyGallery } from "@/app/platform/visitas/visit-property-gallery";
 
 type VisitStatus =
   | "INCOMPLETE"
@@ -380,6 +383,8 @@ export function VisitasClient() {
   const initialVisitId = searchParams.get("visitId") ?? "";
   const [items, setItems] = useState<VisitWorkItemDto[]>([]);
   const [activeTab, setActiveTab] = useState<VisitTab>("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedId, setSelectedId] = useState(initialVisitId);
   const [fecha, setFecha] = useState(tomorrow());
   const [horaInicio, setHoraInicio] = useState("10:00");
@@ -473,11 +478,24 @@ export function VisitasClient() {
     [items],
   );
   const visibleItems = useMemo(() => {
-    if (activeTab === "TODAY") return todaysVisits;
-    if (activeTab === "SCHEDULED") return scheduledVisits;
-    if (activeTab === "DONE") return completedVisits;
-    if (activeTab === "DOCUMENTED") return documentedVisits;
-    return items;
+    let filtered = items;
+    if (activeTab === "TODAY") filtered = todaysVisits;
+    else if (activeTab === "SCHEDULED") filtered = scheduledVisits;
+    else if (activeTab === "DONE") filtered = completedVisits;
+    else if (activeTab === "DOCUMENTED") filtered = documentedVisits;
+    
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter((item) => 
+        (item.buyerName && item.buyerName.toLowerCase().includes(q)) ||
+        (item.buyerPhone && item.buyerPhone.includes(q)) ||
+        (item.contactSnapshot.name && item.contactSnapshot.name.toLowerCase().includes(q)) ||
+        item.contactSnapshot.phones.some((p) => p.includes(q)) ||
+        (item.propertySnapshot.title && item.propertySnapshot.title.toLowerCase().includes(q)) ||
+        (item.propertySnapshot.reference && item.propertySnapshot.reference.toLowerCase().includes(q))
+      );
+    }
+    return filtered;
   }, [
     activeTab,
     todaysVisits,
@@ -485,7 +503,16 @@ export function VisitasClient() {
     completedVisits,
     documentedVisits,
     items,
+    searchQuery,
   ]);
+
+  const ITEMS_PER_PAGE = 10;
+  const totalPages = Math.max(1, Math.ceil(visibleItems.length / ITEMS_PER_PAGE));
+  const paginatedItems = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return visibleItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [visibleItems, currentPage]);
+
   const selectedManualDemand = useMemo(
     () => manualDemands.find((demand) => demand.codigo === manualDemandId) ?? null,
     [manualDemands, manualDemandId],
@@ -553,6 +580,10 @@ export function VisitasClient() {
       postVisitRecorderRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery]);
 
   // Sincroniza los inputs del detalle (fecha/horaInicio/horaFin) con la visita seleccionada.
   // Antes, estos inputs conservaban los valores por defecto (tomorrow() y 10:00–11:00) aunque
@@ -952,7 +983,7 @@ export function VisitasClient() {
           draftPropertyKeyTipo: isExistingProperty ? undefined : Number(manualDraftPropertyKeyTipo),
           draftPropertyKeyLoca: isExistingProperty ? undefined : Number(manualDraftPropertyKeyLoca),
           draftPropertyOperationType: isExistingProperty ? undefined : manualDraftPropertyOperationType,
-          nluSummary: notas || "Visita inicial creada manualmente antes de intervención NLU.",
+          nluSummary: notas || "Visita inicial creada manualmente sin contexto previo del comprador.",
         }),
       });
       const createData = (await createResponse.json()) as {
@@ -1027,7 +1058,7 @@ export function VisitasClient() {
         decision === "green"
           ? `Va a comprar${data.operacion?.codigo ? `: ${data.operacion.codigo}` : ""}`
           : decision === "yellow"
-            ? "Busca algo diferente: NLU reactivado"
+            ? "Búsqueda reactivada con el nuevo contexto"
             : "Demanda dada de baja";
       setSuccess(`Decision registrada. ${label}.`);
       if (decision === "yellow") {
@@ -1153,10 +1184,6 @@ export function VisitasClient() {
             Gestiona visitas por programar y registra el horario ya coordinado con propietario o agencia.
           </p>
         </div>
-        <Button variant="outline" onClick={() => void load()} disabled={loading}>
-          <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
-          Actualizar
-        </Button>
         <Button onClick={openManualCreate} disabled={submitting || manualLoading}>
           <Plus className="mr-2 h-4 w-4" />
           Crear visita manual
@@ -1504,15 +1531,27 @@ export function VisitasClient() {
         </Card>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
-        <Card className="border-border/25 bg-card/90">
+      <div className="grid items-start gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
+        <Card className="flex flex-col border-border/25 bg-card/90 xl:sticky xl:top-6 xl:max-h-[calc(100vh-4rem)]">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CalendarCheck className="h-5 w-5" />
-              Visitas organizadas
+            <CardTitle className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <CalendarCheck className="h-5 w-5" />
+                Visitas organizadas
+              </div>
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Buscar por nombre, tel o ref..."
+                  className="pl-8 h-9 text-sm"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="flex-1 space-y-3 overflow-y-auto">
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
@@ -1560,12 +1599,12 @@ export function VisitasClient() {
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Cargando...
               </div>
-            ) : visibleItems.length === 0 ? (
+            ) : paginatedItems.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No hay visitas por programar para los filtros actuales.
               </p>
             ) : (
-              visibleItems.map((item) => (
+              paginatedItems.map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -1621,6 +1660,34 @@ export function VisitasClient() {
                 </button>
               ))
             )}
+
+            {totalPages > 1 && (
+              <div className="mt-4 flex items-center justify-between border-t border-border/40 pt-4 text-sm text-muted-foreground">
+                <p>
+                  Mostrando {(currentPage - 1) * ITEMS_PER_PAGE + 1} a {Math.min(currentPage * ITEMS_PER_PAGE, visibleItems.length)} de {visibleItems.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -1631,6 +1698,185 @@ export function VisitasClient() {
           <CardContent>
             {selected ? (
               <form className="space-y-5" onSubmit={submit}>
+                {selectedCanSchedule || selectedCanReschedule || selectedCanCancel || selectedCanDecide ? (
+                  <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex flex-col gap-3 rounded-b-xl border-b border-border/40 bg-card/95 p-4 shadow-sm backdrop-blur sm:flex-row sm:flex-wrap sm:items-center">
+                    {selectedCanSchedule ? (
+                      <Button type="submit" disabled={submitting}>
+                        {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Agendar y activar Flow
+                      </Button>
+                    ) : null}
+                    {selectedCanReschedule ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={rescheduling || cancelling || submitting}
+                        onClick={() => void reschedule()}
+                      >
+                        {rescheduling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Reprogramar
+                      </Button>
+                    ) : null}
+                    {selectedCanCancel ? (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        disabled={cancelling || rescheduling || submitting}
+                        onClick={() => void cancelVisit()}
+                      >
+                        {cancelling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Cancelar
+                      </Button>
+                    ) : null}
+                    {selectedCanDecide ? (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={Boolean(deciding)}
+                          className="border-urus-success/50 bg-urus-success/15 text-urus-success hover:bg-urus-success/25 hover:text-urus-success"
+                          onClick={() => void decide("green")}
+                        >
+                          {deciding === "green" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          Comprará
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={Boolean(deciding)}
+                          className="border-urus-warning/50 bg-urus-warning/15 text-urus-warning hover:bg-urus-warning/25 hover:text-urus-warning"
+                          onClick={() => {
+                            setShowYellowContext(true);
+                            setError(null);
+                            setSuccess(null);
+                            setPostVisitVoiceError(null);
+                          }}
+                        >
+                          {deciding === "yellow" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          Busca diferente
+                        </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/50 bg-background text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                aria-label="Qué pasará con la demanda si marcas Busca algo diferente"
+                              >
+                                <CircleHelp className="h-4 w-4" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs text-sm leading-relaxed">
+                              La demanda seguirá activa. El sistema contactará al comprador para entender qué no encajó y qué busca ahora. Con esa información, ajustará la búsqueda y preparará nuevas opciones para revisar.
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={Boolean(deciding)}
+                          className="border-urus-danger/50 bg-urus-danger/15 text-urus-danger hover:bg-urus-danger/25 hover:text-urus-danger"
+                          onClick={() => void decide("red")}
+                        >
+                          {deciding === "red" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          Baja
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {selectedCanDecide && showYellowContext ? (
+                  <div className="space-y-3 rounded-lg border border-border/40 bg-muted/15 p-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label htmlFor="postVisitContext">
+                          Contexto para reactivar la busqueda
+                        </Label>
+                        {!isRecordingPostVisitContext ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void startPostVisitRecording()}
+                            disabled={Boolean(deciding) || isTranscribingPostVisitContext}
+                          >
+                            {isTranscribingPostVisitContext ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Mic className="mr-2 h-4 w-4" />
+                            )}
+                            {isTranscribingPostVisitContext ? "Transcribiendo..." : "Dictar"}
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={stopPostVisitRecording}
+                            disabled={Boolean(deciding)}
+                          >
+                            <Square className="mr-2 h-4 w-4" />
+                            Detener
+                          </Button>
+                        )}
+                      </div>
+                      <Textarea
+                        id="postVisitContext"
+                        value={postVisitContext}
+                        onChange={(e) => setPostVisitContext(e.target.value)}
+                        placeholder={
+                          isRecordingPostVisitContext
+                            ? "Grabando... pulsa Detener para transcribir"
+                            : isTranscribingPostVisitContext
+                              ? "Transcribiendo audio..."
+                              : "Ej: Quiere 3 habitaciones, mas luz natural y evitar planta baja."
+                        }
+                        rows={4}
+                        maxLength={2000}
+                        disabled={isTranscribingPostVisitContext || Boolean(deciding)}
+                      />
+                      {postVisitVoiceError ? (
+                        <p className="text-xs text-urus-danger">{postVisitVoiceError}</p>
+                      ) : null}
+                      <p className="text-xs text-muted-foreground">
+                        Usa el micrófono para dictar por voz. El texto se usará como contexto para ajustar la búsqueda del comprador.
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={Boolean(deciding)}
+                        onClick={() => void decide("yellow")}
+                      >
+                        {deciding === "yellow" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Confirmar y enviar contexto
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={Boolean(deciding)}
+                        onClick={() => {
+                          stopPostVisitRecording();
+                          setPostVisitVoicePhase("idle");
+                          setPostVisitVoiceError(null);
+                          setShowYellowContext(false);
+                          setPostVisitContext("");
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {selectedIsScheduledButOpen ? (
+                  <p className="rounded-lg bg-muted/15 p-3 text-sm text-muted-foreground">
+                    Las acciones post-visita aparecerán aquí cuando termine el horario agendado.
+                  </p>
+                ) : null}
+
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div className="rounded-lg bg-muted/20 p-4">
                     <div className="mb-2 flex items-center gap-2 font-medium">
@@ -1689,10 +1935,19 @@ export function VisitasClient() {
                   ) : null}
                 </div>
 
+                {!selected.draftPropertyId ? (
+                  <VisitPropertyGallery
+                    propertyId={selected.propertyId}
+                    propertySource={selected.propertySnapshot.source}
+                    selectionId={selected.selectionId}
+                    className="rounded-lg bg-muted/15 p-4"
+                  />
+                ) : null}
+
                 <div className="rounded-lg bg-muted/15 p-4">
-                  <p className="font-medium">Resumen NLU / motivo de interes</p>
+                  <p className="font-medium">Motivo de interés</p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {selected.nluSummary || "Sin resumen NLU registrado para esta visita."}
+                    {selected.nluSummary || "Sin resumen registrado para esta visita."}
                   </p>
                 </div>
 
@@ -1761,181 +2016,6 @@ export function VisitasClient() {
                     rows={4}
                   />
                 </div>
-
-                {selectedIsScheduledButOpen ? (
-                  <p className="rounded-lg bg-muted/15 p-3 text-sm text-muted-foreground">
-                    Las acciones post-visita aparecerán cuando termine el horario agendado.
-                  </p>
-                ) : null}
-
-                {selectedCanSchedule || selectedCanReschedule || selectedCanCancel || selectedCanDecide ? (
-                  <div className="flex flex-col gap-3 sm:flex-row">
-                    {selectedCanSchedule ? (
-                      <Button type="submit" disabled={submitting}>
-                        {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Agendar y activar Flow
-                      </Button>
-                    ) : null}
-                    {selectedCanReschedule ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={rescheduling || cancelling || submitting}
-                        onClick={() => void reschedule()}
-                      >
-                        {rescheduling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Reprogramar visita
-                      </Button>
-                    ) : null}
-                    {selectedCanCancel ? (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        disabled={cancelling || rescheduling || submitting}
-                        onClick={() => void cancelVisit()}
-                      >
-                        {cancelling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Cancelar visita
-                      </Button>
-                    ) : null}
-                    {selectedCanDecide ? (
-                      <>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={Boolean(deciding)}
-                          onClick={() => void decide("green")}
-                        >
-                          {deciding === "green" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          Verde: Va a comprar
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={Boolean(deciding)}
-                          onClick={() => {
-                            setShowYellowContext(true);
-                            setError(null);
-                            setSuccess(null);
-                            setPostVisitVoiceError(null);
-                          }}
-                        >
-                          {deciding === "yellow" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          Amarillo: Busca algo diferente
-                        </Button>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                type="button"
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/50 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                aria-label="Qué pasará con la demanda si marcas Busca algo diferente"
-                              >
-                                <CircleHelp className="h-4 w-4" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-xs text-sm leading-relaxed">
-                              La demanda seguirá activa. El sistema contactará al comprador para entender qué no encajó y qué busca ahora. Con esa información, ajustará la búsqueda y preparará nuevas opciones para revisar.
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          disabled={Boolean(deciding)}
-                          onClick={() => void decide("red")}
-                        >
-                          {deciding === "red" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          Rojo: Dar de baja
-                        </Button>
-                      </>
-                    ) : null}
-                  </div>
-                ) : null}
-                {selectedCanDecide && showYellowContext ? (
-                  <div className="space-y-3 rounded-lg border border-border/40 bg-muted/15 p-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <Label htmlFor="postVisitContext">
-                          Contexto para reactivar la busqueda
-                        </Label>
-                        {!isRecordingPostVisitContext ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void startPostVisitRecording()}
-                            disabled={Boolean(deciding) || isTranscribingPostVisitContext}
-                          >
-                            {isTranscribingPostVisitContext ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                              <Mic className="mr-2 h-4 w-4" />
-                            )}
-                            {isTranscribingPostVisitContext ? "Transcribiendo..." : "Dictar"}
-                          </Button>
-                        ) : (
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={stopPostVisitRecording}
-                            disabled={Boolean(deciding)}
-                          >
-                            <Square className="mr-2 h-4 w-4" />
-                            Detener
-                          </Button>
-                        )}
-                      </div>
-                      <Textarea
-                        id="postVisitContext"
-                        value={postVisitContext}
-                        onChange={(e) => setPostVisitContext(e.target.value)}
-                        placeholder={
-                          isRecordingPostVisitContext
-                            ? "Grabando... pulsa Detener para transcribir"
-                            : isTranscribingPostVisitContext
-                              ? "Transcribiendo audio..."
-                              : "Ej: Quiere 3 habitaciones, mas luz natural y evitar planta baja."
-                        }
-                        rows={4}
-                        maxLength={2000}
-                        disabled={isTranscribingPostVisitContext || Boolean(deciding)}
-                      />
-                      {postVisitVoiceError ? (
-                        <p className="text-xs text-urus-danger">{postVisitVoiceError}</p>
-                      ) : null}
-                      <p className="text-xs text-muted-foreground">
-                        Usa el icono de micrófono para dictar por voz. La transcripción se enviará al agente NLU como contexto explícito.
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={Boolean(deciding)}
-                        onClick={() => void decide("yellow")}
-                      >
-                        {deciding === "yellow" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Confirmar amarillo y enviar contexto
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        disabled={Boolean(deciding)}
-                        onClick={() => {
-                          stopPostVisitRecording();
-                          setPostVisitVoicePhase("idle");
-                          setPostVisitVoiceError(null);
-                          setShowYellowContext(false);
-                          setPostVisitContext("");
-                        }}
-                      >
-                        Cancelar
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
               </form>
             ) : (
               <p className="text-sm text-muted-foreground">

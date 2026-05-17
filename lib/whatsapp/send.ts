@@ -6,6 +6,7 @@
 import { createWhatsAppClient } from "./client";
 import { appendEvent } from "@/lib/event-store";
 import { prisma } from "@/lib/prisma";
+import { normalizeWhatsAppDigits } from "@/lib/microsite/buyer-phone";
 import type { JsonValue } from "@/lib/event-store";
 import type {
   WhatsAppClientConfig,
@@ -24,6 +25,12 @@ export type WhatsAppTraceOptions = {
   causationId?: string | null;
   metadata?: Record<string, unknown>;
   payload?: Record<string, unknown>;
+  /**
+   * Si `true`, no se registra el evento `WHATSAPP_ENVIADO` en el Event Store.
+   * Solo lo usan flujos internos que no deben aparecer en "Conversaciones"
+   * (por defecto siempre se registra, incluso sin `trace`, para que cualquier
+   * mensaje enviado a un comercial o comprador sea trazable en la UI).
+   */
   disabled?: boolean;
 };
 
@@ -116,6 +123,22 @@ function resultWaId(result: SendMessageSuccess, fallback: string): string {
   return result.contacts?.[0]?.wa_id ?? fallback;
 }
 
+/**
+ * Registra `WHATSAPP_ENVIADO` en el Event Store para que el mensaje aparezca
+ * en la UI de "Conversaciones".
+ *
+ * Política:
+ * - Si `trace.disabled === true` → no se registra (uso interno).
+ * - Si hay `_testSendInterceptor` activo y NO se pasó `trace` → no se registra.
+ *   Los unit tests que sólo verifican payload via interceptor (p. ej.
+ *   `send-no-stock.unit.test.ts`) no tienen Prisma mockeado.
+ * - En cualquier otro caso → se registra, usando defaults razonables cuando
+ *   no se pasa `trace` (source="whatsapp_send", kind=messageType).
+ *
+ * Esto asegura que cualquier WhatsApp enviado (al comercial, al comprador,
+ * por scripts, por crons, etc.) sea trazable end-to-end en "Conversaciones",
+ * sin obligar a cada call site a propagar un `trace` explícito.
+ */
 async function recordSentMessage(params: {
   to: string;
   result: SendMessageSuccess;
@@ -124,10 +147,18 @@ async function recordSentMessage(params: {
   options?: SendOptions;
 }) {
   const trace = params.options?.trace;
-  if (!trace || trace.disabled) return;
+  if (trace?.disabled) return;
+  if (_testSendInterceptor && !trace) return;
 
+  const source = trace?.source ?? "whatsapp_send";
+  const kind = trace?.kind ?? params.messageType;
   const messageId = resultMessageId(params.result);
-  const waId = trace.aggregateId ?? resultWaId(params.result, params.to);
+  const fallbackWaId = resultWaId(params.result, params.to);
+  const waId =
+    trace?.aggregateId ||
+    normalizeWhatsAppDigits(params.to) ||
+    normalizeWhatsAppDigits(fallbackWaId) ||
+    params.to;
 
   try {
     if (messageId) {
@@ -152,22 +183,22 @@ async function recordSentMessage(params: {
         to: params.to,
         waId,
         messageType: params.messageType,
-        source: trace.source,
-        kind: trace.kind ?? params.messageType,
+        source,
+        kind,
         contextMessageId: params.options?.contextMessageId ?? null,
         ...params.content,
-        ...(trace.payload ?? {}),
+        ...(trace?.payload ?? {}),
       } as JsonValue,
       metadata: {
-        source: trace.source,
-        ...(trace.metadata ?? {}),
+        source,
+        ...(trace?.metadata ?? {}),
       } as JsonValue,
-      correlationId: trace.correlationId ?? undefined,
-      causationId: trace.causationId ?? undefined,
+      correlationId: trace?.correlationId ?? undefined,
+      causationId: trace?.causationId ?? undefined,
     });
   } catch (err) {
     console.error(
-      `[whatsapp] no se pudo registrar WHATSAPP_ENVIADO source=${trace.source} to=${params.to}:`,
+      `[whatsapp] no se pudo registrar WHATSAPP_ENVIADO source=${source} to=${params.to}:`,
       err instanceof Error ? err.message : err,
     );
   }

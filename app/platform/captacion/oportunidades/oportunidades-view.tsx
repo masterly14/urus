@@ -31,6 +31,7 @@
  */
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -97,7 +98,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
@@ -245,58 +250,46 @@ type PortalFilter =
 
 type OperationFilter = "all" | "sale" | "rent";
 
-const PORTAL_CHIP_LABEL: Record<PortalFilter, string> = {
-  all: "Todos",
-  exclude_a: "Sin Fotocasa",
-  source_a: "Fotocasa",
-  source_b: "Pisos.com",
-  source_c: "Milanuncios",
-  source_d: "idealista",
-};
-
 const toolbarBtnClass =
   "inline-flex h-9 shrink-0 items-center gap-2 rounded border border-neutral-300 bg-[#f4f4f4] px-3 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-neutral-200/90 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700";
 
-const filterChipClass =
-  "inline-flex max-w-[240px] items-start gap-1.5 rounded border border-emerald-600/65 bg-emerald-50 px-2.5 py-1.5 text-left text-emerald-950 shadow-sm outline-none transition-colors hover:bg-emerald-100/90 focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:border-emerald-700 dark:bg-emerald-950/35 dark:text-emerald-50 dark:hover:bg-emerald-950/55";
-
 const POLLING_INTERVAL_MS = 90_000;
 const DESCRIPTION_COLLAPSE_CHARS = 900;
+const VIEW_STATE_STORAGE_KEY = "captacion:oportunidades:view-state:v1";
 
-function MarketFilterChip({
-  label,
-  value,
-  singleLineValue,
-  children,
-}: {
-  label: string;
-  value?: string;
-  /** Una sola linea en negrita (p. ej. PRECIO MIN.) */
-  singleLineValue?: string;
-  children: ReactNode;
-}) {
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button type="button" className={filterChipClass}>
-          <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-300" />
-          {singleLineValue != null ? (
-            <span className="text-sm font-bold leading-tight">{singleLineValue}</span>
-          ) : (
-            <span className="flex min-w-0 flex-col gap-0 leading-tight">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700/90 dark:text-emerald-300/90">
-                {label}
-              </span>
-              <span className="truncate text-sm font-bold">{value ?? "—"}</span>
-            </span>
-          )}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-72" align="start">
-        {children}
-      </PopoverContent>
-    </Popover>
-  );
+interface OportunidadesViewStateSnapshot {
+  city: string;
+  advertiserType: string;
+  hasPhone: boolean;
+  sinceHours: string;
+  priceMin: string;
+  priceMax: string;
+  areaMin: string;
+  roomsMin: string;
+  portalFilter: PortalFilter;
+  operationFilter: OperationFilter;
+  filterPanelOpen: boolean;
+  polygon: LngLat[] | null;
+  mapOpen: boolean;
+  items: ListingOpportunity[];
+  cursor: string | null;
+  meta: ListingsApiResponse["meta"] | null;
+  pageInputCursors: (string | null)[];
+  currentPage: number;
+  autoRefresh: boolean;
+  secondsToRefresh: number;
+  scrollY: number;
+}
+
+function readViewStateSnapshot(): OportunidadesViewStateSnapshot | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(VIEW_STATE_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as OportunidadesViewStateSnapshot;
+  } catch {
+    return null;
+  }
 }
 
 function escapeCsvCell(raw: string): string {
@@ -370,21 +363,6 @@ function captacionStageLabel(stage: CaptacionStage): string {
   }
 }
 
-function parseFotosInput(
-  raw: string,
-): Record<string, { url: string; posicion?: number }> | undefined {
-  const lines = raw
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-  if (lines.length === 0) return undefined;
-  const out: Record<string, { url: string; posicion?: number }> = {};
-  for (let i = 0; i < lines.length; i += 1) {
-    const url = lines[i]!;
-    out[String(i + 1)] = { url, posicion: i + 1 };
-  }
-  return out;
-}
 
 interface PushResponse {
   ok: boolean;
@@ -437,9 +415,19 @@ interface CaptacionActionResponse {
   error?: { message?: string };
 }
 
+/**
+ * Estado del formulario de captación (crear prospecto / dar de alta).
+ *
+ * Decisiones de UX:
+ * - `keyLoca` y `keyTipo` (numéricos técnicos) NO se piden al comercial. El
+ *   backend ya los resuelve solos desde `listing.city` y `listing.housingType`
+ *   (catálogo Inmovilla sincronizado en Neon).
+ * - `keyZona` se pide vía un Select humano con nombre de zona; si el comercial
+ *   no elige nada, el backend intenta resolverla por `listing.zone`.
+ * - Las fotos del portal se envían automáticamente desde el backend (a partir
+ *   de `listing.imageUrls`), por lo que no aparece un textarea de URLs.
+ */
 interface CaptacionFormState {
-  keyLoca: string;
-  keyTipo: string;
   keyZona: string;
   calle: string;
   numero: string;
@@ -449,12 +437,9 @@ interface CaptacionFormState {
   banyos: string;
   tituloes: string;
   descripciones: string;
-  fotosText: string;
 }
 
 const EMPTY_CAPTACION_FORM: CaptacionFormState = {
-  keyLoca: "",
-  keyTipo: "",
   keyZona: "",
   calle: "",
   numero: "",
@@ -464,8 +449,12 @@ const EMPTY_CAPTACION_FORM: CaptacionFormState = {
   banyos: "",
   tituloes: "",
   descripciones: "",
-  fotosText: "",
 };
+
+interface ZonaCatalogItem {
+  keyZona: number;
+  zona: string;
+}
 
 export function OportunidadesView({ mock }: { mock: boolean }) {
   const [city, setCity] = useState("cordoba");
@@ -527,11 +516,69 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
   const [captacionFeedback, setCaptacionFeedback] = useState<
     Record<string, string>
   >({});
+  // Catálogo de zonas para la ciudad del listing seleccionado. Se carga
+  // bajo demanda al abrir el modal y se usa para que el comercial elija la
+  // zona por nombre (lugar humano) en lugar de un key_zona numérico.
+  const [zonasCatalog, setZonasCatalog] = useState<ZonaCatalogItem[]>([]);
+  const [zonasLoading, setZonasLoading] = useState(false);
+  const [zonasError, setZonasError] = useState<string | null>(null);
+  const [zonasCity, setZonasCity] = useState<string | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [detailListingId, setDetailListingId] = useState<string | null>(null);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [hydratedFromStorage, setHydratedFromStorage] = useState(false);
+  const skipFirstAutofetchRef = useRef(false);
   const lastFetchRef = useRef<number>(0);
+
+  const persistViewState = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const snapshot: OportunidadesViewStateSnapshot = {
+      city,
+      advertiserType,
+      hasPhone,
+      sinceHours,
+      priceMin,
+      priceMax,
+      areaMin,
+      roomsMin,
+      portalFilter,
+      operationFilter,
+      filterPanelOpen,
+      polygon,
+      mapOpen,
+      items,
+      cursor,
+      meta,
+      pageInputCursors,
+      currentPage,
+      autoRefresh,
+      secondsToRefresh,
+      scrollY: window.scrollY,
+    };
+    window.sessionStorage.setItem(VIEW_STATE_STORAGE_KEY, JSON.stringify(snapshot));
+  }, [
+    city,
+    advertiserType,
+    hasPhone,
+    sinceHours,
+    priceMin,
+    priceMax,
+    areaMin,
+    roomsMin,
+    portalFilter,
+    operationFilter,
+    filterPanelOpen,
+    polygon,
+    mapOpen,
+    items,
+    cursor,
+    meta,
+    pageInputCursors,
+    currentPage,
+    autoRefresh,
+    secondsToRefresh,
+  ]);
 
   const sources = useMemo<string[] | undefined>(() => {
     switch (portalFilter) {
@@ -645,8 +692,45 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
   );
 
   useEffect(() => {
+    const snapshot = readViewStateSnapshot();
+    if (!snapshot) {
+      setHydratedFromStorage(true);
+      return;
+    }
+    skipFirstAutofetchRef.current = true;
+    setCity(snapshot.city);
+    setAdvertiserType(snapshot.advertiserType);
+    setHasPhone(snapshot.hasPhone);
+    setSinceHours(snapshot.sinceHours);
+    setPriceMin(snapshot.priceMin);
+    setPriceMax(snapshot.priceMax);
+    setAreaMin(snapshot.areaMin);
+    setRoomsMin(snapshot.roomsMin);
+    setPortalFilter(snapshot.portalFilter);
+    setOperationFilter(snapshot.operationFilter);
+    setFilterPanelOpen(snapshot.filterPanelOpen);
+    setPolygon(snapshot.polygon);
+    setMapOpen(snapshot.mapOpen);
+    setItems(snapshot.items);
+    setCursor(snapshot.cursor);
+    setMeta(snapshot.meta);
+    setPageInputCursors(snapshot.pageInputCursors);
+    setCurrentPage(snapshot.currentPage);
+    setAutoRefresh(snapshot.autoRefresh);
+    setSecondsToRefresh(snapshot.secondsToRefresh);
+    lastFetchRef.current = Date.now();
+    requestAnimationFrame(() => window.scrollTo(0, snapshot.scrollY));
+    setHydratedFromStorage(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydratedFromStorage) return;
+    if (skipFirstAutofetchRef.current) {
+      skipFirstAutofetchRef.current = false;
+      return;
+    }
     void fetchListings(false, null);
-  }, [fetchListings]);
+  }, [hydratedFromStorage, fetchListings]);
 
   // Atajos de teclado para el lightbox.
   useEffect(() => {
@@ -683,6 +767,17 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
     }, 1_000);
     return () => clearInterval(tick);
   }, [autoRefresh, mock, fetchListings]);
+
+  useEffect(() => {
+    if (!hydratedFromStorage) return;
+    persistViewState();
+  }, [hydratedFromStorage, persistViewState]);
+
+  useEffect(() => {
+    return () => {
+      persistViewState();
+    };
+  }, [persistViewState]);
 
   useEffect(() => {
     if (mock) return;
@@ -779,41 +874,6 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
     city,
     polygonActive,
   ]);
-
-  const alertaChipValue = useMemo(() => {
-    switch (sinceHours) {
-      case "24":
-        return "Últimas 24 h";
-      case "72":
-        return "Últimas 72 h";
-      case "168":
-        return "Última semana";
-      default:
-        return "Cualquier momento";
-    }
-  }, [sinceHours]);
-
-  const tipoChipValue = useMemo(() => {
-    switch (operationFilter) {
-      case "sale":
-        return "Venta";
-      case "rent":
-        return "Alquiler";
-      default:
-        return "Todos";
-    }
-  }, [operationFilter]);
-
-  const anuncioChipValue = useMemo(() => {
-    switch (advertiserType) {
-      case "particular":
-        return "Particular";
-      case "agency":
-        return "Agencia";
-      default:
-        return "Todos";
-    }
-  }, [advertiserType]);
 
   const clearAllFilters = useCallback(() => {
     setCity("cordoba");
@@ -1108,8 +1168,6 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
     setCaptacionTarget(row);
     setCaptacionModalMode(mode);
     setCaptacionForm({
-      keyLoca: "",
-      keyTipo: "",
       keyZona: "",
       calle: row.addressApprox ?? "",
       numero: "",
@@ -1119,9 +1177,55 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
       banyos: row.bathrooms != null ? String(row.bathrooms) : "",
       tituloes: "",
       descripciones: "",
-      fotosText: "",
     });
     setCaptacionModalOpen(true);
+    void loadZonasForCity(row.city);
+  }
+
+  /**
+   * Carga el catálogo de zonas de Inmovilla para la ciudad del listing
+   * activo. Si la ciudad ya está cargada se reutiliza la cache local. Si la
+   * ciudad no existe en el catálogo (404) se deja `zonasCatalog` vacío sin
+   * marcar error: el backend resolverá por nombre o, en su defecto, omitirá
+   * `key_zona` del payload.
+   */
+  async function loadZonasForCity(city: string | null | undefined) {
+    const normalizedCity = (city ?? "").trim();
+    if (!normalizedCity) {
+      setZonasCatalog([]);
+      setZonasError(null);
+      setZonasCity(null);
+      return;
+    }
+    if (zonasCity && zonasCity === normalizedCity) return;
+    setZonasLoading(true);
+    setZonasError(null);
+    setZonasCity(normalizedCity);
+    try {
+      const response = await fetch(
+        `/api/market/inmovilla-catalogs/zonas?city=${encodeURIComponent(normalizedCity)}`,
+      );
+      if (response.status === 404) {
+        setZonasCatalog([]);
+        return;
+      }
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        items?: ZonaCatalogItem[];
+        error?: { message?: string };
+      };
+      if (!response.ok || !payload.ok || !Array.isArray(payload.items)) {
+        setZonasCatalog([]);
+        setZonasError(payload.error?.message ?? `HTTP ${response.status}`);
+        return;
+      }
+      setZonasCatalog(payload.items);
+    } catch (error) {
+      setZonasCatalog([]);
+      setZonasError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setZonasLoading(false);
+    }
   }
 
   function openDetailModal(row: ListingOpportunity) {
@@ -1134,9 +1238,10 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
     setCaptacionSubmitting(true);
     setCaptacionFeedback((prev) => ({ ...prev, [captacionTarget.id]: "" }));
     try {
+      // Sólo enviamos lo que el comercial ha tocado o lo que sirve para
+      // sobrescribir los defaults del listing. `keyLoca`, `keyTipo` y las
+      // fotos los resuelve el backend a partir del listing.
       const body: Record<string, unknown> = {};
-      if (captacionForm.keyLoca.trim()) body.keyLoca = Number(captacionForm.keyLoca);
-      if (captacionForm.keyTipo.trim()) body.keyTipo = Number(captacionForm.keyTipo);
       if (captacionForm.keyZona.trim()) body.keyZona = Number(captacionForm.keyZona);
       if (captacionForm.calle.trim()) body.calle = captacionForm.calle.trim();
       if (captacionForm.numero.trim()) body.numero = Number(captacionForm.numero);
@@ -1154,8 +1259,6 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
       if (captacionForm.descripciones.trim()) {
         body.descripciones = captacionForm.descripciones.trim();
       }
-      const fotos = parseFotosInput(captacionForm.fotosText);
-      if (fotos) body.fotos = fotos;
 
       const endpoint =
         captacionModalMode === "prospecto"
@@ -1368,201 +1471,163 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
 
       {filterPanelOpen && (
         <div className="flex flex-wrap items-center gap-2">
-          <MarketFilterChip label="PORTAL" value={PORTAL_CHIP_LABEL[portalFilter]}>
-            <div className="flex flex-col gap-2">
-              <Label className="text-xs text-muted-foreground">Portal</Label>
-              <Select
-                value={portalFilter}
-                onValueChange={(v) => setPortalFilter(v as PortalFilter)}
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los portales</SelectItem>
-                  <SelectItem value="source_d">Idealista</SelectItem>
-                  <SelectItem value="source_a">Fotocasa</SelectItem>
-                  <SelectItem value="source_b">Pisos.com</SelectItem>
-                  <SelectItem value="source_c">Milanuncios</SelectItem>
-                  <SelectItem value="exclude_a">Todos menos Fotocasa</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </MarketFilterChip>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground">Portal</Label>
+            <Select
+              value={portalFilter}
+              onValueChange={(v) => setPortalFilter(v as PortalFilter)}
+            >
+              <SelectTrigger className="h-9 w-[160px]">
+                <SelectValue placeholder="Todos los portales" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los portales</SelectItem>
+                <SelectItem value="source_d">Idealista</SelectItem>
+                <SelectItem value="source_a">Fotocasa</SelectItem>
+                <SelectItem value="source_b">Pisos.com</SelectItem>
+                <SelectItem value="source_c">Milanuncios</SelectItem>
+                <SelectItem value="exclude_a">Todos menos Fotocasa</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <MarketFilterChip
-            label="ALERTA"
-            value={sinceHours === "all" ? "Filtros" : alertaChipValue}
-          >
-            <div className="flex flex-col gap-2">
-              <Label className="text-xs text-muted-foreground">Ventana temporal</Label>
-              <Select value={sinceHours} onValueChange={setSinceHours}>
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Cualquier momento</SelectItem>
-                  <SelectItem value="24">Ultimas 24h</SelectItem>
-                  <SelectItem value="72">Ultimas 72h</SelectItem>
-                  <SelectItem value="168">Ultima semana</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </MarketFilterChip>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground">Ventana temporal</Label>
+            <Select value={sinceHours} onValueChange={setSinceHours}>
+              <SelectTrigger className="h-9 w-[160px]">
+                <SelectValue placeholder="Cualquier momento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Cualquier momento</SelectItem>
+                <SelectItem value="24">Últimas 24h</SelectItem>
+                <SelectItem value="72">Últimas 72h</SelectItem>
+                <SelectItem value="168">Última semana</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <MarketFilterChip label="TIPO" value={tipoChipValue}>
-            <div className="flex flex-col gap-2">
-              <Label className="text-xs text-muted-foreground">Operacion</Label>
-              <Select
-                value={operationFilter}
-                onValueChange={(v) => setOperationFilter(v as OperationFilter)}
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="sale">Venta</SelectItem>
-                  <SelectItem value="rent">Alquiler</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </MarketFilterChip>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground">Operación</Label>
+            <Select
+              value={operationFilter}
+              onValueChange={(v) => setOperationFilter(v as OperationFilter)}
+            >
+              <SelectTrigger className="h-9 w-[120px]">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="sale">Venta</SelectItem>
+                <SelectItem value="rent">Alquiler</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <MarketFilterChip label="ANUNCIO" value={anuncioChipValue}>
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-2">
-                <Label className="text-xs text-muted-foreground">Publicante</Label>
-                <Select value={advertiserType} onValueChange={setAdvertiserType}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="particular">Particular</SelectItem>
-                    <SelectItem value="agency">Agencia</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <label className="flex cursor-pointer items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={hasPhone}
-                  onChange={(e) => setHasPhone(e.target.checked)}
-                  className="h-3.5 w-3.5 rounded border"
-                />
-                Solo con telefono
-              </label>
-            </div>
-          </MarketFilterChip>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground">Publicante</Label>
+            <Select value={advertiserType} onValueChange={setAdvertiserType}>
+              <SelectTrigger className="h-9 w-[120px]">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="particular">Particular</SelectItem>
+                <SelectItem value="agency">Agencia</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <MarketFilterChip
-            label="PRECIO MIN."
-            singleLineValue={
-              priceMin.trim()
-                ? `${Number(priceMin).toLocaleString("es-ES")} €`
-                : "PRECIO MIN."
-            }
-          >
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="chip-price-min">Precio minimo (€)</Label>
-              <Input
-                id="chip-price-min"
-                type="number"
-                value={priceMin}
-                onChange={(e) => setPriceMin(e.target.value)}
-                placeholder="Ej. 50000"
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="chip-price-min" className="text-xs text-muted-foreground">Precio mín (€)</Label>
+            <Input
+              id="chip-price-min"
+              type="number"
+              value={priceMin}
+              onChange={(e) => setPriceMin(e.target.value)}
+              placeholder="Ej. 50000"
+              className="h-9 w-[120px]"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="chip-price-max" className="text-xs text-muted-foreground">Precio máx (€)</Label>
+            <Input
+              id="chip-price-max"
+              type="number"
+              value={priceMax}
+              onChange={(e) => setPriceMax(e.target.value)}
+              placeholder="Ej. 500000"
+              className="h-9 w-[120px]"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="chip-city" className="text-xs text-muted-foreground">Ciudad</Label>
+            <Input
+              id="chip-city"
+              value={city}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setCity(e.target.value)
+              }
+              placeholder="cordoba"
+              className="h-9 w-[140px]"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="chip-area-min" className="text-xs text-muted-foreground">Sup. mín (m²)</Label>
+            <Input
+              id="chip-area-min"
+              type="number"
+              value={areaMin}
+              onChange={(e) => setAreaMin(e.target.value)}
+              placeholder="Ej. 60"
+              className="h-9 w-[100px]"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground">Habitaciones mín</Label>
+            <Select value={roomsMin} onValueChange={setRoomsMin}>
+              <SelectTrigger className="h-9 w-[120px]">
+                <SelectValue placeholder="Cualquiera" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Cualquiera</SelectItem>
+                <SelectItem value="1">1+</SelectItem>
+                <SelectItem value="2">2+</SelectItem>
+                <SelectItem value="3">3+</SelectItem>
+                <SelectItem value="4">4+</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-1.5 justify-end h-[58px]">
+            <label className="flex cursor-pointer items-center gap-2 text-xs h-9 px-2">
+              <input
+                type="checkbox"
+                checked={hasPhone}
+                onChange={(e) => setHasPhone(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border"
               />
-            </div>
-          </MarketFilterChip>
+              Solo con teléfono
+            </label>
+          </div>
 
-          <MarketFilterChip
-            label="PRECIO MAX."
-            singleLineValue={
-              priceMax.trim()
-                ? `${Number(priceMax).toLocaleString("es-ES")} €`
-                : "PRECIO MAX."
-            }
-          >
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="chip-price-max">Precio maximo (€)</Label>
-              <Input
-                id="chip-price-max"
-                type="number"
-                value={priceMax}
-                onChange={(e) => setPriceMax(e.target.value)}
-                placeholder="Ej. 500000"
-              />
-            </div>
-          </MarketFilterChip>
-
-          <MarketFilterChip label="CIUDAD" value={city.trim() || "—"}>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="chip-city">Ciudad</Label>
-              <Input
-                id="chip-city"
-                value={city}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setCity(e.target.value)
-                }
-                placeholder="cordoba"
-              />
-            </div>
-          </MarketFilterChip>
-
-          <MarketFilterChip
-            label="M² MIN."
-            singleLineValue={areaMin.trim() ? `${areaMin} m²` : "M² MIN."}
-          >
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="chip-area-min">Superficie minima (m²)</Label>
-              <Input
-                id="chip-area-min"
-                type="number"
-                value={areaMin}
-                onChange={(e) => setAreaMin(e.target.value)}
-                placeholder="Ej. 60"
-              />
-            </div>
-          </MarketFilterChip>
-
-          <MarketFilterChip
-            label="HABS."
-            value={
-              roomsMin === "any"
-                ? "Cualquiera"
-                : `${roomsMin}+`
-            }
-          >
-            <div className="flex flex-col gap-2">
-              <Label className="text-xs text-muted-foreground">Habitaciones minimas</Label>
-              <Select value={roomsMin} onValueChange={setRoomsMin}>
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="any">Cualquiera</SelectItem>
-                  <SelectItem value="1">1+</SelectItem>
-                  <SelectItem value="2">2+</SelectItem>
-                  <SelectItem value="3">3+</SelectItem>
-                  <SelectItem value="4">4+</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </MarketFilterChip>
-
-          <Button
-            size="sm"
-            variant="secondary"
-            className="h-9 border border-neutral-300 bg-[#f4f4f4] hover:bg-neutral-200 dark:border-neutral-600 dark:bg-neutral-800 dark:hover:bg-neutral-700"
-            onClick={() => applyFilters()}
-            disabled={loading}
-          >
-            {loading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : null}
-            Aplicar filtros
-          </Button>
+          <div className="flex flex-col gap-1.5 justify-end h-[58px]">
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-9 border border-neutral-300 bg-[#f4f4f4] hover:bg-neutral-200 dark:border-neutral-600 dark:bg-neutral-800 dark:hover:bg-neutral-700"
+              onClick={() => applyFilters()}
+              disabled={loading}
+            >
+              {loading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Aplicar filtros
+            </Button>
+          </div>
         </div>
       )}
 
@@ -1870,9 +1935,9 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                           className="h-7 px-2 text-xs"
                           title="Abrir ficha completa"
                         >
-                          <a href={`/platform/market/properties/${encodeURIComponent(row.propertyId)}`}>
+                          <Link href={`/platform/market/properties/${encodeURIComponent(row.propertyId)}`}>
                             Ficha
-                          </a>
+                          </Link>
                         </Button>
                         <Button
                           size="sm"
@@ -2228,40 +2293,97 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                 : "Dar de alta propiedad en Inmovilla"}
             </DialogTitle>
             <DialogDescription>
-              Completa solo los campos faltantes. Si dejas un campo vacío, se
-              intentará usar el dato ya capturado en la oportunidad.
+              Inmovilla recibe los datos ya capturados del portal. Ajusta solo lo
+              que quieras sobrescribir antes de enviar.
             </DialogDescription>
           </DialogHeader>
 
+          {captacionTarget && (
+            <div className="mb-2 rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
+              <div className="mb-1 font-medium text-foreground">
+                Datos detectados automáticamente
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
+                <div>
+                  <span className="text-muted-foreground">Ciudad: </span>
+                  <span className="font-medium text-foreground">
+                    {captacionTarget.city || "—"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Tipología: </span>
+                  <span className="font-medium text-foreground">
+                    {captacionTarget.housingType || "—"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Operación: </span>
+                  <span className="font-medium text-foreground">
+                    {captacionTarget.operation || "—"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Zona detectada: </span>
+                  <span className="font-medium text-foreground">
+                    {captacionTarget.zone || "—"}
+                  </span>
+                </div>
+                <div className="sm:col-span-2">
+                  <span className="text-muted-foreground">Fotos del portal: </span>
+                  <span className="font-medium text-foreground">
+                    {captacionTarget.imageUrls?.length
+                      ? `${captacionTarget.imageUrls.length} se enviarán automáticamente`
+                      : "sin fotos en el portal"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label>key_loca (ciudad)</Label>
-              <Input
-                value={captacionForm.keyLoca}
-                onChange={(e) =>
-                  setCaptacionForm((prev) => ({ ...prev, keyLoca: e.target.value }))
+            <div className="space-y-1 sm:col-span-2">
+              <Label>Zona</Label>
+              <Select
+                value={captacionForm.keyZona || "__auto__"}
+                onValueChange={(v) =>
+                  setCaptacionForm((prev) => ({
+                    ...prev,
+                    keyZona: v === "__auto__" ? "" : v,
+                  }))
                 }
-                placeholder="Ej. 368799"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>key_tipo</Label>
-              <Input
-                value={captacionForm.keyTipo}
-                onChange={(e) =>
-                  setCaptacionForm((prev) => ({ ...prev, keyTipo: e.target.value }))
-                }
-                placeholder="Ej. 3399"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>key_zona (opcional)</Label>
-              <Input
-                value={captacionForm.keyZona}
-                onChange={(e) =>
-                  setCaptacionForm((prev) => ({ ...prev, keyZona: e.target.value }))
-                }
-              />
+                disabled={zonasLoading}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue
+                    placeholder={
+                      zonasLoading
+                        ? "Cargando zonas..."
+                        : "Auto-detectar desde el portal"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__auto__">
+                    Auto-detectar desde el portal
+                  </SelectItem>
+                  {zonasCatalog.map((z) => (
+                    <SelectItem key={z.keyZona} value={String(z.keyZona)}>
+                      {z.zona}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {zonasError ? (
+                <p className="text-xs text-destructive">{zonasError}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {zonasLoading
+                    ? "Consultando catálogo Inmovilla..."
+                    : zonasCatalog.length === 0
+                      ? "No hay zonas en el catálogo para esta ciudad; se enviará sin zona."
+                      : "Si dejas 'Auto-detectar', se usará la zona del portal cuando coincida con el catálogo."}
+                </p>
+              )}
             </div>
             <div className="space-y-1">
               <Label>Precio inmobiliaria</Label>
@@ -2323,39 +2445,35 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                 }
               />
             </div>
-            <div className="space-y-1 sm:col-span-2">
-              <Label>Título (opcional en alta)</Label>
-              <Input
-                value={captacionForm.tituloes}
-                onChange={(e) =>
-                  setCaptacionForm((prev) => ({ ...prev, tituloes: e.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-1 sm:col-span-2">
-              <Label>Descripción (opcional en alta)</Label>
-              <Textarea
-                value={captacionForm.descripciones}
-                onChange={(e) =>
-                  setCaptacionForm((prev) => ({
-                    ...prev,
-                    descripciones: e.target.value,
-                  }))
-                }
-                rows={4}
-              />
-            </div>
-            <div className="space-y-1 sm:col-span-2">
-              <Label>Fotos (una URL por línea)</Label>
-              <Textarea
-                value={captacionForm.fotosText}
-                onChange={(e) =>
-                  setCaptacionForm((prev) => ({ ...prev, fotosText: e.target.value }))
-                }
-                rows={4}
-                placeholder="https://.../foto1.jpg&#10;https://.../foto2.jpg"
-              />
-            </div>
+            {captacionModalMode === "promocion" && (
+              <>
+                <div className="space-y-1 sm:col-span-2">
+                  <Label>Título (opcional)</Label>
+                  <Input
+                    value={captacionForm.tituloes}
+                    onChange={(e) =>
+                      setCaptacionForm((prev) => ({
+                        ...prev,
+                        tituloes: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <Label>Descripción (opcional)</Label>
+                  <Textarea
+                    value={captacionForm.descripciones}
+                    onChange={(e) =>
+                      setCaptacionForm((prev) => ({
+                        ...prev,
+                        descripciones: e.target.value,
+                      }))
+                    }
+                    rows={4}
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           <DialogFooter>

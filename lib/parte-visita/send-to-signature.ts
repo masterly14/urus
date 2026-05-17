@@ -17,14 +17,15 @@ import { generateSigningToken } from "@/lib/firma/token";
 import { generateParteVisitaPdf } from "./generate-pdf";
 import { resolveComercial } from "@/lib/routing/resolve-comercial";
 import { promoteDraftDemand } from "@/lib/provisionals/promotion";
+import { extractDireccionFromRaw } from "@/lib/nota-encargo/utils";
 
 export async function handleParteVisitaFlowResponse(
   session: ParteVisitaSession,
   formData: Record<string, unknown>,
 ): Promise<void> {
-  const nombreCompleto = String(formData.nombre_completo ?? "");
-  const dni = String(formData.dni ?? "");
-  const telefono = String(formData.telefono ?? "");
+  const nombreCompleto = String(formData.nombre_completo ?? "").trim();
+  const dni = String(formData.dni ?? "").trim().toUpperCase();
+  const telefono = String(formData.telefono ?? "").trim();
   const aceptaLopd =
     formData.acepta_lopd === true || formData.acepta_lopd === "true";
   const signerPhone = telefono || session.buyerPhone;
@@ -63,20 +64,58 @@ export async function handleParteVisitaFlowResponse(
   });
   const agenteName = comercial?.nombre ?? "URUS Capital Group";
 
-  // 2. Generate PDF
+  // Recalcular dirección desde el último snapshot de la propiedad. El campo
+  // `session.direccion` se persistió al PROGRAMAR la visita y puede ser
+  // genérico ("Andalucia, Córdoba") si la propiedad aún no tenía calle/numero
+  // sincronizado en ese momento. Si ahora ya hay datos en el snapshot, los
+  // usamos; si no, mantenemos lo cacheado.
+  let direccionPdf = session.direccion;
+  try {
+    const property = await prisma.propertyCurrent.findUnique({
+      where: { codigo: session.propertyCode },
+      select: { ciudad: true, zona: true },
+    });
+    if (property) {
+      const snapshot = await prisma.propertySnapshot.findFirst({
+        where: { codigo: session.propertyCode },
+        orderBy: { lastSeenAt: "desc" },
+        select: { raw: true },
+      });
+      if (snapshot?.raw && typeof snapshot.raw === "object") {
+        const raw = snapshot.raw as Record<string, unknown>;
+        const direccionDesdeRaw = extractDireccionFromRaw(raw, {
+          ciudad: property.ciudad,
+          zona: property.zona,
+        });
+        if (direccionDesdeRaw && direccionDesdeRaw.trim().length > 0) {
+          direccionPdf = direccionDesdeRaw;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(
+      `[parte-visita] No se pudo recalcular la dirección desde snapshot para ${session.propertyCode}:`,
+      err instanceof Error ? err.message : err,
+    );
+  }
+
+  // 2. Generate PDF — fechas/horas en zona horaria del negocio (Europe/Madrid),
+  // no la del servidor (Vercel = UTC).
+  const horaPdf = session.visitDateTime.toLocaleTimeString("es-ES", {
+    timeZone: "Europe/Madrid",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   const pdfBuffer = await generateParteVisitaPdf({
     nombre: nombreCompleto,
     dni,
     telefono,
-    direccion: session.direccion,
+    direccion: direccionPdf,
     tipoOperacion: session.tipoOperacion as "VENTA" | "ALQUILER",
     precio: session.precio,
     aceptaLopd,
     fecha: session.visitDateTime,
-    hora: session.visitDateTime.toLocaleTimeString("es-ES", {
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
+    hora: horaPdf,
     agente: agenteName,
   });
 

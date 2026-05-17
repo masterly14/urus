@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Card,
@@ -125,6 +126,31 @@ const STAGE_LABEL: Record<PropertyClusterClient["captacionStage"], string> = {
   FAILED: "Error",
 };
 
+const TIMELINE_FIELD_LABELS: Record<string, string> = {
+  status: "estado del anuncio",
+  price: "precio",
+  pricePerMeter: "precio por m²",
+  builtArea: "superficie construida",
+  rooms: "habitaciones",
+  bathrooms: "baños",
+  floor: "planta",
+  city: "ciudad",
+  zone: "zona",
+  addressApprox: "dirección aproximada",
+  lat: "ubicación",
+  lng: "ubicación",
+  geohash: "ubicación",
+  advertiserType: "tipo de anunciante",
+  advertiserName: "nombre del anunciante",
+  phones: "teléfonos de contacto",
+  mainImageUrl: "foto principal",
+  imageUrls: "galería de fotos",
+  qualityScore: "calidad del anuncio",
+  description: "descripción",
+  listingReference: "referencia del anuncio",
+  canonicalUrl: "enlace del anuncio",
+};
+
 function formatPrice(value: number | null): string {
   if (value == null) return "—";
   return new Intl.NumberFormat("es-ES", {
@@ -154,6 +180,43 @@ function relativeTime(iso: string): string {
   if (diff < 3_600_000) return `${Math.round(diff / 60_000)}min`;
   if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h`;
   return `${Math.round(diff / 86_400_000)}d`;
+}
+
+function humanizeTechnicalLabel(value: string): string {
+  const normalized = value
+    .trim()
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .toLowerCase();
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function summarizeChangedFields(payload: unknown, fallbackLabel: string): string | null {
+  const payloadRecord =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : null;
+  const rawChangedFields = payloadRecord?.changedFields;
+  const fallbackFields = fallbackLabel
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const changedFields =
+    Array.isArray(rawChangedFields) && rawChangedFields.length > 0
+      ? rawChangedFields.filter((value): value is string => typeof value === "string")
+      : fallbackFields;
+
+  if (changedFields.length === 0) return null;
+
+  const uniqueLabels = [...new Set(changedFields)].map(
+    (field) => TIMELINE_FIELD_LABELS[field] ?? humanizeTechnicalLabel(field),
+  );
+  const compactLabels = [...new Set(uniqueLabels)];
+  const visible = compactLabels.slice(0, 4).join(", ");
+  const remaining = compactLabels.length - 4;
+  return remaining > 0
+    ? `Se actualizaron ${visible} y ${remaining} más.`
+    : `Se actualizaron ${visible}.`;
 }
 
 function describeTimelineEntry(entry: TimelineEntry): {
@@ -192,11 +255,11 @@ function describeTimelineEntry(entry: TimelineEntry): {
     if (entry.label === "MARKET_PROPERTY_REVIEW_REQUIRED") {
       return { title: "Pendiente de revisión", detail: null };
     }
-    return { title: entry.label, detail: null };
+    return { title: humanizeTechnicalLabel(entry.label), detail: null };
   }
   return {
-    title: "Cambio detectado",
-    detail: entry.label || "version",
+    title: "Datos del anuncio actualizados",
+    detail: summarizeChangedFields(entry.payload, entry.label),
   };
 }
 
@@ -745,11 +808,11 @@ export function PropertyDetail({
                 className="w-full"
                 title="Volver a lista de oportunidades para crear prospecto/alta"
               >
-                <a
+                <Link
                   href={`/platform/captacion/oportunidades?fromPropertyId=${encodeURIComponent(cluster.propertyId)}`}
                 >
                   Crear prospecto / alta
-                </a>
+                </Link>
               </Button>
 
               <Button
@@ -771,10 +834,10 @@ export function PropertyDetail({
                 variant="ghost"
                 className="w-full"
               >
-                <a href="/platform/captacion/oportunidades">
+                <Link href="/platform/captacion/oportunidades">
                   <MapPin className="mr-2 h-4 w-4" />
                   Volver a oportunidades
-                </a>
+                </Link>
               </Button>
             </CardContent>
           </Card>

@@ -28,6 +28,18 @@ interface MatchGeneradoPayload {
   propertyRef?: string;
   totalScore: number;
   matchScore?: Record<string, unknown>;
+  /**
+   * Origen del MATCH_GENERADO. Usado para gobernar canales:
+   * - `auto_demand_creada` / `auto_demand_modificada`: el match se generó
+   *   automáticamente al entrar/modificarse la demanda. El comprador no
+   *   recibe WhatsApp directo (lo recibirá agrupado en el microsite); el
+   *   comercial sí recibe NOTIFY_LEAD_WHATSAPP por match.
+   * - `rematch_manual` / `rematch_inline`: rematch lanzado por CEO/Admin.
+   *   Mantiene el comportamiento legacy (WhatsApp al comprador en caliente).
+   * - undefined: emitido desde el lado-propiedad (PROPIEDAD_CREADA /
+   *   PROPIEDAD_MODIFICADA). Mantiene el comportamiento legacy.
+   */
+  source?: string;
 }
 
 function parsePayload(raw: unknown): MatchGeneradoPayload | null {
@@ -47,6 +59,7 @@ function parsePayload(raw: unknown): MatchGeneradoPayload | null {
       p.matchScore && typeof p.matchScore === "object"
         ? (p.matchScore as Record<string, unknown>)
         : undefined,
+    source: typeof p.source === "string" ? p.source : undefined,
   };
 }
 
@@ -63,8 +76,21 @@ export async function handleMatchGenerado(
 
   const { demandId, propertyId, totalScore } = payload;
 
+  /**
+   * Los matches generados desde el lado-demanda (DEMANDA_CREADA /
+   * DEMANDA_MODIFICADA via `MATCH_DEMAND_AGAINST_INTERNAL`) no envían
+   * WhatsApp directo al comprador. El flujo canónico para el comprador
+   * es: mensaje inicial NLU → microsite agrupado tras validación. Si
+   * mandáramos `sendMatchWhatsAppHot` aquí, una demanda con 20 cruces
+   * generaría 20 WhatsApps al comprador, pisando la conversación NLU
+   * y rompiendo el patrón de microsite.
+   */
+  const isAutoFromDemandSide =
+    typeof payload.source === "string" &&
+    payload.source.startsWith("auto_demand_");
+
   console.log(
-    `[consumer:match] MATCH_GENERADO demandId=${demandId} propertyId=${propertyId} score=${totalScore}`,
+    `[consumer:match] MATCH_GENERADO demandId=${demandId} propertyId=${propertyId} score=${totalScore} source=${payload.source ?? "(legacy)"}`,
   );
 
   const followUpJobs: EnqueueJobInput[] = [];
@@ -106,34 +132,40 @@ export async function handleMatchGenerado(
     });
   }
 
-  const buyerPhone = demand?.telefono?.trim();
-  if (buyerPhone) {
-    const buyerName = demand?.nombre ?? payload.demandNombre ?? "comprador";
-    const sendResult = await sendMatchWhatsAppHot({
-      matchEventId: event.id,
-      demandId,
-      propertyId,
-      buyerPhone,
-      buyerName,
-      source: "consumer:match",
-    });
-
-    if (!sendResult.ok) {
-      console.error(
-        `[consumer:match] fallo enviando WhatsApp en caliente demanda=${demandId} property=${propertyId} event=${event.id}: ${sendResult.error}`,
-      );
-      // Devolvemos error para que el PROCESS_EVENT se reintente; la
-      // idempotencia por causationId evita duplicar el envío al comprador.
-      return { success: false, error: sendResult.error ?? "Error enviando WhatsApp" };
-    }
-
+  if (isAutoFromDemandSide) {
     console.log(
-      `[consumer:match] WhatsApp ${sendResult.alreadySent ? "ya enviado" : "enviado en caliente"} a demanda=${demandId} property=${propertyId} wamid=${sendResult.wamid ?? "N/A"}`,
+      `[consumer:match] omitido WhatsApp al comprador demandId=${demandId} property=${propertyId} (source=${payload.source}); flujo canónico vía microsite agrupado`,
     );
   } else {
-    console.log(
-      `[consumer:match] Sin teléfono de comprador para demanda=${demandId} — solo notificación al comercial`,
-    );
+    const buyerPhone = demand?.telefono?.trim();
+    if (buyerPhone) {
+      const buyerName = demand?.nombre ?? payload.demandNombre ?? "comprador";
+      const sendResult = await sendMatchWhatsAppHot({
+        matchEventId: event.id,
+        demandId,
+        propertyId,
+        buyerPhone,
+        buyerName,
+        source: "consumer:match",
+      });
+
+      if (!sendResult.ok) {
+        console.error(
+          `[consumer:match] fallo enviando WhatsApp en caliente demanda=${demandId} property=${propertyId} event=${event.id}: ${sendResult.error}`,
+        );
+        // Devolvemos error para que el PROCESS_EVENT se reintente; la
+        // idempotencia por causationId evita duplicar el envío al comprador.
+        return { success: false, error: sendResult.error ?? "Error enviando WhatsApp" };
+      }
+
+      console.log(
+        `[consumer:match] WhatsApp ${sendResult.alreadySent ? "ya enviado" : "enviado en caliente"} a demanda=${demandId} property=${propertyId} wamid=${sendResult.wamid ?? "N/A"}`,
+      );
+    } else {
+      console.log(
+        `[consumer:match] Sin teléfono de comprador para demanda=${demandId} — solo notificación al comercial`,
+      );
+    }
   }
 
   return { success: true, followUpJobs };

@@ -18,10 +18,12 @@ type SkipReason =
   | "opt_out"
   | "recent_session";
 
-type InitialContactSource =
+export type InitialContactSource =
   | "auto_demand_creada"
+  | "auto_demand_modificada_phone"
   | "manual_ui"
-  | "script_dry_run";
+  | "script_dry_run"
+  | "backfill";
 
 type InitialContactTriggeredBy = {
   userId?: string;

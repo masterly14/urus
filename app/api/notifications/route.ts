@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest, unauthorized, isCeoOrAdmin, type AppRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { isUserFacingNotification } from "@/lib/notifications/visibility";
 
 const MAX_NOTIFICATIONS = 50;
 
@@ -52,7 +53,10 @@ export async function GET(request: Request) {
     eventType: n.eventType,
   }));
 
-  return NextResponse.json({ ok: true, notifications: mapped });
+  return NextResponse.json({
+    ok: true,
+    notifications: mapped.filter(isUserFacingNotification),
+  });
 }
 
 /**

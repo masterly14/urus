@@ -73,3 +73,35 @@ export function buildMainPhotoUrlFromRaw(
     host: options?.host,
   });
 }
+
+/**
+ * Construye URLs de galería (tamaño completo) para todas las fotos disponibles
+ * según `numfotos` en el payload REST de Inmovilla.
+ */
+export function buildInmovillaPhotoUrlsFromRaw(
+  raw: Record<string, unknown>,
+  options?: { size?: InmovillaPhotoSize; host?: string; maxPhotos?: number },
+): string[] {
+  const numfotos = Number(raw.numfotos ?? 0);
+  if (!Number.isFinite(numfotos) || numfotos <= 0) return [];
+
+  const maxPhotos = Math.min(
+    Math.max(1, options?.maxPhotos ?? 30),
+    Math.floor(numfotos),
+  );
+  const codOfer = (raw.cod_ofer as string | number | undefined) ?? "";
+  const base = {
+    numagencia: raw.numagencia as string | number | undefined,
+    fotoletra: raw.fotoletra as string | number | undefined,
+    codOfer,
+    size: options?.size ?? "full",
+    host: options?.host,
+  };
+
+  const urls: string[] = [];
+  for (let index = 1; index <= maxPhotos; index += 1) {
+    const url = buildInmovillaPhotoUrl({ ...base, index });
+    if (url) urls.push(url);
+  }
+  return urls;
+}

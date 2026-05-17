@@ -1,5 +1,8 @@
 import type { InmovillaSession } from "../auth/types";
 import { createInmovillaClient } from "./client";
+import { createInmovillaRestClient } from "../rest/client";
+import { getClient, searchClient } from "../rest/clients";
+import type { Cliente } from "../rest/types";
 import type {
   InmovillaDemand,
   InmovillaDemandRaw,
@@ -21,6 +24,12 @@ export type DemandFichaEnrichConfig = {
   concurrency: number;
 };
 
+export type DemandPhoneReconcileConfig = {
+  enabled: boolean;
+  maxLookups: number;
+  delayMs: number;
+};
+
 /**
  * INMOVILLA_DEMAND_FICHA_ENRICH: 0|false desactiva. 1 o vacío: solo si falta refConsultada.
  * 2|identifiers: también si faltan siglas o inmovillaAgentId.
@@ -36,6 +45,33 @@ export function readDemandFichaEnrichConfig(): DemandFichaEnrichConfig {
   const n = Number(process.env.INMOVILLA_DEMAND_FICHA_CONCURRENCY ?? "4");
   const concurrency = Number.isFinite(n) ? Math.min(8, Math.max(1, n)) : 4;
   return { enabled: true, mode, concurrency };
+}
+
+/**
+ * Reconciliación de teléfono por REST v1:
+ * - Solo se ejecuta para demandas cuyo listado legacy no trae telefono1/2.
+ * - Consulta clientes por keycli y, si no hay teléfono, busca por email.
+ * - Por defecto se limita a 20 demandas por ciclo y 3500ms entre llamadas para
+ *   respetar el límite documentado de clientes (20/min) sin alargar demasiado
+ *   el cron de ingesta.
+ */
+export function readDemandPhoneReconcileConfig(): DemandPhoneReconcileConfig {
+  const raw = process.env.INMOVILLA_DEMAND_PHONE_RECONCILE ?? "1";
+  const token = process.env.INMOVILLA_API_TOKEN?.trim();
+  if (!token || raw === "0" || raw === "false") {
+    return { enabled: false, maxLookups: 0, delayMs: 0 };
+  }
+
+  const maxLookupsRaw = Number(process.env.INMOVILLA_DEMAND_PHONE_RECONCILE_MAX ?? "20");
+  const delayRaw = Number(process.env.INMOVILLA_DEMAND_PHONE_RECONCILE_DELAY_MS ?? "3500");
+
+  return {
+    enabled: true,
+    maxLookups: Number.isFinite(maxLookupsRaw)
+      ? Math.min(50, Math.max(0, Math.floor(maxLookupsRaw)))
+      : 20,
+    delayMs: Number.isFinite(delayRaw) ? Math.max(0, Math.floor(delayRaw)) : 3500,
+  };
 }
 
 function demandNeedsFichaEnrich(
@@ -144,6 +180,10 @@ async function enrichDemandsWithFichaCliente(
   return demands;
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function buildParamJson(posicion: number): string {
   return JSON.stringify({
     general: {
@@ -174,19 +214,141 @@ function buildParamJson(posicion: number): string {
   });
 }
 
+function digits(value: unknown): string {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
+function joinPrefixAndPhone(prefixValue: unknown, phoneValue: unknown): string {
+  const prefix = digits(prefixValue);
+  const phone = digits(phoneValue);
+  if (!phone || phone.length < 7) return "";
+  if (!prefix) return phone;
+  return `${prefix}${phone}`;
+}
+
+function firstUsablePhone(candidates: unknown[]): string | undefined {
+  return candidates
+    .map(digits)
+    .find((value) => value.length >= 7);
+}
+
+function phoneFromCliente(cliente: Cliente): string | undefined {
+  return firstUsablePhone([
+    joinPrefixAndPhone(cliente.prefijotel2, cliente.telefono2),
+    joinPrefixAndPhone(cliente.prefijotel1, cliente.telefono1),
+    joinPrefixAndPhone(cliente.prefijotel3, cliente.telefono3),
+    cliente.telefono2,
+    cliente.telefono1,
+    cliente.telefono3,
+  ]);
+}
+
+function firstCliente(value: Cliente | Cliente[] | null | undefined): Cliente | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function legacyDemandKeycli(demand: InmovillaDemand): number | null {
+  const raw = demand.raw ?? {};
+  const value = raw.keycli ?? raw["clientes-cod_cli"] ?? raw.cod_cli;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function legacyDemandEmail(demand: InmovillaDemand): string | null {
+  const raw = demand.raw ?? {};
+  const value = raw.email ?? raw["clientes-email"];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+async function reconcileDemandPhonesFromRest(
+  demands: InmovillaDemand[],
+  config: DemandPhoneReconcileConfig,
+): Promise<InmovillaDemand[]> {
+  if (!config.enabled || config.maxLookups <= 0) return demands;
+
+  const missing = demands.filter((d) => !d.telefono);
+  if (missing.length === 0) return demands;
+
+  const toLookup = missing
+    .filter((d) => legacyDemandKeycli(d) !== null || legacyDemandEmail(d) !== null)
+    .slice(0, config.maxLookups);
+
+  if (toLookup.length === 0) return demands;
+
+  console.log(
+    `[demands] Reconciliando teléfonos vía REST clientes: ${toLookup.length}/${missing.length} demandas sin teléfono (delay=${config.delayMs}ms)`,
+  );
+
+  const rest = createInmovillaRestClient();
+  const indexByCodigo = new Map(demands.map((d, i) => [d.codigo, i]));
+  let recovered = 0;
+
+  for (const demand of toLookup) {
+    if (config.delayMs > 0) await delay(config.delayMs);
+
+    try {
+      let source = "";
+      let phone: string | undefined;
+      const keycli = legacyDemandKeycli(demand);
+
+      if (keycli !== null) {
+        const cliente = firstCliente(await getClient(rest, keycli));
+        if (cliente) {
+          phone = phoneFromCliente(cliente);
+          if (phone) source = "rest:clientes:cod_cli";
+        }
+      }
+
+      if (!phone) {
+        const email = legacyDemandEmail(demand);
+        if (email) {
+          if (config.delayMs > 0) await delay(config.delayMs);
+          const matches = await searchClient(rest, { email });
+          const cliente = matches.find((c) => String(c.cod_cli) === String(keycli))
+            ?? matches[0];
+          if (cliente) {
+            phone = phoneFromCliente(cliente);
+            if (phone) source = "rest:clientes:buscar-email";
+          }
+        }
+      }
+
+      if (!phone) continue;
+
+      const idx = indexByCodigo.get(demand.codigo);
+      if (idx === undefined) continue;
+
+      demands[idx] = {
+        ...demand,
+        telefono: phone,
+        raw: {
+          ...(demand.raw ?? {}),
+          telefono_reconciliado: phone,
+          telefono_reconciliado_fuente: source,
+        },
+      };
+      recovered++;
+    } catch (err) {
+      console.warn(
+        `[demands] Reconciliación teléfono falló codigo=${demand.codigo} — se mantiene listado`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
+  if (recovered > 0) {
+    console.log(`[demands] Teléfonos recuperados vía REST clientes: ${recovered}/${toLookup.length}`);
+  }
+
+  return demands;
+}
+
 function normalizeDemand(raw: InmovillaDemandRaw): InmovillaDemand {
   const map: Record<string, unknown> = {};
   for (const f of raw.fields) {
     map[f.campo] = f.value;
   }
-
-  const joinPrefixAndPhone = (prefixValue: unknown, phoneValue: unknown): string => {
-    const prefix = String(prefixValue ?? "").replace(/\D/g, "");
-    const phone = String(phoneValue ?? "").replace(/\D/g, "");
-    if (!phone || phone.length < 7) return "";
-    if (!prefix) return phone;
-    return `${prefix}${phone}`;
-  };
 
   // keyagente, keycomercial y userid son todos el ID numérico del agente en Inmovilla.
   // Tomamos el primero que sea un número entero válido.
@@ -216,23 +378,17 @@ function normalizeDemand(raw: InmovillaDemandRaw): InmovillaDemand {
   const rawTel1 = String(map["telefono1_raw"] ?? "").trim();
   const composedTel2 = joinPrefixAndPhone(map["prefijotel2"], map["telefono2"]);
   const composedTel1 = joinPrefixAndPhone(map["prefijotel1"], map["telefono1"]);
-  const plainTel2 = String(map["telefono2"] ?? "").replace(/\D/g, "");
-  const plainTel1 = String(map["telefono1"] ?? "").replace(/\D/g, "");
+  const plainTel2 = digits(map["telefono2"]);
+  const plainTel1 = digits(map["telefono1"]);
 
-  const candidates = [
+  const telefono = firstUsablePhone([
     rawTel2,
     composedTel2,
     plainTel2,
     rawTel1,
     composedTel1,
     plainTel1,
-  ].map((v) => String(v).trim());
-
-  const bestPhone = candidates.find((value) => value.replace(/\D/g, "").length >= 7);
-  const telefono =
-    bestPhone && bestPhone.replace(/\D/g, "").length >= 7
-      ? bestPhone
-      : undefined;
+  ]);
 
   return {
     codigo: String(map["codigo"] ?? map["cod_dem"] ?? map["keydem"] ?? ""),
@@ -267,7 +423,10 @@ function normalizeDemand(raw: InmovillaDemandRaw): InmovillaDemand {
 
 export async function fetchAllDemands(
   session: InmovillaSession,
-  options?: { fichaEnrich?: DemandFichaEnrichConfig },
+  options?: {
+    fichaEnrich?: DemandFichaEnrichConfig;
+    phoneReconcile?: DemandPhoneReconcileConfig;
+  },
 ): Promise<InmovillaDemand[]> {
   const client = createInmovillaClient(session);
   const all: InmovillaDemand[] = [];
@@ -314,6 +473,11 @@ export async function fetchAllDemands(
   const enrichCfg = options?.fichaEnrich ?? readDemandFichaEnrichConfig();
   if (enrichCfg.enabled) {
     await enrichDemandsWithFichaCliente(session, all, enrichCfg);
+  }
+
+  const phoneReconcileCfg = options?.phoneReconcile ?? readDemandPhoneReconcileConfig();
+  if (phoneReconcileCfg.enabled) {
+    await reconcileDemandPhonesFromRest(all, phoneReconcileCfg);
   }
 
   return all;

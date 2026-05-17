@@ -887,10 +887,26 @@ import { handleEvaluateDemandCoverage } from "./coverage-handler";
 
 registerJobHandler("EVALUATE_DEMAND_COVERAGE", handleEvaluateDemandCoverage);
 
+// --- NLU primer contacto (M5): job dedicado para evitar race condition con la
+//     proyección de DemandCurrent. Idempotente por demanda.
+import { handleStartNluInitialContact } from "./nlu-initial-contact-job-handler";
+
+registerJobHandler("START_NLU_INITIAL_CONTACT", handleStartNluInitialContact);
+
 // --- Matching (M5): rematch masivo por demanda ---
 import { handleRebuildMatchesForDemand } from "./rebuild-matches-handler";
 
 registerJobHandler("REBUILD_MATCHES_FOR_DEMAND", handleRebuildMatchesForDemand);
+
+// --- Matching (M5): cruce automático demanda → cartera interna al entrar
+//     DEMANDA_CREADA / DEMANDA_MODIFICADA con criterios duros. Idempotencia
+//     por evento + dedup |Δscore|<5 vs MATCH_GENERADO previo por par.
+import { handleMatchDemandAgainstInternal } from "./match-demand-internal-job-handler";
+
+registerJobHandler(
+  "MATCH_DEMAND_AGAINST_INTERNAL",
+  handleMatchDemandAgainstInternal,
+);
 
 // --- Operaciones v2 (M11): escritura REST de estado de propiedad en Inmovilla ---
 import { handleUpdatePropertyStatusInmovilla } from "@/lib/operacion/inmovilla-property-status-handler";

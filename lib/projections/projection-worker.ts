@@ -6,8 +6,10 @@ import type {
   ProjectionWorkerConfig,
   ProjectionCycleResult,
   ProjectionLoopResult,
+  ProjectionApplyResult,
 } from "./types";
 import { PROJECTION_JOB_TYPES } from "./types";
+import type { EventRecord } from "@/lib/event-store/types";
 
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
 const DEFAULT_BATCH_SIZE = 20;
@@ -139,6 +141,41 @@ async function updateCheckpoint(
     console.error(`[projection-worker] Error actualizando checkpoint: ${msg}`);
     throw err;
   }
+}
+
+/**
+ * Aplica la proyeccion de demanda de forma sincrona y actualiza el checkpoint.
+ *
+ * Diseñada para llamarse desde el consumer de eventos (handler de
+ * DEMANDA_CREADA / DEMANDA_MODIFICADA / ...) antes de encolar side-effects que
+ * dependen de leer `demand_current`. Elimina la race condition entre el handler
+ * del evento y el worker de proyeccion.
+ *
+ * Si la aplicacion falla, no se actualiza el checkpoint y el caller debe
+ * decidir si propagar el error o reintentar.
+ */
+export async function applyDemandProjectionInline(
+  event: EventRecord,
+): Promise<ProjectionApplyResult> {
+  const result = await applyDemandProjection(event);
+  if (result.success) {
+    try {
+      await updateCheckpoint(
+        "UPDATE_DEMAND_PROJECTION",
+        event.id,
+        event.position,
+        event.occurredAt,
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        aggregateId: event.aggregateId,
+        error: `checkpoint update failed: ${msg}`,
+      };
+    }
+  }
+  return result;
 }
 
 export async function runProjectionLoop(

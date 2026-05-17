@@ -17,7 +17,7 @@ import { handleFirmaEnviada } from "./firma-enviada-handler";
 import { handleSeleccionComprador } from "./seleccion-comprador-handler";
 import { handleMatchGenerado } from "./match-generado-handler";
 import { handleDemandaReperfiladoSolicitado } from "./demanda-reperfilado-handler";
-import { handleDemandaCreadaNluInitialContact } from "./nlu-initial-contact-handler";
+import { applyDemandProjectionInline } from "@/lib/projections/projection-worker";
 import { handleContratoAprobado } from "./contrato-aprobado-handler";
 import { handleContratoVersionado } from "./contrato-versionado-handler";
 import { handleFirmaSlaEscalado } from "./firma-sla-escalado-handler";
@@ -103,28 +103,90 @@ function propertyHandler(
   };
 }
 
-function demandHandler(
-  jobType: "UPDATE_DEMAND_PROJECTION",
-): EventHandler {
-  return async (event: Event): Promise<HandlerResult> => {
-    console.log(
-      `[consumer] ${event.type} aggregateId=${event.aggregateId} → ${jobType}`,
+/**
+ * Aplica la proyección de DemandCurrent inline (síncrona) para los eventos
+ * canónicos de demanda. Es prerrequisito de los jobs downstream que leen
+ * `demand_current` (START_NLU_INITIAL_CONTACT, MATCH_DEMAND_AGAINST_INTERNAL,
+ * EVALUATE_DEMAND_COVERAGE). Si falla, no se encolan side-effects.
+ *
+ * El job UPDATE_DEMAND_PROJECTION queda intacto y se sigue ejecutando en
+ * flujos legacy/externos (microsite, market). Esta función es la nueva ruta
+ * para los eventos canónicos de demanda emitidos por el ingestion worker.
+ */
+async function applyDemandProjectionOnly(event: Event): Promise<HandlerResult> {
+  const projection = await applyDemandProjectionInline(event);
+  if (!projection.success) {
+    console.error(
+      `[consumer] ${event.type} aggregateId=${event.aggregateId} — proyección inline falló: ${projection.error}`,
     );
+    return { success: false, error: projection.error };
+  }
 
-    const followUpJobs: EnqueueJobInput[] = [
-      buildProjectionJob(event.id, jobType),
-    ];
+  console.log(
+    `[consumer] ${event.type} aggregateId=${event.aggregateId} → proyección inline OK`,
+  );
 
-    if (event.type !== "DEMANDA_ELIMINADA") {
-      followUpJobs.push({
-        type: "EVALUATE_DEMAND_COVERAGE",
-        payload: { demandId: event.aggregateId, sourceEventId: event.id },
-        idempotencyKey: `evaluate_coverage:demand:${event.id}`,
-        sourceEventId: event.id,
-      });
-    }
+  return { success: true, followUpJobs: [] };
+}
 
-    return { success: true, followUpJobs };
+function buildStartNluInitialContactJob(
+  event: Event,
+  source: "auto_demand_creada" | "auto_demand_modificada_phone",
+): EnqueueJobInput {
+  return {
+    type: "START_NLU_INITIAL_CONTACT",
+    payload: {
+      demandId: event.aggregateId,
+      source,
+      causationId: event.id,
+      correlationId: event.correlationId ?? null,
+    },
+    idempotencyKey: `nlu_initial_contact:${event.id}`,
+    sourceEventId: event.id,
+  };
+}
+
+/**
+ * Campos de `demand_current` cuyo cambio justifica re-cruzar la demanda
+ * contra la cartera interna. Si los `changedFields` de DEMANDA_MODIFICADA
+ * no intersectan este set, basta con re-evaluar cobertura sin pasar por
+ * el cruce completo (más caro).
+ */
+const MATCHING_RELEVANT_DEMAND_FIELDS = new Set<string>([
+  "presupuestoMin",
+  "presupuestoMax",
+  "habitacionesMin",
+  "tipos",
+  "zonas",
+  "metrosMin",
+  "metrosMax",
+  "tipoOperacion",
+]);
+
+function buildMatchInternalJob(
+  event: Event,
+  source: "auto_demand_creada" | "auto_demand_modificada",
+): EnqueueJobInput {
+  return {
+    type: "MATCH_DEMAND_AGAINST_INTERNAL",
+    payload: {
+      demandId: event.aggregateId,
+      source,
+      sourceEventId: event.id,
+      causationId: event.id,
+      correlationId: event.correlationId ?? null,
+    },
+    idempotencyKey: `match_internal:${event.id}`,
+    sourceEventId: event.id,
+  };
+}
+
+function buildEvaluateCoverageJob(event: Event): EnqueueJobInput {
+  return {
+    type: "EVALUATE_DEMAND_COVERAGE",
+    payload: { demandId: event.aggregateId, sourceEventId: event.id },
+    idempotencyKey: `evaluate_coverage:demand:${event.id}`,
+    sourceEventId: event.id,
   };
 }
 
@@ -204,23 +266,82 @@ registerHandler("PROPIEDAD_ELIMINADA", handlePropertyRemovedWithCoverage);
 registerHandler("ESTADO_CAMBIADO", handleEstadoCambiado);
 
 // --- Demand handlers ---
+// La proyección de DemandCurrent se aplica inline (síncrona) dentro del handler
+// para que los jobs downstream (MATCH_DEMAND_AGAINST_INTERNAL,
+// START_NLU_INITIAL_CONTACT, EVALUATE_DEMAND_COVERAGE) puedan leer
+// `demand_current` ya consistente cuando se ejecuten. Si la proyección
+// fallara, no se encolan side-effects.
+//
+// El cruce interno (MATCH_DEMAND_AGAINST_INTERNAL) lleva en su payload de
+// follow-up un EVALUATE_DEMAND_COVERAGE con bestScoreOverride, así que el
+// handler de la demanda no necesita encolar cobertura por separado cuando
+// emite el cruce.
 registerHandler("DEMANDA_CREADA", async (event) => {
-  const projection = await demandHandler("UPDATE_DEMAND_PROJECTION")(event);
-  if (!projection.success) return projection;
-  const nlu = await handleDemandaCreadaNluInitialContact(event);
+  const base = await applyDemandProjectionOnly(event);
+  if (!base.success) return base;
+
   return {
-    success: nlu.success,
-    error: nlu.error,
-    permanent: nlu.permanent,
+    success: true,
     followUpJobs: [
-      ...(projection.followUpJobs ?? []),
-      ...(nlu.followUpJobs ?? []),
+      buildMatchInternalJob(event, "auto_demand_creada"),
+      buildStartNluInitialContactJob(event, "auto_demand_creada"),
     ],
   };
 });
-registerHandler("DEMANDA_MODIFICADA", demandHandler("UPDATE_DEMAND_PROJECTION"));
-registerHandler("DEMANDA_ESTADO_CAMBIADO", demandHandler("UPDATE_DEMAND_PROJECTION"));
-registerHandler("DEMANDA_ELIMINADA", demandHandler("UPDATE_DEMAND_PROJECTION"));
+
+registerHandler("DEMANDA_MODIFICADA", async (event) => {
+  const base = await applyDemandProjectionOnly(event);
+  if (!base.success) return base;
+
+  const payload = event.payload as {
+    after?: { telefono?: string };
+    changedFields?: string[];
+  } | null;
+  const changedFields = Array.isArray(payload?.changedFields)
+    ? (payload.changedFields as string[])
+    : [];
+  const phoneNow = (payload?.after?.telefono ?? "").trim();
+  const phoneAppeared = changedFields.includes("telefono") && phoneNow.length > 0;
+  const matchingFieldChanged = changedFields.some((f) =>
+    MATCHING_RELEVANT_DEMAND_FIELDS.has(f),
+  );
+
+  const followUpJobs: EnqueueJobInput[] = [];
+
+  if (matchingFieldChanged) {
+    console.log(
+      `[consumer] DEMANDA_MODIFICADA aggregateId=${event.aggregateId} — criterios duros cambiaron (${changedFields.filter((f) => MATCHING_RELEVANT_DEMAND_FIELDS.has(f)).join(",")}), encolando MATCH_DEMAND_AGAINST_INTERNAL`,
+    );
+    followUpJobs.push(buildMatchInternalJob(event, "auto_demand_modificada"));
+  } else {
+    // Sin cambios en criterios duros, evaluamos cobertura directamente.
+    followUpJobs.push(buildEvaluateCoverageJob(event));
+  }
+
+  if (phoneAppeared) {
+    console.log(
+      `[consumer] DEMANDA_MODIFICADA aggregateId=${event.aggregateId} — telefono apareció en changedFields, encolando START_NLU_INITIAL_CONTACT`,
+    );
+    followUpJobs.push(
+      buildStartNluInitialContactJob(event, "auto_demand_modificada_phone"),
+    );
+  }
+
+  return { success: true, followUpJobs };
+});
+
+registerHandler("DEMANDA_ESTADO_CAMBIADO", async (event) => {
+  const base = await applyDemandProjectionOnly(event);
+  if (!base.success) return base;
+  return {
+    success: true,
+    followUpJobs: [buildEvaluateCoverageJob(event)],
+  };
+});
+
+registerHandler("DEMANDA_ELIMINADA", async (event) => {
+  return applyDemandProjectionOnly(event);
+});
 
 // --- Lead scoring + SLA ---
 registerHandler("LEAD_INGESTADO", handleLeadIngestado);

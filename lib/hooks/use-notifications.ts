@@ -5,6 +5,7 @@ import useSWR from "swr";
 import type { Channel } from "pusher-js";
 import type { AppNotification } from "@/lib/mock-data/types";
 import { useAppSession } from "@/lib/hooks/use-session";
+import { isUserFacingNotification } from "@/lib/notifications/visibility";
 
 /** Máximo de notificaciones en cliente y en GET /api/notifications (debe coincidir con la lista del panel). */
 export const MAX_NOTIFICATIONS = 50;
@@ -63,6 +64,7 @@ export function useNotifications() {
         channels.push(channel);
 
         channel.bind(PUSHER_EVENT_NAME, (data: AppNotification) => {
+          if (!isUserFacingNotification(data)) return;
           setPusherNotifications((prev) => {
             if (prev.some((n) => n.id === data.id)) return prev;
             return [data, ...prev].slice(0, MAX_NOTIFICATIONS);
@@ -157,6 +159,7 @@ function mergeNotifications(
   const merged: AppNotification[] = [];
 
   for (const n of [...pusher, ...initial]) {
+    if (!isUserFacingNotification(n)) continue;
     if (seen.has(n.id)) continue;
     seen.add(n.id);
     merged.push(n);

@@ -51,18 +51,36 @@ export async function handleEvaluateDemandCoverage(
     return { success: true };
   }
 
-  const result = await evaluateDemandCoverage(demandId);
+  /**
+   * Si el job viene encadenado tras `MATCH_DEMAND_AGAINST_INTERNAL`, el handler
+   * previo ya cruzó la cartera interna y conoce el `bestScore`. Lo pasa en el
+   * payload para evitar repetir la operación (O(propiedades) por evento).
+   */
+  const bestScoreOverride =
+    typeof payload.bestScoreOverride === "number"
+      ? (payload.bestScoreOverride as number)
+      : null;
 
-  if (!result) {
+  let bestScore: number;
+  if (bestScoreOverride !== null) {
+    bestScore = bestScoreOverride;
     console.log(
-      `[coverage] job ${job.id} demandId=${demandId} — demanda no encontrada, skip`,
+      `[coverage] job ${job.id} demandId=${demandId} — usando bestScoreOverride=${bestScore} (sin recomputar cruce interno)`,
     );
-    return { success: true };
+  } else {
+    const result = await evaluateDemandCoverage(demandId);
+    if (!result) {
+      console.log(
+        `[coverage] job ${job.id} demandId=${demandId} — demanda no encontrada, skip`,
+      );
+      return { success: true };
+    }
+    bestScore = result.bestScore;
   }
 
-  if (result.bestScore >= COVERAGE_MIN_SCORE) {
+  if (bestScore >= COVERAGE_MIN_SCORE) {
     console.log(
-      `[coverage] job ${job.id} demandId=${demandId} — decision=covered bestScore=${result.bestScore} (>= ${COVERAGE_MIN_SCORE})`,
+      `[coverage] job ${job.id} demandId=${demandId} — decision=covered bestScore=${bestScore} (>= ${COVERAGE_MIN_SCORE})`,
     );
     return { success: true };
   }
@@ -70,7 +88,7 @@ export async function handleEvaluateDemandCoverage(
   const hasDuplicate = await hasRecentCoverageSelection(demandId);
   if (hasDuplicate) {
     console.log(
-      `[coverage] job ${job.id} demandId=${demandId} — decision=dedup_skip bestScore=${result.bestScore} (selección de coverage reciente existe)`,
+      `[coverage] job ${job.id} demandId=${demandId} — decision=dedup_skip bestScore=${bestScore} (selección de coverage reciente existe)`,
     );
     return { success: true };
   }
@@ -78,10 +96,10 @@ export async function handleEvaluateDemandCoverage(
   const comercial = await resolveComercialByDemand(demandId);
   const comercialId = comercial?.id ?? "system";
 
-  const reason = result.bestScore === 0 ? "zero_matches" : "low_score";
+  const reason = bestScore === 0 ? "zero_matches" : "low_score";
 
   console.log(
-    `[coverage] job ${job.id} demandId=${demandId} — decision=enqueued_microsite bestScore=${result.bestScore} reason=${reason} comercialId=${comercialId}`,
+    `[coverage] job ${job.id} demandId=${demandId} — decision=enqueued_microsite bestScore=${bestScore} reason=${reason} comercialId=${comercialId}`,
   );
 
   return {
@@ -95,7 +113,7 @@ export async function handleEvaluateDemandCoverage(
           source: "coverage_scan",
           notifyOnEmpty: false,
           coverageReason: reason,
-          coverageBestScore: result.bestScore,
+          coverageBestScore: bestScore,
           sourceEventId: sourceEventId ?? null,
         } as unknown as JsonValue,
         idempotencyKey: `generate_microsite:coverage:${demandId}:${sourceEventId ?? job.id}`,

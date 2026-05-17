@@ -380,7 +380,7 @@ async function buildProspectPayload(
     numero: input.numero,
     planta: input.planta != null ? Number(input.planta) : undefined,
     key_zona: keyZona ?? undefined,
-    fotos: input.fotos,
+    fotos: input.fotos ?? buildFotosFromListing(listing.imageUrls),
   };
 
   return { payload, ref };
@@ -431,10 +431,32 @@ async function buildPromotePatch(
     calle: input.calle ?? listing.addressApprox ?? undefined,
     numero: input.numero,
     planta: input.planta != null ? Number(input.planta) : undefined,
-    fotos: input.fotos,
+    fotos: input.fotos ?? buildFotosFromListing(listing.imageUrls),
     tituloes: input.tituloes,
     descripciones: input.descripciones,
   };
+}
+
+/**
+ * Construye el record `fotos` que Inmovilla espera a partir de la galería ya
+ * capturada en el listing (scraping del portal). Sólo se usa cuando el
+ * comercial no envía fotos manualmente; en ese caso las del portal son la
+ * fuente correcta para no obligar al comercial a republicarlas a mano.
+ *
+ * Devuelve `undefined` si no hay fotos para no enviar la clave (mantiene el
+ * payload limpio y compatible con la API de Inmovilla).
+ */
+function buildFotosFromListing(
+  imageUrls: string[] | null | undefined,
+): Record<string, { url: string; posicion: number }> | undefined {
+  if (!imageUrls || imageUrls.length === 0) return undefined;
+  const out: Record<string, { url: string; posicion: number }> = {};
+  imageUrls.forEach((url, idx) => {
+    if (typeof url !== "string" || url.trim().length === 0) return;
+    const position = idx + 1;
+    out[String(position)] = { url, posicion: position };
+  });
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 function mapOperationToKeyAcci(operation: string): number {
