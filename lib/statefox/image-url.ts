@@ -11,6 +11,7 @@ const ALLOWED_STATEFOX_IMAGE_SUFFIXES = [
   ".idealista.com",
   ".fotocasa.es",
   ".pisos.com",
+  ".imghs.net",
   ".habitaclia.com",
 ];
 

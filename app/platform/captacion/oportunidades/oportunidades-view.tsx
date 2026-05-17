@@ -108,6 +108,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { proxiedStatefoxImageUrl } from "@/lib/statefox/image-url";
 import { MOCK_LISTINGS } from "./mock";
 import type {
   ClusterPortalEntry,
@@ -1720,7 +1721,7 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                           title="Ver foto a tamaño grande"
                         >
                           <img
-                            src={row.mainImageUrl}
+                            src={proxiedStatefoxImageUrl(row.mainImageUrl)}
                             alt={`Anuncio ${row.id}`}
                             className="h-full w-full object-cover transition-transform group-hover:scale-105"
                             loading="lazy"
@@ -1942,7 +1943,7 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                 <div>
                   {selectedListing.mainImageUrl ? (
                     <img
-                      src={selectedListing.mainImageUrl}
+                      src={proxiedStatefoxImageUrl(selectedListing.mainImageUrl)}
                       alt={`Anuncio ${selectedListing.id}`}
                       className="h-40 w-full rounded object-cover"
                       loading="lazy"
@@ -2023,7 +2024,7 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                         title="Ver foto a tamaño grande"
                       >
                         <img
-                          src={url}
+                          src={proxiedStatefoxImageUrl(url)}
                           alt={`Foto ${idx + 1}`}
                           className="h-full w-full object-cover transition-transform group-hover:scale-105"
                           loading="lazy"
@@ -2396,7 +2397,7 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
           <div className="relative flex h-[90vh] w-full items-center justify-center">
             {lightboxImages.length > 0 ? (
               <img
-                src={lightboxImages[lightboxIndex]}
+                src={proxiedStatefoxImageUrl(lightboxImages[lightboxIndex] ?? "")}
                 alt={`Foto ${lightboxIndex + 1} de ${lightboxImages.length}`}
                 className="max-h-[90vh] max-w-full object-contain"
                 referrerPolicy="no-referrer"
