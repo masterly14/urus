@@ -19,9 +19,21 @@ import type {
 
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
 const DEFAULT_BATCH_SIZE = 10;
+const DEFAULT_IDLE_LOG_THROTTLE_MS = 60_000;
 
 const PROPERTY_AGGREGATES = new Set(["PROPERTY"]);
 const DEMAND_AGGREGATES = new Set(["DEMAND", "LEAD", "MATCH"]);
+const lastIdleLoopLogAtByWorker = new Map<string, number>();
+
+function shouldLogIdleLoop(workerId: string): boolean {
+  const throttleMs =
+    Number(process.env.CONSUMER_IDLE_LOG_THROTTLE_MS) || DEFAULT_IDLE_LOG_THROTTLE_MS;
+  const now = Date.now();
+  const lastAt = lastIdleLoopLogAtByWorker.get(workerId) ?? 0;
+  if (now - lastAt < throttleMs) return false;
+  lastIdleLoopLogAtByWorker.set(workerId, now);
+  return true;
+}
 
 async function resolveComercialIdFromEvent(event: {
   aggregateType: string;
@@ -443,10 +455,6 @@ export async function runConsumerLoop(
       let cycles = 0;
       let consecutiveNoWork = 0;
 
-      console.log(
-        `[consumer] Loop iniciado workerId=${config.workerId} maxCycles=${maxCycles}`,
-      );
-
       while (cycles < maxCycles) {
         const result = await runConsumerCycle(config);
         cycles++;
@@ -457,7 +465,11 @@ export async function runConsumerLoop(
         if (result.noWork) {
           consecutiveNoWork++;
           if (consecutiveNoWork >= 3) {
-            console.log("[consumer] 3 ciclos sin trabajo — terminando loop");
+            if (shouldLogIdleLoop(config.workerId)) {
+              console.log(
+                `[consumer] Idle sin jobs por 3 ciclos — terminando loop workerId=${config.workerId}`,
+              );
+            }
             break;
           }
           await delay(pollIntervalMs);
@@ -486,9 +498,12 @@ export async function runConsumerLoop(
         }
       }
 
-      console.log(
-        `[consumer] Loop terminado — ciclos=${cycles} procesados=${totalProcessed} fallidos=${totalFailed}`,
-      );
+      const isIdleLoop = totalProcessed === 0 && totalFailed === 0;
+      if (!isIdleLoop || shouldLogIdleLoop(config.workerId)) {
+        console.log(
+          `[consumer] Loop terminado — ciclos=${cycles} procesados=${totalProcessed} fallidos=${totalFailed}`,
+        );
+      }
 
       await persistConsumerMetric({
         workerId: config.workerId,
