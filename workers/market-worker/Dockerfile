@@ -31,11 +31,23 @@ RUN cd workers/market-worker \
 
 # 3) Código fuente: lib/ relevante + src del Worker
 # IMPORTANTE: el worker importa código del root del repo via paths relativos
-# (../../../../lib/...). Hay que copiar TODOS los directorios de los que
-# depende. Cualquier import nuevo a `lib/<otro>/...` desde `workers/market-worker`
-# requiere añadir aquí su `COPY` correspondiente.
+# (../../../../lib/...) y a través de él, código que usa el alias `@/...`
+# (resuelto contra `/app` por el tsconfig). Hay que copiar TODOS los
+# directorios que el grafo de imports toca en runtime. Cualquier import nuevo
+# a `lib/<otro>/...` desde `workers/market-worker` o desde código `lib/`
+# arrastrado por él requiere añadir aquí su `COPY` correspondiente.
+#
+# Cadena actual (lib/scraping/warm-session → lib/scraping/browser → ...):
+#   - lib/prisma.ts        ← lazy require desde warm-session si alguna API
+#                            legacy se invocara (no debería, pero se incluye
+#                            por defensa)
+#   - lib/idealista/*      ← createIdealistaBrowser, IDEALISTA_USER_AGENT
+#   - lib/fotocasa/*       ← FOTOCASA_USER_AGENT
+COPY lib/prisma.ts ./lib/prisma.ts
 COPY lib/market ./lib/market
 COPY lib/scraping ./lib/scraping
+COPY lib/idealista ./lib/idealista
+COPY lib/fotocasa ./lib/fotocasa
 COPY lib/workers/contracts ./lib/workers/contracts
 COPY lib/workers/market-worker ./lib/workers/market-worker
 COPY workers/market-worker/src ./workers/market-worker/src
