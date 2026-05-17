@@ -29,7 +29,13 @@
 
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { enqueueJob, dequeueJob, markCompleted, markFailed } from "@/lib/job-queue";
+import {
+  enqueueJob,
+  dequeueJob,
+  markCompleted,
+  markFailed,
+  requeueJob,
+} from "@/lib/job-queue";
 import {
   ACTIVE_SOURCES_V1,
   getActiveSourcesV1,
@@ -345,10 +351,27 @@ export async function runCrawlTick(options: {
           }
         });
       } else if (response.status === "accepted") {
-        // El Worker sigue corriendo en background. Marcamos el job como
-        // completado (responsabilidad delegada) para no bloquear la cola.
         result.accepted++;
-        await markCompleted({ jobId: job.id, workerId });
+        if (response.reason === "CONCURRENCY_LIMIT") {
+          // El Worker estaba saturado y NO arrancó el extractor. Si lo
+          // marcamos completado, el `MarketCrawlRun` queda huérfano en
+          // RUNNING y los items nunca se capturan. Reencolamos sin
+          // penalizar `attempts` (el job es legítimo, solo necesita un
+          // slot libre) y aplicamos un jitter de 1-6s para evitar que
+          // todos los rebotes vuelvan al mismo tick.
+          const jitterMs = 1_000 + Math.floor(Math.random() * 5_000);
+          await requeueJob({
+            jobId: job.id,
+            reason: `worker concurrency limit (run=${response.runId})`,
+            workerId,
+            retryDelayMs: jitterMs,
+          });
+        } else {
+          // DEADLINE_EXCEEDED: el extractor arrancó y sigue corriendo en
+          // background. Marcamos completado (responsabilidad delegada al
+          // worker, que actualizará `MarketCrawlRun` cuando termine).
+          await markCompleted({ jobId: job.id, workerId });
+        }
       } else if (response.status === "blocked") {
         result.blocked++;
         await markFailed({

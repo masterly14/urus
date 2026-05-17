@@ -60,3 +60,26 @@ export interface MarkFailedInput {
   permanent?: boolean;
 }
 
+/**
+ * Devuelve un job IN_PROGRESS al estado PENDING sin penalizar `attempts`.
+ *
+ * Caso de uso: el worker rechazó el trabajo de forma transitoria por una
+ * condición que no es un fallo del job en sí (p. ej. `CONCURRENCY_LIMIT`
+ * porque todos los slots del worker están ocupados). En ese escenario el
+ * extractor nunca arrancó, así que contar el intento como fallido (vía
+ * `markFailed`) llevaría el job a `DEAD_LETTER` tras pocos rebotes y
+ * perdería trabajo legítimo.
+ *
+ * Decrementa el contador `attempts` (que `dequeueJob` incrementó al
+ * tomarlo) para que el siguiente reintento no consuma cuota.
+ */
+export interface RequeueJobInput {
+  jobId: string;
+  /** Motivo registrado en `lastError` para auditar por qué se reencoló. */
+  reason: string;
+  workerId?: string;
+  now?: Date;
+  /** Cuánto esperar antes de que el job vuelva a estar disponible. Default 5s. */
+  retryDelayMs?: number;
+}
+

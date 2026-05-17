@@ -8,6 +8,7 @@ import type {
   JobRecord,
   MarkCompletedInput,
   MarkFailedInput,
+  RequeueJobInput,
 } from "./types";
 
 function defaultNow(now?: Date): Date {
@@ -168,6 +169,59 @@ export async function markCompleted(
     where: { id: input.jobId },
   });
   if (!updated) throw new Error(`Job no existe: ${input.jobId}`);
+  return updated;
+}
+
+/**
+ * Devuelve un job IN_PROGRESS a PENDING sin penalizar `attempts`.
+ *
+ * Diseñado para situaciones en las que el worker indicó que no pudo
+ * ejecutar el trabajo por una condición transitoria fuera del control
+ * del job (p. ej. `CONCURRENCY_LIMIT`). Decrementa el contador de
+ * intentos para revertir el incremento que `dequeueJob` aplicó al
+ * tomar el lock.
+ *
+ * - Verifica ownership del lock cuando se proporciona `workerId`.
+ * - Aplica un retry-delay corto (default 5s) para evitar que el mismo
+ *   tick lo vuelva a tomar inmediatamente y se rebote en bucle.
+ * - Registra `reason` en `lastError` para auditoría.
+ */
+export async function requeueJob(input: RequeueJobInput): Promise<JobRecord> {
+  const now = defaultNow(input.now);
+  const retryDelayMs = Math.max(0, input.retryDelayMs ?? 5_000);
+  const availableAt = new Date(now.getTime() + retryDelayMs);
+
+  const where: Prisma.JobQueueWhereUniqueInput = { id: input.jobId };
+  const job = await prisma.jobQueue.findUnique({ where });
+  if (!job) throw new Error(`Job no existe: ${input.jobId}`);
+  if (job.status !== "IN_PROGRESS") {
+    throw new Error(`Job no está IN_PROGRESS: ${input.jobId}`);
+  }
+  if (input.workerId && job.lockedBy !== input.workerId) {
+    console.warn(
+      `[job-queue] requeueJob: ownership mismatch for job=${input.jobId} worker=${input.workerId} lockedBy=${job.lockedBy}`,
+    );
+    throw new Error(`Job lock no pertenece al worker: ${input.jobId}`);
+  }
+
+  console.warn(
+    `[job-queue] Job ${job.id} (${job.type}) reencolado sin penalizar attempts (motivo=${input.reason}). Próximo intento en ${retryDelayMs}ms (${availableAt.toISOString()}).`,
+  );
+
+  const updated = await prisma.jobQueue.update({
+    where,
+    data: {
+      status: "PENDING",
+      availableAt,
+      lastError: input.reason,
+      lockedAt: null,
+      lockedBy: null,
+      // Compensa el incremento de `attempts` aplicado en dequeueJob:
+      // este reintento no consumió un intento real (el worker nunca ejecutó).
+      attempts: Math.max(0, job.attempts - 1),
+    },
+  });
+
   return updated;
 }
 

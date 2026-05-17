@@ -1,4 +1,4 @@
-export { enqueueJob, dequeueJob, markCompleted, markFailed } from "./job-queue";
+export { enqueueJob, dequeueJob, markCompleted, markFailed, requeueJob } from "./job-queue";
 
 export {
   listDeadLetterJobs,
@@ -16,6 +16,7 @@ export type {
   JsonValue,
   MarkCompletedInput,
   MarkFailedInput,
+  RequeueJobInput,
 } from "./types";
 
 export type {
