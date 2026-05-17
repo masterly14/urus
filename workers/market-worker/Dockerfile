@@ -9,7 +9,7 @@
 # Construir desde la raíz del monorepo:
 #   docker build -f workers/market-worker/Dockerfile -t market-worker .
 
-FROM mcr.microsoft.com/playwright:v1.58.2-jammy
+FROM mcr.microsoft.com/playwright:v1.59.1-jammy
 
 WORKDIR /app
 
