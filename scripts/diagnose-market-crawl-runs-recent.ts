@@ -59,13 +59,10 @@ async function main() {
         console.log(`  seed=${seed.id} url=${seed.url ?? "-"} op=${seed.operation}`);
       }
       console.log(
-        `  listingsTotal=${r.listingsTotal ?? "-"} listingsNew=${r.listingsNew ?? "-"} listingsUpdated=${r.listingsUpdated ?? "-"} requests=${r.requestsTotal ?? "-"}`,
+        `  pagesScanned=${r.pagesScanned ?? "-"} itemsCaptured=${r.itemsCaptured ?? "-"} itemsRejected=${r.itemsRejected ?? "-"} blocked=${r.blockedCount ?? "-"} budgetRequests=${r.budgetRequests ?? "-"}`,
       );
       if (r.errorCode || r.errorMessage) {
         console.log(`  error: ${r.errorCode ?? "-"} ${(r.errorMessage ?? "").slice(0, 240)}`);
-      }
-      if (r.warnings) {
-        console.log(`  warnings:`, JSON.stringify(r.warnings).slice(0, 240));
       }
     }
   } finally {
