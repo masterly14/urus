@@ -1,5 +1,4 @@
 import type { PortalWarmSession, PrismaClient, StatefoxPortalSource } from "@prisma/client";
-import { prisma as defaultPrisma } from "@/lib/prisma";
 import type { WarmSession, WarmedCookies } from "./types";
 
 /**
@@ -173,10 +172,27 @@ export function createWarmSessionRepo(prisma: WarmSessionPrismaClient): WarmSess
 /**
  * Repo singleton ligado al `prisma` del monolito. Lo usa Statefox image cache
  * y los handlers del job queue del monolito.
+ *
+ * Lazy: `@/lib/prisma` no se resuelve hasta la primera llamada a una API
+ * legacy. Esto permite que consumidores que NO usan la API legacy (p.ej. el
+ * Market Worker en Railway, que inyecta su propio `PrismaClient` via
+ * `createWarmSessionRepo`) puedan importar este modulo sin necesitar el
+ * singleton del monolito en su filesystem ni en su grafo de modulos.
+ *
+ * Usamos `import()` dinamico (no `require()`) para que vitest pueda seguir
+ * interceptando el modulo via `vi.mock("@/lib/prisma", ...)` y porque
+ * Next/tsx resuelven el alias `@/...` igual en ambos modos.
  */
-const defaultRepo: WarmSessionRepo = createWarmSessionRepo(
-  defaultPrisma as unknown as WarmSessionPrismaClient,
-);
+let _defaultRepo: WarmSessionRepo | null = null;
+
+async function getDefaultRepo(): Promise<WarmSessionRepo> {
+  if (_defaultRepo) return _defaultRepo;
+  const mod = await import("@/lib/prisma");
+  _defaultRepo = createWarmSessionRepo(
+    mod.prisma as unknown as WarmSessionPrismaClient,
+  );
+  return _defaultRepo;
+}
 
 // ---------------------------------------------------------------------------
 // API legacy: funciones standalone que delegan al `defaultRepo` (singleton).
@@ -185,40 +201,46 @@ const defaultRepo: WarmSessionRepo = createWarmSessionRepo(
 // createWarmSessionRepo(workerPrisma).
 // ---------------------------------------------------------------------------
 
-export function getActiveWarmSession(args: {
+export async function getActiveWarmSession(args: {
   source: Exclude<StatefoxPortalSource, "unknown">;
   now?: Date;
 }): Promise<WarmSession | null> {
-  return defaultRepo.getActiveWarmSession(args);
+  const repo = await getDefaultRepo();
+  return repo.getActiveWarmSession(args);
 }
 
-export function expireStaleWarmSessions(args: {
+export async function expireStaleWarmSessions(args: {
   source: Exclude<StatefoxPortalSource, "unknown">;
   now?: Date;
 }): Promise<void> {
-  return defaultRepo.expireStaleWarmSessions(args);
+  const repo = await getDefaultRepo();
+  return repo.expireStaleWarmSessions(args);
 }
 
-export function recordWarmedSession(args: {
+export async function recordWarmedSession(args: {
   source: Exclude<StatefoxPortalSource, "unknown">;
   warmed: WarmedCookies;
   expiresAt: Date;
   maxRequests: number;
 }): Promise<WarmSession> {
-  return defaultRepo.recordWarmedSession(args);
+  const repo = await getDefaultRepo();
+  return repo.recordWarmedSession(args);
 }
 
-export function incrementWarmSessionUsage(sessionId: string): Promise<void> {
-  return defaultRepo.incrementWarmSessionUsage(sessionId);
+export async function incrementWarmSessionUsage(sessionId: string): Promise<void> {
+  const repo = await getDefaultRepo();
+  return repo.incrementWarmSessionUsage(sessionId);
 }
 
-export function invalidateWarmSession(sessionId: string, reason: string): Promise<void> {
-  return defaultRepo.invalidateWarmSession(sessionId, reason);
+export async function invalidateWarmSession(sessionId: string, reason: string): Promise<void> {
+  const repo = await getDefaultRepo();
+  return repo.invalidateWarmSession(sessionId, reason);
 }
 
-export function invalidateActiveWarmSessions(args: {
+export async function invalidateActiveWarmSessions(args: {
   source: Exclude<StatefoxPortalSource, "unknown">;
   reason: string;
 }): Promise<number> {
-  return defaultRepo.invalidateActiveWarmSessions(args);
+  const repo = await getDefaultRepo();
+  return repo.invalidateActiveWarmSessions(args);
 }

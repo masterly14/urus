@@ -1,5 +1,4 @@
 import type { StatefoxPortalSource } from "@prisma/client";
-import { prisma as defaultPrisma } from "@/lib/prisma";
 import { expiresAtForWarmSession } from "./policy";
 import { createWarmSessionRepo, toWarmSession, type WarmSessionPrismaClient } from "./repo";
 import { warmPortalSession } from "./warm";
@@ -109,13 +108,26 @@ export function createWarmSessionAcquire(prisma: WarmSessionPrismaClient) {
  * API legacy: usa el `prisma` singleton del monolito. Statefox y el CLI
  * legacy llaman aqui sin cambios. El Market Worker debe usar
  * `createWarmSessionAcquire(workerPrisma)` en su lugar.
+ *
+ * Lazy via `import()` dinamico: `@/lib/prisma` se resuelve al primer uso,
+ * no en la carga del modulo. Esto evita arrastrar el singleton del monolito
+ * al Market Worker (que SOLO usa el factory `createWarmSessionAcquire`) y
+ * mantiene la compatibilidad con `vi.mock("@/lib/prisma", ...)` en tests.
  */
-const defaultAcquire = createWarmSessionAcquire(
-  defaultPrisma as unknown as WarmSessionPrismaClient,
-);
+let _defaultAcquire: ReturnType<typeof createWarmSessionAcquire> | null = null;
 
-export function acquireWarmSession(
+async function getDefaultAcquire(): Promise<ReturnType<typeof createWarmSessionAcquire>> {
+  if (_defaultAcquire) return _defaultAcquire;
+  const mod = await import("@/lib/prisma");
+  _defaultAcquire = createWarmSessionAcquire(
+    mod.prisma as unknown as WarmSessionPrismaClient,
+  );
+  return _defaultAcquire;
+}
+
+export async function acquireWarmSession(
   request: WarmSessionRequest,
 ): Promise<WarmSessionAcquireResult> {
-  return defaultAcquire(request);
+  const acquire = await getDefaultAcquire();
+  return acquire(request);
 }
