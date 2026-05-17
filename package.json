@@ -25,6 +25,8 @@
     "ingestion:resync-location": "tsx --env-file=.env scripts/resync-properties-location.ts",
     "ingestion:demands": "tsx scripts/run-ingestion-demands.ts",
     "consumer": "tsx scripts/run-consumer.ts",
+    "consumer:railway": "tsx scripts/run-consumer.ts --always-on --railway-mode",
+    "consumer:validate": "tsx scripts/consumer-validate.ts",
     "egestion": "tsx scripts/run-egestion.ts",
     "statefox:validate-token": "tsx scripts/validate-statefox-token.ts",
     "pricing:run": "tsx scripts/run-pricing.ts",

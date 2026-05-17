@@ -17,6 +17,7 @@ El consumer procesa un job por ciclo (secuencial). La cola usa `FOR UPDATE SKIP 
 - **Cron**: invocar el endpoint `/api/cron/consumer` con mayor frecuencia o desde múltiples schedulers.
 - **CLI**: lanzar varias instancias de `npm run consumer` simultáneamente; cada una genera un `workerId` único.
 - **Vercel**: las funciones serverless ya ejecutan invocaciones concurrentes de forma natural.
+- **Railway 24/7 (recomendado para latencia hot)**: proceso always-on con `npm run consumer:railway` (script `scripts/run-consumer.ts` con `--always-on --railway-mode`). Procesa el subset `RAILWAY_CONSUMER_JOB_TYPES` (todos excepto `IMPORT_STATEFOX_PORTAL_IMAGES` y `MARKET_*`) con poll cada 500 ms y health endpoint `GET /internal/health`. Convive con el cron QStash sin colisiones gracias a `FOR UPDATE SKIP LOCKED`. Despliegue, env vars y rollout: [`docs/consumer-railway.md`](consumer-railway.md).
 
 Para el volumen actual (3 comerciales, ~37 propiedades), una sola instancia es más que suficiente.
 

@@ -1,0 +1,45 @@
+# Railway Consumer Worker — proceso 24/7 que drena la job_queue de Neon.
+#
+# Lanza scripts/run-consumer.ts en modo always-on, expone un mini health
+# server en /internal/health y procesa el subset RAILWAY_CONSUMER_JOB_TYPES
+# (todos los tipos canónicos excepto IMPORT_STATEFOX_PORTAL_IMAGES y
+# MARKET_*, que ya tienen worker/cron dedicado).
+#
+# Convive de forma segura con el cron QStash de Vercel: la cola usa
+# FOR UPDATE SKIP LOCKED y cada instancia genera su propio workerId.
+# Si Railway se cae, el cron de Vercel sigue drenando la cola.
+#
+# Este Dockerfile NO instala Playwright/Chromium — el consumer no necesita
+# navegador. Los handlers que requieren scraping (image-worker, market-*)
+# están excluidos vía RAILWAY_CONSUMER_JOB_TYPES.
+
+FROM node:22-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Dummy DATABASE_URL solo para build: prisma generate valida el schema pero
+# no conecta a la DB. La URL real se inyecta en runtime por Railway.
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+
+COPY package.json package-lock.json .npmrc prisma.config.ts ./
+COPY prisma ./prisma/
+RUN npm ci --legacy-peer-deps --ignore-scripts
+
+RUN npx prisma generate
+
+COPY tsconfig.json ./
+COPY lib ./lib/
+COPY types ./types/
+COPY scripts/run-consumer.ts ./scripts/
+
+ENV PORT=8080
+ENV CONSUMER_ALWAYS_ON=true
+ENV CONSUMER_RAILWAY_MODE=true
+
+EXPOSE 8080
+
+CMD ["npx", "tsx", "scripts/run-consumer.ts"]

@@ -79,6 +79,7 @@ export const ALL_CONSUMER_JOB_TYPES: JobType[] = [
   "PARTE_VISITA_ENVIAR_FORMULARIO",
   "EVALUATE_DEMAND_COVERAGE",
   "REBUILD_MATCHES_FOR_DEMAND",
+  "START_NLU_INITIAL_CONTACT",
   "UPDATE_PROPERTY_STATUS_INMOVILLA",
   "IMPORT_STATEFOX_PORTAL_IMAGES",
   // Core de Mercado (Fases 3-4)
@@ -91,3 +92,27 @@ export const ALL_CONSUMER_JOB_TYPES: JobType[] = [
   "MARKET_IMPORT_LISTING_IMAGES",
   "MARKET_PUSH_ADVERTISER_TO_INMOVILLA",
 ];
+
+/**
+ * Subconjunto de tipos que procesa el consumer dedicado en Railway (24/7).
+ *
+ * Excluye tipos que ya tienen worker o cron especializado para evitar
+ * solapamiento:
+ *  - `IMPORT_STATEFOX_PORTAL_IMAGES`: gestionado por el `image-worker` Railway
+ *    (ver `docs/image-worker-railway.md`).
+ *  - `MARKET_*`: gestionados por los crons dedicados `/api/cron/market/*`
+ *    (cada uno con timeout y cliente HTTP propio).
+ *
+ * El cron QStash de Vercel (`/api/cron/consumer`) sigue tomando todos los
+ * tipos con `ALL_CONSUMER_JOB_TYPES` como red de seguridad: incluso si el
+ * proceso Railway se cae, los jobs excluidos los siguen procesando sus
+ * workers/crons especializados.
+ */
+const RAILWAY_EXCLUDED_TYPES: readonly JobType[] = ["IMPORT_STATEFOX_PORTAL_IMAGES"];
+const RAILWAY_EXCLUDED_PREFIXES: readonly string[] = ["MARKET_"];
+
+export const RAILWAY_CONSUMER_JOB_TYPES: JobType[] = ALL_CONSUMER_JOB_TYPES.filter(
+  (t) =>
+    !RAILWAY_EXCLUDED_TYPES.includes(t) &&
+    !RAILWAY_EXCLUDED_PREFIXES.some((prefix) => t.startsWith(prefix)),
+);
