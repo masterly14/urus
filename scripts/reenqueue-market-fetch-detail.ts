@@ -43,9 +43,14 @@
  *   npx tsx scripts/reenqueue-market-fetch-detail.ts --spread-ms 10000 --apply
  *
  * Tras ejecutar:
- *   - El cron /api/cron/consumer (Vercel) los procesara automaticamente.
+ *   - El consumer Railway 24/7 (Dockerfile.consumer) los procesa con
+ *     latencia de segundos. Es el procesador principal desde mayo 2026
+ *     (fix M0: tipos.ts ya no excluye MARKET_*).
+ *   - El cron QStash de Vercel (/api/cron/consumer) actua como red de
+ *     seguridad si el consumer Railway esta caido.
  *   - Tambien puedes drenar localmente con: npx tsx scripts/run-consumer.ts
  *   - Audita progreso con: npx tsx scripts/diagnose-market-phone-enrichment.ts
+ *   - Inspecciona el batch con: npx tsx scripts/inspect-reenqueue-batch.ts <batchId>
  */
 import "dotenv/config";
 import {
@@ -487,9 +492,13 @@ async function main(): Promise<void> {
     }
   }
   console.log("");
+  console.log("Procesadores que drenaran este batch (segun fix M0 de mayo 2026):");
+  console.log("  1. Consumer Railway 24/7 (Dockerfile.consumer) — principal, latencia ~segundos.");
+  console.log("  2. Cron QStash /api/cron/consumer (Vercel) — red de seguridad si Railway cae.");
+  console.log("");
   console.log("Siguiente paso:");
-  console.log("  - El cron /api/cron/consumer (Vercel) ya los procesara.");
-  console.log("  - Audita progreso: npx tsx scripts/diagnose-market-phone-enrichment.ts");
+  console.log(`  - Inspecciona el batch: npx tsx scripts/inspect-reenqueue-batch.ts ${opts.batchId}`);
+  console.log("  - Audita global:       npx tsx scripts/diagnose-market-phone-enrichment.ts");
   console.log("");
 
   await prisma.$disconnect();
