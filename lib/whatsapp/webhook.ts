@@ -104,6 +104,8 @@ export type ParsedWebhookEvent =
  */
 export function parseWebhookPayload(body: unknown): ParsedWebhookEvent[] {
   const events: ParsedWebhookEvent[] = [];
+  const expectedBusinessId = process.env.WHATSAPP_BUSINESS_ID?.trim();
+  const expectedPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
 
   const payload = body as Partial<WhatsAppWebhookPayload>;
   if (payload?.object !== "whatsapp_business_account") {
@@ -112,11 +114,24 @@ export function parseWebhookPayload(body: unknown): ParsedWebhookEvent[] {
   }
 
   for (const entry of payload.entry ?? []) {
+    if (expectedBusinessId && entry.id !== expectedBusinessId) {
+      console.warn(
+        `[whatsapp/webhook] Ignorando entry por WABA distinta (entry.id=${entry.id}, esperado=${expectedBusinessId})`,
+      );
+      continue;
+    }
+
     for (const change of entry.changes ?? []) {
       if (change.field !== "messages") continue;
 
       const value = change.value;
       const phoneNumberId = value.metadata?.phone_number_id ?? "";
+      if (expectedPhoneNumberId && phoneNumberId !== expectedPhoneNumberId) {
+        console.warn(
+          `[whatsapp/webhook] Ignorando change por phone_number_id distinto (actual=${phoneNumberId || "vacío"}, esperado=${expectedPhoneNumberId})`,
+        );
+        continue;
+      }
 
       for (const message of value.messages ?? []) {
         const contact = value.contacts?.find((c) => c.wa_id === message.from);
