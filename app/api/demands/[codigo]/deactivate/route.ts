@@ -35,7 +35,9 @@ export async function POST(
     return NextResponse.json({ error: "Demanda no encontrada" }, { status: 404 });
   }
 
-  if (!isCeoOrAdmin(session.role) && demand.comercialId !== session.comercialId) {
+  const hasDemandOwnership =
+    Boolean(session.comercialId) && demand.comercialId === session.comercialId;
+  if (!isCeoOrAdmin(session.role) && !hasDemandOwnership) {
     return NextResponse.json(
       { error: "Solo puedes dar de baja tus propias demandas." },
       { status: 403 },
