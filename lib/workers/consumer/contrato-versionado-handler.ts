@@ -12,6 +12,7 @@
  */
 
 import type { Event } from "@/types/domain";
+import { Prisma } from "@prisma/client";
 import type { HandlerResult } from "./types";
 import { prisma } from "@/lib/prisma";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
@@ -121,7 +122,7 @@ export async function handleContratoVersionado(
       templateVersion: nextTemplateVersion,
       ...(parsedContractInput?.success
         ? {
-            contractInput: parsedContractInput.data,
+            contractInput: parsedContractInput.data as unknown as Prisma.InputJsonValue,
           }
         : {}),
       ...(cloudinaryUrl ? { cloudinaryUrl } : {}),

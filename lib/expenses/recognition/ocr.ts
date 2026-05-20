@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import type { ResponseInput } from "openai/resources/responses/responses";
 
 function getOpenAiApiKey(): string {
   const key = process.env.OPENAI_API_KEY?.trim();
@@ -18,24 +19,25 @@ export async function extractTextFromExpenseImage(input: {
 }): Promise<string> {
   const openai = new OpenAI({ apiKey: getOpenAiApiKey() });
   const dataUrl = `data:${input.mimeType};base64,${input.buffer.toString("base64")}`;
+  const responseInput: ResponseInput = [
+    {
+      role: "user",
+      content: [
+        {
+          type: "input_text",
+          text: "Extrae el texto completo de la imagen. Devuelve solo el texto leído, sin explicación.",
+        },
+        {
+          type: "input_image",
+          image_url: dataUrl,
+          detail: "auto",
+        },
+      ],
+    },
+  ];
   const response = await openai.responses.create({
     model: getOcrModel(),
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: "Extrae el texto completo de la imagen. Devuelve solo el texto leído, sin explicación.",
-          },
-          {
-            type: "input_image",
-            image_url: dataUrl,
-            detail: "auto",
-          },
-        ],
-      },
-    ] as unknown as Record<string, unknown>[],
+    input: responseInput,
     max_output_tokens: 1200,
   });
   return (response.output_text || "").trim();
@@ -48,25 +50,26 @@ export async function extractTextFromExpensePdf(input: {
 }): Promise<string> {
   const openai = new OpenAI({ apiKey: getOpenAiApiKey() });
   const fileData = `data:${input.mimeType};base64,${input.buffer.toString("base64")}`;
+  const responseInput: ResponseInput = [
+    {
+      role: "user",
+      content: [
+        {
+          type: "input_text",
+          text: "Extrae el texto completo del PDF. Devuelve solo el texto leído, sin explicaciones.",
+        },
+        {
+          type: "input_file",
+          filename: input.filename || "factura.pdf",
+          file_data: fileData,
+        },
+      ],
+    },
+  ];
 
   const response = await openai.responses.create({
     model: getOcrModel(),
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: "Extrae el texto completo del PDF. Devuelve solo el texto leído, sin explicaciones.",
-          },
-          {
-            type: "input_file",
-            filename: input.filename || "factura.pdf",
-            file_data: fileData,
-          },
-        ],
-      },
-    ] as unknown as Record<string, unknown>[],
+    input: responseInput,
     max_output_tokens: 1800,
   });
 

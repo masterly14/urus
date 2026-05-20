@@ -66,12 +66,14 @@ const ALL_SOURCES: MarketSource[] = [
   "source_b", // Pisos.com
   "source_c", // Milanuncios
   "source_d", // Idealista
+  "unknown",
 ];
 const SOURCE_LABEL: Record<MarketSource, string> = {
   source_a: "Fotocasa",
   source_b: "Pisos.com",
   source_c: "Milanuncios",
   source_d: "Idealista",
+  unknown: "Unknown",
 };
 
 const MAX_DETAIL_FETCH_ATTEMPTS = 3; // espejo de fetch-detail-handler.ts

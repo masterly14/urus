@@ -5,6 +5,8 @@ import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/ty
 import { sectionAddendumsListSchema } from "@/lib/contracts/section-addendums/schema";
 import type { SectionAddendumsList } from "@/lib/contracts/section-addendums/types";
 
+export type { ContractTemplateInput } from "@/types/contracts";
+
 export const contractTemplateInputSchema: z.ZodType<ContractTemplateInput> = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("arras"), templateVersion: z.string().optional(), payload: z.any() }),
   z.object({ kind: z.literal("oferta_firme"), templateVersion: z.string().optional(), payload: z.any() }),

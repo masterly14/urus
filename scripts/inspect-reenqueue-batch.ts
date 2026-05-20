@@ -27,6 +27,7 @@ const SOURCE_LABELS: Record<MarketSource, string> = {
   source_b: "Pisos.com",
   source_c: "Habitaclia",
   source_d: "Idealista",
+  unknown: "Unknown",
 };
 
 function pad(value: string | number, width: number): string {

@@ -236,7 +236,7 @@ export async function interpretVoiceAndRegenerateDocx(
     input.kind !== "oferta_firme" &&
     input.kind !== "anexo_mobiliario"
   ) {
-    throw new Error(`Regeneración por voz no soportada para kind="${input.kind}".`);
+    throw new Error("Regeneración por voz no soportada para este tipo de contrato.");
   }
 
   const previousTemplateVersion = input.templateVersion;

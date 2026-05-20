@@ -409,11 +409,12 @@ function CaptacionPageContent() {
 
   useEffect(() => {
     if (!fromListingId || prefillAppliedForListingId === fromListingId) return;
+    const listingId = fromListingId;
 
     async function prefillFromListing() {
       try {
         const response = await fetch(
-          `/api/market/listings/${encodeURIComponent(fromListingId)}/nota-encargo-prefill`,
+          `/api/market/listings/${encodeURIComponent(listingId)}/nota-encargo-prefill`,
         );
         const payload = (await response.json().catch(() => ({}))) as {
           ok?: boolean;
@@ -445,7 +446,7 @@ function CaptacionPageContent() {
         );
         setSheetOpen(true);
       } finally {
-        setPrefillAppliedForListingId(fromListingId);
+        setPrefillAppliedForListingId(listingId);
         const next = new URLSearchParams(searchParams.toString());
         next.delete("fromListingId");
         const nextQuery = next.toString();

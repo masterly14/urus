@@ -293,7 +293,7 @@ const patchHandler = async (request: Request, { params }: RouteParams) => {
           changedFields: payloadEdit?.fieldPath ? [payloadEdit.fieldPath] : [],
           ambiguousPoints: [],
         },
-        contractInput: incomingContractInput,
+        contractInput: incomingContractInput as unknown as Prisma.JsonObject,
         editedAt: now.toISOString(),
         editedFrom: "payload-inline",
         ...(payloadEdit ? { payloadEdit } : {}),

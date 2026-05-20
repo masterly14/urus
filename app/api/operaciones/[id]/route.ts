@@ -205,7 +205,7 @@ const deleteHandler = async (request: Request, { params }: Params) => {
 
   try {
     await appendEvent({
-      type: "OPERACION_ELIMINADA",
+      type: "OPERACION_CERRADA",
       aggregateType: "OPERACION",
       aggregateId: operacion.propertyCode,
       payload: {
