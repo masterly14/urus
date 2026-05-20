@@ -1,4 +1,3 @@
-import type { ContractTemplateInput } from "@/types/contracts";
 import {
   formatDateEsFromIso,
   formatMoneyEur,
@@ -47,6 +46,29 @@ function formatValue(val: unknown, path: string): string {
   return str;
 }
 
+function resolveSpecialVariable(
+  path: string,
+  payload: Record<string, unknown>,
+): string | null {
+  if (path === "_resolved_buyers") {
+    const buyers = payload.buyers;
+    if (Array.isArray(buyers) && buyers.every(isNaturalPerson)) {
+      return formatPeopleList(buyers);
+    }
+    return "[buyers]";
+  }
+
+  if (path === "_resolved_sellers") {
+    const sellers = payload.sellers;
+    if (Array.isArray(sellers) && sellers.every(isNaturalPerson)) {
+      return formatPeopleList(sellers);
+    }
+    return "[sellers]";
+  }
+
+  return null;
+}
+
 export function resolveVariablesInText(
   text: string,
   payload: Record<string, unknown>,
@@ -54,7 +76,10 @@ export function resolveVariablesInText(
   return text.replace(VARIABLE_REGEX, (_match, rawPath: string) => {
     const path = rawPath.trim();
 
-    if (path.startsWith("_resolved_")) return `{{${path}}}`;
+    if (path.startsWith("_resolved_")) {
+      const resolved = resolveSpecialVariable(path, payload);
+      return resolved ?? `{{${path}}}`;
+    }
 
     if (path.includes("===") || path.includes("?")) {
       return resolveInlineConditional(path, payload);

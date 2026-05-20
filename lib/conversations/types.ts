@@ -89,7 +89,6 @@ export interface ConversationSelectionContext {
   demandName: string | null;
   buyerPhone: string | null;
   createdAt: string;
-  validatedAt: string | null;
   firstViewedAt: string | null;
   stockCount: number;
   properties: ConversationSentProperty[];

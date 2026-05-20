@@ -30,7 +30,6 @@ import { ClasificacionBadge } from "@/components/colaboradores/clasificacion-bad
 import type { ColaboradorClasificacion } from "@/components/colaboradores/clasificacion-badge";
 import { ColaboradorForm } from "@/components/colaboradores/colaborador-form";
 import { HitoKanban } from "@/components/colaboradores/hito-kanban";
-import { AsignarDialog } from "@/components/colaboradores/asignar-dialog";
 import { DocumentoUpload } from "@/components/colaboradores/documento-upload";
 
 type HitoEstado = "PENDIENTE" | "EN_PROGRESO" | "COMPLETADO" | "BLOQUEADO" | "CANCELADO";
@@ -266,11 +265,12 @@ export default function ColaboradorDetallePage({
 
             {/* Actions */}
             <div className="flex flex-row lg:flex-col gap-3 shrink-0 w-full lg:w-auto">
-              <AsignarDialog
-                colaboradorId={detail.id}
-                colaboradorTipo={detail.tipo}
-                onAssigned={fetchDetail}
-              />
+              <Button variant="default" className="gap-2 w-full lg:w-auto shadow-sm" asChild>
+                <Link href="/platform/operaciones">
+                  <Briefcase className="h-4 w-4" />
+                  Ir a Operaciones
+                </Link>
+              </Button>
               <Button variant="outline" className="gap-2 w-full lg:w-auto bg-card shadow-sm" onClick={() => setEditOpen(true)}>
                 <Edit2 className="h-4 w-4 text-muted-foreground" />
                 Editar Perfil

@@ -15,6 +15,7 @@
 import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store";
 import { resolveComercial } from "@/lib/routing/resolve-comercial";
+import { normalizeComercialWhatsappPhone } from "@/lib/routing/comercial-whatsapp";
 import {
   sendNotaEncargoRecordatorio,
   sendNotaEncargoNoConfirmada,
@@ -228,11 +229,20 @@ export async function sendNotaEncargoFormularioForSession(
     return { ok: true, status: "noop_state", sessionState: session.state };
   }
 
+  const comercial = await resolveComercial({
+    comercialId: session.comercialId,
+    requireActive: false,
+  });
+  const comercialPhone = normalizeComercialWhatsappPhone(comercial);
+  if (!comercialPhone) {
+    return { ok: true, status: "noop_no_phone" };
+  }
+
   const displayRef = session.propertyRef ?? session.refCatastral ?? session.id;
 
   try {
     await sendNotaEncargoFlow(
-      session.propietarioPhone,
+      comercialPhone,
       {
         sessionId: session.id,
         direccion: session.direccion,
@@ -245,11 +255,12 @@ export async function sendNotaEncargoFormularioForSession(
         trace: {
           source: "nota_encargo_enviar_formulario_job",
           kind: "nota_encargo_formulario",
-          aggregateId: session.propietarioPhone,
+          aggregateId: comercialPhone,
           payload: {
             sessionId,
             notaEncargoState: session.state,
             propertyCode: session.propertyCode,
+            comercialId: session.comercialId,
           },
         },
       },

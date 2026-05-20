@@ -28,6 +28,8 @@ export interface PricingPropertyInput {
   estado: string;
   fechaAlta: string | null;
   fechaActualizacion: string | null;
+  latitud: number | null;
+  longitud: number | null;
   extras: PricingPropertyExtras;
 }
 

@@ -94,7 +94,7 @@ describe("isSummaryAndAskOutbound", () => {
 
   it("no detecta una respuesta operativa", () => {
     const text =
-      "Voy a por ello. Lanzo la búsqueda con lo que tengo apuntado y te llega en unos 30 minutos.";
+      "Voy a por ello. Lanzo la búsqueda con lo que tengo apuntado y te las paso aquí en unos minutos.";
     expect(isSummaryAndAskOutbound(text)).toBe(false);
   });
 });
@@ -125,7 +125,7 @@ describe("countTrailingSummaryStreak", () => {
       turn("buyer", "Si"),
       turn(
         "system",
-        "Voy a por ello. Te preparo opciones y un compañero las revisa antes de enviártelas.",
+        "Voy a por ello. Te las busco yo y te las paso aquí mismo en unos minutos.",
       ),
     ];
     expect(countTrailingSummaryStreak(history)).toBe(0);

@@ -32,6 +32,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -74,6 +75,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Bath,
+  BedDouble,
+  CheckCircle2,
+  Clock3,
   CircleHelp,
   ChevronDown,
   ChevronLeft,
@@ -81,14 +86,23 @@ import {
   ExternalLink,
   FileDown,
   FileText,
+  Filter,
   Loader2,
   MapPin,
+  MoreHorizontal,
   Phone,
+  PhoneCall,
   RefreshCw,
+  Ruler,
+  Search,
   UserPlus,
   X,
+  XCircle,
   ZoomIn,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatusBadge } from "@/components/ui/status-badge";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -163,6 +177,7 @@ interface PropertyClusterApiItem {
   assignedComercialNombre: string | null;
   assignedAt: string | null;
   captacionStage: ListingOpportunity["captacionStage"];
+  captacionTag: ListingOpportunity["captacionTag"];
   inmovillaProspectRef: string | null;
   inmovillaPropertyCodOfer: number | null;
   captacionLastError: string | null;
@@ -215,6 +230,7 @@ function toListingOpportunity(c: PropertyClusterApiItem): ListingOpportunity {
     assignedComercialNombre: c.assignedComercialNombre,
     assignedAt: c.assignedAt,
     captacionStage: c.captacionStage,
+    captacionTag: c.captacionTag ?? null,
     inmovillaProspectRef: c.inmovillaProspectRef,
     inmovillaPropertyCodOfer: c.inmovillaPropertyCodOfer,
     captacionLastError: c.captacionLastError,
@@ -255,7 +271,7 @@ const toolbarBtnClass =
 
 const POLLING_INTERVAL_MS = 90_000;
 const DESCRIPTION_COLLAPSE_CHARS = 900;
-const VIEW_STATE_STORAGE_KEY = "captacion:oportunidades:view-state:v1";
+const VIEW_STATE_STORAGE_KEY_BASE = "captacion:oportunidades:view-state:v2";
 
 interface OportunidadesViewStateSnapshot {
   city: string;
@@ -278,13 +294,16 @@ interface OportunidadesViewStateSnapshot {
   currentPage: number;
   autoRefresh: boolean;
   secondsToRefresh: number;
+  prospectActorUserId: string | null;
   scrollY: number;
 }
 
-function readViewStateSnapshot(): OportunidadesViewStateSnapshot | null {
+function readViewStateSnapshot(
+  storageKey: string,
+): OportunidadesViewStateSnapshot | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.sessionStorage.getItem(VIEW_STATE_STORAGE_KEY);
+    const raw = window.sessionStorage.getItem(storageKey);
     if (!raw) return null;
     return JSON.parse(raw) as OportunidadesViewStateSnapshot;
   } catch {
@@ -326,6 +345,29 @@ function formatPhone(phone: string | null): string {
     return `+34 ${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`;
   }
   return phone;
+}
+
+/**
+ * Normaliza una etiqueta de ciudad/zona para comparación tolerante a acentos,
+ * separadores (`_`, `-`) y sufijos de portal (`_capital`, `_provincia`...).
+ * Espejo cliente de `normalizeCityForCatalog` (lib/inmovilla/rest/catalogs.ts).
+ */
+const LOCA_SUFFIXES = ["capital", "provincia", "municipio", "ciudad", "pueblo"];
+function normalizeLocaLabel(value: string | null | undefined): string {
+  if (!value) return "";
+  const ascii = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!ascii) return "";
+  return ascii
+    .split(" ")
+    .filter((p) => p && !LOCA_SUFFIXES.includes(p))
+    .join(" ")
+    .trim();
 }
 
 function displayLocation(row: ListingOpportunity): string {
@@ -401,6 +443,46 @@ type CaptacionStage =
   | "PROPERTY_CREATED"
   | "FAILED";
 
+type CaptacionTag = "CONTACTADO" | "EN_ESPERA" | "RECHAZADO" | "CAPTADO";
+const CAPTACION_TAG_OPTIONS: Array<{
+  value: CaptacionTag;
+  label: string;
+  icon: typeof PhoneCall;
+  variant: "info" | "warning" | "danger" | "success";
+}> = [
+  { value: "CONTACTADO", label: "Contactado", icon: PhoneCall, variant: "info" },
+  { value: "EN_ESPERA", label: "En espera", icon: Clock3, variant: "warning" },
+  { value: "RECHAZADO", label: "Rechazado", icon: XCircle, variant: "danger" },
+  { value: "CAPTADO", label: "Captado", icon: CheckCircle2, variant: "success" },
+];
+
+const CAPTACION_TAG_META: Record<CaptacionTag, (typeof CAPTACION_TAG_OPTIONS)[number]> =
+  CAPTACION_TAG_OPTIONS.reduce(
+    (acc, option) => ({ ...acc, [option.value]: option }),
+    {} as Record<CaptacionTag, (typeof CAPTACION_TAG_OPTIONS)[number]>,
+  );
+
+function captacionTagLabel(tag: CaptacionTag): string {
+  return CAPTACION_TAG_META[tag].label;
+}
+
+function CaptacionTagBadge({ tag }: { tag: CaptacionTag }) {
+  const meta = CAPTACION_TAG_META[tag];
+  const Icon = meta.icon;
+  return (
+    <StatusBadge variant={meta.variant} className="w-fit text-[10px]">
+      <Icon className="h-3 w-3" />
+      {meta.label}
+    </StatusBadge>
+  );
+}
+
+function parseCaptacionTag(value: string): CaptacionTag | null {
+  return CAPTACION_TAG_OPTIONS.some((option) => option.value === value)
+    ? (value as CaptacionTag)
+    : null;
+}
+
 interface CaptacionActionResult {
   ok: true;
   status: "CREATED" | "UPDATED" | "ALREADY_DONE";
@@ -412,6 +494,13 @@ interface CaptacionActionResult {
 interface CaptacionActionResponse {
   ok: boolean;
   result?: CaptacionActionResult;
+  error?: { message?: string };
+}
+
+interface CaptacionTagResponse {
+  ok: boolean;
+  status?: "TAG_ASSIGNED" | "TAG_CLEARED";
+  tag?: CaptacionTag | null;
   error?: { message?: string };
 }
 
@@ -456,8 +545,38 @@ interface ZonaCatalogItem {
   zona: string;
 }
 
-export function OportunidadesView({ mock }: { mock: boolean }) {
-  const [city, setCity] = useState("cordoba");
+interface ProspectScopeConfig {
+  enabled: boolean;
+  canChooseActor: boolean;
+  actorUserId: string | null;
+}
+
+interface OportunidadesViewProps {
+  mock: boolean;
+  mode?: "oportunidades" | "prospectos";
+  prospectScope?: ProspectScopeConfig;
+}
+
+const PROSPECT_PIPELINE_STAGES: CaptacionStage[] = [
+  "PROSPECT_CREATED",
+  "ENCARGO_ATTACHED",
+  "READY_FOR_PROPERTY",
+];
+
+export function OportunidadesView({
+  mock,
+  mode = "oportunidades",
+  prospectScope = { enabled: false, canChooseActor: false, actorUserId: null },
+}: OportunidadesViewProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const fromListingId = searchParams.get("fromListingId");
+  const fromPropertyId = searchParams.get("fromPropertyId");
+  const deepLinkAction = searchParams.get("openCaptacion");
+  const isProspectView = mode === "prospectos";
+  const viewStorageKey = `${VIEW_STATE_STORAGE_KEY_BASE}:${mode}`;
+  const [city, setCity] = useState("");
   const [advertiserType, setAdvertiserType] = useState<string>("all");
   const [hasPhone, setHasPhone] = useState<boolean>(false);
   const [sinceHours, setSinceHours] = useState<string>("all");
@@ -502,6 +621,11 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
   const [assignmentFeedback, setAssignmentFeedback] = useState<
     Record<string, string>
   >({});
+  const [taggingId, setTaggingId] = useState<string | null>(null);
+  const [tagFeedback, setTagFeedback] = useState<Record<string, string>>({});
+  const [prospectActorUserId, setProspectActorUserId] = useState<string | null>(
+    prospectScope.actorUserId ?? null,
+  );
   const [captacionModalOpen, setCaptacionModalOpen] = useState(false);
   const [captacionModalMode, setCaptacionModalMode] = useState<
     "prospecto" | "promocion"
@@ -523,11 +647,27 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
   const [zonasLoading, setZonasLoading] = useState(false);
   const [zonasError, setZonasError] = useState<string | null>(null);
   const [zonasCity, setZonasCity] = useState<string | null>(null);
+  type ReverseGeocodeState =
+    | { status: "idle" }
+    | { status: "loading"; listingId: string }
+    | {
+        status: "ready";
+        listingId: string;
+        street: string | null;
+        streetNumber: string | null;
+        postalCode: string | null;
+        formattedAddress: string | null;
+      }
+    | { status: "unavailable"; listingId: string; reason: string }
+    | { status: "error"; listingId: string; message: string };
+  const [geocode, setGeocode] = useState<ReverseGeocodeState>({ status: "idle" });
+  const geocodeRequestRef = useRef<string | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [detailListingId, setDetailListingId] = useState<string | null>(null);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [hydratedFromStorage, setHydratedFromStorage] = useState(false);
+  const deepLinkHandledRef = useRef<string | null>(null);
   const skipFirstAutofetchRef = useRef(false);
   const lastFetchRef = useRef<number>(0);
 
@@ -554,9 +694,10 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
       currentPage,
       autoRefresh,
       secondsToRefresh,
+      prospectActorUserId,
       scrollY: window.scrollY,
     };
-    window.sessionStorage.setItem(VIEW_STATE_STORAGE_KEY, JSON.stringify(snapshot));
+    window.sessionStorage.setItem(viewStorageKey, JSON.stringify(snapshot));
   }, [
     city,
     advertiserType,
@@ -578,6 +719,8 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
     currentPage,
     autoRefresh,
     secondsToRefresh,
+    prospectActorUserId,
+    viewStorageKey,
   ]);
 
   const sources = useMemo<string[] | undefined>(() => {
@@ -628,6 +771,13 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
         if (roomsMin !== "any") body.roomsMin = Number(roomsMin);
         if (polygon) body.polygon = polygon;
         if (nextCursor) body.cursor = nextCursor;
+        if (isProspectView) body.captacionStages = PROSPECT_PIPELINE_STAGES;
+        const effectiveProspectActorUserId = prospectScope.canChooseActor
+          ? prospectActorUserId
+          : prospectScope.actorUserId;
+        if (isProspectView && effectiveProspectActorUserId) {
+          body.prospectSentByUserId = effectiveProspectActorUserId;
+        }
 
         const response = await fetch("/api/market/properties/search", {
           method: "POST",
@@ -688,16 +838,23 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
       roomsMin,
       polygon,
       autoRefresh,
+      isProspectView,
+      prospectActorUserId,
+      prospectScope.actorUserId,
+      prospectScope.canChooseActor,
     ],
   );
 
   useEffect(() => {
-    const snapshot = readViewStateSnapshot();
+    const snapshot = readViewStateSnapshot(viewStorageKey);
     if (!snapshot) {
       setHydratedFromStorage(true);
       return;
     }
-    skipFirstAutofetchRef.current = true;
+    const hasDeepLinkTarget = Boolean(fromListingId || fromPropertyId);
+    const shouldRefetchAfterHydration =
+      hasDeepLinkTarget || snapshot.items.length === 0;
+    skipFirstAutofetchRef.current = !shouldRefetchAfterHydration;
     setCity(snapshot.city);
     setAdvertiserType(snapshot.advertiserType);
     setHasPhone(snapshot.hasPhone);
@@ -718,10 +875,11 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
     setCurrentPage(snapshot.currentPage);
     setAutoRefresh(snapshot.autoRefresh);
     setSecondsToRefresh(snapshot.secondsToRefresh);
-    lastFetchRef.current = Date.now();
+    setProspectActorUserId(snapshot.prospectActorUserId ?? null);
+    lastFetchRef.current = shouldRefetchAfterHydration ? 0 : Date.now();
     requestAnimationFrame(() => window.scrollTo(0, snapshot.scrollY));
     setHydratedFromStorage(true);
-  }, []);
+  }, [viewStorageKey, fromListingId, fromPropertyId]);
 
   useEffect(() => {
     if (!hydratedFromStorage) return;
@@ -729,8 +887,27 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
       skipFirstAutofetchRef.current = false;
       return;
     }
-    void fetchListings(false, null);
-  }, [hydratedFromStorage, fetchListings]);
+    const timer = setTimeout(() => {
+      setPageInputCursors([null]);
+      setCurrentPage(1);
+      void fetchListings(false, null);
+    }, 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    hydratedFromStorage,
+    city,
+    portalFilter,
+    advertiserType,
+    operationFilter,
+    hasPhone,
+    sinceHours,
+    priceMin,
+    priceMax,
+    areaMin,
+    roomsMin,
+    polygon,
+  ]);
 
   // Atajos de teclado para el lightbox.
   useEffect(() => {
@@ -840,6 +1017,18 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
       comerciales.map((c) => [c.comercialId, c.comercialNombre]),
     ) as Record<string, string>;
   }, [comerciales]);
+  const prospectActorOptions = useMemo(() => {
+    const byUser = new Map<string, string>();
+    for (const comercial of comerciales) {
+      if (!byUser.has(comercial.userId)) {
+        byUser.set(comercial.userId, comercial.userName || comercial.comercialNombre);
+      }
+    }
+    return Array.from(byUser.entries()).map(([userId, userName]) => ({
+      userId,
+      userName,
+    }));
+  }, [comerciales]);
 
   useEffect(() => {
     if (!detailModalOpen) {
@@ -858,7 +1047,7 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
     if (priceMax.trim()) n++;
     if (areaMin.trim()) n++;
     if (roomsMin !== "any") n++;
-    if (city.trim().toLowerCase() !== "cordoba") n++;
+    if (city.trim().length > 0) n++;
     if (polygonActive) n++;
     return n;
   }, [
@@ -876,7 +1065,7 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
   ]);
 
   const clearAllFilters = useCallback(() => {
-    setCity("cordoba");
+    setCity("");
     setAdvertiserType("all");
     setHasPhone(false);
     setSinceHours("all");
@@ -1160,6 +1349,176 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
     }
   }
 
+  async function assignCaptacionTag(
+    row: ListingOpportunity,
+    nextTag: CaptacionTag | null,
+  ) {
+    if (row.captacionTag === nextTag) return;
+
+    if (mock) {
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === row.id ? { ...it, captacionTag: nextTag } : it,
+        ),
+      );
+      setTagFeedback((prev) => ({
+        ...prev,
+        [row.id]: nextTag
+          ? `Etiqueta: ${captacionTagLabel(nextTag)} (mock)`
+          : "Etiqueta eliminada (mock)",
+      }));
+      return;
+    }
+
+    const previousTag = row.captacionTag;
+    setTaggingId(row.id);
+    setTagFeedback((prev) => ({ ...prev, [row.id]: "" }));
+    setItems((prev) =>
+      prev.map((it) =>
+        it.id === row.id ? { ...it, captacionTag: nextTag } : it,
+      ),
+    );
+
+    try {
+      const response = await fetch(`/api/market/listings/${row.id}/captacion-tag`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tag: nextTag }),
+      });
+      const body = (await response.json().catch(() => ({}))) as CaptacionTagResponse;
+
+      if (!response.ok || !body.ok) {
+        setItems((prev) =>
+          prev.map((it) =>
+            it.id === row.id ? { ...it, captacionTag: previousTag } : it,
+          ),
+        );
+        setTagFeedback((prev) => ({
+          ...prev,
+          [row.id]: body.error?.message ?? `HTTP ${response.status}`,
+        }));
+        return;
+      }
+
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === row.id ? { ...it, captacionTag: body.tag ?? null } : it,
+        ),
+      );
+      const resolvedTag = body.tag ?? null;
+      setTagFeedback((prev) => ({
+        ...prev,
+        [row.id]:
+          body.status === "TAG_CLEARED"
+            ? "Etiqueta eliminada"
+            : resolvedTag
+              ? `Etiqueta: ${captacionTagLabel(resolvedTag)}`
+              : "Etiqueta actualizada",
+      }));
+    } catch (err) {
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === row.id ? { ...it, captacionTag: previousTag } : it,
+        ),
+      );
+      setTagFeedback((prev) => ({
+        ...prev,
+        [row.id]: err instanceof Error ? err.message : String(err),
+      }));
+    } finally {
+      setTaggingId(null);
+    }
+  }
+
+  /**
+   * Obtiene la dirección postal estructurada del listing a partir de su
+   * (lat, lng) usando Google Geocoding (server-side). Auto-rellena Calle y
+   * Número en el form si están vacíos. Si la API no devuelve nada útil,
+   * deja el formulario tal cual y muestra el estado en la UI.
+   */
+  const loadReverseGeocodeForListing = useCallback(
+    async (row: ListingOpportunity) => {
+      if (row.lat == null || row.lng == null) {
+        setGeocode({
+          status: "unavailable",
+          listingId: row.id,
+          reason: "NO_COORDS",
+        });
+        return;
+      }
+
+      geocodeRequestRef.current = row.id;
+      setGeocode({ status: "loading", listingId: row.id });
+
+      try {
+        const response = await fetch(
+          `/api/market/listings/${encodeURIComponent(row.id)}/reverse-geocode`,
+        );
+        if (geocodeRequestRef.current !== row.id) return;
+
+        if (!response.ok) {
+          setGeocode({
+            status: "error",
+            listingId: row.id,
+            message: `HTTP ${response.status}`,
+          });
+          return;
+        }
+
+        const payload = (await response.json().catch(() => ({}))) as {
+          ok?: boolean;
+          result?: {
+            street: string | null;
+            streetNumber: string | null;
+            postalCode: string | null;
+            formattedAddress: string | null;
+          } | null;
+          reason?: string;
+          error?: { message?: string };
+        };
+
+        if (geocodeRequestRef.current !== row.id) return;
+
+        if (!payload.ok || !payload.result) {
+          setGeocode({
+            status: "unavailable",
+            listingId: row.id,
+            reason: payload.reason ?? "NO_RESULT",
+          });
+          return;
+        }
+
+        setGeocode({
+          status: "ready",
+          listingId: row.id,
+          street: payload.result.street,
+          streetNumber: payload.result.streetNumber,
+          postalCode: payload.result.postalCode,
+          formattedAddress: payload.result.formattedAddress,
+        });
+
+        setCaptacionForm((prev) => {
+          const next = { ...prev };
+          if (!prev.calle.trim() && payload.result?.street) {
+            next.calle = payload.result.street;
+          }
+          if (!prev.numero.trim() && payload.result?.streetNumber) {
+            next.numero = payload.result.streetNumber;
+          }
+          return next;
+        });
+      } catch (error) {
+        if (geocodeRequestRef.current !== row.id) return;
+        setGeocode({
+          status: "error",
+          listingId: row.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [],
+  );
+
   function openCaptacionModal(
     row: ListingOpportunity,
     mode: "prospecto" | "promocion",
@@ -1178,8 +1537,10 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
       tituloes: "",
       descripciones: "",
     });
+    setGeocode({ status: "idle" });
     setCaptacionModalOpen(true);
     void loadZonasForCity(row.city);
+    void loadReverseGeocodeForListing(row);
   }
 
   /**
@@ -1189,7 +1550,7 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
    * marcar error: el backend resolverá por nombre o, en su defecto, omitirá
    * `key_zona` del payload.
    */
-  async function loadZonasForCity(city: string | null | undefined) {
+  const loadZonasForCity = useCallback(async (city: string | null | undefined) => {
     const normalizedCity = (city ?? "").trim();
     if (!normalizedCity) {
       setZonasCatalog([]);
@@ -1226,12 +1587,109 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
     } finally {
       setZonasLoading(false);
     }
-  }
+  }, [zonasCity]);
 
-  function openDetailModal(row: ListingOpportunity) {
+  const openDetailModal = useCallback((row: ListingOpportunity) => {
     setDetailListingId(row.id);
     setDetailModalOpen(true);
-  }
+  }, []);
+
+  // Auto-seleccionar la zona del catálogo Inmovilla cuando coincide con la zona
+  // detectada por el portal. Solo aplica si el comercial aún no ha elegido una
+  // zona explícitamente (`keyZona` vacío = "Auto-detectar desde el portal").
+  useEffect(() => {
+    if (!captacionModalOpen) return;
+    if (!captacionTarget?.zone) return;
+    if (captacionForm.keyZona) return;
+    if (zonasCatalog.length === 0) return;
+
+    const targetSlug = normalizeLocaLabel(captacionTarget.zone);
+    if (!targetSlug) return;
+
+    const exact = zonasCatalog.find(
+      (z) => normalizeLocaLabel(z.zona) === targetSlug,
+    );
+    const partial =
+      exact ??
+      zonasCatalog.find((z) => {
+        const candidate = normalizeLocaLabel(z.zona);
+        return (
+          candidate.includes(targetSlug) || targetSlug.includes(candidate)
+        );
+      });
+    if (!partial) return;
+
+    setCaptacionForm((prev) =>
+      prev.keyZona
+        ? prev
+        : { ...prev, keyZona: String(partial.keyZona) },
+    );
+  }, [
+    captacionModalOpen,
+    captacionTarget,
+    captacionForm.keyZona,
+    zonasCatalog,
+  ]);
+
+  useEffect(() => {
+    if (!hydratedFromStorage) return;
+    if (!fromListingId && !fromPropertyId) return;
+
+    const target =
+      (fromListingId
+        ? items.find((item) => item.id === fromListingId)
+        : null) ??
+      (fromPropertyId
+        ? items.find((item) => item.propertyId === fromPropertyId)
+        : null) ??
+      null;
+
+    if (!target) return;
+    if (deepLinkHandledRef.current === target.id) return;
+
+    if (deepLinkAction === "prospecto") {
+      setDetailModalOpen(false);
+      setCaptacionTarget(target);
+      setCaptacionModalMode("prospecto");
+      setCaptacionForm({
+        keyZona: "",
+        calle: target.addressApprox ?? "",
+        numero: "",
+        planta: target.floor ?? "",
+        precioInmo: target.price != null ? String(target.price) : "",
+        habitaciones: target.rooms != null ? String(target.rooms) : "",
+        banyos: target.bathrooms != null ? String(target.bathrooms) : "",
+        tituloes: "",
+        descripciones: "",
+      });
+      setGeocode({ status: "idle" });
+      setCaptacionModalOpen(true);
+      void loadZonasForCity(target.city);
+      void loadReverseGeocodeForListing(target);
+    } else {
+      openDetailModal(target);
+    }
+    deepLinkHandledRef.current = target.id;
+
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("fromListingId");
+    next.delete("fromPropertyId");
+    next.delete("openCaptacion");
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [
+    deepLinkAction,
+    fromListingId,
+    fromPropertyId,
+    hydratedFromStorage,
+    items,
+    loadReverseGeocodeForListing,
+    loadZonasForCity,
+    openDetailModal,
+    pathname,
+    router,
+    searchParams,
+  ]);
 
   async function submitCaptacionAction() {
     if (!captacionTarget || mock) return;
@@ -1419,6 +1877,36 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
           ) : null}
         </div>
 
+        {isProspectView && prospectScope.canChooseActor ? (
+          <div className="inline-flex h-9 items-center gap-2 rounded border border-neutral-300 bg-[#f4f4f4] px-2 dark:border-neutral-600 dark:bg-neutral-800">
+            <span className="text-xs text-muted-foreground">Comercial:</span>
+            <Select
+              value={prospectActorUserId ?? "all"}
+              onValueChange={(value) =>
+                setProspectActorUserId(value === "all" ? null : value)
+              }
+            >
+              <SelectTrigger className="h-7 w-[180px] border-neutral-300 bg-white text-xs dark:border-neutral-600 dark:bg-neutral-900">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">
+                  Todos
+                </SelectItem>
+                {prospectActorOptions.map((actor) => (
+                  <SelectItem
+                    key={actor.userId}
+                    value={actor.userId}
+                    className="text-xs"
+                  >
+                    {actor.userName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+
         <button
           type="button"
           className={toolbarBtnClass}
@@ -1470,164 +1958,170 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
       )}
 
       {filterPanelOpen && (
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs text-muted-foreground">Portal</Label>
-            <Select
-              value={portalFilter}
-              onValueChange={(v) => setPortalFilter(v as PortalFilter)}
-            >
-              <SelectTrigger className="h-9 w-[160px]">
-                <SelectValue placeholder="Todos los portales" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los portales</SelectItem>
-                <SelectItem value="source_d">Idealista</SelectItem>
-                <SelectItem value="source_a">Fotocasa</SelectItem>
-                <SelectItem value="source_b">Pisos.com</SelectItem>
-                <SelectItem value="source_c">Milanuncios</SelectItem>
-                <SelectItem value="exclude_a">Todos menos Fotocasa</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs text-muted-foreground">Ventana temporal</Label>
-            <Select value={sinceHours} onValueChange={setSinceHours}>
-              <SelectTrigger className="h-9 w-[160px]">
-                <SelectValue placeholder="Cualquier momento" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Cualquier momento</SelectItem>
-                <SelectItem value="24">Últimas 24h</SelectItem>
-                <SelectItem value="72">Últimas 72h</SelectItem>
-                <SelectItem value="168">Última semana</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs text-muted-foreground">Operación</Label>
-            <Select
-              value={operationFilter}
-              onValueChange={(v) => setOperationFilter(v as OperationFilter)}
-            >
-              <SelectTrigger className="h-9 w-[120px]">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="sale">Venta</SelectItem>
-                <SelectItem value="rent">Alquiler</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs text-muted-foreground">Publicante</Label>
-            <Select value={advertiserType} onValueChange={setAdvertiserType}>
-              <SelectTrigger className="h-9 w-[120px]">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="particular">Particular</SelectItem>
-                <SelectItem value="agency">Agencia</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="chip-price-min" className="text-xs text-muted-foreground">Precio mín (€)</Label>
-            <Input
-              id="chip-price-min"
-              type="number"
-              value={priceMin}
-              onChange={(e) => setPriceMin(e.target.value)}
-              placeholder="Ej. 50000"
-              className="h-9 w-[120px]"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="chip-price-max" className="text-xs text-muted-foreground">Precio máx (€)</Label>
-            <Input
-              id="chip-price-max"
-              type="number"
-              value={priceMax}
-              onChange={(e) => setPriceMax(e.target.value)}
-              placeholder="Ej. 500000"
-              className="h-9 w-[120px]"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="chip-city" className="text-xs text-muted-foreground">Ciudad</Label>
-            <Input
-              id="chip-city"
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-2 shadow-sm">
+          <div className="flex flex-1 items-center gap-2 rounded-md border bg-background px-3 h-9 min-w-[200px] max-w-[300px]">
+            <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+            <input
               value={city}
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                setCity(e.target.value)
-              }
-              placeholder="cordoba"
-              className="h-9 w-[140px]"
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="Buscar por ciudad..."
+              className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="chip-area-min" className="text-xs text-muted-foreground">Sup. mín (m²)</Label>
-            <Input
-              id="chip-area-min"
-              type="number"
-              value={areaMin}
-              onChange={(e) => setAreaMin(e.target.value)}
-              placeholder="Ej. 60"
-              className="h-9 w-[100px]"
-            />
-          </div>
+          <Select
+            value={portalFilter}
+            onValueChange={(v) => setPortalFilter(v as PortalFilter)}
+          >
+            <SelectTrigger className="h-9 w-[160px] bg-background">
+              <SelectValue placeholder="Todos los portales" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los portales</SelectItem>
+              <SelectItem value="source_d">Idealista</SelectItem>
+              <SelectItem value="source_a">Fotocasa</SelectItem>
+              <SelectItem value="source_b">Pisos.com</SelectItem>
+              <SelectItem value="source_c">Milanuncios</SelectItem>
+              <SelectItem value="exclude_a">Todos menos Fotocasa</SelectItem>
+            </SelectContent>
+          </Select>
 
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs text-muted-foreground">Habitaciones mín</Label>
-            <Select value={roomsMin} onValueChange={setRoomsMin}>
-              <SelectTrigger className="h-9 w-[120px]">
-                <SelectValue placeholder="Cualquiera" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">Cualquiera</SelectItem>
-                <SelectItem value="1">1+</SelectItem>
-                <SelectItem value="2">2+</SelectItem>
-                <SelectItem value="3">3+</SelectItem>
-                <SelectItem value="4">4+</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <Select
+            value={operationFilter}
+            onValueChange={(v) => setOperationFilter(v as OperationFilter)}
+          >
+            <SelectTrigger className="h-9 w-[120px] bg-background">
+              <SelectValue placeholder="Operación" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="sale">Venta</SelectItem>
+              <SelectItem value="rent">Alquiler</SelectItem>
+            </SelectContent>
+          </Select>
 
-          <div className="flex flex-col gap-1.5 justify-end h-[58px]">
-            <label className="flex cursor-pointer items-center gap-2 text-xs h-9 px-2">
-              <input
-                type="checkbox"
-                checked={hasPhone}
-                onChange={(e) => setHasPhone(e.target.checked)}
-                className="h-3.5 w-3.5 rounded border"
-              />
-              Solo con teléfono
-            </label>
-          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="h-9 gap-2">
+                <Filter className="h-4 w-4" />
+                Más filtros
+                {activeFilterCount > 3 && (
+                  <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] px-1 py-0">
+                    {activeFilterCount - 3}
+                  </Badge>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-4" align="end">
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium">Filtros avanzados</h4>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Precio mín (€)</Label>
+                    <Input
+                      type="number"
+                      value={priceMin}
+                      onChange={(e) => setPriceMin(e.target.value)}
+                      placeholder="Ej. 50000"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Precio máx (€)</Label>
+                    <Input
+                      type="number"
+                      value={priceMax}
+                      onChange={(e) => setPriceMax(e.target.value)}
+                      placeholder="Ej. 500000"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
 
-          <div className="flex flex-col gap-1.5 justify-end h-[58px]">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Sup. mín (m²)</Label>
+                    <Input
+                      type="number"
+                      value={areaMin}
+                      onChange={(e) => setAreaMin(e.target.value)}
+                      placeholder="Ej. 60"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Habitaciones mín</Label>
+                    <Select value={roomsMin} onValueChange={setRoomsMin}>
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder="Cualquiera" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="any">Cualquiera</SelectItem>
+                        <SelectItem value="1">1+</SelectItem>
+                        <SelectItem value="2">2+</SelectItem>
+                        <SelectItem value="3">3+</SelectItem>
+                        <SelectItem value="4">4+</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Ventana temporal</Label>
+                  <Select value={sinceHours} onValueChange={setSinceHours}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Cualquier momento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Cualquier momento</SelectItem>
+                      <SelectItem value="24">Últimas 24h</SelectItem>
+                      <SelectItem value="72">Últimas 72h</SelectItem>
+                      <SelectItem value="168">Última semana</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Publicante</Label>
+                  <Select value={advertiserType} onValueChange={setAdvertiserType}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="particular">Particular</SelectItem>
+                      <SelectItem value="agency">Agencia</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="pt-2">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={hasPhone}
+                      onChange={(e) => setHasPhone(e.target.checked)}
+                      className="h-4 w-4 rounded border-neutral-300 text-primary focus:ring-primary"
+                    />
+                    Solo con teléfono
+                  </label>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {activeFilterCount > 0 && (
             <Button
+              variant="ghost"
               size="sm"
-              variant="secondary"
-              className="h-9 border border-neutral-300 bg-[#f4f4f4] hover:bg-neutral-200 dark:border-neutral-600 dark:bg-neutral-800 dark:hover:bg-neutral-700"
-              onClick={() => applyFilters()}
-              disabled={loading}
+              onClick={clearAllFilters}
+              className="h-9 px-2 text-muted-foreground hover:text-foreground"
             >
-              {loading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
-              Aplicar filtros
+              <X className="mr-1 h-3 w-3" />
+              Limpiar
             </Button>
-          </div>
+          )}
         </div>
       )}
 
@@ -1730,125 +2224,176 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                 <TableHead>Inmueble</TableHead>
                 <TableHead className="text-right">Precio</TableHead>
                 <TableHead>Publicante</TableHead>
+                <TableHead>Comercial</TableHead>
                 <TableHead>Captacion</TableHead>
+                <TableHead>Etiqueta</TableHead>
                 <TableHead className="text-right">Visto</TableHead>
                 <TableHead className="text-right">Detalle</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.length === 0 && !loading && (
-                <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className="py-8 text-center text-xs text-muted-foreground"
-                  >
-                    Sin anuncios para los filtros actuales.
-                    {polygonActive && (
-                      <>
-                        {" "}
-                        Prueba a ampliar el area dibujada o pulsa{" "}
-                        <button
-                          type="button"
-                          onClick={() => setPolygon(null)}
-                          className="underline"
-                        >
-                          Limpiar zona
-                        </button>
-                        .
-                      </>
-                    )}
-                  </TableCell>
-                </TableRow>
-              )}
-              {items.map((row) => {
-                const partial = isPartialDataSource(row.source);
-                return (
-                  <TableRow
-                    key={row.id}
-                    className={
-                      highlightId === row.id
-                        ? "bg-emerald-50 transition-colors dark:bg-emerald-950/30"
-                        : undefined
-                    }
-                  >
+              {loading && items.length === 0 ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
                     <TableCell className="w-[160px]">
-                      {row.mainImageUrl ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const imgs =
-                              row.imageUrls && row.imageUrls.length > 0
-                                ? row.imageUrls
-                                : [row.mainImageUrl!];
-                            openLightbox(imgs, 0);
-                          }}
-                          className="group relative block h-24 w-36 overflow-hidden rounded border border-neutral-200 bg-muted shadow-sm transition-all hover:border-emerald-400 hover:shadow-md dark:border-neutral-700"
-                          title="Ver foto a tamaño grande"
-                        >
-                          <img
-                            src={proxiedStatefoxImageUrl(row.mainImageUrl)}
-                            alt={`Anuncio ${row.id}`}
-                            className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                            loading="lazy"
-                            referrerPolicy="no-referrer"
-                          />
-                          <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-all group-hover:bg-black/30 group-hover:opacity-100">
-                            <ZoomIn className="h-5 w-5" />
-                          </span>
-                          {row.imageUrls && row.imageUrls.length > 1 ? (
-                            <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                              +{row.imageUrls.length - 1}
-                            </span>
-                          ) : null}
-                        </button>
-                      ) : (
-                        <div className="flex h-24 w-36 items-center justify-center rounded border border-dashed border-neutral-300 bg-muted text-[10px] text-muted-foreground dark:border-neutral-700">
-                          sin foto
-                        </div>
-                      )}
+                      <Skeleton className="h-24 w-36 rounded" />
                     </TableCell>
-                    <TableCell className="max-w-[320px] text-xs">
-                      <div className="flex flex-col gap-1">
-                        <span className="truncate">
-                          {displayLocation(row)}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {row.builtArea ?? "—"} m² · {row.rooms ?? "—"} hab ·{" "}
-                          {row.bathrooms ?? "—"} baños
-                        </span>
-                        <div className="flex flex-wrap items-center gap-1">
-                          {row.portals.map((portal) => (
-                            <Badge
-                              key={portal.listingId}
-                              variant="outline"
-                              className="text-[9px] font-normal"
-                              title={
-                                portal.price != null
-                                  ? `${SOURCE_LABEL[portal.source] ?? portal.source}: ${formatPrice(portal.price)}`
-                                  : SOURCE_LABEL[portal.source] ?? portal.source
-                              }
-                            >
-                              {SOURCE_LABEL[portal.source] ?? portal.source}
-                            </Badge>
-                          ))}
-                          {row.portals.length > 1 && row.priceSpreadPct != null
-                            ? (
-                                <span className="text-[9px] font-medium text-amber-700 dark:text-amber-300">
-                                  Δ {(row.priceSpreadPct * 100).toFixed(1)}%
-                                </span>
-                              )
-                            : null}
-                        </div>
-                        {partial && row.portals.length === 1 && (
-                          <Badge
-                            variant="outline"
-                            className="w-fit text-[9px] font-normal"
-                          >
-                            datos parciales
-                          </Badge>
-                        )}
+                    <TableCell>
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-48" />
+                        <Skeleton className="h-3 w-32" />
+                        <Skeleton className="h-4 w-24 rounded-full" />
                       </div>
                     </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex flex-col items-end gap-1">
+                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-28" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-7 w-[120px] rounded-md" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-24 rounded-full" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-7 w-[130px] rounded-md" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Skeleton className="h-4 w-12 ml-auto" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Skeleton className="h-8 w-8 ml-auto rounded-md" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : items.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="py-12">
+                    <EmptyState
+                      icon={Search}
+                      title="Sin oportunidades"
+                      description={
+                        polygonActive
+                          ? "No se encontraron inmuebles en la zona dibujada con los filtros actuales. Prueba ampliando el área o relajando los filtros."
+                          : "No hay anuncios que coincidan con los filtros actuales."
+                      }
+                      action={
+                        <Button variant="outline" onClick={clearAllFilters}>
+                          Limpiar filtros
+                        </Button>
+                      }
+                    />
+                  </TableCell>
+                </TableRow>
+              ) : (
+                items.map((row) => {
+                  const partial = isPartialDataSource(row.source);
+                  return (
+                    <TableRow
+                      key={row.id}
+                      onClick={() => openDetailModal(row)}
+                      className={`cursor-pointer group hover:bg-muted/40 ${
+                        highlightId === row.id
+                          ? "bg-emerald-50 transition-colors dark:bg-emerald-950/30"
+                          : ""
+                      }`}
+                    >
+                      <TableCell className="w-[160px]" onClick={(e) => e.stopPropagation()}>
+                        {row.mainImageUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const imgs =
+                                row.imageUrls && row.imageUrls.length > 0
+                                  ? row.imageUrls
+                                  : [row.mainImageUrl!];
+                              openLightbox(imgs, 0);
+                            }}
+                            className="group/img relative block h-24 w-36 overflow-hidden rounded border border-neutral-200 bg-muted shadow-sm transition-all hover:border-emerald-400 hover:shadow-md dark:border-neutral-700"
+                            title="Ver foto a tamaño grande"
+                          >
+                            <img
+                              src={proxiedStatefoxImageUrl(row.mainImageUrl)}
+                              alt={`Anuncio ${row.id}`}
+                              className="h-full w-full object-cover transition-transform group-hover/img:scale-105"
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                            />
+                            <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-all group-hover/img:bg-black/30 group-hover/img:opacity-100">
+                              <ZoomIn className="h-5 w-5" />
+                            </span>
+                            {row.imageUrls && row.imageUrls.length > 1 ? (
+                              <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                                +{row.imageUrls.length - 1}
+                              </span>
+                            ) : null}
+                          </button>
+                        ) : (
+                          <div className="flex h-24 w-36 items-center justify-center rounded border border-dashed border-neutral-300 bg-muted text-[10px] text-muted-foreground dark:border-neutral-700">
+                            sin foto
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-[320px] text-xs">
+                        <div className="flex flex-col gap-1.5">
+                          <span className="truncate font-medium">
+                            {displayLocation(row)}
+                          </span>
+                          <div className="flex items-center gap-2.5 text-[11px] text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Ruler className="h-3 w-3" />
+                              {row.builtArea ?? "—"} m²
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <BedDouble className="h-3 w-3" />
+                              {row.rooms ?? "—"}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Bath className="h-3 w-3" />
+                              {row.bathrooms ?? "—"}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                            {row.portals.map((portal) => (
+                              <Badge
+                                key={portal.listingId}
+                                variant="outline"
+                                className="text-[9px] font-normal px-1 py-0 h-4"
+                                title={
+                                  portal.price != null
+                                    ? `${SOURCE_LABEL[portal.source] ?? portal.source}: ${formatPrice(portal.price)}`
+                                    : SOURCE_LABEL[portal.source] ?? portal.source
+                                }
+                              >
+                                {SOURCE_LABEL[portal.source] ?? portal.source}
+                              </Badge>
+                            ))}
+                            {row.portals.length > 1 && row.priceSpreadPct != null
+                              ? (
+                                  <span className="text-[9px] font-medium text-amber-700 dark:text-amber-300">
+                                    Δ {(row.priceSpreadPct * 100).toFixed(1)}%
+                                  </span>
+                                )
+                              : null}
+                          </div>
+                          {partial && row.portals.length === 1 && (
+                            <Badge
+                              variant="outline"
+                              className="w-fit text-[9px] font-normal px-1 py-0 h-4 mt-0.5"
+                            >
+                              datos parciales
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
                     <TableCell className="text-right text-xs font-medium">
                       <div className="flex flex-col items-end gap-0.5">
                         <span>{formatPrice(row.price)}</span>
@@ -1878,7 +2423,33 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                       </div>
                     </TableCell>
                     <TableCell className="text-xs">
-                      <div className="flex min-w-[160px] flex-col gap-1">
+                      <Select
+                        value={row.assignedComercialId ?? "unassigned"}
+                        disabled={loadingComerciales || assigningId === row.id}
+                        onValueChange={(val) => 
+                          void assignComercial(row, val === "unassigned" ? null : val)
+                        }
+                      >
+                        <SelectTrigger className="h-7 w-[120px] bg-transparent px-2 text-xs">
+                          <SelectValue placeholder="Sin asignar" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unassigned" className="text-xs text-muted-foreground">Sin asignar</SelectItem>
+                          {comerciales.map((c) => (
+                            <SelectItem key={c.comercialId} value={c.comercialId} className="text-xs">
+                              {c.comercialNombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {(assignmentFeedback[row.id]) && (
+                        <p className="mt-1 max-w-[120px] truncate text-[9px] text-muted-foreground" title={assignmentFeedback[row.id]}>
+                          {assignmentFeedback[row.id]}
+                        </p>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      <div className="flex min-w-[140px] flex-col gap-1">
                         <Badge
                           variant={
                             row.captacionStage === "FAILED"
@@ -1908,51 +2479,89 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                         ) : null}
                       </div>
                     </TableCell>
+                    <TableCell className="text-xs" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex min-w-[130px] flex-col gap-1">
+                        <Select
+                          value={row.captacionTag ?? "sin_etiqueta"}
+                          disabled={taggingId === row.id}
+                          onValueChange={(value) =>
+                            void assignCaptacionTag(
+                              row,
+                              value === "sin_etiqueta" ? null : parseCaptacionTag(value),
+                            )
+                          }
+                        >
+                          <SelectTrigger className="h-7 w-[130px] bg-transparent px-2 text-xs">
+                            <SelectValue placeholder="Sin etiqueta" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem
+                              value="sin_etiqueta"
+                              className="text-xs text-muted-foreground"
+                            >
+                              Sin etiqueta
+                            </SelectItem>
+                            {CAPTACION_TAG_OPTIONS.map((tagOption) => (
+                              <SelectItem
+                                key={tagOption.value}
+                                value={tagOption.value}
+                                className="text-xs"
+                              >
+                                <span className="inline-flex items-center gap-1.5">
+                                  <tagOption.icon className="h-3 w-3" />
+                                  {tagOption.label}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {row.captacionTag ? (
+                          <CaptacionTagBadge tag={row.captacionTag} />
+                        ) : null}
+                        {tagFeedback[row.id] ? (
+                          <p
+                            className="max-w-[130px] truncate text-[9px] text-muted-foreground"
+                            title={tagFeedback[row.id]}
+                          >
+                            {tagFeedback[row.id]}
+                          </p>
+                        ) : null}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right text-xs text-muted-foreground">
                       {relativeTime(row.lastSeenAt)}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex flex-wrap items-center justify-end gap-1">
-                        <Button
-                          asChild
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2"
-                          title="Ver anuncio en el portal"
-                        >
-                          <a
-                            href={row.canonicalUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        </Button>
-                        <Button
-                          asChild
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-xs"
-                          title="Abrir ficha completa"
-                        >
-                          <Link href={`/platform/market/properties/${encodeURIComponent(row.propertyId)}`}>
-                            Ficha
-                          </Link>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 text-xs"
-                          onClick={() => openDetailModal(row)}
-                          title="Abrir modal rápido"
-                        >
-                          Gestión rápida
-                        </Button>
-                      </div>
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <span className="sr-only">Abrir menú</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openDetailModal(row)}>
+                            Gestión rápida
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href={`/platform/market/properties/${encodeURIComponent(row.propertyId)}`}>
+                              Ficha completa
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem asChild>
+                            <a href={row.canonicalUrl} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="mr-2 h-4 w-4" />
+                              Ver en portal
+                            </a>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 );
-              })}
+              })
+            )}
             </TableBody>
           </Table>
           {(items.length > 0 || currentPage > 1) && (
@@ -1992,84 +2601,137 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
         </CardContent>
       </Card>
 
-      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
-        <DialogContent className="max-h-[90vh] overflow-x-hidden overflow-y-auto sm:max-w-5xl">
-          <DialogHeader>
-            <DialogTitle>Detalle y gestión de oportunidad</DialogTitle>
-            <DialogDescription>
-              Asigna comercial y ejecuta acciones de CRM/captación sin saturar la
-              tabla.
-            </DialogDescription>
-          </DialogHeader>
+      <Sheet open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+        <SheetContent side="right" className="flex w-full flex-col overflow-x-hidden overflow-y-auto p-6 sm:max-w-md md:max-w-2xl !border-l-0 shadow-2xl">
+          <SheetHeader className="mb-4">
+            <div className="flex items-center justify-between">
+              <SheetTitle className="text-lg">Gestión de oportunidad</SheetTitle>
+              {selectedListing && (
+                <Button asChild variant="ghost" size="sm" className="h-8 gap-1 px-2 text-muted-foreground hover:text-foreground">
+                  <Link href={`/platform/market/properties/${encodeURIComponent(selectedListing.propertyId)}`}>
+                    <ExternalLink className="h-3 w-3" />
+                    Ficha completa
+                  </Link>
+                </Button>
+              )}
+            </div>
+            <SheetDescription>
+              Asigna comercial y ejecuta acciones de CRM sin perder el listado.
+            </SheetDescription>
+          </SheetHeader>
 
           {selectedListing ? (
-            <div className="min-w-0 space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-[220px_1fr]">
-                <div>
-                  {selectedListing.mainImageUrl ? (
-                    <img
-                      src={proxiedStatefoxImageUrl(selectedListing.mainImageUrl)}
-                      alt={`Anuncio ${selectedListing.id}`}
-                      className="h-40 w-full rounded object-cover"
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="flex h-40 w-full items-center justify-center rounded bg-muted text-xs text-muted-foreground">
-                      sin foto
-                    </div>
-                  )}
-                </div>
-                <div className="min-w-0 space-y-2 text-sm">
-                  <p className="font-medium">{displayLocation(selectedListing)}</p>
+            <div className="min-w-0 flex flex-col gap-6">
+              <div className="space-y-4">
+                {selectedListing.mainImageUrl ? (
+                  <img
+                    src={proxiedStatefoxImageUrl(selectedListing.mainImageUrl)}
+                    alt={`Anuncio ${selectedListing.id}`}
+                    className="h-48 w-full rounded-md object-cover border border-border/20 shadow-sm"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="flex h-48 w-full items-center justify-center rounded-md bg-muted text-xs text-muted-foreground border border-border/20">
+                    sin foto
+                  </div>
+                )}
+                
+                <div className="min-w-0 space-y-1.5 text-sm p-4 bg-muted/10 rounded-md border border-border/20">
+                  <p className="font-semibold text-base mb-1">{displayLocation(selectedListing)}</p>
                   <p className="text-muted-foreground">
-                    {selectedListing.city} · {selectedListing.zone ?? "Sin zona"} ·{" "}
-                    {SOURCE_LABEL[selectedListing.source] ?? selectedListing.source}
+                    {selectedListing.city} · {selectedListing.zone ?? "Sin zona"}
                   </p>
                   <p className="text-muted-foreground">
                     {selectedListing.builtArea ?? "—"} m² ·{" "}
                     {selectedListing.rooms ?? "—"} hab ·{" "}
                     {selectedListing.bathrooms ?? "—"} baños
                   </p>
-                  <p className="font-medium">
+                  <p className="font-medium text-base mt-2">
                     {formatPrice(selectedListing.price)} ·{" "}
                     {formatPpm(selectedListing.pricePerMeter)}
                   </p>
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <Badge
-                      variant={
-                        selectedListing.captacionStage === "FAILED"
-                          ? "destructive"
-                          : selectedListing.captacionStage === "PROPERTY_CREATED"
-                            ? "secondary"
-                            : "outline"
-                      }
-                    >
-                      {captacionStageLabel(selectedListing.captacionStage)}
-                    </Badge>
-                    {selectedListing.listingReference ? (
-                      <Badge variant="outline">
-                        Ref. anuncio: {selectedListing.listingReference}
-                      </Badge>
-                    ) : null}
-                    {selectedListing.cadastralRef ? (
-                      <Badge variant="outline">
-                        Catastral: {selectedListing.cadastralRef}
-                      </Badge>
-                    ) : null}
-                    {selectedListing.inmovillaProspectRef ? (
-                      <Badge variant="outline">
-                        Inmovilla ref: {selectedListing.inmovillaProspectRef}
-                      </Badge>
-                    ) : null}
-                    {selectedListing.inmovillaPropertyCodOfer != null ? (
-                      <Badge variant="outline">
-                        Cod: {selectedListing.inmovillaPropertyCodOfer}
-                      </Badge>
-                    ) : null}
-                  </div>
                 </div>
               </div>
+              
+              <div className="min-w-0 space-y-6">
+                <div>
+                  <Label className="mb-2 block text-xs uppercase text-muted-foreground">Estado e Identificadores</Label>
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <Badge
+                        variant={
+                          selectedListing.captacionStage === "FAILED"
+                            ? "destructive"
+                            : selectedListing.captacionStage === "PROPERTY_CREATED"
+                              ? "secondary"
+                              : "outline"
+                        }
+                      >
+                        {captacionStageLabel(selectedListing.captacionStage)}
+                      </Badge>
+                      <Badge variant="outline">{SOURCE_LABEL[selectedListing.source] ?? selectedListing.source}</Badge>
+                      {selectedListing.listingReference ? (
+                        <Badge variant="secondary" className="bg-muted/50">
+                          Ref: {selectedListing.listingReference}
+                        </Badge>
+                      ) : null}
+                      {selectedListing.inmovillaPropertyCodOfer != null ? (
+                        <Badge variant="secondary" className="bg-muted/50">
+                          Cod: {selectedListing.inmovillaPropertyCodOfer}
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </div>
+
+                <div className="space-y-2">
+                  <Label className="block text-xs uppercase text-muted-foreground">
+                    Etiquetas
+                  </Label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Select
+                      value={selectedListing.captacionTag ?? "sin_etiqueta"}
+                      disabled={taggingId === selectedListing.id}
+                      onValueChange={(value) =>
+                        void assignCaptacionTag(
+                          selectedListing,
+                          value === "sin_etiqueta"
+                            ? null
+                            : parseCaptacionTag(value),
+                        )
+                      }
+                    >
+                      <SelectTrigger className="h-9 w-[220px]">
+                        <SelectValue placeholder="Sin etiqueta" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem
+                          value="sin_etiqueta"
+                          className="text-xs text-muted-foreground"
+                        >
+                          Sin etiqueta
+                        </SelectItem>
+                        {CAPTACION_TAG_OPTIONS.map((tagOption) => (
+                          <SelectItem
+                            key={tagOption.value}
+                            value={tagOption.value}
+                            className="text-xs"
+                          >
+                            <span className="inline-flex items-center gap-1.5">
+                              <tagOption.icon className="h-3 w-3" />
+                              {tagOption.label}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedListing.captacionTag ? (
+                      <CaptacionTagBadge tag={selectedListing.captacionTag} />
+                    ) : null}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {tagFeedback[selectedListing.id] || "Marca el estado comercial del contacto para priorizar el seguimiento."}
+                  </p>
+                </div>
 
               {/* Galeria de fotos del inmueble (URLs originales del portal). */}
               {selectedListing.imageUrls && selectedListing.imageUrls.length > 1 ? (
@@ -2077,7 +2739,7 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                   <Label className="mb-2 block text-xs uppercase text-muted-foreground">
                     Galeria ({selectedListing.imageUrls.length} fotos)
                   </Label>
-                  <div className="flex gap-2 overflow-x-auto rounded-lg bg-muted/25 p-2">
+                  <div className="flex gap-2 overflow-x-auto rounded-md bg-muted/20 border border-border/50 p-2.5">
                     {selectedListing.imageUrls.slice(0, 24).map((url, idx) => (
                       <button
                         key={`${url}-${idx}`}
@@ -2085,7 +2747,7 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                         onClick={() =>
                           openLightbox(selectedListing.imageUrls!, idx)
                         }
-                        className="group relative block h-24 w-32 flex-shrink-0 overflow-hidden rounded border border-transparent transition-all hover:border-emerald-400 hover:shadow-md"
+                        className="group relative block h-20 w-28 flex-shrink-0 overflow-hidden rounded border border-transparent transition-all hover:border-emerald-400 hover:shadow-md"
                         title="Ver foto a tamaño grande"
                       >
                         <img
@@ -2104,47 +2766,9 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                 </div>
               ) : null}
 
-              {/* Descripcion completa de la ficha (extraida via fetch-detail). */}
-              {selectedListing.description ? (
-                <div>
-                  <Label className="mb-1 block text-xs uppercase text-muted-foreground">
-                    Descripcion
-                  </Label>
-                  <p className="whitespace-pre-line rounded-lg bg-muted/25 p-3 text-sm leading-relaxed break-words [overflow-wrap:anywhere]">
-                    {visibleDescription}
-                  </p>
-                  {hasLongDescription ? (
-                    <div className="mt-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        onClick={() =>
-                          setDescriptionExpanded((prev) => !prev)
-                        }
-                      >
-                        {descriptionExpanded
-                          ? "Ver menos"
-                          : "Ver descripcion completa"}
-                      </Button>
-                    </div>
-                  ) : null}
-                </div>
-              ) : selectedListing.detailFetchedAt ? (
-                <p className="text-xs text-muted-foreground">
-                  Sin descripcion disponible (la ficha del portal no la expone).
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Aun no se ha enriquecido el detalle. Se hara automaticamente
-                  en proximos minutos.
-                </p>
-              )}
-
-              <div className="grid grid-cols-1 gap-4 rounded-lg bg-muted/25 p-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <Label>Comercial responsable</Label>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-1.5 p-4 bg-muted/20 rounded-md border border-border/50">
+                  <Label className="text-xs uppercase text-muted-foreground">Comercial responsable</Label>
                   <select
                     value={selectedListing.assignedComercialId ?? ""}
                     disabled={loadingComerciales || assigningId === selectedListing.id}
@@ -2154,8 +2778,7 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                         e.target.value ? e.target.value : null,
                       )
                     }
-                    className="h-9 w-full rounded-md border border-neutral-300/60 bg-background/70 px-2 text-sm shadow-sm dark:border-neutral-700/70"
-                    title="Asignar comercial responsable"
+                    className="h-9 w-full rounded-md border border-border/80 bg-background px-3 text-sm shadow-sm hover:border-border transition-colors"
                   >
                     <option value="">Sin asignar</option>
                     {comerciales.map((comercial) => (
@@ -2166,112 +2789,168 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                   </select>
                   {(assignmentFeedback[selectedListing.id] ??
                     selectedListing.assignedComercialNombre) && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground mt-1 truncate">
                       {assignmentFeedback[selectedListing.id] ??
                         selectedListing.assignedComercialNombre}
                     </p>
                   )}
                 </div>
 
-                <div className="space-y-1">
-                  <Label>Contacto publicante</Label>
-                  <div className="flex h-9 items-center rounded-md border border-neutral-300/60 bg-background/70 px-2 text-sm shadow-sm dark:border-neutral-700/70">
+                <div className="space-y-1.5 p-4 bg-muted/20 rounded-md border border-border/50">
+                  <Label className="text-xs uppercase text-muted-foreground">Contacto publicante</Label>
+                  <div className="flex h-9 items-center rounded-md border border-border/80 bg-background px-3 text-sm shadow-sm">
                     {selectedListing.phoneCanonical ? (
                       <a
                         href={`tel:${selectedListing.phoneCanonical}`}
-                        className="inline-flex items-center gap-1 hover:underline"
+                        className="inline-flex items-center gap-2 hover:underline font-medium"
                       >
-                        <Phone className="h-3 w-3" />
+                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
                         {formatPhone(selectedListing.phoneCanonical)}
                       </a>
                     ) : (
                       <span className="text-muted-foreground">Sin teléfono</span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {selectedListing.advertiserDisplayName ?? "Publicante no identificado"}
-                  </p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-xs text-muted-foreground truncate max-w-[140px]">
+                      {selectedListing.advertiserDisplayName ?? "No identificado"}
+                    </p>
+                    {selectedListing.advertiserType && (
+                      <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 uppercase">
+                        {selectedListing.advertiserType === "particular" ? "Particular" : "Agencia"}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </div>
+              
+              {/* Descripcion completa de la ficha (extraida via fetch-detail). */}
+              {selectedListing.description ? (
+                <div>
+                  <Label className="mb-2 block text-xs uppercase text-muted-foreground">
+                    Descripcion original
+                  </Label>
+                  <div className="relative">
+                    <p className="whitespace-pre-line rounded-md border border-border/50 bg-muted/20 p-4 text-sm leading-relaxed break-words [overflow-wrap:anywhere] text-muted-foreground">
+                      {visibleDescription}
+                    </p>
+                    {hasLongDescription && !descriptionExpanded && (
+                      <div className="absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t from-muted/20 to-transparent pointer-events-none rounded-b-md" />
+                    )}
+                  </div>
+                  {hasLongDescription ? (
+                    <div className="mt-2 text-right">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() =>
+                          setDescriptionExpanded((prev) => !prev)
+                        }
+                      >
+                        {descriptionExpanded
+                          ? "Mostrar menos"
+                          : "Leer completa"}
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : selectedListing.detailFetchedAt ? (
+                <p className="text-xs text-muted-foreground p-3 bg-muted/20 rounded-md border border-border/50">
+                  La ficha en el portal no contenía descripción.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground p-3 bg-muted/20 rounded-md border border-border/50">
+                  Cargando descripción detallada en los próximos minutos...
+                </p>
+              )}
+            </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  asChild
-                  size="sm"
-                  variant="ghost"
-                  title="Ver anuncio en el portal"
-                >
-                  <a
-                    href={selectedListing.canonicalUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+              <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-border">
+                {!isProspectView &&
+                (selectedListing.captacionStage === "NEW" ||
+                  selectedListing.captacionStage === "FAILED") ? (
+                  <Button
+                    size="sm"
+                    className="w-full sm:w-auto"
+                    disabled={mock}
+                    onClick={() => openCaptacionModal(selectedListing, "prospecto")}
                   >
-                    <ExternalLink className="mr-2 h-3 w-3" />
-                    Ver portal
-                  </a>
-                </Button>
-                <Button
-                  size="sm"
-                  variant={
-                    selectedListing.inmovillaContactId ? "secondary" : "default"
-                  }
-                  disabled={
-                    pushingId === selectedListing.id ||
-                    !!selectedListing.inmovillaContactId ||
-                    !selectedListing.advertiserId ||
-                    !selectedListing.phoneCanonical
-                  }
-                  onClick={() => void pushToInmovilla(selectedListing)}
-                >
-                  {pushingId === selectedListing.id ? (
-                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                  ) : (
-                    <UserPlus className="mr-2 h-3 w-3" />
-                  )}
-                  {selectedListing.inmovillaContactId ? "En CRM" : "Enviar a CRM"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={
-                    selectedListing.captacionStage === "PROSPECT_CREATING" ||
-                    selectedListing.captacionStage === "PROPERTY_CREATING" ||
-                    mock
-                  }
-                  onClick={() => openCaptacionModal(selectedListing, "prospecto")}
-                >
-                  Prospecto
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={
-                    !(
-                      selectedListing.captacionStage === "PROSPECT_CREATED" ||
-                      selectedListing.captacionStage === "READY_FOR_PROPERTY" ||
-                      selectedListing.captacionStage === "ENCARGO_ATTACHED"
-                    ) || mock
-                  }
-                  onClick={() => openCaptacionModal(selectedListing, "promocion")}
-                >
-                  Alta propiedad
-                </Button>
-                <Button asChild size="sm" variant="ghost">
-                  <a
-                    href={`/platform/captacion?fromListingId=${encodeURIComponent(
-                      selectedListing.id,
-                    )}`}
+                    Crear Prospecto
+                  </Button>
+                ) : selectedListing.captacionStage === "PROSPECT_CREATED" || selectedListing.captacionStage === "ENCARGO_ATTACHED" || selectedListing.captacionStage === "READY_FOR_PROPERTY" ? (
+                  <Button
+                    size="sm"
+                    className="w-full sm:w-auto"
+                    disabled={mock}
+                    onClick={() => openCaptacionModal(selectedListing, "promocion")}
                   >
-                    <FileText className="mr-2 h-3 w-3" />
-                    Nota de encargo
-                  </a>
-                </Button>
+                    Dar de Alta en CRM
+                  </Button>
+                ) : selectedListing.captacionStage === "PROPERTY_CREATED" ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="w-full sm:w-auto"
+                    disabled
+                  >
+                    Propiedad Activa
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="w-full sm:w-auto"
+                    disabled
+                  >
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Procesando...
+                  </Button>
+                )}
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="ml-auto sm:ml-0">
+                      Más acciones
+                      <ChevronDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem 
+                      disabled={
+                        pushingId === selectedListing.id ||
+                        !!selectedListing.inmovillaContactId ||
+                        !selectedListing.advertiserId ||
+                        !selectedListing.phoneCanonical
+                      }
+                      onClick={() => void pushToInmovilla(selectedListing)}
+                    >
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      {selectedListing.inmovillaContactId
+                        ? "Publicante ya sincronizado"
+                        : "Sincronizar publicante en CRM"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <a href={`/platform/captacion?fromListingId=${encodeURIComponent(selectedListing.id)}`}>
+                        <FileText className="mr-2 h-4 w-4" />
+                        Añadir nota de encargo
+                      </a>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <a href={selectedListing.canonicalUrl} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Abrir original en portal
+                      </a>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               {(pushFeedback[selectedListing.id] ??
                 captacionFeedback[selectedListing.id] ??
                 selectedListing.captacionLastError) && (
-                <div className="rounded border bg-muted/40 p-2 text-xs text-muted-foreground">
+                <div className="rounded border bg-muted/40 p-2 text-xs text-muted-foreground mt-4">
                   {pushFeedback[selectedListing.id] ??
                     captacionFeedback[selectedListing.id] ??
                     selectedListing.captacionLastError}
@@ -2281,8 +2960,8 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
           ) : (
             <p className="text-sm text-muted-foreground">Selecciona una propiedad.</p>
           )}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={captacionModalOpen} onOpenChange={setCaptacionModalOpen}>
         <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-2xl">
@@ -2426,6 +3105,51 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                   setCaptacionForm((prev) => ({ ...prev, calle: e.target.value }))
                 }
               />
+              {geocode.status === "loading" ? (
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Detectando dirección desde la ubicación del mapa…
+                </p>
+              ) : geocode.status === "ready" && geocode.formattedAddress ? (
+                <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <MapPin className="h-3 w-3 text-emerald-600" />
+                  <span className="font-medium text-foreground">
+                    Dirección detectada:
+                  </span>
+                  <span>{geocode.formattedAddress}</span>
+                  {(geocode.street || geocode.streetNumber) && (
+                    <button
+                      type="button"
+                      className="text-primary underline-offset-2 hover:underline"
+                      onClick={() =>
+                        setCaptacionForm((prev) => ({
+                          ...prev,
+                          calle: geocode.street ?? prev.calle,
+                          numero: geocode.streetNumber ?? prev.numero,
+                        }))
+                      }
+                    >
+                      Usar
+                    </button>
+                  )}
+                </p>
+              ) : geocode.status === "unavailable" &&
+                geocode.reason === "NO_API_KEY" ? (
+                <p className="text-xs text-muted-foreground">
+                  Geocoding no configurado. Define <code>GOOGLE_MAPS_API_KEY</code>
+                  {" "}para autocompletar desde el mapa.
+                </p>
+              ) : geocode.status === "unavailable" &&
+                geocode.reason === "NO_COORDS" ? (
+                <p className="text-xs text-muted-foreground">
+                  Este listing no tiene coordenadas en el portal; introduce la
+                  calle manualmente.
+                </p>
+              ) : geocode.status === "error" ? (
+                <p className="text-xs text-destructive">
+                  No se pudo detectar la dirección ({geocode.message}).
+                </p>
+              ) : null}
             </div>
             <div className="space-y-1">
               <Label>Número</Label>
@@ -2435,6 +3159,11 @@ export function OportunidadesView({ mock }: { mock: boolean }) {
                   setCaptacionForm((prev) => ({ ...prev, numero: e.target.value }))
                 }
               />
+              {geocode.status === "ready" && geocode.postalCode ? (
+                <p className="text-xs text-muted-foreground">
+                  CP detectado: {geocode.postalCode}
+                </p>
+              ) : null}
             </div>
             <div className="space-y-1">
               <Label>Planta</Label>

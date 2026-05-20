@@ -13,13 +13,14 @@ import type { ContractTemplateInput } from "@/types/contracts";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { withObservedRoute } from "@/lib/observability";
 import { additionalClausesDocSchema } from "@/lib/contracts/additional-clauses/schema";
+import { sectionAddendumsListSchema } from "@/lib/contracts/section-addendums/schema";
 
 
 export const runtime = "nodejs";
 
 export const maxDuration = 60;
 
-const SUPPORTED_KINDS = ["arras", "senal_compra", "oferta_firme"] as const;
+const SUPPORTED_KINDS = ["arras", "senal_compra", "oferta_firme", "anexo_mobiliario"] as const;
 
 const ContractTemplateInputSchema: z.ZodType<ContractTemplateInput> = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("arras"), templateVersion: z.string().optional(), payload: z.any() }),
@@ -63,6 +64,7 @@ const BodySchema = z.object({
   bumpRevision: z.boolean().optional(),
   versioningContext: VersioningContextSchema.optional(),
   additionalClausesDoc: additionalClausesDocSchema.nullable().optional(),
+  sectionAddendums: sectionAddendumsListSchema.nullable().optional(),
 });
 
 async function tryUploadVoiceRevisionDocx(params: {
@@ -122,6 +124,7 @@ const postHandler = async (request: Request) => {
     bumpRevision,
     versioningContext,
     additionalClausesDoc,
+    sectionAddendums,
   } = parsed.data;
 
   if (!SUPPORTED_KINDS.includes(contractTemplateInput.kind as (typeof SUPPORTED_KINDS)[number])) {
@@ -138,6 +141,7 @@ const postHandler = async (request: Request) => {
       outputTemplateVersion,
       bumpTemplateRevision: bumpRevision !== false,
       additionalClausesDoc: additionalClausesDoc ?? null,
+      sectionAddendums: sectionAddendums ?? null,
     });
 
     if ("needsClarification" in result && result.needsClarification) {
@@ -167,6 +171,7 @@ const postHandler = async (request: Request) => {
           assistantMessage: result.assistantMessage,
           missingDataQuestions: result.missingDataQuestions,
           updatedAdditionalClausesDoc: result.updatedAdditionalClausesDoc,
+          updatedSectionAddendums: result.updatedSectionAddendums,
           validationIssues: [],
           versionEventRecorded: false,
         },
@@ -200,6 +205,7 @@ const postHandler = async (request: Request) => {
           assistantMessage: result.assistantMessage,
           missingDataQuestions: result.missingDataQuestions,
           updatedAdditionalClausesDoc: result.updatedAdditionalClausesDoc,
+          updatedSectionAddendums: result.updatedSectionAddendums,
           validationIssues: "issues" in result ? result.issues : [],
           versionEventRecorded: false,
         },
@@ -283,6 +289,7 @@ const postHandler = async (request: Request) => {
       assistantMessage: result.assistantMessage,
       missingDataQuestions: result.missingDataQuestions,
       updatedAdditionalClausesDoc: result.updatedAdditionalClausesDoc,
+      updatedSectionAddendums: result.updatedSectionAddendums,
       docxFileName: result.docx.fileName,
       docxBase64: result.docx.bufferBase64,
       versionEventRecorded,

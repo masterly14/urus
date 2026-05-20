@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import useSWR from "swr";
 import Image from "next/image";
-import { Plus, Search, ChevronLeft, ChevronRight, ArrowRight, CheckCircle, XCircle, Loader2, MoreHorizontal, Eye, Info, ImageOff } from "lucide-react";
+import { Plus, Search, ChevronLeft, ChevronRight, ArrowRight, CheckCircle, XCircle, Loader2, MoreHorizontal, Eye, Info, ImageOff, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,14 +22,24 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useSession } from "@/lib/hooks/use-session";
 import { operacionEstadoFilterLabels, PIPELINE_OPERACION_ESTADO_VALUES } from "@/lib/postventa/pipeline-filter-options";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/layout/page-header";
 import { CrearOperacionDialog } from "./crear-operacion-dialog";
 import { DetalleSheet } from "./detalle-sheet";
 import { AvanzarDialog } from "./avanzar-dialog";
 import { CerrarDialog } from "./cerrar-dialog";
 import { CancelarDialog } from "./cancelar-dialog";
 import { OperacionesGuiaDialog } from "./operaciones-guia-dialog";
+import { EliminarDialog } from "./eliminar-dialog";
 
 interface Operacion {
   id: string;
@@ -169,6 +179,7 @@ export function OperacionesClient() {
   const [avanzarOp, setAvanzarOp] = useState<Operacion | null>(null);
   const [cerrarOp, setCerrarOp] = useState<Operacion | null>(null);
   const [cancelarOp, setCancelarOp] = useState<Operacion | null>(null);
+  const [eliminarOp, setEliminarOp] = useState<Operacion | null>(null);
   const [guiaOpen, setGuiaOpen] = useState(false);
 
   const refetch = useCallback(() => { mutate(); }, [mutate]);
@@ -177,51 +188,56 @@ export function OperacionesClient() {
   const currentPage = Math.floor(offset / limit) + 1;
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 shrink-0">
-              <h1 className="text-sm font-semibold">Operaciones</h1>
-              <Button
-                variant="outline"
-                size="icon-xs"
-                className="h-7 w-7"
-                onClick={() => setGuiaOpen(true)}
-                title="Como funciona Operaciones"
-                aria-label="Abrir guia de Operaciones"
-              >
-                <Info className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-            <div className="flex flex-1 items-center gap-2">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Buscar por código o propiedad..."
-                  value={search}
-                  onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
-                  className="w-full rounded-md border border-border bg-background pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-              </div>
-              <select
-                value={filterEstado}
-                onChange={(e) => { setFilterEstado(e.target.value); setOffset(0); }}
-                className="rounded-md border border-border bg-background px-2.5 py-1.5 text-sm"
-              >
-                <option value="all">Todos</option>
-                {PIPELINE_OPERACION_ESTADO_VALUES.map((e) => (
-                  <option key={e} value={e}>{operacionEstadoFilterLabels[e]}</option>
-                ))}
-              </select>
-            </div>
-            <Button size="sm" onClick={() => setCrearOpen(true)} className="gap-1.5 shrink-0">
-              <Plus className="h-3.5 w-3.5" /> Nueva
+    <div className="space-y-6 max-w-7xl mx-auto pb-10">
+      <PageHeader
+        title="Operaciones"
+        description="Pipeline de operaciones inmobiliarias y su estado actual."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-9 w-9"
+              onClick={() => setGuiaOpen(true)}
+              title="Cómo funciona Operaciones"
+              aria-label="Abrir guía de Operaciones"
+            >
+              <Info className="h-4 w-4" />
             </Button>
-          </div>
-        </CardContent>
-      </Card>
+            <Button size="sm" onClick={() => setCrearOpen(true)} className="gap-1.5 shrink-0">
+              <Plus className="h-4 w-4" /> Nueva Operación
+            </Button>
+          </>
+        }
+      />
+
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-card border border-border/60 rounded-lg p-2 shadow-sm">
+        <div className="relative w-full sm:max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Buscar por código o propiedad..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
+            className="w-full bg-transparent border-none focus:ring-0 text-sm pl-9 pr-4 py-1.5 placeholder:text-muted-foreground"
+          />
+        </div>
+        
+        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+          <div className="h-6 w-px bg-border/60 hidden sm:block mx-2" />
+          <Select value={filterEstado} onValueChange={(val) => { setFilterEstado(val); setOffset(0); }}>
+            <SelectTrigger className="w-[140px] bg-transparent border-border/50 h-8 text-sm focus:ring-1 focus:ring-secondary/50">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {PIPELINE_OPERACION_ESTADO_VALUES.map((e) => (
+                <SelectItem key={e} value={e}>{operacionEstadoFilterLabels[e]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       {error && (
         <Card className="border-destructive/30">
@@ -238,11 +254,12 @@ export function OperacionesClient() {
       )}
 
       {!loading && !error && operaciones.length === 0 && (
-        <Card>
-          <CardContent className="p-6 text-center text-sm text-muted-foreground">
-            No se encontraron operaciones.
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Search}
+          title="No se encontraron operaciones"
+          description="Ajusta los filtros de búsqueda o crea una nueva operación para comenzar."
+          className="bg-card border border-border/60 rounded-lg shadow-sm"
+        />
       )}
 
       {!loading && operaciones.length > 0 && (
@@ -317,6 +334,7 @@ export function OperacionesClient() {
                             size="icon-xs"
                             className="h-7 w-7 text-primary hover:text-primary hover:bg-primary/10"
                             title="Avanzar etapa"
+                            aria-label="Avanzar etapa"
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -330,6 +348,7 @@ export function OperacionesClient() {
                             size="icon-xs"
                             className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
                             title="Cerrar operación"
+                            aria-label="Cerrar operación"
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -346,6 +365,7 @@ export function OperacionesClient() {
                             variant="ghost"
                             size="icon-xs"
                             className="h-7 w-7"
+                            aria-label="Opciones de operación"
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}
                           >
@@ -364,6 +384,13 @@ export function OperacionesClient() {
                               </DropdownMenuItem>
                             </>
                           )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => setEliminarOp(op)}
+                            className="text-xs gap-2 text-destructive"
+                          >
+                            <Trash2 className="h-3 w-3" /> Eliminar
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -427,6 +454,16 @@ export function OperacionesClient() {
         <CancelarDialog
           operacion={cancelarOp}
           onOpenChange={(open) => { if (!open) setCancelarOp(null); }}
+          onSuccess={refetch}
+        />
+      )}
+
+      {eliminarOp && (
+        <EliminarDialog
+          operacion={eliminarOp}
+          onOpenChange={(open) => {
+            if (!open) setEliminarOp(null);
+          }}
           onSuccess={refetch}
         />
       )}

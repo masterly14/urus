@@ -39,10 +39,14 @@ describe("buildAdditionalClausesParagraphs", () => {
     expect(buildAdditionalClausesParagraphs(doc)).toEqual([]);
   });
 
-  it("incluye el encabezado y el texto cuando hay contenido", async () => {
+  it("incluye la cláusula numerada y el texto cuando hay contenido", async () => {
     const doc: AdditionalClausesDoc = {
       type: "doc",
       content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "CLAUSULA 8.- LIMPIEZA", marks: [{ type: "bold" }] }],
+        },
         {
           type: "paragraph",
           content: [
@@ -55,10 +59,10 @@ describe("buildAdditionalClausesParagraphs", () => {
     };
 
     const paragraphs = buildAdditionalClausesParagraphs(doc);
-    expect(paragraphs.length).toBeGreaterThan(1);
+    expect(paragraphs.length).toBeGreaterThan(0);
 
     const xml = await renderDocumentXml(doc);
-    expect(xml).toContain("CLAUSULAS ADICIONALES");
+    expect(xml).toContain("CLAUSULA 8.- LIMPIEZA");
     expect(xml).toContain("Pacto especial de");
     expect(xml).toContain("limpieza");
     expect(xml).toContain("antes de escritura.");

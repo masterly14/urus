@@ -8,7 +8,6 @@ import {
 } from "docx";
 import {
   ADDITIONAL_CLAUSES_FONT_SIZE_HALFPOINTS,
-  ADDITIONAL_CLAUSES_HEADING,
   isAdditionalClausesDocEmpty,
   type AdditionalClauseBlock,
   type AdditionalClauseFontSize,
@@ -29,7 +28,6 @@ import {
 
 const FONT = "Calibri";
 const DEFAULT_BODY_SIZE = ADDITIONAL_CLAUSES_FONT_SIZE_HALFPOINTS.M;
-const HEADING_COLOR = "1A365D";
 
 export function buildAdditionalClausesParagraphs(
   doc: AdditionalClausesDoc | null | undefined,
@@ -37,21 +35,7 @@ export function buildAdditionalClausesParagraphs(
   if (isAdditionalClausesDocEmpty(doc)) {
     return [];
   }
-
-  const heading = new Paragraph({
-    spacing: { before: 260, after: 140 },
-    children: [
-      new TextRun({
-        text: ADDITIONAL_CLAUSES_HEADING,
-        bold: true,
-        size: 24,
-        font: FONT,
-        color: HEADING_COLOR,
-      }),
-    ],
-  });
-
-  const paragraphs: Paragraph[] = [heading];
+  const paragraphs: Paragraph[] = [];
 
   for (const block of doc!.content ?? []) {
     paragraphs.push(...serializeBlock(block));

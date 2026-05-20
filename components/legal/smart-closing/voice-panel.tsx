@@ -13,7 +13,6 @@ interface AssistantBubble {
   id: string;
   text: string;
   type: "assistant" | "user" | "missing-data";
-  timestamp: number;
 }
 
 export interface SmartClosingVoicePanelProps {
@@ -33,7 +32,6 @@ export function SmartClosingVoicePanel({
   assistantMessage,
   missingDataQuestions,
   clarificationQuestions,
-  appliedSummaries,
 }: SmartClosingVoicePanelProps) {
   const [phase, setPhase] = useState<VoicePanelPhase>("idle");
   const [transcript, setTranscript] = useState("");
@@ -43,7 +41,6 @@ export function SmartClosingVoicePanel({
       id: "welcome",
       text: "Hola, soy tu asistente de contratos. Puedes dictarme cambios de precio, plazos, clausulas nuevas... lo que necesites. Pulsa el microfono o escribe directamente.",
       type: "assistant",
-      timestamp: Date.now(),
     },
   ]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -58,33 +55,35 @@ export function SmartClosingVoicePanel({
   useEffect(() => {
     if (assistantMessage && assistantMessage !== prevAssistantMsgRef.current) {
       prevAssistantMsgRef.current = assistantMessage;
-      setBubbles((prev) => [
-        ...prev,
-        {
-          id: `a-${Date.now()}`,
-          text: assistantMessage,
-          type: "assistant",
-          timestamp: Date.now(),
-        },
-      ]);
+      queueMicrotask(() => {
+        setBubbles((prev) => [
+          ...prev,
+          {
+            id: `a-${Date.now()}`,
+            text: assistantMessage,
+            type: "assistant",
+          },
+        ]);
+      });
     }
   }, [assistantMessage]);
 
   useEffect(() => {
     if (missingDataQuestions && missingDataQuestions.length > 0) {
       const text = missingDataQuestions.join("\n");
-      setBubbles((prev) => {
-        const last = prev[prev.length - 1];
-        if (last?.type === "missing-data" && last.text === text) return prev;
-        return [
-          ...prev,
-          {
-            id: `md-${Date.now()}`,
-            text,
-            type: "missing-data",
-            timestamp: Date.now(),
-          },
-        ];
+      queueMicrotask(() => {
+        setBubbles((prev) => {
+          const last = prev[prev.length - 1];
+          if (last?.type === "missing-data" && last.text === text) return prev;
+          return [
+            ...prev,
+            {
+              id: `md-${Date.now()}`,
+              text,
+              type: "missing-data",
+            },
+          ];
+        });
       });
     }
   }, [missingDataQuestions]);
@@ -92,18 +91,19 @@ export function SmartClosingVoicePanel({
   useEffect(() => {
     if (clarificationQuestions && clarificationQuestions.length > 0) {
       const text = clarificationQuestions.join("\n");
-      setBubbles((prev) => {
-        const last = prev[prev.length - 1];
-        if (last?.type === "missing-data" && last.text === text) return prev;
-        return [
-          ...prev,
-          {
-            id: `cl-${Date.now()}`,
-            text,
-            type: "missing-data",
-            timestamp: Date.now(),
-          },
-        ];
+      queueMicrotask(() => {
+        setBubbles((prev) => {
+          const last = prev[prev.length - 1];
+          if (last?.type === "missing-data" && last.text === text) return prev;
+          return [
+            ...prev,
+            {
+              id: `cl-${Date.now()}`,
+              text,
+              type: "missing-data",
+            },
+          ];
+        });
       });
     }
   }, [clarificationQuestions]);
@@ -189,7 +189,6 @@ export function SmartClosingVoicePanel({
         id: `u-${Date.now()}`,
         text: t,
         type: "user",
-        timestamp: Date.now(),
       },
     ]);
 
@@ -214,8 +213,8 @@ export function SmartClosingVoicePanel({
   const blocked = disabled || busy;
 
   return (
-    <Card className="border-0 shadow-none bg-neutral-950 overflow-hidden flex flex-col h-full rounded-none">
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-neutral-950">
+    <Card className="flex h-full flex-col overflow-hidden rounded-none border-0 bg-background shadow-none">
+      <div className="flex-1 space-y-3 overflow-y-auto bg-muted/20 px-4 py-3">
         {bubbles.map((b) => (
           <div
             key={b.id}
@@ -228,11 +227,11 @@ export function SmartClosingVoicePanel({
               className={cn(
                 "rounded-lg px-3 py-2",
                 b.type === "assistant" &&
-                  "bg-neutral-900 border border-neutral-800 text-neutral-100",
+                  "border border-border bg-card text-card-foreground",
                 b.type === "user" &&
-                  "bg-blue-600 text-white",
+                  "bg-primary text-primary-foreground",
                 b.type === "missing-data" &&
-                  "bg-amber-50 border border-amber-200 text-urus-warning",
+                  "border border-urus-warning/25 bg-urus-warning-bg text-urus-warning",
               )}
             >
               {b.text.split("\n").map((line, i) => (
@@ -249,7 +248,7 @@ export function SmartClosingVoicePanel({
 
         {busy && (
           <div className="max-w-[85%]">
-            <div className="rounded-lg px-3 py-2 bg-neutral-900 border border-neutral-800 text-neutral-400 text-[13px]">
+            <div className="rounded-lg border border-border bg-card px-3 py-2 text-[13px] text-muted-foreground">
               <span className="inline-flex gap-1">
                 <span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span>
                 <span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span>
@@ -263,19 +262,22 @@ export function SmartClosingVoicePanel({
       </div>
 
       {localError && (
-        <p className="text-xs text-urus-danger px-4 py-1 bg-red-950/50" role="alert">
+        <p
+          className="border-y border-urus-danger/20 bg-urus-danger-bg px-4 py-1 text-xs text-urus-danger"
+          role="alert"
+        >
           {localError}
         </p>
       )}
 
-      <div className="border-t border-neutral-800 p-3 bg-neutral-950">
+      <div className="border-t border-border bg-background p-3">
         <div className="flex items-end gap-2">
           {!isRecording ? (
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="h-9 w-9 shrink-0 rounded-full text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900"
+              className="h-9 w-9 shrink-0 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
               disabled={blocked || isTranscribing}
               onClick={startRecording}
               aria-label="Iniciar grabacion"
@@ -308,10 +310,10 @@ export function SmartClosingVoicePanel({
             }
             disabled={blocked || isTranscribing}
             className={cn(
-              "min-h-[40px] max-h-[100px] flex-1 resize-none rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-[13px]",
-              "text-neutral-100 caret-neutral-100 placeholder:text-neutral-400",
-              "focus-visible:border-neutral-500 focus-visible:ring-2 focus-visible:ring-neutral-700/70 focus-visible:outline-none",
-              "disabled:bg-neutral-800 disabled:text-neutral-500",
+              "min-h-[40px] max-h-[100px] flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px]",
+              "text-foreground caret-foreground placeholder:text-muted-foreground",
+              "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
+              "disabled:bg-muted/50 disabled:text-muted-foreground",
             )}
             rows={1}
             aria-label="Instruccion para el contrato"
@@ -321,7 +323,7 @@ export function SmartClosingVoicePanel({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-9 w-9 shrink-0 rounded-full text-blue-400 hover:text-blue-300 hover:bg-blue-900/30"
+            className="h-9 w-9 shrink-0 rounded-full text-primary hover:bg-primary/10 hover:text-primary"
             disabled={blocked || isRecording || isTranscribing || !transcript.trim()}
             onClick={handleApply}
             aria-label="Enviar instruccion"

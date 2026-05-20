@@ -12,10 +12,14 @@
 
 import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store/event-store";
-import { sendTextMessage } from "@/lib/whatsapp/send";
+import { sendChatEscalationToCommercial, sendTextMessage } from "@/lib/whatsapp/send";
 import { runConversationalAgent } from "@/lib/agents/conversational-graph";
 import { enqueueJob } from "@/lib/job-queue";
-import type { ConversationalAgentInput, ConversationPhase } from "@/lib/agents/conversational-agent-types";
+import type {
+  ConversationalAgentInput,
+  ConversationPhase,
+  ToolCallResult,
+} from "@/lib/agents/conversational-agent-types";
 import type { PropertySummaryForNLU, ConversationTurn } from "@/lib/agents/types";
 import type { JsonValue } from "@/lib/event-store/types";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
@@ -24,11 +28,10 @@ import type {
   PostVisitPolicyState,
   PostVisitStructuredContext,
 } from "@/lib/visitas/post-visit-context-types";
-import { MICROSITE_HANDOFF_ETA_MINUTES } from "@/lib/agents/conversational-operational-constants";
+import { MICROSITE_DELIVERY_ETA_MINUTES } from "@/lib/agents/conversational-operational-constants";
 import {
   computeConversationSignals,
   shouldForceSearchFallback,
-  type ConversationSignals,
   type DemandCriteriaSnapshot,
 } from "@/lib/agents/conversation-signals";
 
@@ -48,6 +51,18 @@ export interface ConversationalHandlerContext {
   selectionId?: string | null;
   propertyId?: string | null;
 }
+
+type DemandEscalationContext = {
+  demandId: string;
+  demandName: string;
+  demandPhone: string;
+};
+
+type EscalationRecipient = {
+  to: string;
+  commercialName: string;
+  source: "assigned" | "miguel";
+};
 
 function asPostVisitStructuredContext(value: unknown): PostVisitStructuredContext | null {
   const record = value as Partial<PostVisitStructuredContext> | null | undefined;
@@ -262,7 +277,7 @@ export async function handleConversationalFlow(
         {
           toolName: "request_more_options",
           args: { reason: `conversational_fallback:${fallback.reason}` },
-          result: { status: "queued_for_validation", source: "handler_fallback" },
+          result: { status: "queued_for_delivery", source: "handler_fallback" },
         },
       ],
     };
@@ -270,6 +285,18 @@ export async function handleConversationalFlow(
     console.log(
       `[conversational-handler] Fallback GENERATE_MICROSITE reason=${fallback.reason} demandId=${ctx.demandId} waId=${waId}`,
     );
+  }
+
+  const escalationReason = getEscalationReason(output.toolResults);
+  if (escalationReason) {
+    await notifyEscalatedChatToCommercial({
+      event,
+      selectionId,
+      waId,
+      messageText,
+      demandId: ctx.demandId,
+      escalationReason,
+    });
   }
 
   // 5. Enviar respuesta al comprador
@@ -354,6 +381,145 @@ function mapSessionPhase(phase: string | null | undefined): ConversationPhase | 
   return null;
 }
 
+function getEscalationReason(toolResults: ToolCallResult[]): string | null {
+  for (let i = toolResults.length - 1; i >= 0; i--) {
+    const result = toolResults[i];
+    if (result.toolName !== "escalate_to_human") continue;
+    const reason = result.args?.reason;
+    if (typeof reason === "string" && reason.trim().length > 0) return reason.trim();
+    return "Escalado solicitado por el agente conversacional.";
+  }
+  return null;
+}
+
+function truncateForTemplate(value: string, max = 900): string {
+  const cleaned = value.trim();
+  if (cleaned.length <= max) return cleaned;
+  return `${cleaned.slice(0, Math.max(0, max - 1))}…`;
+}
+
+async function loadDemandEscalationContext(
+  demandId: string,
+): Promise<DemandEscalationContext | null> {
+  const demand = await prisma.demandCurrent.findUnique({
+    where: { codigo: demandId },
+    select: {
+      codigo: true,
+      nombre: true,
+      telefono: true,
+    },
+  });
+  if (!demand) return null;
+  return {
+    demandId: demand.codigo,
+    demandName: demand.nombre?.trim() || demand.codigo,
+    demandPhone: demand.telefono?.trim() || "",
+  };
+}
+
+async function resolveEscalationRecipient(demandId: string): Promise<EscalationRecipient | null> {
+  const demand = await prisma.demandCurrent.findUnique({
+    where: { codigo: demandId },
+    select: { comercialId: true },
+  });
+
+  if (demand?.comercialId) {
+    const assignedCommercial = await prisma.comercial.findUnique({
+      where: { id: demand.comercialId },
+      select: { nombre: true, waId: true, telefono: true },
+    });
+    const assignedPhone = assignedCommercial?.waId?.trim() || assignedCommercial?.telefono?.trim() || "";
+    if (assignedCommercial && assignedPhone) {
+      return {
+        to: assignedPhone,
+        commercialName: assignedCommercial.nombre,
+        source: "assigned",
+      };
+    }
+  }
+
+  const miguel = await prisma.comercial.findFirst({
+    where: { nombre: { contains: "Miguel", mode: "insensitive" } },
+    orderBy: [{ activo: "desc" }, { updatedAt: "desc" }],
+    select: { nombre: true, waId: true, telefono: true },
+  });
+  const miguelPhone =
+    miguel?.waId?.trim() ||
+    miguel?.telefono?.trim() ||
+    process.env.WHATSAPP_CHAT_ESCALATION_MIGUEL_PHONE?.trim() ||
+    "";
+  if (!miguelPhone) return null;
+
+  return {
+    to: miguelPhone,
+    commercialName: miguel?.nombre?.trim() || "Miguel",
+    source: "miguel",
+  };
+}
+
+async function notifyEscalatedChatToCommercial(params: {
+  event: Event;
+  demandId: string;
+  selectionId: string | null;
+  waId: string;
+  messageText: string;
+  escalationReason: string;
+}): Promise<void> {
+  try {
+    const [recipient, demandContext] = await Promise.all([
+      resolveEscalationRecipient(params.demandId),
+      loadDemandEscalationContext(params.demandId),
+    ]);
+    if (!recipient) {
+      console.warn(
+        `[conversational-handler] Escalado sin destinatario demandId=${params.demandId} waId=${params.waId}`,
+      );
+      return;
+    }
+
+    const summary = truncateForTemplate(
+      `Motivo: ${params.escalationReason}. Mensaje comprador: "${params.messageText}"`,
+    );
+    const contactPhone =
+      demandContext?.demandPhone ||
+      params.waId ||
+      "sin telefono";
+    const contactInfo = truncateForTemplate(
+      `${demandContext?.demandName ?? params.demandId} · Demanda ${params.demandId} · waId ${params.waId}`,
+      250,
+    );
+
+    await sendChatEscalationToCommercial(
+      recipient.to,
+      {
+        comercialName: recipient.commercialName,
+        summary,
+        contactPhone,
+        contactInfo,
+      },
+      {
+        useTemplate: true,
+        trace: {
+          source: "conversational_handler",
+          kind: "chat_escalation_to_commercial",
+          causationId: params.event.id,
+          correlationId: params.event.correlationId,
+          payload: {
+            demandId: params.demandId,
+            selectionId: params.selectionId ?? null,
+            escalationReason: params.escalationReason,
+            recipientSource: recipient.source,
+          },
+        },
+      },
+    );
+  } catch (err) {
+    console.error(
+      `[conversational-handler] Error notificando escalado a comercial demandId=${params.demandId}: ${err instanceof Error ? err.message : err}`,
+    );
+  }
+}
+
 async function loadDemandCriteria(
   demandId: string,
 ): Promise<DemandCriteriaSnapshot | null> {
@@ -403,16 +569,20 @@ function summarizeCriteriaShort(c: DemandCriteriaSnapshot | null): string {
  * Genera una respuesta natural y profesional para el fallback determinista
  * de búsqueda. Varía según el motivo (pidió opciones, confirmó proceder o
  * detectamos bucle) y evita siempre el mismo "Perfecto 👍".
+ *
+ * Importante: el flujo es IA-first (ver `docs/contraste-docs-originales/
+ * validacion-comercial.md`). NO mencionar revisor humano ni compañero del
+ * equipo: el agente busca y entrega él mismo.
  */
 function buildFallbackResponse(params: {
   reason: "buyer_asked" | "buyer_confirmed" | "loop_detected";
   criteria: DemandCriteriaSnapshot | null;
 }): string {
   const summary = summarizeCriteriaShort(params.criteria);
-  const eta = `unos ${MICROSITE_HANDOFF_ETA_MINUTES} minutos`;
+  const eta = `unos ${MICROSITE_DELIVERY_ETA_MINUTES} minutos`;
   const tail = summary
-    ? `Lo monto con lo que ya tengo apuntado (${summary}) y un compañero del equipo lo revisa antes de enviártelo. Te llega en ${eta}.`
-    : `Un compañero del equipo lo revisa antes de enviártelo. Te llega en ${eta}.`;
+    ? `Las busco con lo que ya tengo apuntado (${summary}) y te las paso aquí mismo en ${eta}.`
+    : `Te las paso aquí mismo en ${eta}.`;
 
   switch (params.reason) {
     case "buyer_asked":

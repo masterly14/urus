@@ -229,36 +229,6 @@ export async function detectSlaBreaches(
     });
   }
 
-  const micrositeSlaRows = await prisma.$queryRaw<SlaBreachRow[]>`
-    SELECT
-      ms."comercialId",
-      COALESCE(c.nombre, '') AS "comercialNombre",
-      COUNT(*)::int AS "count"
-    FROM "microsite_selections" ms
-    LEFT JOIN "comerciales" c ON c.id = ms."comercialId"
-    WHERE ms.status = 'PENDING_VALIDATION'
-      AND ms."validationDueAt" IS NOT NULL
-      AND ms."validationDueAt" < ${now}
-      AND ms."comercialId" != 'system'
-    GROUP BY ms."comercialId", c.nombre
-  `;
-
-  for (const row of micrositeSlaRows) {
-    if (row.count === 0) continue;
-    alerts.push({
-      comercialId: row.comercialId,
-      comercialNombre: row.comercialNombre,
-      type: "sla_breach",
-      severity: "medium",
-      metric: "microsite_validation_sla",
-      message: `${row.count} microsite(s) sin validar con SLA vencido`,
-      currentValue: row.count,
-      baselineValue: null,
-      threshold: null,
-      details: { slaType: "microsite_validation", pendingCount: row.count },
-    });
-  }
-
   return alerts;
 }
 

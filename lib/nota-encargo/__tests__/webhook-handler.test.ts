@@ -8,10 +8,14 @@ const {
   sessionFindFirstMock,
   sessionFindUniqueMock,
   sessionUpdateMock,
+  comercialFindUniqueMock,
+  comercialFindFirstMock,
 } = vi.hoisted(() => ({
   sessionFindFirstMock: vi.fn(),
   sessionFindUniqueMock: vi.fn(),
   sessionUpdateMock: vi.fn(),
+  comercialFindUniqueMock: vi.fn(),
+  comercialFindFirstMock: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -20,6 +24,10 @@ vi.mock("@/lib/prisma", () => ({
       findFirst: sessionFindFirstMock,
       findUnique: sessionFindUniqueMock,
       update: sessionUpdateMock,
+    },
+    comercial: {
+      findUnique: comercialFindUniqueMock,
+      findFirst: comercialFindFirstMock,
     },
   },
 }));
@@ -63,6 +71,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     id: "session-1",
     propertyCode: "PROP-001",
     propertyRef: "URUS36VMA",
+    comercialId: "comercial-1",
     propietarioPhone: "34666777888",
     visitDateTime: new Date("2026-04-16T16:00:00Z"),
     state: "RECORDATORIO_ENVIADO",
@@ -172,6 +181,13 @@ describe("handleNotaEncargoNfmReply", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     handleFlowResponseMock.mockResolvedValue(undefined);
+    comercialFindUniqueMock.mockResolvedValue({
+      id: "comercial-1",
+      nombre: "Miguel",
+      telefono: "34600111222",
+      waId: null,
+      activo: true,
+    });
   });
 
   it("returns false for invalid JSON", async () => {
@@ -233,11 +249,25 @@ describe("handleNotaEncargoNfmReply", () => {
     };
 
     const result = await handleNotaEncargoNfmReply(
-      "34666777888",
+      "34600111222",
       JSON.stringify(formData),
     );
 
     expect(result).toBe(true);
     expect(handleFlowResponseMock).toHaveBeenCalledWith(session, formData);
+  });
+
+  it("returns false when nfm reply comes from non-comercial number", async () => {
+    sessionFindUniqueMock.mockResolvedValue(
+      makeSession({ id: "session-1", state: "FORMULARIO_ENVIADO" }),
+    );
+
+    const result = await handleNotaEncargoNfmReply(
+      "34699988877",
+      JSON.stringify({ flow_token: "session-1" }),
+    );
+
+    expect(result).toBe(false);
+    expect(handleFlowResponseMock).not.toHaveBeenCalled();
   });
 });

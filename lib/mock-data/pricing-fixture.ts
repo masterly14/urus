@@ -21,6 +21,8 @@ export const pricingFixture: PricingAnalysisResult = {
     estado: "En venta",
     fechaAlta: "2025-11-15",
     fechaActualizacion: "2026-04-05",
+    latitud: 37.8847,
+    longitud: -4.7792,
     extras: {
       terraza: true,
       garaje: false,

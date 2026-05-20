@@ -5,6 +5,8 @@ import { generateContractDocx } from "@/lib/contracts/docx";
 import type { ContractTemplateInput } from "@/types/contracts";
 import { withObservedRoute } from "@/lib/observability";
 import { additionalClausesDocSchema } from "@/lib/contracts/additional-clauses/schema";
+import { sectionAddendumsListSchema } from "@/lib/contracts/section-addendums/schema";
+import { buildPreviewFieldAnchors } from "@/lib/legal/smart-closing/preview-field-anchors";
 
 
 export const runtime = "nodejs";
@@ -23,6 +25,7 @@ const ContractTemplateInputSchema: z.ZodType<ContractTemplateInput> = z.discrimi
 const BodySchema = z.object({
   contractTemplateInput: ContractTemplateInputSchema,
   additionalClausesDoc: additionalClausesDocSchema.nullable().optional(),
+  sectionAddendums: sectionAddendumsListSchema.nullable().optional(),
 });
 
 /** Solo en builds/runtime de producción se exige sesión (Next/Vercel fijan NODE_ENV=production). */
@@ -49,7 +52,7 @@ const postHandler = async (request: Request) => {
     );
   }
 
-  const { contractTemplateInput, additionalClausesDoc } = parsed.data;
+  const { contractTemplateInput, additionalClausesDoc, sectionAddendums } = parsed.data;
 
   if (!RENDERABLE_KINDS.includes(contractTemplateInput.kind as (typeof RENDERABLE_KINDS)[number])) {
     return NextResponse.json(
@@ -63,6 +66,7 @@ const postHandler = async (request: Request) => {
   try {
     const result = await generateContractDocx(contractTemplateInput, {
       additionalClausesDoc: additionalClausesDoc ?? null,
+      sectionAddendums: sectionAddendums ?? null,
     });
     if (!result.ok) {
       return NextResponse.json(
@@ -78,6 +82,7 @@ const postHandler = async (request: Request) => {
       ok: true,
       docxFileName: result.fileName,
       docxBase64: result.buffer.toString("base64"),
+      previewFieldAnchors: buildPreviewFieldAnchors(contractTemplateInput),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

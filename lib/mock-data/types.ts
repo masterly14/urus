@@ -132,7 +132,13 @@ export interface VersionContrato {
 export interface Contrato {
   id: string;
   operacion: string;
-  tipo: "reserva" | "arras";
+  tipo: string;
+  documentKind?: string;
+  urls?: {
+    cloudinary?: string | null;
+    signed?: string | null;
+    audit?: string | null;
+  };
   versionActual: string;
   estado: EstadoContrato;
   fechaCreacion: string;

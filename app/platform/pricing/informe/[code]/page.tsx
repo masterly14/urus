@@ -1037,6 +1037,7 @@ function SectionComparables({ data }: { data: PricingAnalysisResult }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const pendingIds = comparables
+    .filter((c) => !c.statefoxId.startsWith("market:"))
     .filter((c) => c.imageCacheStatus !== "IMPORTED" && Boolean(c.statefoxId))
     .map((c) => c.statefoxId);
   const { items: imageStatusByid } = useStatefoxImageCachePolling({
@@ -1093,9 +1094,11 @@ function SectionComparables({ data }: { data: PricingAnalysisResult }) {
                 const diff = pctDiff(c.precioM2, input.precioM2);
                 const isLower = c.precioM2 < input.precioM2;
                 const isExpanded = expandedId === c.statefoxId;
-                const liveStatus = imageStatusByid.get(c.statefoxId);
+                const isMarketComparable = c.statefoxId.startsWith("market:");
+                const liveStatus = isMarketComparable ? undefined : imageStatusByid.get(c.statefoxId);
                 const liveCachedUrls = liveStatus?.cachedUrls;
                 const isProcessing =
+                  !isMarketComparable &&
                   c.imageCacheStatus !== "IMPORTED" &&
                   (!liveStatus || (liveStatus.status !== "IMPORTED" && liveStatus.cachedUrls.length === 0));
                 return (
@@ -1129,10 +1132,13 @@ function SectionMapaComparables({ data }: { data: PricingAnalysisResult }) {
   const geoComparables = comparables.filter((c) => c.latitud && c.longitud);
   if (geoComparables.length === 0) return null;
 
-  const center = {
-    lat: geoComparables.reduce((s, c) => s + (c.latitud ?? 0), 0) / geoComparables.length,
-    lng: geoComparables.reduce((s, c) => s + (c.longitud ?? 0), 0) / geoComparables.length,
-  };
+  const hasOwnPoint = input.latitud != null && input.longitud != null;
+  const center = hasOwnPoint
+    ? { lat: input.latitud as number, lng: input.longitud as number }
+    : {
+        lat: geoComparables.reduce((s, c) => s + (c.latitud ?? 0), 0) / geoComparables.length,
+        lng: geoComparables.reduce((s, c) => s + (c.longitud ?? 0), 0) / geoComparables.length,
+      };
 
   const markers = geoComparables
     .map((c) => `color:0x3B82F6%7Csize:small%7C${c.latitud},${c.longitud}`)
@@ -1150,7 +1156,7 @@ function SectionMapaComparables({ data }: { data: PricingAnalysisResult }) {
   ].join("&");
 
   const src = apiKey
-    ? `https://maps.googleapis.com/maps/api/staticmap?center=${center.lat},${center.lng}&zoom=14&size=800x300&scale=2&maptype=roadmap&markers=color:red%7Clabel:U%7C${center.lat},${center.lng}&markers=${markers}&${mapStyles}&key=${apiKey}`
+    ? `https://maps.googleapis.com/maps/api/staticmap?center=${center.lat},${center.lng}&zoom=15&size=800x300&scale=2&maptype=roadmap&markers=color:red%7Clabel:U%7C${center.lat},${center.lng}&markers=${markers}&${mapStyles}&key=${apiKey}`
     : "";
 
   if (!apiKey) {

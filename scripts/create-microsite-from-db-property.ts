@@ -8,14 +8,13 @@
  *
  * Resultado:
  *   - Inserta un registro en microsite_selections con 1 propiedad curada desde DB.
- *   - Imprime URL pública del comprador y URL de validación comercial.
+ *   - Imprime URL pública del comprador.
  */
 
 import "dotenv/config";
 import { randomBytes } from "crypto";
 import { prisma } from "../lib/prisma";
 import { getPublicAppUrl } from "../lib/microsite/app-url";
-import { MICROSITE_VALIDATION_SLA_MS } from "../lib/microsite/constants";
 import type { MicrositeCuratedProperty } from "../lib/microsite/selection";
 
 type CliArgs = {
@@ -139,11 +138,9 @@ async function main() {
     process.exit(1);
   }
 
-  const now = new Date();
   const created = await prisma.micrositeSelection.create({
     data: {
       token: token(),
-      validationToken: token(),
       status: args.status,
       demandId: `DEMO-${baseProperty.codigo}`,
       demandNombre: `Demo DB ${baseProperty.codigo}`,
@@ -153,14 +150,10 @@ async function main() {
       properties: [toMicrositeProperty(baseProperty)] as unknown as object,
       stockCount: 1,
       buyerPhone: "34600000000",
-      validationDueAt: new Date(now.getTime() + MICROSITE_VALIDATION_SLA_MS),
-      validatedAt: args.status === "APPROVED" ? now : null,
-      validatedByComercialId: args.status === "APPROVED" ? (baseProperty.comercialId ?? "system") : null,
     },
     select: {
       id: true,
       token: true,
-      validationToken: true,
       status: true,
       demandId: true,
     },
@@ -168,14 +161,12 @@ async function main() {
 
   const base = getPublicAppUrl();
   const buyerUrl = `${base}/seleccion/${created.token}`;
-  const validationUrl = `${base}/validar-seleccion/${created.validationToken}`;
 
   console.log("\n=== Microsite de prueba creado ===");
   console.log(`selectionId:    ${created.id}`);
   console.log(`status:         ${created.status}`);
   console.log(`demandId:       ${created.demandId}`);
   console.log(`buyerUrl:       ${buyerUrl}`);
-  console.log(`validationUrl:  ${validationUrl}`);
   console.log(`propertyCode:   ${baseProperty.codigo}`);
   console.log("\nTip: usa --status APPROVED si quieres abrir buyerUrl directamente.");
 }

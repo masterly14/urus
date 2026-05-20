@@ -123,16 +123,20 @@ export function botInvitedToProceed(text: string): boolean {
   return invitation && subject;
 }
 
-/** El bot ya prometió encolar/preparar una selección ("te preparo más opciones, llegan en X min"). */
+/**
+ * El bot ya prometió encolar/preparar/buscar una selección ("te preparo más
+ * opciones", "te las busco", "voy a por ello", "lanzo la búsqueda", "te las
+ * paso en X min"). Cubre el wording IA-first sin referencias a revisor humano.
+ */
 export function botPromisedSearch(text: string): boolean {
   const t = normalize(text);
   if (!t) return false;
-  const promisesPreparation =
-    /\b(te preparo|preparando|estoy preparando|voy a preparar|vamos a preparar|lanzo la busqueda|voy a por ello)\b/u.test(t) &&
-    /\b(opciones|propuestas|alternativas|seleccion|busqueda|mas)\b/u.test(t);
-  const mentionsTeamReview = /\b(valida(r|cion)|revisa(r)?) del equipo\b/u.test(t);
-  const mentionsEta = /\b\d{1,3}\s*minutos\b/u.test(t) && /\b(llega|llegan|enviam|preparo)/u.test(t);
-  return promisesPreparation || mentionsTeamReview || mentionsEta;
+  const promisesAction =
+    /\b(te preparo|preparando|estoy preparando|voy a preparar|vamos a preparar|lanzo la busqueda|voy a por ello|te las (busco|preparo|paso|mando|envio|monto)|las busco|las preparo|las monto|monto la (busqueda|seleccion))\b/u.test(t);
+  const mentionsSubject =
+    /\b(opciones|propuestas|alternativas|seleccion|busqueda|casas|pisos|propiedades|viviendas|mas)\b/u.test(t);
+  const mentionsEta = /\b\d{1,3}\s*minutos\b/u.test(t) && /\b(llega|llegan|paso|mando|envio|preparo|tienes)/u.test(t);
+  return (promisesAction && mentionsSubject) || mentionsEta;
 }
 
 /** El bot está repitiendo el patrón "resumo lo que tengo + ¿quieres seguir?". */

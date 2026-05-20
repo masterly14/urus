@@ -7,7 +7,6 @@
  * procesamiento duplicado).
  *
  * Categoría A:
- * - /coach (bot de soporte mental)
  * - /coach ejercicio (programa de desarrollo)
  * - Feedback de comprador con sesión activa (conversational agent / NLU)
  * - Mensajes dentro de sesión de visita activa
@@ -20,11 +19,6 @@
 import type { Event } from "@/types/domain";
 import type { HandlerResult } from "@/lib/workers/consumer/types";
 import { prisma } from "@/lib/prisma";
-import {
-  isCoachActivation,
-  getActiveSession,
-  handleMentalHealthMessage,
-} from "@/lib/workers/consumer/mental-health-handler";
 import {
   isExerciseRequest,
   routeToDevProgramIfApplicable,
@@ -142,7 +136,7 @@ export async function tryInlineProcessing(
 }
 
 type CategoryClassification = {
-  handler: "mental-health" | "dev-exercise" | "visit-session" | "conversational-agent";
+  handler: "dev-exercise" | "visit-session" | "conversational-agent";
   visitSession?: Awaited<ReturnType<typeof getActiveSessionForBuyer>>;
 };
 
@@ -152,15 +146,6 @@ async function classifyCategory(
 ): Promise<CategoryClassification | null> {
   if (isExerciseRequest(messageText)) {
     return { handler: "dev-exercise" };
-  }
-
-  if (isCoachActivation(messageText)) {
-    return { handler: "mental-health" };
-  }
-
-  const mentalSession = await getActiveSession(waId);
-  if (mentalSession) {
-    return { handler: "mental-health" };
   }
 
   const [buyerVisitSession, commercialVisitSession] = await Promise.all([
@@ -193,9 +178,6 @@ async function executeInline(
   category: CategoryClassification,
 ): Promise<HandlerResult> {
   switch (category.handler) {
-    case "mental-health":
-      return handleMentalHealthMessage(event, messageText, waId);
-
     case "dev-exercise": {
       const result = await routeToDevProgramIfApplicable(event, messageText, waId);
       return result ?? { success: true };

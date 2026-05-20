@@ -25,9 +25,17 @@ import {
   additionalClausesNumberingConfig,
   buildAdditionalClausesParagraphs,
 } from "@/lib/contracts/additional-clauses/docx-serializer";
+import { buildLetterSectionProperties } from "@/lib/contracts/docx/document-defaults";
+import type { SectionAddendumsList } from "@/lib/contracts/section-addendums/types";
+import { buildSectionAddendumParagraphs } from "@/lib/contracts/section-addendums/docx-serializer";
 
 export interface BuildOfertaFirmeDocumentOptions {
   additionalClausesDoc?: AdditionalClausesDoc | null;
+  /**
+   * Bloques añadidos por el comercial dentro de una sección concreta
+   * (ej. ampliar Primero con anejos, garajes, mobiliario incluido).
+   */
+  sectionAddendums?: SectionAddendumsList | null;
 }
 
 const FONT = "Calibri";
@@ -130,6 +138,12 @@ export async function buildOfertaFirmeDocument(
 
   const bodyChildren: Paragraph[] = [];
 
+  const addendums = options.sectionAddendums ?? null;
+  const pushSectionAddendum = (sectionId: string) => {
+    const paragraphs = buildSectionAddendumParagraphs(addendums, sectionId);
+    bodyChildren.push(...paragraphs);
+  };
+
   const logoHeader = await buildLogoHeaderParagraphs();
   bodyChildren.push(...logoHeader);
 
@@ -151,24 +165,31 @@ export async function buildOfertaFirmeDocument(
   bodyChildren.push(body(paragraphs[2]));
   bodyChildren.push(body(paragraphs[3]));
   bodyChildren.push(body(paragraphs[4]));
+  pushSectionAddendum("manifiesta_primero");
 
   bodyChildren.push(heading("Segundo."));
   bodyChildren.push(body(paragraphs[5]));
+  pushSectionAddendum("manifiesta_segundo");
 
   bodyChildren.push(heading("Tercero."));
   bodyChildren.push(body(paragraphs[6]));
+  pushSectionAddendum("manifiesta_tercero");
 
   bodyChildren.push(heading("Cuarto."));
   bodyChildren.push(body(paragraphs[7]));
+  pushSectionAddendum("manifiesta_cuarto");
 
   bodyChildren.push(heading("Quinto."));
   bodyChildren.push(body(paragraphs[8]));
+  pushSectionAddendum("manifiesta_quinto");
 
   bodyChildren.push(heading("Sexto."));
   bodyChildren.push(body(paragraphs[9]));
+  pushSectionAddendum("manifiesta_sexto");
 
   bodyChildren.push(heading("Septimo."));
   bodyChildren.push(body(paragraphs[10]));
+  pushSectionAddendum("manifiesta_septimo");
 
   const additionalClausesParagraphs = buildAdditionalClausesParagraphs(
     options.additionalClausesDoc ?? null,
@@ -204,6 +225,6 @@ export async function buildOfertaFirmeDocument(
       },
     },
     numbering: additionalClausesNumberingConfig,
-    sections: [{ properties: {}, children: bodyChildren }],
+    sections: [{ properties: buildLetterSectionProperties(), children: bodyChildren }],
   });
 }

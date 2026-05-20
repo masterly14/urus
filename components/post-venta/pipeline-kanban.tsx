@@ -118,7 +118,7 @@ export function TimelineEvent({ message, isLast = false }: TimelineEventProps) {
             {/* Line */}
             {!isLast && (
                 <div
-                    className="absolute left-[15px] top-[32px] bottom-0 w-px"
+                    className="absolute left-4 top-8 bottom-0 w-px"
                     style={{ backgroundColor: `color-mix(in oklch, ${color} 20%, transparent)` }}
                 />
             )}

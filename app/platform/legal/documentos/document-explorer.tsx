@@ -4,9 +4,38 @@ import { useState, useMemo } from "react";
 import { Folder, ArrowLeft, Download, FileText, ShieldCheck, PenTool, Eye, Calendar, User, Search, FilterX } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty-state";
+
+const LEGAL_DOCUMENT_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Borrador",
+  APPROVED: "Revisión gestor",
+  SENT_TO_SIGNATURE: "Enviado a firma",
+  SIGNED: "Firmado",
+  DECLINED: "Rechazado",
+  EXPIRED: "Caducado",
+  CANCELED: "Cancelado",
+};
+
+function getStatusLabel(status: string): string {
+  return LEGAL_DOCUMENT_STATUS_LABELS[status] ?? status.replace(/_/g, " ").toLowerCase();
+}
+
+const DOCUMENT_KIND_LABELS: Record<string, string> = {
+  arras: "Contrato de arras",
+  senal_compra: "Señal de compra",
+  oferta_firme: "Oferta en firme",
+  anexo_mobiliario: "Anexo mobiliario",
+  parte_visita: "Parte de visita",
+  nota_encargo: "Nota de encargo",
+  reserva: "Reserva",
+};
+
+function getDocumentKindLabel(kind: string): string {
+  const normalized = kind.toLowerCase();
+  return DOCUMENT_KIND_LABELS[normalized] ?? normalized.replace(/_/g, " ");
+}
 
 export interface DocumentItem {
   id: string;
@@ -132,7 +161,7 @@ export function DocumentExplorer({ documents }: { documents: DocumentItem[] }) {
             <CardContent className="flex items-center gap-4 p-6">
               <Folder className="h-10 w-10 text-primary" />
               <div>
-                <h3 className="font-semibold capitalize">{folder.name.replace(/_/g, " ")}</h3>
+                <h3 className="font-semibold">{getDocumentKindLabel(folder.name)}</h3>
                 <p className="text-sm text-muted-foreground">
                   {folder.count} {folder.count === 1 ? "documento" : "documentos"}
                 </p>
@@ -154,7 +183,7 @@ export function DocumentExplorer({ documents }: { documents: DocumentItem[] }) {
           </Button>
           <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/40 rounded-md">
             <Folder className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold capitalize tracking-wide">{currentFolder.replace(/_/g, " ")}</h3>
+            <h3 className="text-sm font-semibold tracking-wide">{getDocumentKindLabel(currentFolder)}</h3>
           </div>
         </div>
         
@@ -205,8 +234,13 @@ export function DocumentExplorer({ documents }: { documents: DocumentItem[] }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {currentDocs.length === 0 ? (
-          <div className="col-span-full h-32 flex items-center justify-center text-muted-foreground bg-muted/20 rounded-lg border border-dashed">
-            Carpeta vacía.
+          <div className="col-span-full">
+            <EmptyState
+              icon={Folder}
+              title="No hay documentos en esta carpeta"
+              description="Prueba cambiando filtros o vuelve al listado de tipos."
+              className="h-32 rounded-lg border border-dashed bg-muted/20 py-0"
+            />
           </div>
         ) : (
           currentDocs.map((doc) => (
@@ -217,7 +251,7 @@ export function DocumentExplorer({ documents }: { documents: DocumentItem[] }) {
                   <p className="text-xs text-muted-foreground truncate" title={doc.propertyCode}>{doc.propertyCode}</p>
                 </div>
                 <Badge variant={getStatusBadgeVariant(doc.status)} className="shrink-0 shadow-sm">
-                  {doc.status}
+                  {getStatusLabel(doc.status)}
                 </Badge>
               </div>
               
@@ -303,7 +337,7 @@ export function DocumentExplorer({ documents }: { documents: DocumentItem[] }) {
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background shadow-sm border border-border/50">
                           <ShieldCheck className="h-4 w-4 text-muted-foreground" />
                         </div>
-                        <span className="text-sm font-medium truncate text-foreground/90">Audit Trail</span>
+                        <span className="text-sm font-medium truncate text-foreground/90">Registro de auditoría</span>
                       </div>
                       <div className="flex gap-1 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <Button variant="outline" size="icon" className="h-8 w-8 bg-background" onClick={(e) => handlePreview(doc.urls.audit, e)} title="Previsualizar">

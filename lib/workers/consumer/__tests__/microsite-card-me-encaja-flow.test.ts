@@ -25,6 +25,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { runConsumerCycle } from "@/lib/workers/consumer";
 import { runProjectionCycle } from "@/lib/projections";
+import { acquireE2ELock } from "./e2e-file-lock";
 
 vi.mock("@/lib/whatsapp/send", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/whatsapp/send")>();
@@ -61,6 +62,7 @@ const COMERCIAL_ID = `com-card-${Date.now()}`;
 
 const SELECTION_HOLDER: { id: string; token: string } = { id: "", token: "" };
 const createdEventIds: string[] = [];
+let releaseLock: (() => Promise<void>) | null = null;
 
 async function drainConsumer(maxCycles = 30): Promise<{ processed: number; failed: number }> {
   let totalProcessed = 0;
@@ -118,6 +120,7 @@ async function cleanup() {
 }
 
 beforeAll(async () => {
+  releaseLock = await acquireE2ELock("consumer-microsite-e2e");
   await cleanup();
 
   await prisma.comercial.create({
@@ -147,7 +150,6 @@ beforeAll(async () => {
       demandNombre: "Buyer Card Test",
       comercialId: COMERCIAL_ID,
       token: `card-test-${Date.now()}`,
-      validationToken: `card-val-${Date.now()}`,
       status: "APPROVED",
       buyerPhone: WA_ID,
       statefoxQuery: {},
@@ -221,10 +223,14 @@ beforeAll(async () => {
 
   SELECTION_HOLDER.id = selection.id;
   SELECTION_HOLDER.token = selection.token;
-}, 30_000);
+}, 240_000);
 
 afterAll(async () => {
   await cleanup();
+  if (releaseLock) {
+    await releaseLock();
+    releaseLock = null;
+  }
   await prisma.$disconnect();
 }, 30_000);
 

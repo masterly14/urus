@@ -6,10 +6,12 @@
 import type {
   ArrasLegalRegime,
   ArrasContractPayload,
+  FurnitureAnnexPayload,
   KeysHandoverMode,
   OfertaFirmeContractPayload,
   SenalCompraContractPayload,
 } from "@/types/contracts";
+import type { SectionAddendumType } from "@/lib/contracts/section-addendums/types";
 
 // ── Input polimórfico ──────────────────────────────────────────────────────────
 
@@ -28,7 +30,25 @@ export type ContractInstructionGraphInput =
       transcript: string;
       documentKind: "oferta_firme";
       currentPayload: OfertaFirmeContractPayload;
+    }
+  | {
+      transcript: string;
+      documentKind: "anexo_mobiliario";
+      currentPayload: FurnitureAnnexPayload;
     };
+
+export interface ContractVoiceSectionAddendumInstruction {
+  sectionId: string;
+  type: SectionAddendumType;
+  text: string;
+}
+
+export interface ContractVoiceFurnitureItemToAdd {
+  description: string;
+  quantity: number;
+  includedInPurchasePrice: boolean;
+  estimatedValueEur?: number | null;
+}
 
 // ── Parche universal ───────────────────────────────────────────────────────────
 
@@ -85,6 +105,15 @@ export interface ContractVoiceStructuredPatch {
   // ── Cláusulas adicionales dictadas por el comercial ────────────────────
   /** Texto libre dictado para incluir como cláusula adicional. null si no dictó ninguna. */
   additionalClauseText: string | null;
+  /** Bloques para añadir/actualizar en secciones concretas del contrato. */
+  sectionAddendumInstructions: ContractVoiceSectionAddendumInstruction[];
+
+  // ── Anexo mobiliario ──────────────────────────────────────────────────────
+  furnitureHasFurniture: boolean | null;
+  furnitureOperationRef: string | null;
+  furniturePropertyAddressLine: string | null;
+  furniturePartiesLine: string | null;
+  furnitureItemsToAdd: ContractVoiceFurnitureItemToAdd[];
 
   // ── Respuesta conversacional del asistente ─────────────────────────────
   /** Mensaje que el asistente muestra al comercial: confirmación, resumen o pregunta. */

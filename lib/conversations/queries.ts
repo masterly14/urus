@@ -13,9 +13,9 @@ import type {
   ConversationSummary,
 } from "./types";
 
-const CONVERSATION_AGGREGATE_TYPES = ["WHATSAPP_CONVERSATION", "MENTAL_CONVERSATION"] as const;
-const INBOUND_MESSAGE_TYPES = ["WHATSAPP_RECIBIDO", "MENTAL_MSG_RECIBIDO"] as const;
-const OUTBOUND_MESSAGE_TYPES = ["WHATSAPP_ENVIADO", "MENTAL_MSG_ENVIADO"] as const;
+const CONVERSATION_AGGREGATE_TYPES = ["WHATSAPP_CONVERSATION"] as const;
+const INBOUND_MESSAGE_TYPES = ["WHATSAPP_RECIBIDO"] as const;
+const OUTBOUND_MESSAGE_TYPES = ["WHATSAPP_ENVIADO"] as const;
 const MESSAGE_TYPES = [...INBOUND_MESSAGE_TYPES, ...OUTBOUND_MESSAGE_TYPES] as const;
 const DEFAULT_LIST_LIMIT = 30;
 const MAX_LIST_LIMIT = 100;
@@ -166,25 +166,8 @@ function sourceLooksAgent(message: ConversationMessage): boolean {
   );
 }
 
-/**
- * Evita mostrar duplicados cuando el mismo inbound se guarda en:
- * - WHATSAPP_CONVERSATION (webhook)
- * - MENTAL_CONVERSATION (coach)
- *
- * El evento mental recibido guarda causationId = eventId del WHATSAPP_RECIBIDO origen.
- */
 function dedupeConversationMessages(messages: ConversationMessage[]): ConversationMessage[] {
-  const inboundWhatsAppEventIds = new Set(
-    messages
-      .filter((message) => message.type === "WHATSAPP_RECIBIDO")
-      .map((message) => message.eventId),
-  );
-
-  return messages.filter((message) => {
-    if (message.type !== "MENTAL_MSG_RECIBIDO") return true;
-    if (!message.causationId) return true;
-    return !inboundWhatsAppEventIds.has(message.causationId);
-  });
+  return messages;
 }
 
 function lastNine(value: string): string {
@@ -283,7 +266,6 @@ async function loadConversationContext(waId: string): Promise<ConversationContex
           demandNombre: true,
           buyerPhone: true,
           createdAt: true,
-          validatedAt: true,
           firstViewedAt: true,
           stockCount: true,
           properties: true,
@@ -299,7 +281,6 @@ async function loadConversationContext(waId: string): Promise<ConversationContex
     demandName: nonEmpty(selection.demandNombre),
     buyerPhone: nonEmpty(selection.buyerPhone),
     createdAt: selection.createdAt.toISOString(),
-    validatedAt: selection.validatedAt?.toISOString() ?? null,
     firstViewedAt: selection.firstViewedAt?.toISOString() ?? null,
     stockCount: selection.stockCount,
     properties: coerceMicrositeCuratedProperties(selection.properties).map(toSentProperty),
@@ -356,7 +337,6 @@ async function loadRelations(params: {
     visitSessions,
     comercialesByWa,
     comercialesByPhone,
-    mentalSessions,
     postventaSessions,
     parteVisitaSessions,
   ] = await Promise.all([
@@ -415,10 +395,6 @@ async function loadRelations(params: {
       where: phoneWaOr.length > 0 ? { OR: phoneWaOr } : { id: "__none__" },
       select: { id: true, nombre: true, telefono: true, waId: true },
     }),
-    prisma.mentalHealthSession.findMany({
-      where: { waId: { in: waIds } },
-      select: { waId: true, comercialId: true },
-    }),
     prisma.postventaSurveySession.findMany({
       where: phoneSuffixes.length > 0
         ? { OR: phoneSuffixes.map((suffix) => ({ buyerPhone: { endsWith: suffix } })) }
@@ -462,10 +438,6 @@ async function loadRelations(params: {
     const suffix = lastNine(comercial.telefono);
     if (suffix.length >= 9) commercialByWaId.set(suffix, comercial);
   }
-  const commercialById = new Map(
-    [...comercialesByWa, ...comercialesByPhone].map((comercial) => [comercial.id, comercial]),
-  );
-  const mentalSessionByWaId = new Map(mentalSessions.map((session) => [session.waId, session]));
 
   const relationByWaId = new Map<string, ConversationRelation>();
   for (const waId of waIds) {
@@ -475,19 +447,13 @@ async function loadRelations(params: {
       ?? selectionByPhoneSuffix.get(suffix)
       ?? null;
     const visit = visitSessions.find((item) => item.buyerWaId === waId || item.comercialWaId === waId) ?? null;
-    const mentalSession = mentalSessionByWaId.get(waId) ?? null;
-    const mentalCommercial = mentalSession?.comercialId
-      ? commercialById.get(mentalSession.comercialId) ?? null
-      : null;
-    const commercial = mentalCommercial ?? commercialByWaId.get(waId) ?? commercialByWaId.get(suffix) ?? null;
+    const commercial = commercialByWaId.get(waId) ?? commercialByWaId.get(suffix) ?? null;
     const postventa = postventaSessions.find((item) => lastNine(item.buyerPhone) === suffix) ?? null;
     const parteVisita = parteVisitaSessions.find((item) => lastNine(item.buyerPhone) === suffix) ?? null;
 
     const demandId = session?.demandId ?? selection?.demandId ?? visit?.demandId ?? null;
     const demand = demandId ? demandById.get(demandId) : demandByPhoneSuffix.get(suffix);
-    const relationLabel = mentalSession
-      ? "Coach emocional"
-      : commercial
+    const relationLabel = commercial
       ? "Comercial interno"
       : visit?.comercialWaId === waId
         ? "Comercial en visita"

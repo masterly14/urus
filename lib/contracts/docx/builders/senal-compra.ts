@@ -29,9 +29,17 @@ import {
   additionalClausesNumberingConfig,
   buildAdditionalClausesParagraphs,
 } from "@/lib/contracts/additional-clauses/docx-serializer";
+import { buildLetterSectionProperties } from "@/lib/contracts/docx/document-defaults";
+import type { SectionAddendumsList } from "@/lib/contracts/section-addendums/types";
+import { buildSectionAddendumParagraphs } from "@/lib/contracts/section-addendums/docx-serializer";
 
 export interface BuildSenalCompraDocumentOptions {
   additionalClausesDoc?: AdditionalClausesDoc | null;
+  /**
+   * Bloques añadidos por el comercial dentro de una sección concreta
+   * (ej. ampliar el apartado del inmueble con anejos o cargas).
+   */
+  sectionAddendums?: SectionAddendumsList | null;
 }
 
 const FONT = "Calibri";
@@ -145,6 +153,12 @@ export async function buildSenalCompraDocument(
 
   const bodyChildren: Paragraph[] = [];
 
+  const addendums = options.sectionAddendums ?? null;
+  const pushSectionAddendum = (sectionId: string) => {
+    const paragraphs = buildSectionAddendumParagraphs(addendums, sectionId);
+    bodyChildren.push(...paragraphs);
+  };
+
   const logoHeader = await buildLogoHeaderParagraphs();
   bodyChildren.push(...logoHeader);
 
@@ -165,16 +179,20 @@ export async function buildSenalCompraDocument(
   bodyChildren.push(heading("Primero."));
   bodyChildren.push(body(paragraphs[2]));
   bodyChildren.push(body(paragraphs[3]));
+  pushSectionAddendum("manifiesta_primero");
 
   bodyChildren.push(heading("Segundo."));
   bodyChildren.push(body(paragraphs[4]));
+  pushSectionAddendum("manifiesta_segundo");
 
   bodyChildren.push(heading("Tercero."));
   bodyChildren.push(body(paragraphs[5]));
+  pushSectionAddendum("manifiesta_tercero");
 
   bodyChildren.push(heading("Cuarto."));
   bodyChildren.push(body(paragraphs[6]));
   bodyChildren.push(body(paragraphs[7]));
+  pushSectionAddendum("manifiesta_cuarto");
 
   clauseNum = 5;
   let idx = 8;
@@ -182,27 +200,32 @@ export async function buildSenalCompraDocument(
   if (payload.flags.includeFinancingFallbackClause) {
     bodyChildren.push(heading(`${ordinalLabel(clauseNum)}.`));
     bodyChildren.push(body(paragraphs[idx]));
+    pushSectionAddendum("manifiesta_financing");
     clauseNum++;
     idx++;
   }
 
   bodyChildren.push(heading(`${ordinalLabel(clauseNum)}.`));
   bodyChildren.push(body(paragraphs[idx]));
+  pushSectionAddendum("manifiesta_gastos");
   clauseNum++;
   idx++;
 
   bodyChildren.push(heading(`${ordinalLabel(clauseNum)}.`));
   bodyChildren.push(body(paragraphs[idx]));
+  pushSectionAddendum("manifiesta_cargas");
   clauseNum++;
   idx++;
 
   bodyChildren.push(heading(`${ordinalLabel(clauseNum)}.`));
   bodyChildren.push(body(paragraphs[idx]));
+  pushSectionAddendum("manifiesta_honorarios");
   clauseNum++;
   idx++;
 
   bodyChildren.push(heading(`${ordinalLabel(clauseNum)}.`));
   bodyChildren.push(body(paragraphs[idx]));
+  pushSectionAddendum("manifiesta_fuero");
   clauseNum++;
   idx++;
 
@@ -236,7 +259,7 @@ export async function buildSenalCompraDocument(
       },
     },
     numbering: additionalClausesNumberingConfig,
-    sections: [{ properties: {}, children: bodyChildren }],
+    sections: [{ properties: buildLetterSectionProperties(), children: bodyChildren }],
   });
 }
 

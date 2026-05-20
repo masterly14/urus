@@ -16,6 +16,7 @@ import { computeSha256, buildSigningUrl } from "@/lib/firma/engine";
 import { generateSigningToken } from "@/lib/firma/token";
 import { generateNotaEncargoPdf } from "./generate-pdf";
 import { resolveComercial } from "@/lib/routing/resolve-comercial";
+import { normalizeComercialWhatsappPhone } from "@/lib/routing/comercial-whatsapp";
 import { promoteDraftProperty } from "@/lib/provisionals/promotion";
 
 export async function handleNotaEncargoFlowResponse(
@@ -30,7 +31,7 @@ export async function handleNotaEncargoFlowResponse(
   const tipoNota = String(formData.tipo_nota ?? "N1");
   const aceptaLopd =
     formData.acepta_lopd === true || formData.acepta_lopd === "true";
-  const signerPhone = telefono || session.propietarioPhone;
+  const ownerPhone = telefono || session.propietarioPhone;
 
   // 1. Update session with form data
   await prisma.notaEncargoSession.update({
@@ -54,7 +55,7 @@ export async function handleNotaEncargoFlowResponse(
         draftPropertyId: session.draftPropertyId,
         comercialId: session.comercialId,
         ownerName: nombreCompleto || null,
-        ownerPhone: signerPhone,
+        ownerPhone,
         cadastralRef: session.refCatastral ?? "",
         direccion: session.direccion,
         precio: session.precio,
@@ -74,6 +75,12 @@ export async function handleNotaEncargoFlowResponse(
     requireActive: false,
   });
   const agenteName = comercial?.nombre ?? "URUS Capital Group";
+  const signerPhone = normalizeComercialWhatsappPhone(comercial);
+  if (!signerPhone) {
+    throw new Error(
+      `No se pudo resolver teléfono WhatsApp del comercial ${session.comercialId} para iniciar firma`,
+    );
+  }
 
   // 2. Generate PDF
   const pdfBuffer = await generateNotaEncargoPdf({
@@ -166,13 +173,18 @@ export async function handleNotaEncargoFlowResponse(
   });
 
   const existingParty = await prisma.legalDocumentParty.findFirst({
-    where: { legalDocumentId: legalDocument.id, phone: signerPhone },
+    where: { legalDocumentId: legalDocument.id, role: "PROPIETARIO" },
   });
 
   if (existingParty) {
     await prisma.legalDocumentParty.update({
       where: { id: existingParty.id },
-      data: { fullName: nombreCompleto, nifNie: dni, address: domicilioFiscal },
+      data: {
+        fullName: nombreCompleto,
+        nifNie: dni,
+        address: domicilioFiscal,
+        phone: ownerPhone,
+      },
     });
   } else {
     await prisma.legalDocumentParty.create({
@@ -181,7 +193,7 @@ export async function handleNotaEncargoFlowResponse(
         role: "PROPIETARIO",
         fullName: nombreCompleto,
         nifNie: dni,
-        phone: signerPhone,
+        phone: ownerPhone,
         address: domicilioFiscal,
       },
     });
@@ -209,6 +221,8 @@ export async function handleNotaEncargoFlowResponse(
       documentKind: "NOTA_ENCARGO",
       signingUrl,
       signerPhone,
+      signingChannel: "COMERCIAL_DEVICE",
+      beneficiaryPhone: ownerPhone,
     },
   });
 

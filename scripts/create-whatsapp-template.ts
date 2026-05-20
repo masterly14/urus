@@ -2,7 +2,18 @@ import "dotenv/config";
 import { createWabaTemplatesClient } from "@/lib/whatsapp/templates/meta-client";
 import type { WabaTemplateComponent } from "@/lib/whatsapp/templates/types";
 
+type TemplatePreset = "chat_escalado_comercial";
+
 type CreateArgs = {
+  name?: string;
+  language?: string;
+  category?: "AUTHENTICATION" | "MARKETING" | "UTILITY";
+  components?: WabaTemplateComponent[];
+  preset?: TemplatePreset;
+  allowCategoryChange: boolean;
+};
+
+type ResolvedCreateArgs = {
   name: string;
   language: string;
   category: "AUTHENTICATION" | "MARKETING" | "UTILITY";
@@ -46,15 +57,18 @@ function usage(): string {
   return [
     "Uso:",
     "  npm run whatsapp:template:create -- --name <nombre> --category <MARKETING|UTILITY|AUTHENTICATION> [--language es_ES] (--components-json '[...]' | --body-text '...') [--body-example 'a|b|c'] [--allow-category-change]",
+    "  npm run whatsapp:template:create -- --preset chat_escalado_comercial [--allow-category-change]",
     "",
     "Ejemplos:",
     "  npm run whatsapp:template:create -- --name follow_up_demanda --category MARKETING --language es_ES --body-text 'Hola {{1}}' --body-example '[\"Santiago\"]'",
     "  npm run whatsapp:template:create -- --name postventa_resena --category UTILITY --components-json '[{\"type\":\"BODY\",\"text\":\"Hola {{1}}\"}]'",
+    "  npm run whatsapp:template:create -- --preset chat_escalado_comercial",
   ].join("\n");
 }
 
 function parseArgs(argv: string[]): CreateArgs {
   const args = argv.slice(2);
+  const preset = readFlagValue(args, "--preset") as TemplatePreset | null;
   const name = readFlagValue(args, "--name");
   const categoryRaw = readFlagValue(args, "--category");
   const language = readFlagValue(args, "--language") ?? "es_ES";
@@ -63,8 +77,19 @@ function parseArgs(argv: string[]): CreateArgs {
   const componentsRaw = readFlagValue(args, "--components-json");
   const allowCategoryChange = args.includes("--allow-category-change");
 
+  if (preset && preset !== "chat_escalado_comercial") {
+    throw new Error("preset inválido: usa chat_escalado_comercial");
+  }
+
+  if (preset) {
+    return {
+      preset,
+      allowCategoryChange,
+    };
+  }
+
   if (!name || !categoryRaw) {
-    throw new Error(`Debes enviar --name y --category\n\n${usage()}`);
+    throw new Error(`Debes enviar --name y --category, o usar --preset\n\n${usage()}`);
   }
 
   if (!/^[a-z0-9_]+$/.test(name)) {
@@ -110,8 +135,63 @@ function parseArgs(argv: string[]): CreateArgs {
   };
 }
 
+function resolvePreset(preset: TemplatePreset): Omit<ResolvedCreateArgs, "allowCategoryChange"> {
+  if (preset === "chat_escalado_comercial") {
+    return {
+      name: "chat_escalado_comercial",
+      language: "es_ES",
+      category: "UTILITY",
+      components: [
+        {
+          type: "BODY",
+          text:
+            "Hola {{1}} 👋\n\n" +
+            "Te paso un escalado del chat para que lo tomes cuanto antes.\n\n" +
+            "📝 *Resumen:* {{2}}\n" +
+            "📞 *Numero de contacto:* {{3}}\n" +
+            "ℹ️ *Info de contacto:* {{4}}\n\n" +
+            "Gracias por tomarlo 🙌",
+          example: {
+            body_text: [
+              [
+                "Miguel",
+                "El comprador pide hablar con una persona para resolver dudas de una propiedad.",
+                "+34600111222",
+                "Demanda DEM-2026-018 · Comprador Pedro Rojas · waId 34600111222",
+              ],
+            ],
+          },
+        },
+      ],
+    };
+  }
+
+  throw new Error("preset no soportado");
+}
+
+function resolveArgs(args: CreateArgs): ResolvedCreateArgs {
+  if (args.preset) {
+    const presetResolved = resolvePreset(args.preset);
+    return {
+      ...presetResolved,
+      allowCategoryChange: true,
+    };
+  }
+
+  if (!args.name || !args.language || !args.category || !args.components) {
+    throw new Error("Argumentos incompletos para creación de plantilla");
+  }
+  return {
+    name: args.name,
+    language: args.language,
+    category: args.category,
+    components: args.components,
+    allowCategoryChange: args.allowCategoryChange,
+  };
+}
+
 async function main(): Promise<void> {
-  const parsed = parseArgs(process.argv);
+  const parsed = resolveArgs(parseArgs(process.argv));
   const client = createWabaTemplatesClient();
 
   const result = await client.createTemplate({

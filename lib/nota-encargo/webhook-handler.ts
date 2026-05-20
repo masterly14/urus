@@ -10,6 +10,11 @@ import { prisma } from "@/lib/prisma";
 import { appendEvent } from "@/lib/event-store";
 import { publishNotaEncargoFormularioSchedule } from "@/lib/nota-encargo/schedule";
 import { handleNotaEncargoFlowResponse } from "./send-to-signature";
+import { resolveComercial } from "@/lib/routing/resolve-comercial";
+import {
+  normalizeComercialWhatsappPhone,
+  samePhoneByLast9,
+} from "@/lib/routing/comercial-whatsapp";
 
 // ---------------------------------------------------------------------------
 // Button reply handler (recordatorio confirmation)
@@ -104,6 +109,18 @@ export async function handleNotaEncargoNfmReply(
   if (session.state !== "FORMULARIO_ENVIADO") {
     console.log(
       `[nota-encargo-webhook] Session ${session.id} not in FORMULARIO_ENVIADO state (${session.state}) — ignoring`,
+    );
+    return false;
+  }
+
+  const comercial = await resolveComercial({
+    comercialId: session.comercialId,
+    requireActive: false,
+  });
+  const comercialPhone = normalizeComercialWhatsappPhone(comercial);
+  if (!samePhoneByLast9(from, comercialPhone)) {
+    console.log(
+      `[nota-encargo-webhook] Ignoring nfm_reply for session ${session.id}: from ${from} does not match comercial`,
     );
     return false;
   }

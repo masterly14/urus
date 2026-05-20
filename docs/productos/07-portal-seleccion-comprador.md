@@ -1,6 +1,6 @@
 # Portal de Selección para el Comprador
 
-> Microsite propio que presenta al comprador una selección curada de propiedades del mercado, con validación previa del comercial y feedback loop por WhatsApp.
+> Microsite propio que presenta al comprador una selección curada de propiedades del mercado, con validación automática por IA y feedback loop por WhatsApp.
 
 ---
 
@@ -20,7 +20,7 @@ Este portal **genera automáticamente una selección curada**, la presenta con b
 | Enviar enlaces sueltos sin contexto | Portal propio con fichas completas, imágenes, datos técnicos |
 | Sin saber qué vio el comprador | Tracking de vistas: cuándo abrió, qué miró, cuántas veces |
 | Feedback informal por mensaje | Feedback estructurado por propiedad (interesa / no interesa + motivo) |
-| Sin control de calidad pre-envío | El comercial valida la selección antes de que el comprador la vea |
+| Sin control de calidad pre-envío | La IA valida y enriquece la selección antes del envío |
 
 ---
 
@@ -36,13 +36,14 @@ El sistema:
 3. Filtra y selecciona las propiedades más relevantes
 4. Genera un portal con token único
 
-### Paso 2 — Validación del comercial
+### Paso 2 — Validación automática por IA
 
-**Antes de que el comprador vea nada**, el comercial recibe por WhatsApp un enlace a una vista interna de validación. En 30-60 segundos puede:
-- **Aprobar** → el portal se envía al comprador
-- **Rechazar** → no se envía nada, se puede regenerar con ajustes
+Antes del envío al comprador, la IA:
+- mejora descripciones,
+- aplica reglas de rebranding,
+- marca la selección como aprobada.
 
-**SLA de validación:** 2 horas. Si el comercial no valida, se escala automáticamente.
+Después se envía automáticamente el portal al comprador por WhatsApp.
 
 ### Paso 3 — El comprador explora
 
@@ -76,21 +77,22 @@ Si el comprador quiere más opciones o cambia criterios:
 1. Se actualizan los criterios de búsqueda
 2. Se consulta de nuevo el mercado con los criterios ajustados
 3. Se genera un nuevo portal
-4. El comercial valida
+4. La IA valida automáticamente
 5. Se envía al comprador
 
 **El portal se regenera tantas veces como sea necesario**, cada vez más afinado.
 
 ---
 
-## Tokens duales
+## Token único
 
 | Token | Destinatario | Función |
 |---|---|---|
 | Token público | Comprador | Accede al portal de propiedades |
-| Token de validación | Comercial | Aprueba o rechaza antes del envío |
 
-Son independientes. El comprador nunca recibe el enlace hasta que el comercial aprueba.
+### Nota histórica
+
+En una etapa previa existió un token adicional de validación comercial y una ruta interna de aprobación manual. Ese flujo fue retirado para priorizar velocidad operacional con control IA.
 
 ---
 
@@ -109,5 +111,5 @@ El sistema registra:
 - **Frontend:** Next.js con branding propio (SSR para SEO y velocidad)
 - **Fuente de datos:** API REST de mercado inmobiliario
 - **Feedback:** WhatsApp Cloud API → Agente NLU contextual
-- **Validación:** Micro-frontend interno con SLA de 2h
+- **Validación:** Pipeline IA automático (sin compuerta manual)
 - **Persistencia:** Base de datos con selección, propiedades, feedback, tracking

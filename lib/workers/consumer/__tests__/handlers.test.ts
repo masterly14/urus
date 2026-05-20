@@ -58,7 +58,6 @@ describe("handler registry", () => {
       "DEMANDA_ACTUALIZADA",
       "SELECCION_COMPRADOR",
       "SELECCION_VALIDADA",
-      "SELECCION_RECHAZADA",
       "SELECCION_MICROSITE_DESCRIPCIONES_EDITADAS",
       "OPERACION_CERRADA",
     ];
@@ -321,7 +320,6 @@ describe("audit-only handlers", () => {
     "LEAD_SCORED",
     "SLA_INICIADO",
     "SELECCION_VALIDADA",
-    "SELECCION_RECHAZADA",
     "SELECCION_MICROSITE_DESCRIPCIONES_EDITADAS",
   ];
 

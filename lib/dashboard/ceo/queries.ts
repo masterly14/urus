@@ -14,6 +14,11 @@ import {
   evaluarSemaforoExpansion,
   evaluarSemaforoCostes,
 } from "./thresholds";
+import {
+  getMonthCash,
+  getMonthEbitda,
+  getMonthExpensesAggregate,
+} from "@/lib/finance/aggregator";
 
 function startOfMonth(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
@@ -135,7 +140,6 @@ async function getOperacionesResumen(
 
 async function getHistorico(months: number, now: Date): Promise<HistoricoEntry[]> {
   const entries: HistoricoEntry[] = [];
-  const commissionRate = getCommissionRate();
 
   for (let i = months - 1; i >= 0; i--) {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
@@ -143,19 +147,21 @@ async function getHistorico(months: number, now: Date): Promise<HistoricoEntry[]
     const from = startOfMonth(d);
     const to = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
 
-    const [snapshot, target, revenue] = await Promise.all([
-      getMonthlySnapshot(period),
+    const [target, revenue, expenses, ebitda, cash] = await Promise.all([
       getTarget(d.getUTCFullYear(), d.getUTCMonth() + 1),
       getDerivedRevenue(from, to),
+      getMonthExpensesAggregate(period),
+      getMonthEbitda(period),
+      getMonthCash(period),
     ]);
 
     entries.push({
       period,
       revenueEur: revenue.estimatedRevenueEur,
       targetRevenueEur: target?.targetRevenueEur ?? 0,
-      ebitdaEur: snapshot?.ebitdaEur ?? 0,
-      operatingCostEur: snapshot?.operatingCostEur ?? 0,
-      cashAvailableEur: snapshot?.cashAvailableEur ?? 0,
+      ebitdaEur: ebitda,
+      operatingCostEur: expenses.total,
+      cashAvailableEur: cash,
     });
   }
   return entries;
@@ -185,6 +191,12 @@ export async function getCeoOverview(
     quarterRevenue,
     currentSnapshot,
     prevSnapshot,
+    currentExpenses,
+    prevExpenses,
+    currentEbitda,
+    prevEbitda,
+    currentCash,
+    prevCash,
     target,
     equipo,
     operaciones,
@@ -195,6 +207,12 @@ export async function getCeoOverview(
     getDerivedRevenue(quarterFrom, monthTo),
     getMonthlySnapshot(currentPeriod),
     getMonthlySnapshot(prevPeriodStr),
+    getMonthExpensesAggregate(currentPeriod),
+    getMonthExpensesAggregate(prevPeriodStr),
+    getMonthEbitda(currentPeriod),
+    getMonthEbitda(prevPeriodStr),
+    getMonthCash(currentPeriod),
+    getMonthCash(prevPeriodStr),
     getTarget(now.getUTCFullYear(), now.getUTCMonth() + 1),
     getEquipoResumen(),
     getOperacionesResumen(monthFrom, monthTo),
@@ -211,20 +229,20 @@ export async function getCeoOverview(
       null,
     ),
     ebitda: buildKpi(
-      currentSnapshot?.ebitdaEur ?? 0,
-      prevSnapshot?.ebitdaEur ?? null,
+      currentEbitda,
+      prevEbitda,
     ),
     costeOperativo: buildKpi(
-      currentSnapshot?.operatingCostEur ?? 0,
-      prevSnapshot?.operatingCostEur ?? null,
+      currentExpenses.total,
+      prevExpenses.total,
     ),
     margenPorOperacion: buildKpi(
       currentRevenue.avgMarginPerOp,
       prevRevenue.avgMarginPerOp,
     ),
     cashDisponible: buildKpi(
-      currentSnapshot?.cashAvailableEur ?? 0,
-      prevSnapshot?.cashAvailableEur ?? null,
+      currentCash,
+      prevCash,
     ),
     capacidadReinversion: buildKpi(
       currentSnapshot?.reinvestmentCapacity ?? 0,
@@ -243,13 +261,13 @@ export async function getCeoOverview(
       equipo.cargaMedia,
     ),
     expansion: evaluarSemaforoExpansion(
-      currentSnapshot?.cashAvailableEur ?? 0,
+      currentCash,
       currentRevenue.avgMarginPerOp,
       currentRevenue.estimatedRevenueEur,
       target?.targetRevenueEur ?? 0,
     ),
     costes: evaluarSemaforoCostes(
-      currentSnapshot?.operatingCostEur ?? 0,
+      currentExpenses.total,
       currentRevenue.estimatedRevenueEur,
     ),
   };
@@ -269,6 +287,12 @@ export async function getCeoOverview(
     quarterRevenue,
     currentSnapshot,
     prevSnapshot,
+    currentExpenses,
+    prevExpenses,
+    currentEbitda,
+    prevEbitda,
+    currentCash,
+    prevCash,
     target,
     kpis,
   });
@@ -292,6 +316,12 @@ function logCeoOverviewDataSources(ctx: {
   quarterRevenue: RevenueRow;
   currentSnapshot: Awaited<ReturnType<typeof getMonthlySnapshot>>;
   prevSnapshot: Awaited<ReturnType<typeof getMonthlySnapshot>>;
+  currentExpenses: Awaited<ReturnType<typeof getMonthExpensesAggregate>>;
+  prevExpenses: Awaited<ReturnType<typeof getMonthExpensesAggregate>>;
+  currentEbitda: number;
+  prevEbitda: number;
+  currentCash: number;
+  prevCash: number;
   target: Awaited<ReturnType<typeof getTarget>>;
   kpis: CeoOverviewPayload["kpis"];
 }): void {
@@ -310,6 +340,12 @@ function logCeoOverviewDataSources(ctx: {
     quarterRevenue,
     currentSnapshot,
     prevSnapshot,
+    currentExpenses,
+    prevExpenses,
+    currentEbitda,
+    prevEbitda,
+    currentCash,
+    prevCash,
     target,
     kpis,
   } = ctx;
@@ -338,12 +374,15 @@ function logCeoOverviewDataSources(ctx: {
   console.log(
     `  Facturación trimestral: ${kpis.facturacionTrimestral.value.toFixed(2)} € | mismo criterio, rango [${quarterFrom.toISOString()}, ${monthTo.toISOString()})`,
   );
-  console.log(`  EBITDA ${kpis.ebitda.value.toFixed(2)} € → ${snap(currentSnapshot, "snapshot actual")}`);
-  console.log(`  EBITDA mes anterior ${kpis.ebitda.previousValue ?? "n/a"} → ${snap(prevSnapshot, "snapshot anterior")}`);
-  console.log(`  Coste operativo ${kpis.costeOperativo.value.toFixed(2)} € → ceo_monthly_snapshots.operatingCostEur (mismo snapshot que EBITDA)`);
-  console.log(`  Cash ${kpis.cashDisponible.value.toFixed(2)} € → ceo_monthly_snapshots.cashAvailableEur`);
+  console.log(`  EBITDA ${kpis.ebitda.value.toFixed(2)} € → derivado: ingresos del periodo - gastos confirmados (actual=${currentEbitda.toFixed(2)} | mes anterior=${prevEbitda.toFixed(2)})`);
+  console.log(
+    `  Coste operativo ${kpis.costeOperativo.value.toFixed(2)} € → agregado de gastos confirmados (actual=${currentExpenses.total.toFixed(2)} [fijos=${currentExpenses.fixed.toFixed(2)} variables=${currentExpenses.variable.toFixed(2)}] | anterior=${prevExpenses.total.toFixed(2)})`,
+  );
+  console.log(`  Cash ${kpis.cashDisponible.value.toFixed(2)} € → openingBalance + ingresos - gastos (actual=${currentCash.toFixed(2)} | anterior=${prevCash.toFixed(2)})`);
   console.log(`  Cap. reinversión ${kpis.capacidadReinversion.value.toFixed(2)} € → ceo_monthly_snapshots.reinvestmentCapacity`);
   console.log(`  Margen/op: ${kpis.margenPorOperacion.value.toFixed(2)} € → derivado: facturación estimada / nº cierres (commercial_operation_facts)`);
   console.log(`  Objetivo facturación (semáforo): ${target?.targetRevenueEur ?? 0} | ${tgt}`);
+  console.log(`  Snapshot actual (solo trazabilidad/capacidad reinversión): ${snap(currentSnapshot, "snapshot actual")}`);
+  console.log(`  Snapshot anterior (solo trazabilidad): ${snap(prevSnapshot, "snapshot anterior")}`);
   console.log("[ceo/overview] ──────────────────────────────\n");
 }

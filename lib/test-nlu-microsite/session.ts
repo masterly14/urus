@@ -182,12 +182,10 @@ export async function createTestSession(
   });
 
   const selectionToken = makeToken(TEST_SELECTION_TOKEN_PREFIX);
-  const validationToken = makeToken(`${TEST_SELECTION_TOKEN_PREFIX}-V`);
 
   const created = await prisma.micrositeSelection.create({
     data: {
       token: selectionToken,
-      validationToken,
       status: "APPROVED",
       demandId,
       demandNombre: demandName,
@@ -201,8 +199,6 @@ export async function createTestSession(
       properties: context.curatedProperties as unknown as Prisma.InputJsonValue,
       stockCount: context.curatedProperties.length,
       buyerPhone: TEST_BUYER_WAID,
-      validatedAt: now,
-      validatedByComercialId: TEST_COMERCIAL_ID,
     },
     select: { id: true, token: true },
   });

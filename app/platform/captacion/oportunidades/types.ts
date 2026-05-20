@@ -93,6 +93,7 @@ export interface ListingOpportunity {
     | "PROPERTY_CREATING"
     | "PROPERTY_CREATED"
     | "FAILED";
+  captacionTag: "CONTACTADO" | "EN_ESPERA" | "RECHAZADO" | "CAPTADO" | null;
   inmovillaProspectRef: string | null;
   inmovillaPropertyCodOfer: number | null;
   captacionLastError: string | null;

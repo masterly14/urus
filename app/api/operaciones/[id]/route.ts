@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
+import { appendEvent } from "@/lib/event-store";
+import type { JsonValue } from "@/lib/event-store/types";
+import { Prisma } from "@prisma/client";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,13 +17,16 @@ const getHandler = async (request: Request, { params }: Params) => {
     where: { id },
     include: {
       asignaciones: {
-        select: {
-          id: true,
-          colaboradorId: true,
-          estado: true,
-          notas: true,
-          createdAt: true,
+        include: {
+          colaborador: {
+            select: { id: true, nombre: true, tipo: true },
+          },
+          hitos: {
+            orderBy: { orden: "asc" },
+          },
+          documentos: true,
         },
+        orderBy: { createdAt: "desc" },
       },
       _count: {
         select: {
@@ -136,7 +142,94 @@ const getHandler = async (request: Request, { params }: Params) => {
   });
 };
 
+const deleteHandler = async (request: Request, { params }: Params) => {
+  const session = await getSessionFromRequest(request);
+  if (!session) return unauthorized();
+  const { id } = await params;
+
+  const operacion = await prisma.operacion.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      codigo: true,
+      propertyCode: true,
+      estado: true,
+    },
+  });
+
+  if (!operacion) {
+    return NextResponse.json({ error: "Operación no encontrada" }, { status: 404 });
+  }
+
+  if (operacion.estado.startsWith("CERRADA_")) {
+    return NextResponse.json(
+      { error: "No se puede eliminar una operación cerrada" },
+      { status: 409 },
+    );
+  }
+
+  const [legalDocsCount, signatureRequestsCount] = await Promise.all([
+    prisma.legalDocument.count({ where: { operationId: operacion.codigo } }),
+    prisma.signatureRequest.count({ where: { operationId: operacion.codigo } }),
+  ]);
+
+  if (legalDocsCount > 0 || signatureRequestsCount > 0) {
+    return NextResponse.json(
+      {
+        error:
+          "No se puede eliminar una operación con documentos legales o solicitudes de firma asociadas",
+      },
+      { status: 409 },
+    );
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.colaboradorAsignacion.deleteMany({
+        where: { operacionId: operacion.id },
+      });
+      await tx.operacion.delete({ where: { id: operacion.id } });
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+      return NextResponse.json(
+        {
+          error:
+            "No se puede eliminar la operación porque tiene relaciones activas. Revisa colaboradores y datos asociados.",
+        },
+        { status: 409 },
+      );
+    }
+    throw error;
+  }
+
+  try {
+    await appendEvent({
+      type: "OPERACION_ELIMINADA",
+      aggregateType: "OPERACION",
+      aggregateId: operacion.propertyCode,
+      payload: {
+        operacionId: operacion.id,
+        operacionCodigo: operacion.codigo,
+        propertyCode: operacion.propertyCode,
+        previousEstado: operacion.estado,
+        deletedByUserId: session.userId,
+        deletedAt: new Date().toISOString(),
+        source: "manual_delete",
+      } as unknown as JsonValue,
+    });
+  } catch (error) {
+    console.error("[api/operaciones/[id]] DELETE event append error:", error);
+  }
+
+  return NextResponse.json({ ok: true });
+};
+
 export const GET = withObservedRoute(
   { method: "GET", route: "/api/operaciones/[id]" },
   getHandler,
+);
+export const DELETE = withObservedRoute(
+  { method: "DELETE", route: "/api/operaciones/[id]" },
+  deleteHandler,
 );

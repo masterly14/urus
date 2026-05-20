@@ -108,14 +108,20 @@ describe("contracts/docx arras generator", () => {
     expect(result.fileName).toBe("OP-2026-0001_Arras_v1.docx");
   });
 
-  it("inyecta la sección 'CLAUSULAS ADICIONALES' cuando se pasa additionalClausesDoc", async () => {
+  it("inyecta la cláusula numerada adicional cuando se pasa additionalClausesDoc", async () => {
     const result = await generateContractDocx(buildArrasInput(), {
       additionalClausesDoc: {
         type: "doc",
         content: [
           {
             type: "paragraph",
-            content: [{ type: "text", text: "La parte vendedora se compromete a dejar el inmueble limpio." }],
+            content: [{ type: "text", text: "CLAUSULA 8.- LIMPIEZA", marks: [{ type: "bold" }] }],
+          },
+          {
+            type: "paragraph",
+            content: [
+              { type: "text", text: "La parte vendedora se compromete a dejar el inmueble limpio." },
+            ],
           },
         ],
       },
@@ -123,8 +129,47 @@ describe("contracts/docx arras generator", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected ok");
     const xml = await extractDocumentXml(result.buffer);
-    expect(xml).toContain("CLAUSULAS ADICIONALES");
+    expect(xml).toContain("CLAUSULA 8.- LIMPIEZA");
     expect(xml).toContain("dejar el inmueble limpio");
+  });
+
+  it("inyecta un section addendum DENTRO de la sección INMUEBLE (antes de ESTIPULACIONES)", async () => {
+    const result = await generateContractDocx(buildArrasInput(), {
+      sectionAddendums: [
+        {
+          id: "addendum-property-1",
+          sectionId: "property",
+          type: "registry_extra",
+          contentDoc: {
+            type: "doc",
+            content: [
+              {
+                type: "paragraph",
+                content: [
+                  {
+                    type: "text",
+                    text: "Incluye plaza de garaje numero 12 vinculada a la finca registral.",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    const xml = await extractDocumentXml(result.buffer);
+
+    expect(xml).not.toContain("Datos registrales adicionales:");
+    expect(xml).toContain("plaza de garaje numero 12");
+
+    const addendumIdx = xml.indexOf("plaza de garaje numero 12");
+    const stipulationsIdx = xml.indexOf("ESTIPULACIONES");
+    expect(addendumIdx).toBeGreaterThan(0);
+    expect(stipulationsIdx).toBeGreaterThan(0);
+    expect(addendumIdx).toBeLessThan(stipulationsIdx);
   });
 
   it("no modifica el DOCX cuando additionalClausesDoc está vacío", async () => {
@@ -136,8 +181,22 @@ describe("contracts/docx arras generator", () => {
     if (!base.ok || !withEmpty.ok) throw new Error("expected ok");
     const baseXml = await extractDocumentXml(base.buffer);
     const emptyXml = await extractDocumentXml(withEmpty.buffer);
-    expect(baseXml).not.toContain("CLAUSULAS ADICIONALES");
-    expect(emptyXml).not.toContain("CLAUSULAS ADICIONALES");
+    expect(baseXml).not.toContain("CLAUSULA ");
+    expect(emptyXml).not.toContain("CLAUSULA ");
+  });
+
+  it("fuerza tamaño Letter y márgenes de 1 pulgada en la sección", async () => {
+    const result = await generateContractDocx(buildArrasInput());
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+
+    const xml = await extractDocumentXml(result.buffer);
+    expect(xml).toContain('w:pgSz w:w="12240" w:h="15840"');
+    expect(xml).toContain('w:pgMar');
+    expect(xml).toContain('w:top="1440"');
+    expect(xml).toContain('w:right="1440"');
+    expect(xml).toContain('w:bottom="1440"');
+    expect(xml).toContain('w:left="1440"');
   });
 
   it("renderiza clausula penitencial o confirmatoria segun flags.arrasRegime", () => {

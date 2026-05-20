@@ -17,8 +17,8 @@ import { initiateVisitScheduling, getActiveSessionForBuyer } from "@/lib/visit-s
 import type { JsonValue } from "@/lib/event-store/types";
 import type { PropertySummaryForNLU, ConversationTurn } from "./types";
 import {
-  MICROSITE_HANDOFF_ETA_MINUTES,
-  MICROSITE_HANDOFF_STANDARD_MESSAGE,
+  MICROSITE_DELIVERY_ETA_MINUTES,
+  MICROSITE_DELIVERY_STANDARD_MESSAGE,
 } from "./conversational-operational-constants";
 
 /**
@@ -220,16 +220,19 @@ export function createConversationalTools(ctx: ToolExecutionContext): Structured
         eventId: event.id,
         updatedVariables: variables,
         triggersNewSelection: true,
-        humanValidationRequired: true,
-        estimatedHandoffMinutes: MICROSITE_HANDOFF_ETA_MINUTES,
+        autoApprovedByAI: true,
+        estimatedDeliveryMinutes: MICROSITE_DELIVERY_ETA_MINUTES,
         currentSelectionCompatibleCount: compat.compatibleCount,
         currentSelectionTotal: compat.total,
-        message: MICROSITE_HANDOFF_STANDARD_MESSAGE,
+        message: MICROSITE_DELIVERY_STANDARD_MESSAGE,
         agentGuidance:
           "NO vuelvas a llamar request_more_options ni update_demand en este turno: la nueva selección " +
-          "ya se genera automáticamente tras este ajuste. En tu respuesta: (1) confirma lo que has entendido " +
-          "(tope, zona, etc.), (2) menciona que una persona del equipo revisa antes de enviar, (3) da el " +
-          `plazo de ~${MICROSITE_HANDOFF_ETA_MINUTES} minutos. ` +
+          "ya se está generando automáticamente y llegará al comprador por WhatsApp sin pasos humanos. " +
+          "En tu respuesta al comprador: (1) reconoce con sus palabras lo que has entendido " +
+          "(tope, zona, prioridad…), (2) habla en primera persona como su agente (\"te las busco\", " +
+          "\"te las preparo\"), (3) anúnciale que se las pasas aquí mismo en unos minutos " +
+          `(~${MICROSITE_DELIVERY_ETA_MINUTES} min). ` +
+          "PROHIBIDO mencionar que un compañero / persona del equipo / el equipo lo revisa o valida. " +
           (compat.compatibleCount === 0
             ? "Aviso: con los nuevos criterios, ninguna de las opciones actuales encaja — dilo con claridad."
             : ""),
@@ -277,22 +280,25 @@ export function createConversationalTools(ctx: ToolExecutionContext): Structured
       const compat = analyzeCompatibilityWithCurrentSelection(ctx.properties, newConstraints);
 
       return JSON.stringify({
-        status: "queued_for_validation",
+        status: "queued_for_delivery",
         jobId: job.id,
         type: "GENERATE_MICROSITE",
-        humanValidationRequired: true,
-        estimatedHandoffMinutes: MICROSITE_HANDOFF_ETA_MINUTES,
+        autoApprovedByAI: true,
+        estimatedDeliveryMinutes: MICROSITE_DELIVERY_ETA_MINUTES,
         currentSelectionCompatibleCount: compat.compatibleCount,
         currentSelectionTotal: compat.total,
-        message: MICROSITE_HANDOFF_STANDARD_MESSAGE,
+        message: MICROSITE_DELIVERY_STANDARD_MESSAGE,
         agentGuidance:
-          "En tu respuesta al comprador: (1) reconoce lo que ha pedido, (2) indica que vas a preparar " +
-          "alternativas, (3) menciona que una persona del equipo revisa antes de enviar, (4) da un plazo " +
-          `aproximado de ~${MICROSITE_HANDOFF_ETA_MINUTES} minutos. ` +
+          "La selección se genera, enriquece con IA y envía al comprador por WhatsApp automáticamente; " +
+          "no hay revisión humana intermedia. En tu respuesta al comprador: (1) reconoce lo que ha pedido " +
+          "con sus palabras, (2) anuncia en PRIMERA PERSONA que tú vas a buscarle las opciones " +
+          "(\"te las busco\", \"te las preparo\", \"te las paso aquí mismo\"), (3) dale un plazo concreto " +
+          `de unos minutos (~${MICROSITE_DELIVERY_ETA_MINUTES} min) usando lenguaje natural. ` +
+          "PROHIBIDO mencionar que un compañero / persona del equipo / el equipo revisa o valida la selección. " +
           (compat.compatibleCount === 0
-            ? "Aviso: con las restricciones indicadas, ninguna de las opciones actuales encaja — dilo explícitamente."
+            ? "Aviso: con las restricciones indicadas, ninguna de las opciones actuales encaja — dilo explícitamente. "
             : "") +
-          " NO vuelvas a invocar esta tool ni update_demand en los próximos turnos salvo que el comprador cambie de criterio.",
+          "NO vuelvas a invocar esta tool ni update_demand en los próximos turnos salvo que el comprador cambie de criterio.",
       });
     },
   });

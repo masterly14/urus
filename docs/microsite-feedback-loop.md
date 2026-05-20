@@ -22,11 +22,10 @@ Visita evaluada (interes alto)
     → Statefox API /properties (stock portal)
     → Filtro + scoring + curacion completa
     → Persistencia en MicrositeSelection (JSON con todos los datos)
-  → NOTIFY_MICROSITE_PENDING_VALIDATION (WhatsApp al comercial)
-    → Comercial revisa en /validar-seleccion/{validationToken}
-    → APPROVE → SEND_MICROSITE_TO_BUYER
-      → Envia WhatsApp al comprador con la plantilla
-        microsite_listo_comprador (tono informativo, sin orden)
+  → Aprobacion IA (rebranding + mejora de descripciones)
+    → SELECCION_VALIDADA (evento de auditoria)
+    → SEND_MICROSITE_TO_BUYER
+      → Envia WhatsApp al comprador con la plantilla microsite_listo_comprador
       → Persiste WHATSAPP_ENVIADO (WAMID + demandId + selectionId)
       → Crea/actualiza WhatsAppBuyerSession
         → Comprador navega /seleccion/{token}
@@ -63,14 +62,13 @@ Visita evaluada (interes alto)
 | Archivo | Funcion |
 |---------|---------|
 | `lib/microsite/selection.ts` | Generacion de seleccion: query Statefox, filtro, scoring, curacion, persistencia |
-| `lib/microsite/constants.ts` | SLA de validacion (2h) |
+| `lib/microsite/approve-by-ai.ts` | Aprobacion automatica IA (descripciones + rebranding + enqueue de envio) |
 | `lib/microsite/buyer-phone.ts` | Resolucion de telefono del comprador |
 | `lib/microsite/app-url.ts` | URL publica del microsite |
 | `lib/microsite/mock-selection.ts` | Datos mock para vista demo |
 | `app/seleccion/[token]/page.tsx` | Grid de propiedades (comprador) |
 | `app/seleccion/[token]/propiedad/[propertyId]/page.tsx` | Detalle completo de propiedad |
 | `app/seleccion/[token]/propiedad/[propertyId]/image-carousel.tsx` | Carrusel de imagenes |
-| `app/validar-seleccion/[validationToken]/page.tsx` | Validacion comercial |
 | `app/api/seleccion/[token]/feedback/route.ts` | API de feedback HTTP (canal canonico para `ME_INTERESA` via boton del micrositio; idempotente con 409) |
 | `components/seleccion/property-card.tsx` | Tarjeta de propiedad con boton "Me encaja" (Client Component) |
 | `components/seleccion/me-encaja-button.tsx` | Boton "Me encaja" reutilizable en la pagina de detalle |
@@ -82,6 +80,10 @@ Visita evaluada (interes alto)
 | `lib/workers/consumer/write-demand-update-handler.ts` | Handler DEMANDA_ACTUALIZADA: projection + Inmovilla (incl. metros) + GENERATE_MICROSITE |
 | `lib/workers/consumer/job-handlers.ts` | SEND_MICROSITE_TO_BUYER con WHATSAPP_ENVIADO + session |
 | `lib/workers/consumer/__tests__/feedback-loop-e2e.test.ts` | Test E2E determinista del pipeline completo |
+
+### Nota historica
+
+La validacion manual por comercial (`/validar-seleccion/*` + SLA 2h) existio en una etapa previa y fue retirada del runtime. El flujo actual es IA-first y envia siempre al comprador tras aprobacion automatica.
 
 ## WhatsAppBuyerSession
 

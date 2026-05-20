@@ -11,8 +11,8 @@ function VariablesList({ variables }: { variables: ConversationTemplateVariable[
   if (variables.length === 0) return null;
 
   return (
-    <div className="mt-2 rounded-md border border-border/70 bg-background/70">
-      <div className="grid grid-cols-[64px_1fr] gap-x-2 border-b border-border/60 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+    <div className="mt-2 min-w-0 max-w-full overflow-hidden rounded-md border border-border/70 bg-background/70">
+      <div className="grid min-w-0 grid-cols-[64px_minmax(0,1fr)] gap-x-2 border-b border-border/60 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
         <span>Variable</span>
         <span>Valor enviado</span>
       </div>
@@ -20,10 +20,10 @@ function VariablesList({ variables }: { variables: ConversationTemplateVariable[
         {variables.map((variable) => (
           <div
             key={`${variable.component}-${variable.buttonIndex ?? "main"}-${variable.index}`}
-            className="grid grid-cols-[64px_1fr] gap-x-2 px-2 py-1.5 text-[11px]"
+            className="grid min-w-0 grid-cols-[64px_minmax(0,1fr)] gap-x-2 px-2 py-1.5 text-[11px]"
           >
             <span className="font-mono text-muted-foreground">{variable.placeholder}</span>
-            <span className="whitespace-pre-wrap break-words text-foreground">
+            <span className="min-w-0 whitespace-pre-wrap break-words text-foreground [overflow-wrap:anywhere] [word-break:break-word]">
               {variable.value || "(vacío)"}
             </span>
           </div>
@@ -36,7 +36,7 @@ function VariablesList({ variables }: { variables: ConversationTemplateVariable[
 function ComponentBlock({ component }: { component: ConversationTemplateRenderedComponent }) {
   if (component.type === "buttons") {
     return (
-      <section className="rounded-lg border border-border/70 bg-muted/20 p-2">
+      <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border/70 bg-muted/20 p-2">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           Botones
         </p>
@@ -44,21 +44,21 @@ function ComponentBlock({ component }: { component: ConversationTemplateRendered
           {(component.buttons ?? []).map((button) => (
             <div
               key={button.index}
-              className="rounded-md border border-border bg-background px-2 py-1.5 text-[11px]"
+              className="min-w-0 max-w-full overflow-hidden rounded-md border border-border bg-background px-2 py-1.5 text-[11px]"
             >
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge variant="outline" className="h-4 px-1.5 text-[10px]">
                   {button.type}
                 </Badge>
-                <span className="font-medium">{button.text}</span>
+                <span className="min-w-0 break-words font-medium [overflow-wrap:anywhere] [word-break:break-word]">{button.text}</span>
               </div>
               {button.url ? (
-                <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">
+                <p className="mt-1 max-w-full break-all font-mono text-[10px] text-muted-foreground [overflow-wrap:anywhere]">
                   {button.url}
                 </p>
               ) : null}
               {button.payload ? (
-                <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">
+                <p className="mt-1 max-w-full break-all font-mono text-[10px] text-muted-foreground [overflow-wrap:anywhere]">
                   payload: {button.payload}
                 </p>
               ) : null}
@@ -71,7 +71,7 @@ function ComponentBlock({ component }: { component: ConversationTemplateRendered
   }
 
   return (
-    <section className="rounded-lg border border-border/70 bg-muted/20 p-2">
+    <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border/70 bg-muted/20 p-2">
       <div className="flex flex-wrap items-center gap-1.5">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           {component.type}
@@ -83,7 +83,7 @@ function ComponentBlock({ component }: { component: ConversationTemplateRendered
         ) : null}
       </div>
       {component.text ? (
-        <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed">
+        <p className="mt-1.5 max-w-full whitespace-pre-wrap break-words text-sm leading-relaxed [overflow-wrap:anywhere] [word-break:break-word]">
           {component.text}
         </p>
       ) : (
@@ -98,8 +98,8 @@ function ComponentBlock({ component }: { component: ConversationTemplateRendered
 
 export function TemplateMessageCard({ template }: { template: ConversationTemplateRender }) {
   return (
-    <div className="min-w-[260px] space-y-2">
-      <div className="rounded-lg border border-primary/20 bg-background/80 p-2">
+    <div className="min-w-0 max-w-full overflow-hidden space-y-2">
+      <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-primary/20 bg-background/80 p-2">
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant="ai" className="h-5 px-2 text-[10px]">
             Plantilla WhatsApp
@@ -114,7 +114,7 @@ export function TemplateMessageCard({ template }: { template: ConversationTempla
             </Badge>
           )}
         </div>
-        <p className="mt-2 break-all font-mono text-xs font-semibold text-foreground">
+        <p className="mt-2 max-w-full break-all font-mono text-xs font-semibold text-foreground [overflow-wrap:anywhere]">
           {template.name}
         </p>
         <p className="text-[11px] text-muted-foreground">

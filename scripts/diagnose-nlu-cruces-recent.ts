@@ -192,13 +192,13 @@ async function dumpDemand(d: TargetDemand): Promise<void> {
       sourceEventId: true,
       createdAt: true,
       stockCount: true,
-      validationToken: true,
+      token: true,
     },
   });
   console.log(`  microsite selections total=${selections.length}:`);
   for (const s of selections) {
     console.log(
-      `    ${s.createdAt.toISOString()} status=${s.status} stock=${s.stockCount} sourceEventId=${s.sourceEventId ?? "-"} token=${s.validationToken}`,
+      `    ${s.createdAt.toISOString()} status=${s.status} stock=${s.stockCount} sourceEventId=${s.sourceEventId ?? "-"} token=${s.token}`,
     );
   }
 

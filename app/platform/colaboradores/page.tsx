@@ -18,14 +18,31 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { PageHeader } from "@/components/layout/page-header";
 import { ClasificacionBadge } from "@/components/colaboradores/clasificacion-badge";
 import type { ColaboradorClasificacion } from "@/components/colaboradores/clasificacion-badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ColaboradorForm } from "@/components/colaboradores/colaborador-form";
 
 type ColaboradorRow = {
@@ -120,43 +137,40 @@ export default function ColaboradoresPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Colaboradores Externos</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Gestión de proveedores, plazos y rendimiento operativo.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/platform/colaboradores/ranking">
-            <Button variant="outline" size="sm" className="gap-2 bg-card shadow-sm">
-              <Trophy className="h-4 w-4 text-[var(--urus-gold)]" />
-              Clasificación
-              <ArrowUpRight className="h-3 w-3 text-muted-foreground" />
-            </Button>
-          </Link>
-          <Dialog open={showNewForm} onOpenChange={setShowNewForm}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="gap-2 shadow-sm">
-                <Plus className="h-4 w-4" />
-                Nuevo Colaborador
+      <PageHeader
+        title="Colaboradores Externos"
+        description="Gestión de proveedores, plazos y rendimiento operativo."
+        actions={
+          <>
+            <Link href="/platform/colaboradores/ranking">
+              <Button variant="outline" size="sm" className="gap-2 bg-card shadow-sm">
+                <Trophy className="h-4 w-4 text-[var(--urus-gold)]" />
+                Clasificación
+                <ArrowUpRight className="h-3 w-3 text-muted-foreground" />
               </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Nuevo Colaborador</DialogTitle>
-              </DialogHeader>
-              <ColaboradorForm
-                tipos={data?.tipos.map((t) => t.nombre) ?? []}
-                onSubmit={handleCreate}
-                onCancel={() => setShowNewForm(false)}
-                submitLabel="Crear"
-              />
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
+            </Link>
+            <Dialog open={showNewForm} onOpenChange={setShowNewForm}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-2 shadow-sm">
+                  <Plus className="h-4 w-4" />
+                  Nuevo Colaborador
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Nuevo Colaborador</DialogTitle>
+                </DialogHeader>
+                <ColaboradorForm
+                  tipos={data?.tipos.map((t) => t.nombre) ?? []}
+                  onSubmit={handleCreate}
+                  onCancel={() => setShowNewForm(false)}
+                  submitLabel="Crear"
+                />
+              </DialogContent>
+            </Dialog>
+          </>
+        }
+      />
 
       {/* KPIs - B2B Style (Clean Cards, subtle icons) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -221,74 +235,77 @@ export default function ColaboradoresPage() {
         <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
           <div className="h-6 w-px bg-border/60 hidden sm:block mx-2" />
           
-          <select
-            value={filterTipo}
-            onChange={(e) => setFilterTipo(e.target.value)}
-            className="bg-transparent border border-border/50 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-secondary/50 min-w-[140px]"
-          >
-            <option value="all">Todos los tipos</option>
-            {(data?.tipos ?? []).map((t) => (
-              <option key={t.nombre} value={t.nombre}>{t.nombre}</option>
-            ))}
-          </select>
+          <Select value={filterTipo} onValueChange={(val) => setFilterTipo(val)}>
+            <SelectTrigger className="w-[140px] bg-transparent border-border/50 h-8 text-sm focus:ring-1 focus:ring-secondary/50">
+              <SelectValue placeholder="Todos los tipos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los tipos</SelectItem>
+              {(data?.tipos ?? []).map((t) => (
+                <SelectItem key={t.nombre} value={t.nombre}>{t.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <select
-            value={filterCiudad}
-            onChange={(e) => setFilterCiudad(e.target.value)}
-            className="bg-transparent border border-border/50 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-secondary/50 min-w-[140px]"
-          >
-            <option value="all">Todas las ciudades</option>
-            {(data?.ciudades ?? []).map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+          <Select value={filterCiudad} onValueChange={(val) => setFilterCiudad(val)}>
+            <SelectTrigger className="w-[140px] bg-transparent border-border/50 h-8 text-sm focus:ring-1 focus:ring-secondary/50">
+              <SelectValue placeholder="Todas las ciudades" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las ciudades</SelectItem>
+              {(data?.ciudades ?? []).map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <select
-            value={filterClasificacion}
-            onChange={(e) => setFilterClasificacion(e.target.value)}
-            className="bg-transparent border border-border/50 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-secondary/50 min-w-[160px]"
-          >
-            <option value="all">Cualquier clasificación</option>
-            <option value="partner_estrategico">Socio Estratégico</option>
-            <option value="funcional">Funcional</option>
-            <option value="lento">Lento</option>
-            <option value="critico">Crítico</option>
-            <option value="sin_datos">Sin datos</option>
-          </select>
+          <Select value={filterClasificacion} onValueChange={(val) => setFilterClasificacion(val)}>
+            <SelectTrigger className="w-[160px] bg-transparent border-border/50 h-8 text-sm focus:ring-1 focus:ring-secondary/50">
+              <SelectValue placeholder="Cualquier clasificación" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Cualquier clasificación</SelectItem>
+              <SelectItem value="partner_estrategico">Socio Estratégico</SelectItem>
+              <SelectItem value="funcional">Funcional</SelectItem>
+              <SelectItem value="lento">Lento</SelectItem>
+              <SelectItem value="critico">Crítico</SelectItem>
+              <SelectItem value="sin_datos">Sin datos</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
       {/* Data Table */}
       <Card className="shadow-sm border-border/60 overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center bg-accent/10">
-            <Users className="h-10 w-10 text-muted-foreground/30 mb-4" />
-            <p className="text-base font-medium text-foreground">No se encontraron colaboradores</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {data?.colaboradores.length === 0
+          <EmptyState 
+            icon={Users}
+            title="No se encontraron colaboradores"
+            description={
+              data?.colaboradores.length === 0
                 ? "Crea el primer colaborador para empezar a gestionar asignaciones."
                 : "Ajusta los filtros de búsqueda para ver más resultados."
-              }
-            </p>
-          </div>
+            }
+            className="py-20 bg-accent/10"
+          />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-accent/40 border-b border-border/60">
-                <tr>
-                  <th className="px-5 py-3 font-medium text-muted-foreground">Colaborador</th>
-                  <th className="px-5 py-3 font-medium text-muted-foreground">Tipo</th>
-                  <th className="px-5 py-3 font-medium text-muted-foreground">Ciudad</th>
-                  <th className="px-5 py-3 font-medium text-muted-foreground text-center">Clasificación</th>
-                  <th className="px-5 py-3 font-medium text-muted-foreground text-center">Cumplimiento SLA</th>
-                  <th className="px-5 py-3 font-medium text-muted-foreground text-center">Asignaciones</th>
-                  <th className="px-5 py-3 font-medium text-muted-foreground text-center">Hitos</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/40 bg-card">
+            <Table>
+              <TableHeader className="bg-accent/40">
+                <TableRow>
+                  <TableHead>Colaborador</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Ciudad</TableHead>
+                  <TableHead className="text-center">Clasificación</TableHead>
+                  <TableHead className="text-center">Cumplimiento SLA</TableHead>
+                  <TableHead className="text-center">Asignaciones</TableHead>
+                  <TableHead className="text-center">Hitos</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {filtered.map((c) => (
-                  <tr key={c.id} className="hover:bg-accent/30 transition-colors group">
-                    <td className="px-5 py-3">
+                  <TableRow key={c.id} className="group">
+                    <TableCell>
                       <Link href={`/platform/colaboradores/${c.id}`} className="flex items-center gap-3">
                         <div className="h-8 w-8 rounded-full bg-secondary/10 flex items-center justify-center text-xs font-semibold text-secondary shrink-0 border border-secondary/20">
                           {c.nombre.split(" ")[0].slice(0, 2).toUpperCase()}
@@ -302,19 +319,19 @@ export default function ColaboradoresPage() {
                           </p>
                         </div>
                       </Link>
-                    </td>
-                    <td className="px-5 py-3">
+                    </TableCell>
+                    <TableCell>
                       <Badge variant="secondary" className="font-normal bg-accent text-foreground hover:bg-accent">
                         {c.tipo}
                       </Badge>
-                    </td>
-                    <td className="px-5 py-3 text-muted-foreground">
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
                       {c.ciudad || "—"}
-                    </td>
-                    <td className="px-5 py-3 text-center">
+                    </TableCell>
+                    <TableCell className="text-center">
                       <ClasificacionBadge clasificacion={c.clasificacion.clasificacion} size="sm" />
-                    </td>
-                    <td className="px-5 py-3 text-center">
+                    </TableCell>
+                    <TableCell className="text-center">
                       <div className="flex flex-col items-center">
                         <span className={`font-medium ${c.slaCumplimiento >= 80 ? "text-[var(--urus-success)]" : c.slaCumplimiento >= 60 ? "text-[var(--urus-warning)]" : "text-[var(--urus-danger)]"}`}>
                           {c.slaCumplimiento}%
@@ -326,19 +343,19 @@ export default function ColaboradoresPage() {
                           </span>
                         )}
                       </div>
-                    </td>
-                    <td className="px-5 py-3 text-center">
+                    </TableCell>
+                    <TableCell className="text-center">
                       <span className="font-medium text-foreground">{c.asignacionesActivas}</span>
                       <span className="text-muted-foreground text-xs ml-1">/ {c.asignacionesTotales}</span>
-                    </td>
-                    <td className="px-5 py-3 text-center">
+                    </TableCell>
+                    <TableCell className="text-center">
                       <span className="font-medium text-foreground">{c.hitosCompletados}</span>
                       <span className="text-muted-foreground text-xs ml-1">/ {c.hitosTotales}</span>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </Card>

@@ -10,29 +10,29 @@ export interface VoiceClarificationDecision {
 /**
  * Determina si se debe bloquear la aplicación de cambios pidiendo aclaración.
  *
- * Solo bloquea cuando la confianza es realmente baja. Si el LLM ya interpretó
- * con confianza razonable (>=threshold), las ambiguedades menores se informan
- * via `assistantMessage` sin bloquear.
+ * Bloquea cuando hay ambigüedades explícitas o cuando la confianza es baja.
  */
 export function getVoiceClarificationDecision(
   patch: ContractVoiceStructuredPatch,
   threshold = VOICE_APPLY_CLARIFICATION_THRESHOLD,
 ): VoiceClarificationDecision {
+  const ambiguousPoints = patch.ambiguousPoints
+    .map((item) => item.trim())
+    .filter(Boolean);
+
   if (patch.noOperationalChanges) {
     return { needsClarification: false, questions: [] };
   }
 
-  if (patch.confidence < threshold) {
-    const ambiguousPoints = patch.ambiguousPoints
-      .map((item) => item.trim())
-      .filter(Boolean);
+  if (ambiguousPoints.length > 0) {
+    return { needsClarification: true, questions: ambiguousPoints };
+  }
 
+  if (patch.confidence < threshold) {
     const questions =
-      ambiguousPoints.length > 0
-        ? ambiguousPoints
-        : [
-            `La instruccion se interpreto con baja confianza (${Math.round(patch.confidence * 100)}%). Reformula el cambio con mas precision.`,
-          ];
+      [
+        `La instruccion se interpreto con baja confianza (${Math.round(patch.confidence * 100)}%). Reformula el cambio con mas precision.`,
+      ];
 
     return { needsClarification: true, questions };
   }

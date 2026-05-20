@@ -10,6 +10,7 @@ interface FirmaEnviadaPayload {
   operationId: string;
   documentKind: string;
   signingUrl?: string;
+  signerPhone?: string;
 }
 
 function parsePayload(raw: unknown): FirmaEnviadaPayload | null {
@@ -27,7 +28,80 @@ function parsePayload(raw: unknown): FirmaEnviadaPayload | null {
     operationId: p.operationId,
     documentKind: p.documentKind,
     signingUrl: typeof p.signingUrl === "string" ? p.signingUrl : undefined,
+    signerPhone: typeof p.signerPhone === "string" ? p.signerPhone : undefined,
   };
+}
+
+function isMetaTemplateParameterMismatch(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("132000");
+}
+
+async function sendSignatureNotificationWithFallback(params: {
+  phone: string;
+  signerName: string;
+  documentKind: string;
+  operationId: string;
+  signingUrl: string;
+  eventId: string;
+  correlationId: string | null;
+  signatureRequestId: string;
+}): Promise<void> {
+  try {
+    await sendSignatureInitialNotification(
+      params.phone,
+      {
+        signerName: params.signerName,
+        documentKind: params.documentKind,
+        operationRef: params.operationId,
+        signingUrl: params.signingUrl,
+      },
+      {
+        trace: {
+          source: "firma_enviada_handler",
+          kind: "signature_initial",
+          causationId: params.eventId,
+          correlationId: params.correlationId,
+          payload: {
+            signatureRequestId: params.signatureRequestId,
+            operationId: params.operationId,
+            documentKind: params.documentKind,
+          },
+        },
+      },
+    );
+  } catch (err) {
+    if (!isMetaTemplateParameterMismatch(err)) {
+      throw err;
+    }
+
+    // Fallback operativo: si la plantilla Meta no matchea parámetros, enviamos
+    // texto libre para no bloquear el flujo de firma en producción.
+    await sendSignatureInitialNotification(
+      params.phone,
+      {
+        signerName: params.signerName,
+        documentKind: params.documentKind,
+        operationRef: params.operationId,
+        signingUrl: params.signingUrl,
+      },
+      {
+        useTemplate: false,
+        trace: {
+          source: "firma_enviada_handler",
+          kind: "signature_initial_text_fallback",
+          causationId: params.eventId,
+          correlationId: params.correlationId,
+          payload: {
+            signatureRequestId: params.signatureRequestId,
+            operationId: params.operationId,
+            documentKind: params.documentKind,
+            fallbackReason: "meta_template_132000",
+          },
+        },
+      },
+    );
+  }
 }
 
 /**
@@ -62,32 +136,35 @@ export async function handleFirmaEnviada(
     return { success: true };
   }
 
-  const parties = await prisma.legalDocumentParty.findMany({
-    where: {
-      legalDocument: { signatureRequestId },
-      phone: { not: null },
-    },
-    select: { fullName: true, phone: true },
-  });
+  const preferSignerPhone =
+    (documentKind === "NOTA_ENCARGO" || documentKind === "PARTE_VISITA") &&
+    typeof payload.signerPhone === "string" &&
+    payload.signerPhone.trim().length > 0;
+
+  const parties = preferSignerPhone
+    ? [{ fullName: "Firmante", phone: payload.signerPhone ?? null }]
+    : await prisma.legalDocumentParty.findMany({
+        where: {
+          legalDocument: { signatureRequestId },
+          phone: { not: null },
+        },
+        select: { fullName: true, phone: true },
+      });
 
   let sent = 0;
 
   for (const party of parties) {
     if (!party.phone) continue;
     try {
-      await sendSignatureInitialNotification(party.phone, {
+      await sendSignatureNotificationWithFallback({
+        phone: party.phone,
         signerName: party.fullName,
         documentKind,
-        operationRef: operationId,
+        operationId,
         signingUrl,
-      }, {
-        trace: {
-          source: "firma_enviada_handler",
-          kind: "signature_initial",
-          causationId: event.id,
-          correlationId: event.correlationId,
-          payload: { signatureRequestId, operationId, documentKind },
-        },
+        eventId: event.id,
+        correlationId: event.correlationId,
+        signatureRequestId,
       });
       sent++;
       console.log(
@@ -104,19 +181,15 @@ export async function handleFirmaEnviada(
   if (sent === 0 && parties.length === 0) {
     const fallbackPhone = process.env.SELLER_DEFAULT_PHONE ?? "34601257555";
     try {
-      await sendSignatureInitialNotification(fallbackPhone, {
+      await sendSignatureNotificationWithFallback({
+        phone: fallbackPhone,
         signerName: "Firmante",
         documentKind,
-        operationRef: operationId,
+        operationId,
         signingUrl,
-      }, {
-        trace: {
-          source: "firma_enviada_handler",
-          kind: "signature_initial_fallback",
-          causationId: event.id,
-          correlationId: event.correlationId,
-          payload: { signatureRequestId, operationId, documentKind },
-        },
+        eventId: event.id,
+        correlationId: event.correlationId,
+        signatureRequestId,
       });
       console.log(
         `[firma-enviada] WA fallback enviado a ${fallbackPhone} para ${operationId}`,

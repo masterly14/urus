@@ -9,6 +9,7 @@ import {
   Italic,
   List,
   ListOrdered,
+  Plus,
   Loader2,
   CheckCircle2,
   AlertCircle,
@@ -26,6 +27,10 @@ import {
   type AdditionalClauseFontSize,
   type AdditionalClausesDoc,
 } from "@/lib/contracts/additional-clauses/types";
+import {
+  buildClauseHeadingText,
+  getNextAdditionalClauseNumber,
+} from "@/lib/contracts/additional-clauses/clause-numbering";
 
 /**
  * Editor WYSIWYG para cláusulas adicionales.
@@ -35,8 +40,8 @@ import {
  * - Estilo "documento": fondo blanco, Calibri (coherente con el docx final),
  *   padding generoso, line-height amplio — sensación "Word / Google Docs".
  * - Toolbar mínima: bold, italic, tamaño S/M/L, viñetas y numeración.
- * - Sin títulos/estilos adicionales: el contenido es libre. La integración
- *   en el docx añade automáticamente el encabezado "Cláusulas adicionales".
+ * - Botón "Añadir cláusula": inserta automáticamente "CLAUSULA N.- TITULO"
+ *   para mantener estilo profesional y numeración incremental.
  *
  * Persistencia:
  * - Debounce 800ms sobre cambios del editor -> PATCH /api/contracts/[id].
@@ -91,6 +96,7 @@ type SaveState = "idle" | "saving" | "saved" | "error";
 export interface AdditionalClausesEditorProps {
   contractId: string;
   initialDoc: AdditionalClausesDoc | null;
+  startingClauseNumber: number;
   readOnly: boolean;
   /**
    * Se invoca tras un PATCH exitoso con el `updatedAt` devuelto por el
@@ -106,6 +112,7 @@ export interface AdditionalClausesEditorProps {
 export function AdditionalClausesEditor({
   contractId,
   initialDoc,
+  startingClauseNumber,
   readOnly,
   onPersisted,
 }: AdditionalClausesEditorProps) {
@@ -233,6 +240,31 @@ export function AdditionalClausesEditor({
 
   const hasContent = !isAdditionalClausesDocEmpty(latestDocRef.current);
 
+  const insertNewClause = useCallback(() => {
+    if (!editor || readOnly) return;
+    const title = window.prompt("Título de la cláusula", "Condiciones adicionales");
+    if (title == null) return;
+
+    const currentDoc = editor.getJSON() as AdditionalClausesDoc;
+    const nextClauseNumber = getNextAdditionalClauseNumber(
+      currentDoc,
+      startingClauseNumber,
+    );
+    const headingText = buildClauseHeadingText(nextClauseNumber, title);
+
+    editor
+      .chain()
+      .focus("end")
+      .insertContent([
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: headingText, marks: [{ type: "bold" }] }],
+        },
+        { type: "paragraph" },
+      ])
+      .run();
+  }, [editor, readOnly, startingClauseNumber]);
+
   return (
     <Card className="overflow-hidden">
       <CardHeader className="py-2.5 pb-2">
@@ -287,6 +319,7 @@ export function AdditionalClausesEditor({
           <Toolbar
             editor={editor}
             disabled={readOnly}
+            onInsertClauseTemplate={insertNewClause}
             isBoldActive={isBoldActive}
             isItalicActive={isItalicActive}
             isBulletListActive={isBulletListActive}
@@ -324,6 +357,7 @@ export function AdditionalClausesEditor({
 interface ToolbarProps {
   editor: Editor | null;
   disabled: boolean;
+  onInsertClauseTemplate: () => void;
   isBoldActive: boolean;
   isItalicActive: boolean;
   isBulletListActive: boolean;
@@ -334,6 +368,7 @@ interface ToolbarProps {
 function Toolbar({
   editor,
   disabled,
+  onInsertClauseTemplate,
   isBoldActive,
   isItalicActive,
   isBulletListActive,
@@ -343,6 +378,17 @@ function Toolbar({
   if (!editor) return null;
   return (
     <div className="flex items-center gap-1 px-4 py-2 border-b border-border/30 bg-card flex-wrap">
+      <ToolbarButton
+        label="Añadir cláusula numerada"
+        active={false}
+        disabled={disabled}
+        onClick={onInsertClauseTemplate}
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </ToolbarButton>
+
+      <div className="w-px h-5 bg-border/50 mx-1" />
+
       <ToolbarButton
         label="Negrita"
         active={isBoldActive}

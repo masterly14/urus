@@ -45,7 +45,6 @@ export interface CruceMatch {
         rooms?: { score: number; reason: string };
     } | null;
     whatsappEnviado: boolean;
-    validationToken: string | null;
 }
 
 interface MatchCardProps {

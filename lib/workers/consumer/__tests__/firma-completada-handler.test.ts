@@ -76,15 +76,15 @@ describe("handleFirmaCompletada (in-house)", () => {
     process.env.NEXT_PUBLIC_APP_URL = "https://app.test";
   });
 
-  it("happy path: encola WRITE_TO_INMOVILLA sin descargar de proveedor externo", async () => {
+  it("happy path: encola UPDATE_PROPERTY_STATUS_INMOVILLA sin descargar de proveedor externo", async () => {
     const event = makeEvent();
     const result = await handleFirmaCompletada(event);
 
     expect(result.success).toBe(true);
     expect(result.followUpJobs).toHaveLength(1);
-    expect(result.followUpJobs![0].type).toBe("WRITE_TO_INMOVILLA");
+    expect(result.followUpJobs![0].type).toBe("UPDATE_PROPERTY_STATUS_INMOVILLA");
     expect(result.followUpJobs![0].idempotencyKey).toBe(
-      "write_inmovilla_post_firma:OP-2026-001",
+      "update_property_status:OP-2026-001",
     );
   });
 

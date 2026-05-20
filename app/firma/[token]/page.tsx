@@ -524,13 +524,9 @@ export default function FirmaPage() {
                       >
                         Firmar documento
                       </Button>
-                      {meta.otpRequired ? (
+                      {meta.otpRequired && (
                         <p className="text-center text-xs text-slate-500 max-w-xs mx-auto">
                           Se enviará un código de un solo uso (SMS) a tu móvil. Tras verificarlo, podrás trazar tu firma manuscrita.
-                        </p>
-                      ) : (
-                        <p className="text-center text-xs text-urus-warning max-w-xs mx-auto">
-                          Verificación OTP pausada temporalmente. Puedes continuar directamente con la firma manuscrita.
                         </p>
                       )}
                     </div>

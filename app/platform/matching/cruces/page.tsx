@@ -2,10 +2,8 @@
 
 import { Suspense, useState, useEffect, useMemo, useCallback, useRef } from "react";
 import useSWR from "swr";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
-    ArrowUpRight,
     AlertTriangle,
     Loader2,
     RefreshCw,
@@ -164,21 +162,11 @@ function MatchDetailView({ match }: { match: CruceMatch }) {
 
                 {/* Actions */}
                 <div className="pt-6 border-t border-border/50">
-                    {match.validationToken ? (
-                        <Link
-                            href={`/validar-seleccion/${match.validationToken}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center justify-center w-full gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
-                        >
-                            Validar selección del comprador
-                            <ArrowUpRight className="w-4 h-4" />
-                        </Link>
-                    ) : (
-                        <div className="p-4 rounded-md bg-accent/30 border border-border/30 text-center">
-                            <p className="text-sm text-muted-foreground">No hay una selección pendiente de validación para esta demanda.</p>
-                        </div>
-                    )}
+                    <div className="p-4 rounded-md bg-accent/30 border border-border/30 text-center">
+                        <p className="text-sm text-muted-foreground">
+                            El micrositio se valida y envía automáticamente con IA.
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>

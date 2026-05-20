@@ -37,6 +37,33 @@ const DEFAULT_PRICE_RANGE_PCT = 20;
 const DEFAULT_METERS_RANGE_PCT = 20;
 const DEFAULT_MIN_COMPARABLES = 5;
 const DEFAULT_MAX_RESULTS = 60;
+const DEFAULT_RADIUS_METERS = 1_000;
+const EXPANDED_RADIUS_METERS = 1_500;
+const MAX_RADIUS_METERS = 2_000;
+
+function normalizeForComparison(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+}
+
+function distanceMeters(
+  a: { latitud: number; longitud: number },
+  b: { latitud: number; longitud: number },
+): number {
+  const earthRadiusMeters = 6_371_000;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const lat1 = toRadians(a.latitud);
+  const lat2 = toRadians(b.latitud);
+  const deltaLat = toRadians(b.latitud - a.latitud);
+  const deltaLng = toRadians(b.longitud - a.longitud);
+  const haversine =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) ** 2;
+  return 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
+}
 
 const HOUSING_MAP: Record<string, string[]> = {
   // Mapeo desde el `housing` de Statefox al enum MarketHousingType.
@@ -53,6 +80,7 @@ export interface FetchMarketComparablesOptions {
   metersRangePercent?: number;
   minComparables?: number;
   maxResults?: number;
+  radiusMeters?: number;
 }
 
 export interface FetchMarketComparablesResult {
@@ -69,6 +97,7 @@ export async function fetchMarketComparables(
   const metersRange = options?.metersRangePercent ?? DEFAULT_METERS_RANGE_PCT;
   const minComparables = options?.minComparables ?? DEFAULT_MIN_COMPARABLES;
   const maxResults = options?.maxResults ?? DEFAULT_MAX_RESULTS;
+  const radiusMeters = options?.radiusMeters ?? DEFAULT_RADIUS_METERS;
 
   const housingValues = HOUSING_MAP[mapStatefoxHousing(input.tipologiaNombre)] ?? [
     "flat",
@@ -91,13 +120,16 @@ export async function fetchMarketComparables(
     builtArea: { gte: areaMin, lte: areaMax },
   };
   if (input.ciudad) {
-    where.city = { startsWith: input.ciudad, mode: "insensitive" };
+    const city = normalizeForComparison(input.ciudad);
+    if (city) {
+      where.city = { startsWith: city, mode: "insensitive" };
+    }
   }
 
   const rows = await prisma.marketListing.findMany({
     where,
     orderBy: [{ qualityScore: "desc" }, { lastSeenAt: "desc" }],
-    take: maxResults,
+    take: input.latitud != null && input.longitud != null ? 250 : maxResults,
     include: {
       advertiser: {
         select: {
@@ -107,7 +139,11 @@ export async function fetchMarketComparables(
         },
       },
       images: {
-        where: { status: "IMPORTED", cloudinarySecureUrl: { not: null } },
+        where: {
+          status: "IMPORTED",
+          cloudinarySecureUrl: { not: null },
+          imageIndex: 0,
+        },
         orderBy: { imageIndex: "asc" },
         select: { cloudinarySecureUrl: true, imageIndex: true },
       },
@@ -130,7 +166,32 @@ export async function fetchMarketComparables(
     );
   }
 
-  const comparables = rows.map((row) => mapToComparable(row));
+  let rankedRows = rows;
+  if (input.latitud != null && input.longitud != null) {
+    const ownPoint = { latitud: input.latitud, longitud: input.longitud };
+    const withDistance = rows
+      .filter((row) => row.lat != null && row.lng != null)
+      .map((row) => ({
+        row,
+        distance: distanceMeters(ownPoint, {
+          latitud: row.lat as number,
+          longitud: row.lng as number,
+        }),
+      }))
+      .sort((a, b) => a.distance - b.distance);
+    const nearby = withDistance.filter((item) => item.distance <= radiusMeters);
+    const expanded =
+      nearby.length >= minComparables
+        ? nearby
+        : withDistance.filter((item) => item.distance <= EXPANDED_RADIUS_METERS);
+    const capped =
+      expanded.length >= minComparables
+        ? expanded
+        : withDistance.filter((item) => item.distance <= MAX_RADIUS_METERS);
+    rankedRows = capped.map((item) => item.row);
+  }
+
+  const comparables = rankedRows.slice(0, maxResults).map((row) => mapToComparable(row));
   // Permitimos devolver menos de minComparables; el caller decide.
   return {
     comparables,

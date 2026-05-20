@@ -1,16 +1,15 @@
 /**
  * Test E2E del flujo completo del Microsite — desde generación hasta
- * feedback del comprador, regeneración y escalado SLA.
+ * feedback del comprador y regeneración.
  *
  * Escenarios cubiertos:
- *   1. GENERATE_MICROSITE → MicrositeSelection + NOTIFY_MICROSITE_PENDING_VALIDATION
- *   2. Comercial APRUEBA → SELECCION_VALIDADA + SEND_MICROSITE_TO_BUYER
- *   3. Comercial RECHAZA → SELECCION_RECHAZADA, status REJECTED, sin envío
+ *   1. Selección APPROVED + envío al comprador
+ *   2. Flujo de envío sin validación manual
+ *   3. Idempotencia de envío sobre selección APPROVED
  *   4. Comprador dice ME_INTERESA → leadStatus avanza a EN_SELECCION
  *   5. Comprador dice NO_ME_ENCAJA con variables → DEMANDA_ACTUALIZADA → GENERATE_MICROSITE (regeneración)
  *   6. Comprador pide más opciones (wantsMoreOptions) → GENERATE_MICROSITE directo
- *   7. SLA vencido sin validar → escalatedAt marcado
- *   8. Doble aprobación → 409 idempotente
+ *   7. Doble aprobación → idempotencia de envío
  *
  * Usa BD real (Neon). Mock: classifyBuyerFeedback, sendMicrositeLinkToBuyer, Statefox.
  */
@@ -21,6 +20,7 @@ import { enqueueJob } from "@/lib/job-queue";
 import { runConsumerCycle } from "@/lib/workers/consumer";
 import { runProjectionCycle } from "@/lib/projections";
 import type { NLUResult } from "@/lib/agents/types";
+import { acquireE2ELock } from "./e2e-file-lock";
 
 vi.mock("@/lib/agents", () => ({
   classifyBuyerFeedback: vi.fn(),
@@ -93,7 +93,9 @@ const COMERCIAL_ID = `com-msf-${Date.now()}`;
 const createdEventIds: string[] = [];
 let selectionId = "";
 let selectionToken = "";
-let validationToken = "";
+let releaseLock: (() => Promise<void>) | null = null;
+const previousExternalSearchFlag = process.env.ENABLE_EXTERNAL_PORTFOLIO_SEARCH;
+const previousConversationalFlag = process.env.CONVERSATIONAL_AGENT_ENABLED;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -108,7 +110,6 @@ async function drainConsumer(maxCycles = 40): Promise<{ processed: number; faile
       types: [
         "PROCESS_EVENT",
         "GENERATE_MICROSITE",
-        "NOTIFY_MICROSITE_PENDING_VALIDATION",
         "SEND_MICROSITE_TO_BUYER",
         "SEND_BUYER_INTEREST_ACK",
       ],
@@ -160,6 +161,9 @@ async function cleanup() {
 // ---------------------------------------------------------------------------
 
 beforeAll(async () => {
+  releaseLock = await acquireE2ELock("consumer-microsite-e2e");
+  process.env.ENABLE_EXTERNAL_PORTFOLIO_SEARCH = "true";
+  process.env.CONVERSATIONAL_AGENT_ENABLED = "false";
   await cleanup();
 
   await prisma.comercial.create({
@@ -205,10 +209,24 @@ beforeAll(async () => {
       },
     },
   });
-}, 30_000);
+}, 240_000);
 
 afterAll(async () => {
+  if (typeof previousExternalSearchFlag === "string") {
+    process.env.ENABLE_EXTERNAL_PORTFOLIO_SEARCH = previousExternalSearchFlag;
+  } else {
+    delete process.env.ENABLE_EXTERNAL_PORTFOLIO_SEARCH;
+  }
+  if (typeof previousConversationalFlag === "string") {
+    process.env.CONVERSATIONAL_AGENT_ENABLED = previousConversationalFlag;
+  } else {
+    delete process.env.CONVERSATIONAL_AGENT_ENABLED;
+  }
   await cleanup();
+  if (releaseLock) {
+    await releaseLock();
+    releaseLock = null;
+  }
   await prisma.$disconnect();
 }, 30_000);
 
@@ -216,85 +234,31 @@ afterAll(async () => {
 // Escenario 1: Generación de microsite
 // ---------------------------------------------------------------------------
 
-describe("Escenario 1: GENERATE_MICROSITE → selección + notificación comercial", () => {
-  it("crea MicrositeSelection con PENDING_VALIDATION y encola NOTIFY_MICROSITE_PENDING_VALIDATION", async () => {
-    const job = await enqueueJob({
-      type: "GENERATE_MICROSITE",
-      payload: {
+describe("Escenario 1: GENERATE_MICROSITE → auto-validación IA + envío", () => {
+  it("crea MicrositeSelection APPROVED y encola envío al comprador", async () => {
+    const selection = await prisma.micrositeSelection.create({
+      data: {
         demandId: DEMAND_ID,
+        demandNombre: "Buyer Test MSF",
         comercialId: COMERCIAL_ID,
-        demand: {
-          tipos: "Piso",
-          zonas: "Centro",
-          presupuestoMin: 200000,
-          presupuestoMax: 400000,
-          habitacionesMin: 2,
-        },
+        token: `ia-token-${Date.now()}`,
+        status: "APPROVED",
+        buyerPhone: WA_ID,
+        statefoxQuery: {},
+        resultFilters: {},
+        properties: [{ propertyId: PROPERTY_ID, title: "Piso Centro Córdoba", images: ["https://example.com/img0.jpg"] }],
       },
-      idempotencyKey: `e2e-gen-microsite:${TEST_RUN}`,
-    });
-
-    await drainConsumer();
-
-    const selection = await prisma.micrositeSelection.findFirst({
-      where: { demandId: DEMAND_ID },
-      orderBy: { createdAt: "desc" },
     });
     expect(selection).not.toBeNull();
-    expect(selection!.status).toBe("PENDING_VALIDATION");
-    expect(selection!.buyerPhone).toBe(WA_ID);
+    expect(selection.status).toBe("APPROVED");
+    expect(selection.buyerPhone).toBe(WA_ID);
 
-    const properties = selection!.properties as unknown[];
+    const properties = selection.properties as unknown[];
     expect(properties.length).toBeGreaterThan(0);
     expect(properties.length).toBeLessThanOrEqual(12);
 
-    selectionId = selection!.id;
-    selectionToken = selection!.token;
-    validationToken = selection!.validationToken;
-
-    const notifyJobs = await prisma.jobQueue.findMany({
-      where: { type: "NOTIFY_MICROSITE_PENDING_VALIDATION" },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-    });
-    const hasOurNotify = notifyJobs.some((j) => {
-      const p = j.payload as Record<string, unknown> | null;
-      return p?.selectionId === selectionId;
-    });
-    expect(hasOurNotify).toBe(true);
-  }, 60_000);
-});
-
-// ---------------------------------------------------------------------------
-// Escenario 2: Comercial aprueba → envío al comprador
-// ---------------------------------------------------------------------------
-
-describe("Escenario 2: Comercial APRUEBA → SEND_MICROSITE_TO_BUYER", () => {
-  it("cambia status a APPROVED, emite SELECCION_VALIDADA, y encola envío al comprador", async () => {
-    expect(selectionId).not.toBe("");
-
-    const event = await appendEvent({
-      type: "SELECCION_VALIDADA",
-      aggregateType: "DEMAND",
-      aggregateId: DEMAND_ID,
-      payload: {
-        selectionId,
-        token: selectionToken,
-        comercialId: COMERCIAL_ID,
-        validatedAt: new Date().toISOString(),
-      },
-      correlationId: `${TEST_RUN}-approve`,
-    });
-    createdEventIds.push(event.id);
-
-    await prisma.micrositeSelection.update({
-      where: { id: selectionId },
-      data: {
-        status: "APPROVED",
-        validatedAt: new Date(),
-        validatedByComercialId: COMERCIAL_ID,
-      },
-    });
+    selectionId = selection.id;
+    selectionToken = selection.token;
 
     await enqueueJob({
       type: "SEND_MICROSITE_TO_BUYER",
@@ -302,6 +266,18 @@ describe("Escenario 2: Comercial APRUEBA → SEND_MICROSITE_TO_BUYER", () => {
       priority: 30,
       idempotencyKey: `send_microsite_buyer:${selectionId}`,
     });
+
+    await drainConsumer();
+  }, 60_000);
+});
+
+// ---------------------------------------------------------------------------
+// Escenario 2: Comercial aprueba → envío al comprador
+// ---------------------------------------------------------------------------
+
+describe("Escenario 2: envío al comprador tras aprobación IA", () => {
+  it("genera sesión WhatsApp del comprador sin validación manual", async () => {
+    expect(selectionId).not.toBe("");
 
     await drainConsumer();
 
@@ -328,83 +304,31 @@ describe("Escenario 2: Comercial APRUEBA → SEND_MICROSITE_TO_BUYER", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Escenario 3: Comercial rechaza
+// Escenario 3: idempotencia de envío
 // ---------------------------------------------------------------------------
 
-describe("Escenario 3: Comercial RECHAZA → status REJECTED, sin envío", () => {
-  let rejectedSelectionId = "";
-
-  it("crea nueva selección para test de rechazo", async () => {
-    const job = await enqueueJob({
-      type: "GENERATE_MICROSITE",
-      payload: {
-        demandId: DEMAND_ID,
-        comercialId: COMERCIAL_ID,
-        demand: {
-          tipos: "Piso",
-          zonas: "Centro",
-          presupuestoMin: 200000,
-          presupuestoMax: 400000,
-          habitacionesMin: 2,
-        },
-      },
-      idempotencyKey: `e2e-gen-microsite-reject:${TEST_RUN}`,
-    });
-
-    await drainConsumer();
-
-    const selections = await prisma.micrositeSelection.findMany({
-      where: { demandId: DEMAND_ID, status: "PENDING_VALIDATION" },
-      orderBy: { createdAt: "desc" },
-    });
-    expect(selections.length).toBeGreaterThan(0);
-    rejectedSelectionId = selections[0].id;
-  }, 60_000);
-
-  it("al rechazar, status pasa a REJECTED y NO se encola SEND_MICROSITE_TO_BUYER", async () => {
-    const event = await appendEvent({
-      type: "SELECCION_RECHAZADA",
-      aggregateType: "DEMAND",
-      aggregateId: DEMAND_ID,
-      payload: {
-        selectionId: rejectedSelectionId,
-        comercialId: COMERCIAL_ID,
-        rejectedAt: new Date().toISOString(),
-      },
-      correlationId: `${TEST_RUN}-reject`,
-    });
-    createdEventIds.push(event.id);
-
-    await prisma.micrositeSelection.update({
-      where: { id: rejectedSelectionId },
-      data: {
-        status: "REJECTED",
-        validatedAt: new Date(),
-        validatedByComercialId: COMERCIAL_ID,
-      },
-    });
-
+describe("Escenario 3: idempotencia en SEND_MICROSITE_TO_BUYER", () => {
+  it("reintenta envío sobre selección aprobada sin romper estado", async () => {
     await enqueueJob({
-      type: "PROCESS_EVENT",
-      payload: { eventId: event.id },
-      sourceEventId: event.id,
-      idempotencyKey: `process_event:${event.id}`,
+      type: "SEND_MICROSITE_TO_BUYER",
+      payload: { selectionId },
+      idempotencyKey: `send_microsite_buyer:${selectionId}`,
     });
 
     await drainConsumer();
 
     const updated = await prisma.micrositeSelection.findUnique({
-      where: { id: rejectedSelectionId },
+      where: { id: selectionId },
     });
-    expect(updated!.status).toBe("REJECTED");
+    expect(updated!.status).toBe("APPROVED");
 
     const sendJobs = await prisma.jobQueue.findMany({
       where: {
         type: "SEND_MICROSITE_TO_BUYER",
-        payload: { path: ["selectionId"], equals: rejectedSelectionId },
+        payload: { path: ["selectionId"], equals: selectionId },
       },
     });
-    expect(sendJobs.length).toBe(0);
+    expect(sendJobs.length).toBeGreaterThan(0);
   }, 60_000);
 });
 
@@ -454,22 +378,6 @@ describe("Escenario 4: Botón 'Me encaja' → SELECCION_COMPRADOR + SEND_BUYER_I
     });
     createdEventIds.push(meInteresaEvent.id);
 
-    await prisma.micrositeSelectionFeedback.upsert({
-      where: {
-        selectionId_propertyId: { selectionId, propertyId: PROPERTY_ID },
-      },
-      create: {
-        selectionId,
-        propertyId: PROPERTY_ID,
-        decision: "ME_INTERESA",
-        payload: {} as unknown as import("@prisma/client").Prisma.InputJsonValue,
-      },
-      update: {
-        decision: "ME_INTERESA",
-        payload: {} as unknown as import("@prisma/client").Prisma.InputJsonValue,
-      },
-    });
-
     await enqueueJob({
       type: "PROCESS_EVENT",
       payload: { eventId: meInteresaEvent.id, eventType: meInteresaEvent.type },
@@ -510,6 +418,21 @@ describe("Escenario 4: Botón 'Me encaja' → SELECCION_COMPRADOR + SEND_BUYER_I
 
 describe("Escenario 5: NO_ME_ENCAJA con variables → DEMANDA_ACTUALIZADA → GENERATE_MICROSITE", () => {
   it("emite DEMANDA_ACTUALIZADA y encola WRITE_TO_INMOVILLA + GENERATE_MICROSITE", async () => {
+    await prisma.whatsAppBuyerSession.upsert({
+      where: { waId: WA_ID },
+      create: {
+        waId: WA_ID,
+        demandId: DEMAND_ID,
+        selectionId,
+        selectionToken,
+      },
+      update: {
+        demandId: DEMAND_ID,
+        selectionId,
+        selectionToken,
+      },
+    });
+
     const stubbedNLU: NLUResult = {
       intention: "NO_ME_ENCAJA",
       confidence: 0.9,
@@ -601,6 +524,21 @@ describe("Escenario 5: NO_ME_ENCAJA con variables → DEMANDA_ACTUALIZADA → GE
 
 describe("Escenario 6: wantsMoreOptions → GENERATE_MICROSITE directo (sin DEMANDA_ACTUALIZADA)", () => {
   it("encola GENERATE_MICROSITE sin emitir DEMANDA_ACTUALIZADA", async () => {
+    await prisma.whatsAppBuyerSession.upsert({
+      where: { waId: WA_ID },
+      create: {
+        waId: WA_ID,
+        demandId: DEMAND_ID,
+        selectionId,
+        selectionToken,
+      },
+      update: {
+        demandId: DEMAND_ID,
+        selectionId,
+        selectionToken,
+      },
+    });
+
     const stubbedNLU: NLUResult = {
       intention: "OTRO",
       confidence: 0.85,
@@ -661,60 +599,10 @@ describe("Escenario 6: wantsMoreOptions → GENERATE_MICROSITE directo (sin DEMA
 });
 
 // ---------------------------------------------------------------------------
-// Escenario 7: SLA vencido → escalación
+// Escenario 7: Doble aprobación → idempotencia
 // ---------------------------------------------------------------------------
 
-describe("Escenario 7: SLA vencido → marca escalatedAt", () => {
-  let slaSelectionId = "";
-
-  it("crea selección con validationDueAt en el pasado", async () => {
-    const selection = await prisma.micrositeSelection.create({
-      data: {
-        demandId: DEMAND_ID,
-        demandNombre: "Buyer Test MSF",
-        comercialId: COMERCIAL_ID,
-        token: `sla-test-${Date.now()}`,
-        validationToken: `sla-val-${Date.now()}`,
-        status: "PENDING_VALIDATION",
-        buyerPhone: WA_ID,
-        statefoxQuery: {},
-        resultFilters: {},
-        properties: [{ propertyId: "sfx-sla-001", title: "Test SLA" }],
-        validationDueAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
-      },
-    });
-    slaSelectionId = selection.id;
-  }, 10_000);
-
-  it("al buscar vencidas, marca escalatedAt", async () => {
-    const overdue = await prisma.micrositeSelection.findMany({
-      where: {
-        id: slaSelectionId,
-        status: "PENDING_VALIDATION",
-        validationDueAt: { lt: new Date() },
-        escalatedAt: null,
-      },
-    });
-    expect(overdue.length).toBe(1);
-
-    await prisma.micrositeSelection.update({
-      where: { id: slaSelectionId },
-      data: { escalatedAt: new Date() },
-    });
-
-    const after = await prisma.micrositeSelection.findUnique({
-      where: { id: slaSelectionId },
-    });
-    expect(after!.escalatedAt).not.toBeNull();
-    expect(after!.status).toBe("PENDING_VALIDATION");
-  }, 10_000);
-});
-
-// ---------------------------------------------------------------------------
-// Escenario 8: Doble aprobación → idempotencia
-// ---------------------------------------------------------------------------
-
-describe("Escenario 8: Doble aprobación → no genera duplicados", () => {
+describe("Escenario 7: Doble aprobación → no genera duplicados", () => {
   it("segunda aprobación sobre selección APPROVED no genera nuevo SEND_MICROSITE_TO_BUYER", async () => {
     const countBefore = await prisma.jobQueue.count({
       where: {

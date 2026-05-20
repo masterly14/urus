@@ -22,9 +22,18 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PropertyCard } from "@/components/pricing/property-card";
 import { AiIndicator } from "@/components/ui/ai-indicator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { propertiesListFixture } from "@/lib/mock-data/pricing-fixture";
 
 export interface PropertyListItem {
@@ -413,14 +422,12 @@ export default function PricingPage() {
 
       {/* Properties Grid/List */}
       {filtered.length === 0 ? (
-        <Card className="border border-border">
-          <CardContent className="p-12 text-center">
-            <MapPin className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">
-              No se encontraron propiedades con esos filtros
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={MapPin}
+          title="No se encontraron propiedades"
+          description="Ajusta los filtros de búsqueda para ver más resultados en el mercado."
+          className="bg-card border border-border/60 rounded-lg"
+        />
       ) : viewMode === "grid" ? (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -435,45 +442,27 @@ export default function PricingPage() {
           <Card className="border border-border">
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border/30">
-                      <th className="px-4 py-3 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                        Foto
-                      </th>
-                      <th className="px-4 py-3 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                        Código
-                      </th>
-                      <th className="px-4 py-3 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                        Título
-                      </th>
-                      <th className="px-4 py-3 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                        Zona
-                      </th>
-                      <th className="px-4 py-3 text-right text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                        Precio
-                      </th>
-                      <th className="px-4 py-3 text-center text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                        m²
-                      </th>
-                      <th className="px-4 py-3 text-center text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                        Hab
-                      </th>
-                      <th className="px-4 py-3 text-center text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                        Estado
-                      </th>
-                      <th className="px-4 py-3 text-center text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                        Portal
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/20">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Foto</TableHead>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Título</TableHead>
+                      <TableHead>Zona</TableHead>
+                      <TableHead className="text-right">Precio</TableHead>
+                      <TableHead className="text-center">m²</TableHead>
+                      <TableHead className="text-center">Hab</TableHead>
+                      <TableHead className="text-center">Estado</TableHead>
+                      <TableHead className="text-center">Portal</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {paginated.map((p) => (
-                      <tr
+                      <TableRow
                         key={p.codigo}
                         className="transition-colors hover:bg-accent/20"
                       >
-                        <td className="px-4 py-3">
+                        <TableCell>
                           <div className="relative h-12 w-16 overflow-hidden rounded border border-border/30 bg-accent/30">
                             {p.mainPhotoUrl ? (
                               <Image
@@ -490,8 +479,8 @@ export default function PricingPage() {
                               </div>
                             )}
                           </div>
-                        </td>
-                        <td className="px-4 py-3">
+                        </TableCell>
+                        <TableCell>
                           {isEligibleForSmartPricing(p) ? (
                             <Link
                               href={`/platform/pricing/informe/${p.codigo}`}
@@ -504,8 +493,8 @@ export default function PricingPage() {
                               {p.codigo}
                             </span>
                           )}
-                        </td>
-                        <td className="px-4 py-3">
+                        </TableCell>
+                        <TableCell>
                           {isEligibleForSmartPricing(p) ? (
                             <Link
                               href={`/platform/pricing/informe/${p.codigo}`}
@@ -518,8 +507,8 @@ export default function PricingPage() {
                               {p.titulo || p.ref || p.codigo}
                             </span>
                           )}
-                        </td>
-                        <td className="px-4 py-3">
+                        </TableCell>
+                        <TableCell>
                           <div className="flex flex-wrap items-center gap-1.5">
                             <Badge variant="outline" className="text-[9px]">
                               {p.zona || p.ciudad}
@@ -533,19 +522,19 @@ export default function PricingPage() {
                               </Badge>
                             )}
                           </div>
-                        </td>
-                        <td className="px-4 py-3 text-right">
+                        </TableCell>
+                        <TableCell className="text-right">
                           <span className="font-mono text-sm font-medium">
                             {p.precio.toLocaleString("es-ES")} €
                           </span>
-                        </td>
-                        <td className="px-4 py-3 text-center font-mono text-xs">
+                        </TableCell>
+                        <TableCell className="text-center font-mono text-xs">
                           {p.metrosConstruidos}
-                        </td>
-                        <td className="px-4 py-3 text-center font-mono text-xs">
+                        </TableCell>
+                        <TableCell className="text-center font-mono text-xs">
                           {p.habitaciones}
-                        </td>
-                        <td className="px-4 py-3 text-center">
+                        </TableCell>
+                        <TableCell className="text-center">
                           <Badge
                             variant="outline"
                             className="text-[9px]"
@@ -562,8 +551,8 @@ export default function PricingPage() {
                           >
                             {p.estado}
                           </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-center">
+                        </TableCell>
+                        <TableCell className="text-center">
                           {p.portalUrl ? (
                             <a
                               href={p.portalUrl}
@@ -582,11 +571,11 @@ export default function PricingPage() {
                               —
                             </span>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </CardContent>
           </Card>

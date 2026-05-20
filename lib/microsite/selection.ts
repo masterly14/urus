@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { MICROSITE_VALIDATION_SLA_MS, MIN_PREFERRED_PROPERTIES } from "@/lib/microsite/constants";
+import { MIN_PREFERRED_PROPERTIES } from "@/lib/microsite/constants";
 import { resolveBuyerPhoneForDemand } from "@/lib/microsite/buyer-phone";
 import { formatStatefoxHousingLabel } from "@/lib/statefox/housing-label";
 import {
@@ -526,9 +526,7 @@ export async function generateMicrositeSelection(
   await replaceMicrositeImagesWithCloudinaryCache(curated);
 
   const token = generateToken();
-  const validationToken = generateToken();
   const buyerPhone = await resolveBuyerPhoneForDemand(input.demandId);
-  const validationDueAt = new Date(Date.now() + MICROSITE_VALIDATION_SLA_MS);
 
   const searchMeta = {
     endpoint: "snapshot" as const,
@@ -540,7 +538,6 @@ export async function generateMicrositeSelection(
   const created = await prisma.micrositeSelection.create({
     data: {
       token,
-      validationToken,
       demandId: input.demandId,
       demandNombre: input.demandNombre,
       comercialId: input.comercialId,
@@ -550,7 +547,6 @@ export async function generateMicrositeSelection(
       properties: curated as unknown as object,
       stockCount: totalStock,
       sourceEventId: input.sourceEventId,
-      validationDueAt,
       source: input.source ?? null,
     },
     select: { id: true },

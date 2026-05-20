@@ -5,8 +5,8 @@ import { useSearchParams } from "next/navigation";
 import {
   Activity,
   AlertTriangle,
-  Bot,
   Calendar,
+  ClipboardCheck,
   Clock3,
   Database,
   Loader2,
@@ -37,7 +37,7 @@ import { Semaforo } from "@/components/dashboard/semaforo";
 import { useHealthPanel } from "@/lib/hooks/use-health-panel";
 import { UserManagement } from "@/components/configuracion/user-management";
 import { CalendarConnection } from "@/components/configuracion/calendar-connection";
-import { MicrositeAutoValidation } from "@/components/configuracion/microsite-auto-validation";
+import { SyncTasksTab } from "@/components/configuracion/sync-tasks-tab";
 import { cn } from "@/lib/utils";
 import { useAppSession } from "@/lib/hooks/use-session";
 
@@ -68,12 +68,12 @@ function formatSource(source: string): string {
   return "Snapshot";
 }
 
-type Tab = "users" | "calendar" | "microsites" | "health";
+type Tab = "users" | "calendar" | "sync_tasks" | "health";
 
 const ALL_TABS: { id: Tab; label: string; icon: React.ElementType; roles?: string[] }[] = [
   { id: "users", label: "Usuarios", icon: Users, roles: ["ceo", "admin"] },
   { id: "calendar", label: "Calendario", icon: Calendar },
-  { id: "microsites", label: "Microsites", icon: Bot, roles: ["ceo", "admin"] },
+  { id: "sync_tasks", label: "Tareas de sincronizacion", icon: ClipboardCheck },
   { id: "health", label: "Health", icon: HeartPulse, roles: ["ceo", "admin"] },
 ];
 
@@ -104,7 +104,7 @@ function ConfiguracionContent() {
     if (sessionPending) return;
     const param = searchParams.get("tab");
     if (
-      (param === "calendar" || param === "users" || param === "health") &&
+      (param === "calendar" || param === "users" || param === "sync_tasks" || param === "health") &&
       allowedTabIds.includes(param as Tab)
     ) {
       setActiveTab(param as Tab);
@@ -165,7 +165,7 @@ function ConfiguracionContent() {
 
       {activeTab === "calendar" && <CalendarConnection />}
 
-      {activeTab === "microsites" && <MicrositeAutoValidation />}
+      {activeTab === "sync_tasks" && <SyncTasksTab />}
 
       {activeTab === "health" && (
         <>

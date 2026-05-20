@@ -93,6 +93,11 @@ const navGroups: NavGroup[] = [
                         href: "/platform/captacion/oportunidades",
                         icon: Target,
                     },
+                    {
+                        label: "Prospectos enviados",
+                        href: "/platform/captacion/prospectos",
+                        icon: Users2,
+                    },
                 ],
             },
             {
@@ -119,6 +124,7 @@ const navGroups: NavGroup[] = [
                 children: [
                     { label: "Panel", href: "/platform/coach", icon: BarChart3 },
                     { label: "Métricas", href: "/platform/coach/metricas", icon: BarChart3 },
+                    { label: "Chat", href: "/platform/coach/chat", icon: MessagesSquare },
                 ],
             },
         ],
@@ -141,7 +147,6 @@ const navGroups: NavGroup[] = [
                 icon: FileText,
                 children: [
                     { label: "Contratos", href: "/platform/legal/contratos", icon: FileSignature },
-                    { label: "Plantillas", href: "/platform/legal/plantillas", icon: LayoutTemplate, ceoOnly: true },
                     { label: "Documentos", href: "/platform/legal/documentos", icon: Folder },
                 ],
             },
@@ -156,12 +161,11 @@ const navGroups: NavGroup[] = [
                 icon: PieChart,
                 ceoOnly: true,
                 children: [
-                    { label: "Financiero", href: "/platform/bi/reinversion", icon: Wallet },
+                    { label: "Financiero", href: "/platform/bi/financiero", icon: Wallet },
                     { label: "Operativo", href: "/platform/bi/operativo", icon: UserCheck },
                     { label: "Capital Humano", href: "/platform/bi/capital-humano", icon: Users },
                     { label: "Diagnóstico Estratégico", href: "/platform/bi/prescriptivo", icon: Target },
                     { label: "Expansión", href: "/platform/bi/expansion", icon: Rocket },
-                    { label: "Reinversión", href: "/platform/bi/reinversion", icon: Banknote },
                 ],
             },
             {

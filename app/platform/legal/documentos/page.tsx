@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { PageHeader } from "@/components/layout/page-header";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { DocumentExplorer } from "./document-explorer";
 
 export const dynamic = "force-dynamic";
@@ -44,9 +47,20 @@ export default async function DocumentosPage() {
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Explorador de Documentos</h2>
-      </div>
+      <PageHeader
+        title="Explorador de documentos"
+        description="Consulta borradores, documentos firmados y trazabilidad legal por operación."
+        breadcrumbs={[
+          { label: "Inicio", href: "/platform" },
+          { label: "Legal", href: "/platform/legal" },
+          { label: "Documentos" },
+        ]}
+        actions={
+          <Button asChild variant="outline">
+            <Link href="/platform/legal/contratos">Ver contratos</Link>
+          </Button>
+        }
+      />
       <DocumentExplorer documents={formattedDocs} />
     </div>
   );

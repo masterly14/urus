@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useRef, useEffect } from "react";
+import { Fragment, useMemo, useState, useRef, useEffect, type ReactNode } from "react";
 import {
   PanelLeftClose,
   PanelLeftOpen,
@@ -12,6 +12,7 @@ import {
   User,
   Home,
   Loader2,
+  MessageSquare,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -106,6 +107,49 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function normalizeWhatsAppBoldMarkers(text: string): string {
+  // Backward compatibility: if an old message came with **texto**, normalize it
+  // to the current canonical format *texto* before rendering.
+  return text.replace(/\*\*([^*\n]+)\*\*/g, "*$1*");
+}
+
+function renderLineWithSingleAsteriskBold(line: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  const boldPattern = /\*([^*\n]+)\*/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null = null;
+
+  while ((match = boldPattern.exec(line)) !== null) {
+    const [fullMatch, boldText] = match;
+    if (match.index > lastIndex) {
+      nodes.push(line.slice(lastIndex, match.index));
+    }
+    nodes.push(
+      <strong key={`bold-${match.index}`} className="font-semibold text-foreground">
+        {boldText}
+      </strong>,
+    );
+    lastIndex = match.index + fullMatch.length;
+  }
+
+  if (lastIndex < line.length) {
+    nodes.push(line.slice(lastIndex));
+  }
+
+  return nodes.length > 0 ? nodes : [line];
+}
+
+function renderMessageText(text: string): ReactNode {
+  const normalized = normalizeWhatsAppBoldMarkers(text);
+  const lines = normalized.split("\n");
+  return lines.map((line, index) => (
+    <Fragment key={`line-${index}`}>
+      {renderLineWithSingleAsteriskBold(line)}
+      {index < lines.length - 1 ? <br /> : null}
+    </Fragment>
+  ));
+}
+
 type AudioSource = { src: string; type: string };
 
 /** Fuentes para `<audio>`: MP3 vía Cloudinary primero (OGG/Opus de WhatsApp falla en Safari). */
@@ -183,7 +227,7 @@ export function ConversationsClient() {
   }, [messages, activeWaId]);
 
   return (
-    <div className="flex min-h-0 h-[calc(100vh-6rem)] flex-col gap-4 max-w-[1600px] mx-auto">
+    <div className="mx-auto flex h-[calc(100dvh-8rem)] min-h-0 max-w-[1600px] flex-col gap-4 overflow-hidden">
       {/* Header & Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -193,23 +237,28 @@ export function ConversationsClient() {
           </p>
         </div>
         
-        <div className="flex items-center gap-2 bg-card border border-border/60 rounded-lg p-1.5 shadow-sm overflow-x-auto">
+        <div className="flex items-center gap-2 overflow-x-auto rounded-lg border border-border/60 bg-card p-1.5 shadow-sm">
           <div className="relative min-w-[200px]">
+            <label htmlFor="conversation-search" className="sr-only">
+              Buscar conversaciones
+            </label>
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
+              id="conversation-search"
               value={q}
               onChange={(event) => setQ(event.target.value)}
-              placeholder="Buscar..."
-              className="h-8 w-full rounded-md bg-transparent pl-8 pr-3 text-sm outline-none transition-colors focus:bg-accent/50"
+              placeholder="Buscar por nombre, teléfono o mensaje"
+              className="h-8 w-full rounded-md bg-transparent pl-8 pr-3 text-sm outline-none transition-colors focus:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
           
           <div className="h-5 w-px bg-border/60 mx-1" />
           
           <select
+            aria-label="Filtrar por dirección del mensaje"
             value={direction}
             onChange={(event) => setDirection(event.target.value as Direction)}
-            className="h-8 rounded-md bg-transparent px-2 text-sm outline-none transition-colors focus:bg-accent/50 cursor-pointer"
+            className="h-8 cursor-pointer rounded-md bg-transparent px-2 text-sm outline-none transition-colors focus:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="all">Todos</option>
             <option value="inbound">Entrantes</option>
@@ -219,13 +268,15 @@ export function ConversationsClient() {
           <div className="h-5 w-px bg-border/60 mx-1" />
 
           <button
+            type="button"
             onClick={() => setAgentOnly(!agentOnly)}
             className={cn(
-              "flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors whitespace-nowrap",
+              "flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               agentOnly
                 ? "bg-primary/10 text-primary"
                 : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
             )}
+            aria-pressed={agentOnly}
           >
             <Sparkles className="size-3.5" />
             Solo IA
@@ -238,6 +289,7 @@ export function ConversationsClient() {
             onClick={() => refetch()}
             className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground ml-1"
             title="Actualizar"
+            aria-label="Actualizar conversaciones"
           >
             <RefreshCw className="size-4" />
           </Button>
@@ -248,13 +300,13 @@ export function ConversationsClient() {
       <Card className="flex min-h-0 flex-1 flex-row gap-0 overflow-hidden border-border/60 shadow-sm">
         {/* Left Panel: Conversation List */}
         {!listCollapsed && (
-          <aside className="flex min-h-0 w-[340px] shrink-0 flex-col overflow-hidden border-r border-border/60 bg-card">
+          <aside className="flex min-h-0 w-[min(420px,42vw)] min-w-[320px] shrink-0 flex-col overflow-hidden border-r border-border/60 bg-card">
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-border/40 px-5">
-              <span className="text-sm font-semibold text-foreground">Chats</span>
+              <span className="text-sm font-semibold text-foreground">Conversaciones</span>
               <button
                 type="button"
                 onClick={() => setListCollapsed(true)}
-                className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground -mr-1"
+                className="-mr-1 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Colapsar lista"
               >
                 <PanelLeftClose className="size-4" />
@@ -265,10 +317,16 @@ export function ConversationsClient() {
               <p className="shrink-0 px-5 py-3 text-xs text-destructive bg-destructive/10">{listError}</p>
             ) : null}
 
-            <ScrollArea className="flex-1">
+            <ScrollArea className="min-h-0 flex-1 overflow-hidden" aria-label="Lista de conversaciones">
               {!loadingList && conversations.length === 0 ? (
-                <div className="p-6 text-center">
-                  <p className="text-sm text-muted-foreground">No hay conversaciones.</p>
+                <div className="flex h-full items-center justify-center p-6 text-center">
+                  <div className="space-y-2">
+                    <MessageSquare className="mx-auto h-8 w-8 text-muted-foreground" />
+                    <p className="text-sm font-medium text-foreground">No hay conversaciones</p>
+                    <p className="text-xs text-muted-foreground">
+                      Ajusta los filtros o actualiza la bandeja.
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <ul className="flex flex-col">
@@ -280,7 +338,7 @@ export function ConversationsClient() {
                           type="button"
                           onClick={() => setSelectedWaId(conversation.waId)}
                           className={cn(
-                            "flex w-full items-start gap-3.5 px-5 py-4 text-left transition-colors border-b border-border/20 last:border-0",
+                            "flex w-full items-start gap-3.5 border-b border-border/20 px-5 py-4 text-left transition-colors last:border-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                             isActive ? "bg-accent" : "hover:bg-accent/50",
                           )}
                         >
@@ -297,17 +355,17 @@ export function ConversationsClient() {
                                 {formatRelative(conversation.lastMessageAt)}
                               </span>
                             </div>
-                            <p className="line-clamp-2 text-[13px] text-muted-foreground leading-relaxed mt-1">
+                            <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
                               {conversation.lastDirection === "outbound" && (
                                 <span className="text-primary/70 mr-1 font-medium">Tú:</span>
                               )}
                               {conversation.lastMessagePreview}
                             </p>
                             {conversation.hasAgentMessages && (
-                              <div className="mt-2.5 flex w-fit items-center gap-1 rounded-md bg-[#8b5cf6]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#8b5cf6]">
+                              <Badge variant="ai" className="mt-2.5 h-5 rounded-md px-1.5 text-[10px]">
                                 <Sparkles className="size-3" />
                                 IA Activa
-                              </div>
+                              </Badge>
                             )}
                           </div>
                         </button>
@@ -329,7 +387,7 @@ export function ConversationsClient() {
                 <button
                   type="button"
                   onClick={() => setListCollapsed(false)}
-                  className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground mr-1"
+                  className="mr-1 inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   aria-label="Expandir lista"
                 >
                   <PanelLeftOpen className="size-4" />
@@ -392,16 +450,22 @@ export function ConversationsClient() {
                   </div>
                 </div>
               ) : (
-                <ScrollArea className="min-h-0 min-w-0 flex-1">
+                <ScrollArea className="min-h-0 min-w-0 flex-1 overflow-hidden" aria-label="Historial de mensajes">
                   <div className="px-5 pt-6 pb-12 sm:px-8 sm:pb-14">
                     {loadingMessages ? (
                       <div className="flex justify-center py-12">
                         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                       </div>
                     ) : messages.length === 0 ? (
-                      <p className="py-12 text-center text-sm text-muted-foreground">
-                        No hay mensajes en esta conversación.
-                      </p>
+                      <div className="flex items-center justify-center py-12 text-center">
+                        <div className="space-y-2">
+                          <MessageSquare className="mx-auto h-8 w-8 text-muted-foreground" />
+                          <p className="text-sm font-medium text-foreground">Sin mensajes visibles</p>
+                          <p className="max-w-sm text-xs text-muted-foreground">
+                            No hay mensajes para esta conversación con el filtro seleccionado.
+                          </p>
+                        </div>
+                      </div>
                     ) : (
                       <div className="flex flex-col gap-4">
                       {messages.map((message, index) => {
@@ -419,21 +483,24 @@ export function ConversationsClient() {
                               </div>
                             )}
                             <div className={cn("flex w-full", isOutbound ? "justify-end" : "justify-start")}>
-                              <div
+                              <article
                                 className={cn(
-                                  "max-w-[85%] sm:max-w-[75%] md:max-w-[65%] lg:max-w-[55%] rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed relative group",
+                                  "group relative min-w-0 max-w-[92%] overflow-hidden rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed shadow-sm sm:max-w-[82%] md:max-w-[76%] lg:max-w-[70%] [&_*]:max-w-full",
                                   isOutbound
-                                    ? "bg-primary text-primary-foreground rounded-tr-sm"
-                                    : "bg-accent text-foreground rounded-tl-sm"
+                                    ? "rounded-tr-sm border border-primary/20 bg-primary/10 text-foreground"
+                                    : "rounded-tl-sm border border-border bg-card text-card-foreground"
                                 )}
+                                aria-label={isOutbound ? "Mensaje enviado" : "Mensaje recibido"}
                               >
                                 {message.templateRender ? (
-                                  <div className={cn("opacity-90", isOutbound ? "text-primary-foreground" : "text-foreground")}>
+                                  <div className="min-w-0 text-foreground">
                                     <TemplateMessageCard template={message.templateRender} />
                                   </div>
                                 ) : message.kind === "audio" ? (
-                                  <div className="space-y-2">
-                                    <p className="whitespace-pre-wrap">{message.text}</p>
+                                  <div className="min-w-0 space-y-2">
+                                    <p className="max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word]">
+                                      {renderMessageText(message.text)}
+                                    </p>
                                     {(() => {
                                       const sources = audioSourcesFromPayload(message.rawPayload);
                                       if (!sources?.length) return null;
@@ -441,7 +508,7 @@ export function ConversationsClient() {
                                         <audio
                                           controls
                                           preload="metadata"
-                                          className="max-w-full w-full min-w-[220px]"
+                                          className="w-full min-w-0 max-w-full"
                                           key={sources[0]?.src}
                                         >
                                           {sources.map((source) => (
@@ -456,13 +523,15 @@ export function ConversationsClient() {
                                     })()}
                                   </div>
                                 ) : (
-                                  <p className="whitespace-pre-wrap">{message.text}</p>
+                                  <p className="max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word]">
+                                    {renderMessageText(message.text)}
+                                  </p>
                                 )}
                                 
                                 <div
                                   className={cn(
                                     "flex items-center justify-end gap-1.5 mt-1 text-[10px] select-none",
-                                    isOutbound ? "text-primary-foreground/70" : "text-muted-foreground"
+                                    "text-muted-foreground"
                                   )}
                                 >
                                   {message.source && message.source !== "api" && (
@@ -472,7 +541,7 @@ export function ConversationsClient() {
                                   )}
                                   <span>{formatTime(message.occurredAt)}</span>
                                 </div>
-                              </div>
+                              </article>
                             </div>
                           </div>
                         );
@@ -493,13 +562,14 @@ export function ConversationsClient() {
                   <button
                     type="button"
                     onClick={() => setContextOpen(false)}
-                    className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label="Cerrar detalles"
                   >
                     <PanelRightClose className="size-4" />
                   </button>
                 </div>
                 
-                <ScrollArea className="flex-1">
+                <ScrollArea className="min-h-0 flex-1 overflow-hidden">
                   <div className="p-4 space-y-6">
                     {/* Demand Info */}
                     {context.demand && (

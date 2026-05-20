@@ -133,6 +133,8 @@ export async function createProspectoFromListing(
       typeof response.cod_ofer === "number" ? response.cod_ofer : null;
     await finalizeListingStage(input.listingId, {
       stage: "PROSPECT_CREATED",
+      prospectSentByUserId: input.actorUserId,
+      prospectSentAt: new Date(),
       inmovillaProspectRef: build.ref,
       inmovillaPropertyCodOfer: codOfer,
       captacionLastError: null,
@@ -285,6 +287,8 @@ async function finalizeListingStage(
       | "PROPERTY_CREATED"
       | "READY_FOR_PROPERTY"
       | "ENCARGO_ATTACHED";
+    prospectSentByUserId?: string | null;
+    prospectSentAt?: Date | null;
     inmovillaProspectRef: string | null;
     inmovillaPropertyCodOfer: number | null;
     captacionLastError: string | null;
@@ -294,6 +298,8 @@ async function finalizeListingStage(
     where: { id: listingId },
     data: {
       captacionStage: data.stage,
+      captacionProspectSentByUserId: data.prospectSentByUserId,
+      captacionProspectSentAt: data.prospectSentAt,
       inmovillaProspectRef: data.inmovillaProspectRef,
       inmovillaPropertyCodOfer: data.inmovillaPropertyCodOfer,
       captacionLastError: data.captacionLastError,

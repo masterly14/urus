@@ -19,6 +19,7 @@
 
 import type {
   CrawlRunStatus as PrismaCrawlRunStatus,
+  MarketCaptacionStage as PrismaMarketCaptacionStage,
   MarketCircuitBreakerStatus as PrismaMarketCircuitBreakerStatus,
   MarketEventType as PrismaMarketEventType,
   MarketHousingType as PrismaMarketHousingType,
@@ -34,6 +35,7 @@ import type {
 
 export type MarketSource = PrismaMarketSource;
 export type MarketOperation = PrismaMarketOperation;
+export type MarketCaptacionStage = PrismaMarketCaptacionStage;
 export type MarketHousingType = PrismaMarketHousingType;
 export type MarketListingStatus = PrismaMarketListingStatus;
 export type CrawlRunStatus = PrismaCrawlRunStatus;

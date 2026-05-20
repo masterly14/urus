@@ -89,6 +89,7 @@ export const WHATSAPP_TEMPLATES = {
   DEV_EJERCICIO: process.env.WHATSAPP_TEMPLATE_DEV_EXERCISE ?? "dev_ejercicio_diario",               // body: 3 vars
   VISITA_PAQUETE_COMERCIAL: process.env.WHATSAPP_TEMPLATE_VISITA_PAQUETE_COMERCIAL ?? "visita_paquete_comercial", // body: 4 vars (demanda, comprador, propiedades, acción)
   FOLLOW_UP_DEMANDA: process.env.WHATSAPP_TEMPLATE_FOLLOW_UP_DEMANDA ?? "follow_up_demanda", // body: 4 vars (comercial, demanda, propiedad, teléfono demanda)
+  CHAT_ESCALADO_COMERCIAL: process.env.WHATSAPP_TEMPLATE_CHAT_ESCALADO_COMERCIAL ?? "chat_escalado_comercial", // body: 4 vars (comercial, resumen, teléfono contacto, info contacto)
   NLU_DEMANDA_CONTACTO_INICIAL: process.env.WHATSAPP_TEMPLATE_NLU_DEMANDA_CONTACTO_INICIAL ?? "nlu_demanda_contacto_inicial", // body: 2 vars (nombre, mensaje)
   MICROSITE_LISTO_COMPRADOR: process.env.WHATSAPP_TEMPLATE_MICROSITE_LISTO_COMPRADOR ?? "microsite_listo_comprador", // body: 2 vars (nombre comprador, URL del micrositio)
   MICROSITE_PROPIEDAD_ME_ENCAJA: process.env.WHATSAPP_TEMPLATE_MICROSITE_PROPIEDAD_ME_ENCAJA ?? "microsite_propiedad_me_encaja", // body: 2 vars (nombre comprador, título de la propiedad)
@@ -490,6 +491,13 @@ export interface FollowUpDemandaParams {
   demandPhone: string;
 }
 
+export interface ChatEscalationToCommercialParams {
+  comercialName: string;
+  summary: string;
+  contactPhone: string;
+  contactInfo: string;
+}
+
 const STEP_LABELS: Record<string, string> = {
   "D+1": "1 día sin contacto",
   "D+3": "3 días sin contacto",
@@ -580,6 +588,51 @@ export async function sendFollowUpDemandaToCommercial(
   };
 
   return sendTemplateMessage(to, template, options);
+}
+
+/**
+ * Escalado de conversación del comprador al comercial responsable.
+ * Por defecto usa plantilla Meta para garantizar entrega fuera de ventana.
+ */
+export async function sendChatEscalationToCommercial(
+  to: string,
+  params: ChatEscalationToCommercialParams,
+  options?: SendOptions & { useTemplate?: boolean },
+): Promise<SendMessageSuccess> {
+  if (!shouldSendWhatsAppToCommercials()) {
+    return skippedCommercialSend(to, "sendChatEscalationToCommercial");
+  }
+
+  const useTemplate = options?.useTemplate !== false;
+  if (useTemplate) {
+    const template: TemplateObject = {
+      name: WHATSAPP_TEMPLATES.CHAT_ESCALADO_COMERCIAL,
+      language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.comercialName },
+            { type: "text", text: params.summary },
+            { type: "text", text: params.contactPhone },
+            { type: "text", text: params.contactInfo },
+          ],
+        },
+      ],
+    };
+    return sendTemplateMessage(to, template, options);
+  }
+
+  const lines = [
+    `Hola ${params.comercialName} 👋`,
+    ``,
+    `Te paso un escalado del chat para que lo tomes cuanto antes.`,
+    ``,
+    `📝 Resumen: ${params.summary}`,
+    `📞 Numero de contacto: ${params.contactPhone}`,
+    `ℹ️ Info de contacto: ${params.contactInfo}`,
+  ];
+  return sendTextMessage(to, lines.join("\n"), options);
 }
 
 export type MicrositeValidationNotifyParams = {

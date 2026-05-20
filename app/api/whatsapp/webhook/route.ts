@@ -9,7 +9,7 @@
  *       parseamos los mensajes entrantes y emitimos eventos WHATSAPP_RECIBIDO en el Event Store.
  *
  * Categoría A (procesamiento inline):
- *   Mensajes conversacionales (/coach, feedback comprador, visitas) se procesan
+ *   Mensajes conversacionales (feedback comprador, visitas) se procesan
  *   dentro del request para garantizar respuesta < 3s. El evento se persiste siempre.
  *   Si el procesamiento inline falla, se encola un job como fallback.
  */
@@ -40,6 +40,7 @@ import {
   getWhatsAppMediaMetadata,
 } from "@/lib/whatsapp/media";
 import { uploadWhatsAppAudio } from "@/lib/cloudinary/upload-whatsapp-audio";
+import { processInboundExpenseSync } from "@/lib/expenses";
 
 
 // ---- GET: verificación del challenge ----
@@ -215,6 +216,82 @@ const postHandler = async (request: NextRequest): Promise<NextResponse> => {
               content["audio"] = audioPayload;
             }
           }
+          if (e.message.type === "image" && "image" in msg) {
+            const image = msg["image"];
+            if (image && typeof image === "object") {
+              const imageRecord = image as Record<string, unknown>;
+              const imageId =
+                typeof imageRecord.id === "string" ? imageRecord.id : "";
+              const imagePayload: Record<string, unknown> = {
+                id: imageId,
+                mime_type:
+                  typeof imageRecord.mime_type === "string"
+                    ? imageRecord.mime_type
+                    : null,
+                sha256:
+                  typeof imageRecord.sha256 === "string"
+                    ? imageRecord.sha256
+                    : null,
+                caption:
+                  typeof imageRecord.caption === "string"
+                    ? imageRecord.caption
+                    : null,
+              };
+              if (imageId) {
+                try {
+                  const metadata = await getWhatsAppMediaMetadata(imageId);
+                  imagePayload["file_size"] = metadata.fileSize ?? null;
+                  imagePayload["mime_type"] = metadata.mimeType;
+                } catch (err) {
+                  console.warn(
+                    `[whatsapp/webhook] image metadata failed (messageId=${waMessageId}, mediaId=${imageId}):`,
+                    err instanceof Error ? err.message : err,
+                  );
+                }
+              }
+              content["image"] = imagePayload;
+            }
+          }
+          if (e.message.type === "document" && "document" in msg) {
+            const document = msg["document"];
+            if (document && typeof document === "object") {
+              const documentRecord = document as Record<string, unknown>;
+              const documentId =
+                typeof documentRecord.id === "string" ? documentRecord.id : "";
+              const documentPayload: Record<string, unknown> = {
+                id: documentId,
+                mime_type:
+                  typeof documentRecord.mime_type === "string"
+                    ? documentRecord.mime_type
+                    : null,
+                sha256:
+                  typeof documentRecord.sha256 === "string"
+                    ? documentRecord.sha256
+                    : null,
+                filename:
+                  typeof documentRecord.filename === "string"
+                    ? documentRecord.filename
+                    : null,
+                caption:
+                  typeof documentRecord.caption === "string"
+                    ? documentRecord.caption
+                    : null,
+              };
+              if (documentId) {
+                try {
+                  const metadata = await getWhatsAppMediaMetadata(documentId);
+                  documentPayload["file_size"] = metadata.fileSize ?? null;
+                  documentPayload["mime_type"] = metadata.mimeType;
+                } catch (err) {
+                  console.warn(
+                    `[whatsapp/webhook] document metadata failed (messageId=${waMessageId}, mediaId=${documentId}):`,
+                    err instanceof Error ? err.message : err,
+                  );
+                }
+              }
+              content["document"] = documentPayload;
+            }
+          }
           if ("context" in msg) content["context"] = msg["context"];
 
           const eventPayload = content as import("@/lib/event-store").JsonValue;
@@ -228,6 +305,49 @@ const postHandler = async (request: NextRequest): Promise<NextResponse> => {
 
           // Persist event (always — traceability is non-negotiable)
           const storedEvent = await appendEvent(eventInput);
+
+          const interactive = msg["interactive"];
+          const interactiveReply =
+            interactive && typeof interactive === "object"
+              ? (() => {
+                  const interactiveRecord = interactive as Record<string, unknown>;
+                  const interactiveType =
+                    typeof interactiveRecord.type === "string"
+                      ? interactiveRecord.type
+                      : "";
+                  if (interactiveType === "button_reply") {
+                    const buttonReply = interactiveRecord.button_reply;
+                    if (buttonReply && typeof buttonReply === "object") {
+                      const br = buttonReply as Record<string, unknown>;
+                      return {
+                        type: interactiveType,
+                        buttonId:
+                          typeof br.id === "string" ? br.id : undefined,
+                        buttonTitle:
+                          typeof br.title === "string" ? br.title : undefined,
+                      };
+                    }
+                  }
+                  return { type: interactiveType };
+                })()
+              : null;
+
+          const expenseResult = await processInboundExpenseSync({
+            waId: e.waId,
+            messageId: waMessageId,
+            timestamp: typeof e.message.timestamp === "string" ? e.message.timestamp : undefined,
+            type: e.message.type,
+            textBody:
+              e.message.type === "text" && "text" in msg && msg["text"] && typeof msg["text"] === "object"
+                ? (msg["text"] as Record<string, unknown>).body as string | undefined
+                : null,
+            interactiveReply,
+            message: msg,
+          });
+
+          if (expenseResult.handled && expenseResult.skipQueue) {
+            return { expense: expenseResult.reason, messageId: waMessageId };
+          }
 
           // Attempt inline processing for Category A (conversational) messages.
           // If successful, skip enqueueing a job — the response was already sent.

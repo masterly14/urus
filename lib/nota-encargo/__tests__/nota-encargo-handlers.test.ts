@@ -328,6 +328,13 @@ describe("handleNotaEncargoEnviarFormulario", () => {
     vi.clearAllMocks();
     sendFlowMock.mockResolvedValue({ messages: [{ id: "wamid" }] });
     sessionUpdateMock.mockResolvedValue({});
+    comercialFindUniqueMock.mockResolvedValue({
+      id: "comercial-1",
+      nombre: "Miguel",
+      telefono: "34600111222",
+      waId: null,
+      activo: true,
+    });
   });
 
   it("sends Flow and transitions to FORMULARIO_ENVIADO", async () => {
@@ -341,7 +348,7 @@ describe("handleNotaEncargoEnviarFormulario", () => {
 
     expect(result.success).toBe(true);
     expect(sendFlowMock).toHaveBeenCalledWith(
-      "34666777888",
+      "34600111222",
       expect.objectContaining({
         sessionId: "session-1",
         propertyRef: "URUS36VMA",
@@ -353,7 +360,7 @@ describe("handleNotaEncargoEnviarFormulario", () => {
         trace: expect.objectContaining({
           source: "nota_encargo_enviar_formulario_job",
           kind: "nota_encargo_formulario",
-          aggregateId: "34666777888",
+          aggregateId: "34600111222",
         }),
       }),
     );

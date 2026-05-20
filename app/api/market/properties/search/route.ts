@@ -28,6 +28,7 @@ import {
 import { validatePolygon, type Polygon } from "@/lib/market/geo/polygon";
 import type {
   MarketOperation,
+  MarketCaptacionStage,
   MarketSource,
 } from "@/lib/market/types";
 
@@ -36,6 +37,17 @@ const VALID_SOURCES: MarketSource[] = [
   "source_b",
   "source_c",
   "source_d",
+];
+
+const VALID_CAPTACION_STAGES: MarketCaptacionStage[] = [
+  "NEW",
+  "PROSPECT_CREATING",
+  "PROSPECT_CREATED",
+  "ENCARGO_ATTACHED",
+  "READY_FOR_PROPERTY",
+  "PROPERTY_CREATING",
+  "PROPERTY_CREATED",
+  "FAILED",
 ];
 
 const polygonSchema = z
@@ -53,6 +65,8 @@ const filtersBodySchema = z.object({
   city: z.string().min(1).max(64).optional(),
   sources: z.array(z.string()).optional(),
   operation: z.enum(["sale", "rent"]).optional(),
+  captacionStages: z.array(z.string()).optional(),
+  prospectSentByUserId: z.string().trim().min(1).optional(),
   advertiserType: z.enum(["particular", "agency"]).optional(),
   hasPhone: z.boolean().optional(),
   priceMin: z.number().int().nonnegative().optional(),
@@ -111,6 +125,18 @@ function parseOperationParam(raw: string | null): MarketOperation | undefined {
   return undefined;
 }
 
+function parseCaptacionStagesParam(
+  raw: string | null,
+): MarketCaptacionStage[] | undefined {
+  if (!raw) return undefined;
+  const parts = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean) as MarketCaptacionStage[];
+  const valid = parts.filter((s) => VALID_CAPTACION_STAGES.includes(s));
+  return valid.length > 0 ? valid : undefined;
+}
+
 function buildFiltersFromQuery(url: URL): PropertyClusterFilters {
   const sp = url.searchParams;
   let polygon: Polygon | undefined;
@@ -127,6 +153,8 @@ function buildFiltersFromQuery(url: URL): PropertyClusterFilters {
     city: sp.get("city") ?? undefined,
     sources: parseSourcesParam(sp.get("sources")),
     operation: parseOperationParam(sp.get("operation")),
+    captacionStages: parseCaptacionStagesParam(sp.get("captacionStages")),
+    prospectSentByUserId: sp.get("prospectSentByUserId") ?? undefined,
     advertiserType:
       advType === "particular" || advType === "agency" ? advType : undefined,
     hasPhone: sp.get("hasPhone") === "1" || sp.get("hasPhone") === "true",
@@ -151,6 +179,11 @@ function buildFiltersFromBody(
       VALID_SOURCES.includes(s as MarketSource),
     ),
     operation: body.operation,
+    captacionStages: body.captacionStages?.filter(
+      (s): s is MarketCaptacionStage =>
+        VALID_CAPTACION_STAGES.includes(s as MarketCaptacionStage),
+    ),
+    prospectSentByUserId: body.prospectSentByUserId,
     advertiserType: body.advertiserType,
     hasPhone: body.hasPhone,
     priceMin: body.priceMin,

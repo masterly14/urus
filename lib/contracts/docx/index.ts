@@ -6,6 +6,7 @@ import { buildSenalCompraDocument } from "./builders/senal-compra";
 import { buildOfertaFirmeDocument } from "./builders/oferta-firme";
 import { validateContractTemplateInput } from "./validators";
 import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
+import type { SectionAddendumsList } from "@/lib/contracts/section-addendums/types";
 import { prisma } from "@/lib/prisma";
 import { compileTemplate } from "@/lib/contracts/templates/engine";
 import type { TemplateStructure } from "@/types/contract-template";
@@ -27,6 +28,17 @@ export interface GenerateContractDocxOptions {
    * Opcional: si está vacío o ausente, los builders no inyectan la sección.
    */
   additionalClausesDoc?: AdditionalClausesDoc | null;
+  /**
+   * Bloques añadidos por el comercial dentro de secciones específicas del
+   * contrato (ej. ampliar "INMUEBLE" con datos registrales, anejos o
+   * cargas). Cada bloque se inyecta justo antes de cerrar su sección.
+   *
+   * Estructurado (no texto libre arbitrario): cada bloque indica a qué
+   * `sectionId` pertenece, qué `type` (descripción ampliada / datos
+   * registrales / cargas / anejos / observaciones) y un cuerpo enriquecido
+   * (subset TipTap igual que las cláusulas adicionales).
+   */
+  sectionAddendums?: SectionAddendumsList | null;
 }
 
 const KIND_FILE_PREFIX: Record<string, string> = {
@@ -46,6 +58,7 @@ export async function generateContractDocx(
   }
 
   const additionalClausesDoc = options.additionalClausesDoc ?? null;
+  const sectionAddendums = options.sectionAddendums ?? null;
 
   let doc: Document;
 
@@ -59,17 +72,27 @@ export async function generateContractDocx(
     doc = await compileTemplate(structure, input, {
       additionalClausesDoc,
       sharedClauseOverrides: overrides,
+      sectionAddendums,
     });
   } else {
     switch (input.kind) {
       case "arras":
-        doc = await buildArrasDocument(input.payload, { additionalClausesDoc });
+        doc = await buildArrasDocument(input.payload, {
+          additionalClausesDoc,
+          sectionAddendums,
+        });
         break;
       case "senal_compra":
-        doc = await buildSenalCompraDocument(input.payload, { additionalClausesDoc });
+        doc = await buildSenalCompraDocument(input.payload, {
+          additionalClausesDoc,
+          sectionAddendums,
+        });
         break;
       case "oferta_firme":
-        doc = await buildOfertaFirmeDocument(input.payload, { additionalClausesDoc });
+        doc = await buildOfertaFirmeDocument(input.payload, {
+          additionalClausesDoc,
+          sectionAddendums,
+        });
         break;
       default:
         return {

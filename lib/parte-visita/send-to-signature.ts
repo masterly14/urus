@@ -16,6 +16,7 @@ import { computeSha256, buildSigningUrl } from "@/lib/firma/engine";
 import { generateSigningToken } from "@/lib/firma/token";
 import { generateParteVisitaPdf } from "./generate-pdf";
 import { resolveComercial } from "@/lib/routing/resolve-comercial";
+import { normalizeComercialWhatsappPhone } from "@/lib/routing/comercial-whatsapp";
 import { promoteDraftDemand } from "@/lib/provisionals/promotion";
 import { extractDireccionFromRaw } from "@/lib/nota-encargo/utils";
 
@@ -28,7 +29,7 @@ export async function handleParteVisitaFlowResponse(
   const telefono = String(formData.telefono ?? "").trim();
   const aceptaLopd =
     formData.acepta_lopd === true || formData.acepta_lopd === "true";
-  const signerPhone = telefono || session.buyerPhone;
+  const buyerPhone = telefono || session.buyerPhone;
 
   // 1. Update session with form data
   await prisma.parteVisitaSession.update({
@@ -48,7 +49,7 @@ export async function handleParteVisitaFlowResponse(
         draftDemandId: session.draftDemandId,
         comercialId: session.comercialId,
         buyerName: nombreCompleto || null,
-        buyerPhone: signerPhone,
+        buyerPhone,
         buyerDni: dni || null,
         correlationId: session.id,
       });
@@ -63,6 +64,12 @@ export async function handleParteVisitaFlowResponse(
     requireActive: false,
   });
   const agenteName = comercial?.nombre ?? "URUS Capital Group";
+  const signerPhone = normalizeComercialWhatsappPhone(comercial);
+  if (!signerPhone) {
+    throw new Error(
+      `No se pudo resolver teléfono WhatsApp del comercial ${session.comercialId} para iniciar firma`,
+    );
+  }
 
   // Recalcular dirección desde el último snapshot de la propiedad. El campo
   // `session.direccion` se persistió al PROGRAMAR la visita y puede ser
@@ -174,7 +181,7 @@ export async function handleParteVisitaFlowResponse(
       role: "COMPRADOR",
       fullName: nombreCompleto,
       nifNie: dni,
-      phone: signerPhone,
+      phone: buyerPhone,
     },
   });
 
@@ -200,6 +207,8 @@ export async function handleParteVisitaFlowResponse(
       documentKind: "PARTE_VISITA",
       signingUrl,
       signerPhone,
+      signingChannel: "COMERCIAL_DEVICE",
+      beneficiaryPhone: buyerPhone,
     },
   });
 

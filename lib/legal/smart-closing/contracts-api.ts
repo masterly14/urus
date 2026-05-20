@@ -2,6 +2,8 @@ import { z } from "zod";
 import type { ContractTemplateInput } from "@/types/contracts";
 import { additionalClausesDocSchema } from "@/lib/contracts/additional-clauses/schema";
 import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
+import { sectionAddendumsListSchema } from "@/lib/contracts/section-addendums/schema";
+import type { SectionAddendumsList } from "@/lib/contracts/section-addendums/types";
 
 export const contractTemplateInputSchema: z.ZodType<ContractTemplateInput> = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("arras"), templateVersion: z.string().optional(), payload: z.any() }),
@@ -23,6 +25,8 @@ export interface SmartClosingContractDetailDto {
   contractTemplateInput: ContractTemplateInput;
   additionalClausesDoc: AdditionalClausesDoc | null;
   additionalClausesUpdatedAt: string | null;
+  sectionAddendums: SectionAddendumsList;
+  sectionAddendumsUpdatedAt: string | null;
   parties: Array<{
     role: string;
     fullName: string;
@@ -55,6 +59,8 @@ type LegalDocumentLike = {
   contractInput: unknown;
   additionalClausesDoc?: unknown;
   additionalClausesUpdatedAt?: Date | null;
+  sectionAddendums?: unknown;
+  sectionAddendumsUpdatedAt?: Date | null;
   parties?: Array<{
     role: string;
     fullName: string;
@@ -86,6 +92,9 @@ export function normalizeSmartClosingContractDetail(
   const parsedClauses = doc.additionalClausesDoc
     ? additionalClausesDocSchema.safeParse(doc.additionalClausesDoc)
     : null;
+  const parsedAddendums = doc.sectionAddendums
+    ? sectionAddendumsListSchema.safeParse(doc.sectionAddendums)
+    : null;
 
   return {
     id: doc.id,
@@ -101,6 +110,11 @@ export function normalizeSmartClosingContractDetail(
     additionalClausesDoc: parsedClauses && parsedClauses.success ? parsedClauses.data : null,
     additionalClausesUpdatedAt: doc.additionalClausesUpdatedAt
       ? doc.additionalClausesUpdatedAt.toISOString()
+      : null,
+    sectionAddendums:
+      parsedAddendums && parsedAddendums.success ? parsedAddendums.data : [],
+    sectionAddendumsUpdatedAt: doc.sectionAddendumsUpdatedAt
+      ? doc.sectionAddendumsUpdatedAt.toISOString()
       : null,
     parties: (doc.parties ?? []).map((party) => ({
       role: party.role,

@@ -24,7 +24,7 @@
  * del listing representativo, para mantener orden estable.
  */
 
-import type { Prisma } from "@prisma/client";
+import type { MarketCaptacionStage, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   pointInPolygon,
@@ -37,6 +37,10 @@ import type {
   MarketOperation,
   MarketSource,
 } from "./types";
+import {
+  getCaptacionTagsByListingIds,
+  type CaptacionTag,
+} from "./captacion-tags";
 
 // ---------------------------------------------------------------------------
 // DTOs
@@ -125,6 +129,7 @@ export interface PropertyClusterDTO {
     | "PROPERTY_CREATING"
     | "PROPERTY_CREATED"
     | "FAILED";
+  captacionTag: CaptacionTag | null;
   inmovillaProspectRef: string | null;
   inmovillaPropertyCodOfer: number | null;
   captacionLastError: string | null;
@@ -140,6 +145,8 @@ export interface PropertyClusterFilters {
   city?: string;
   sources?: MarketSource[];
   operation?: MarketOperation;
+  captacionStages?: MarketCaptacionStage[];
+  prospectSentByUserId?: string;
   advertiserType?: "particular" | "agency";
   hasPhone?: boolean;
   priceMin?: number;
@@ -226,6 +233,12 @@ export async function listPropertyClusters(
     where.source = { in: filters.sources };
   }
   if (filters.operation) where.operation = filters.operation;
+  if (filters.captacionStages && filters.captacionStages.length > 0) {
+    where.captacionStage = { in: filters.captacionStages };
+  }
+  if (filters.prospectSentByUserId) {
+    where.captacionProspectSentByUserId = filters.prospectSentByUserId;
+  }
   if (filters.advertiserType) where.advertiserType = filters.advertiserType;
 
   if (filters.priceMin != null || filters.priceMax != null) {
@@ -354,18 +367,27 @@ export async function listPropertyClusters(
   const sliced = clusters.slice(0, limit);
   const hasMore = clusters.length > limit;
 
+  const captacionTagsByListingId = await getCaptacionTagsByListingIds(
+    sliced.map((cluster) => cluster.representativeListingId),
+  );
+  const enriched = sliced.map((cluster) => ({
+    ...cluster,
+    captacionTag:
+      captacionTagsByListingId.get(cluster.representativeListingId) ?? null,
+  }));
+
   const nextCursor =
-    hasMore && sliced.length > 0
+    hasMore && enriched.length > 0
       ? encodeClusterCursor({
-          lastSeenAt: sliced[sliced.length - 1]!.lastSeenAt,
+          lastSeenAt: enriched[enriched.length - 1]!.lastSeenAt,
           // Cursor por el listing representativo del ultimo cluster, que es
           // por construccion el orderBy anterior.
-          id: sliced[sliced.length - 1]!.portals[0]!.listingId,
+          id: enriched[enriched.length - 1]!.portals[0]!.listingId,
         })
       : null;
 
   return {
-    items: sliced,
+    items: enriched,
     cursor: nextCursor,
     meta: {
       totalEstimated,
@@ -519,6 +541,7 @@ function buildClusterDTO(
       : null,
 
     captacionStage: representative.captacionStage,
+    captacionTag: null,
     inmovillaProspectRef: representative.inmovillaProspectRef ?? null,
     inmovillaPropertyCodOfer: representative.inmovillaPropertyCodOfer ?? null,
     captacionLastError: representative.captacionLastError ?? null,

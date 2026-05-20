@@ -6,7 +6,6 @@ import { canExecute, recordSuccess, recordFailure } from "@/lib/circuit-breaker"
 import {
   sendLeadAssignedToCommercial,
   sendFollowUpToCommercial,
-  sendMicrositePendingValidationToCommercial,
   sendNoStockAvailableToBuyer,
   sendContractDataIncompleteToCommercial,
   type LeadAssignedParams,
@@ -24,7 +23,7 @@ import {
   type WriteOperationPayloadMap,
 } from "@/lib/inmovilla/write";
 import { generateMicrositeSelection } from "@/lib/microsite/selection";
-import { autoValidateMicrosite } from "@/lib/microsite/auto-validate";
+import { approveMicrositeByAI } from "@/lib/microsite/approve-by-ai";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
 import { normalizeWhatsAppDigits, resolveBuyerPhoneForDemand } from "@/lib/microsite/buyer-phone";
 import { sendMicrositeToBuyerHot } from "@/lib/microsite/send-microsite-buyer-hot";
@@ -329,29 +328,17 @@ async function handleGenerateMicrosite(job: JobRecord): Promise<HandlerResult> {
     `[consumer] GENERATE_MICROSITE job ${job.id} demandId=${demandId} — creado Token=${result.token} props=${result.propertiesCount} stock=${result.stockCount}`,
   );
 
-  const comercial = await prisma.comercial.findUnique({
-    where: { id: comercialId },
-    select: { autoValidateMicrosite: true },
-  });
-
-  if (comercial?.autoValidateMicrosite) {
-    await enqueueJob({
-      type: "AUTO_VALIDATE_MICROSITE",
-      payload: { selectionId: result.selectionId },
-      priority: 30,
-      idempotencyKey: `auto_validate_microsite:${result.selectionId}`,
-    });
-    console.log(
-      `[consumer] GENERATE_MICROSITE job ${job.id} — autoValidateMicrosite=true → encolado AUTO_VALIDATE_MICROSITE`,
-    );
-  } else {
-    await enqueueJob({
-      type: "NOTIFY_MICROSITE_PENDING_VALIDATION",
-      payload: { selectionId: result.selectionId },
-      priority: 40,
-      idempotencyKey: `notify_microsite_validation:${result.selectionId}`,
-    });
+  const autoValidation = await approveMicrositeByAI(result.selectionId);
+  if (!autoValidation.ok) {
+    return {
+      success: false,
+      error: `AI_APPROVAL inline falló: ${autoValidation.error}`,
+    };
   }
+
+  console.log(
+    `[consumer] GENERATE_MICROSITE job ${job.id} — auto-validado y encolado SEND_MICROSITE_TO_BUYER selectionId=${result.selectionId}`,
+  );
 
   return { success: true };
 }
@@ -448,95 +435,6 @@ async function notifyBuyerNoStockAvailable(args: {
   }
 
 }
-
-async function handleNotifyMicrositePendingValidation(job: JobRecord): Promise<HandlerResult> {
-  const payload = (job.payload ?? {}) as Record<string, unknown>;
-  const selectionId = typeof payload.selectionId === "string" ? payload.selectionId : "";
-  if (!selectionId) {
-    return { success: false, error: "NOTIFY_MICROSITE_PENDING_VALIDATION sin selectionId", permanent: true };
-  }
-
-  const selection = await prisma.micrositeSelection.findUnique({
-    where: { id: selectionId },
-    select: {
-      status: true,
-      validationToken: true,
-      demandId: true,
-      demandNombre: true,
-      comercialId: true,
-      validationDueAt: true,
-    },
-  });
-
-  if (!selection) {
-    return { success: false, error: "Selección no encontrada", permanent: true };
-  }
-  if (selection.status !== "PENDING_VALIDATION") {
-    console.log(
-      `[consumer] NOTIFY_MICROSITE_PENDING_VALIDATION job ${job.id} — omitido, status=${selection.status}`,
-    );
-    return { success: true };
-  }
-
-  const comercial = await prisma.comercial.findUnique({
-    where: { id: selection.comercialId },
-    select: { telefono: true },
-  });
-  const telefono = comercial?.telefono?.trim();
-  if (!telefono) {
-    console.warn(
-      `[consumer] NOTIFY_MICROSITE_PENDING_VALIDATION job ${job.id} — comercial ${selection.comercialId} sin teléfono`,
-    );
-    return { success: true };
-  }
-
-  const base = getPublicAppUrl();
-  const validationUrl = `${base}/validar-seleccion/${selection.validationToken}`;
-  const due = selection.validationDueAt ?? new Date(Date.now() + 2 * 60 * 60 * 1000);
-
-  try {
-    await sendMicrositePendingValidationToCommercial(telefono, {
-      demandId: selection.demandId,
-      demandNombre: selection.demandNombre,
-      validationUrl,
-      validationDueAtIso: due.toISOString(),
-    });
-    console.log(
-      `[consumer] NOTIFY_MICROSITE_PENDING_VALIDATION job ${job.id} — enviado a ${telefono} selectionId=${selectionId}`,
-    );
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`[consumer] NOTIFY_MICROSITE_PENDING_VALIDATION — error: ${message}`);
-    return { success: false, error: message };
-  }
-
-  return { success: true };
-}
-
-registerJobHandler("NOTIFY_MICROSITE_PENDING_VALIDATION", handleNotifyMicrositePendingValidation);
-
-async function handleAutoValidateMicrosite(job: JobRecord): Promise<HandlerResult> {
-  const payload = (job.payload ?? {}) as Record<string, unknown>;
-  const selectionId = typeof payload.selectionId === "string" ? payload.selectionId : "";
-  if (!selectionId) {
-    return { success: false, error: "AUTO_VALIDATE_MICROSITE sin selectionId", permanent: true };
-  }
-
-  const result = await autoValidateMicrosite(selectionId);
-  if (!result.ok) {
-    console.error(
-      `[consumer] AUTO_VALIDATE_MICROSITE job ${job.id} — falló: ${result.error}`,
-    );
-    return { success: false, error: result.error };
-  }
-
-  console.log(
-    `[consumer] AUTO_VALIDATE_MICROSITE job ${job.id} — completado, ${result.propertiesProcessed} descripciones generadas`,
-  );
-  return { success: true };
-}
-
-registerJobHandler("AUTO_VALIDATE_MICROSITE", handleAutoValidateMicrosite);
 
 async function handleSendMicrositeToBuyer(job: JobRecord): Promise<HandlerResult> {
   const payload = (job.payload ?? {}) as Record<string, unknown>;
@@ -941,3 +839,8 @@ registerJobHandler(
   "MARKET_PUSH_ADVERTISER_TO_INMOVILLA",
   handleMarketPushAdvertiserToInmovilla,
 );
+
+// --- Comercial (M0): transferencia de agente en Inmovilla al eliminar un comercial ---
+import { handleTransferPropertyAgent } from "@/lib/comercial/transfer-agent-handler";
+
+registerJobHandler("TRANSFER_PROPERTY_AGENT", handleTransferPropertyAgent);

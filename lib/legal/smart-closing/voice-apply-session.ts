@@ -5,6 +5,7 @@
 import type { ContractVoiceStructuredPatch } from "@/lib/agents/contract-instruction-types";
 import type { ContractFieldIssue, ContractTemplateInput } from "@/types/contracts";
 import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
+import type { SectionAddendumsList } from "@/lib/contracts/section-addendums/types";
 
 export interface SmartClosingDocState {
   contractTemplateInput: ContractTemplateInput;
@@ -20,6 +21,7 @@ interface VoiceApplySharedFields {
   assistantMessage?: string;
   missingDataQuestions?: string[];
   updatedAdditionalClausesDoc?: AdditionalClausesDoc | null;
+  updatedSectionAddendums?: SectionAddendumsList | null;
 }
 
 export type VoiceApplyClientResponse =
@@ -50,6 +52,7 @@ export interface VoiceApplyUiDelta {
   assistantMessage: string;
   missingDataQuestions: string[];
   updatedAdditionalClausesDoc: AdditionalClausesDoc | null;
+  updatedSectionAddendums: SectionAddendumsList | null;
 }
 
 /** Si `ok: false`, conserva el borrador DOCX y el input previos (validación falló tras el parche). */
@@ -64,6 +67,7 @@ export function mergeVoiceApplyIntoSession(
     assistantMessage: res.assistantMessage ?? "",
     missingDataQuestions: res.missingDataQuestions ?? [],
     updatedAdditionalClausesDoc: res.updatedAdditionalClausesDoc ?? null,
+    updatedSectionAddendums: res.updatedSectionAddendums ?? null,
   };
 
   if (res.ok) {

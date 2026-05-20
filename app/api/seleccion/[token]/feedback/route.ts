@@ -111,6 +111,7 @@ const postHandler = async (request: Request, context: { params: Promise<{ token:
     demandNombre: selection.demandNombre,
     comercialId: selection.comercialId,
     selectionId: selection.id,
+    propertyId: selectedProperty.propertyId,
     decision,
     // `source.channel` está al primer nivel del payload (no solo en metadata)
     // para que los handlers (`handleSeleccionComprador`) puedan discriminar

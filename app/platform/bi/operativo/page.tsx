@@ -6,13 +6,13 @@ import {
   Building2,
   MapPin,
   TrendingDown,
-  TrendingUp,
   Users,
   Briefcase,
   DollarSign,
   AlertTriangle,
   Loader2,
 } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import {
   Card,
   CardContent,
@@ -29,7 +29,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { SimpleBarChart } from "@/components/bi/charts";
 import { cn } from "@/lib/utils";
@@ -37,8 +36,7 @@ import { formatEur, formatNum } from "@/lib/utils/format";
 import { MockBadge } from "@/components/bi/mock-badge";
 import { useCeoCityPerformance } from "@/lib/hooks/use-ceo-cities";
 import { useDashboardComerciales } from "@/lib/hooks/use-dashboard-comercial";
-import type { CeoCityRow } from "@/lib/dashboard/ceo/types";
-import { CIUDADES_OPERATIVAS } from "@/lib/dashboard/ceo/types";
+import { type CeoCityRow } from "@/lib/dashboard/ceo/types";
 import { salesPerformanceData } from "@/lib/mock-data/bi";
 
 // ---------------------------------------------------------------------------
@@ -187,6 +185,15 @@ function OperationalDashboardInner() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Rendimiento Operativo"
+        description="Métricas de rendimiento por ciudad y comercial."
+        breadcrumbs={[
+          { label: "Inicio", href: "/platform" },
+          { label: "BI", href: "/platform/bi" },
+          { label: "Rendimiento" },
+        ]}
+      />
       {isMock && <MockBadge />}
 
       {/* KPI Cards globales */}
@@ -249,7 +256,7 @@ function OperationalDashboardInner() {
 
       {/* Tabs */}
       <Tabs defaultValue="cities" className="space-y-4">
-        <TabsList>
+        <TabsList className="w-full justify-start overflow-x-auto mb-4">
           <TabsTrigger value="cities">Desglose por Ciudad</TabsTrigger>
           <TabsTrigger value="agents">Rendimiento Comerciales</TabsTrigger>
         </TabsList>

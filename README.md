@@ -28,6 +28,7 @@ Documentación de decisiones:
 - **Dashboard Comercial (métricas / KPIs)**: `docs/dashboard-comercial-metricas.md`
 - **Dashboard Comercial (UI / rutas / hooks)**: `docs/dashboard-comercial-ui.md`
 - **Pipeline interno del lead (LeadStatus)**: `docs/lead-status-pipeline.md` — estados del lead gestionados en Neon, no en Inmovilla.
+- **Finanzas CEO (costes/EBITDA/cash derivados)**: gastos por WhatsApp + ingresos manuales + tesorería inicial para derivar KPIs financieros en `/platform/bi/financiero`, `/platform/bi/vision-ejecutiva` y `/platform/bi/reinversion`. Ver `docs/finanzas-ceo.md`.
 
 Escenario de migración a API REST (contactos, propiedades, propietarios) documentado en `docs/plan.md` — estrategia de transición sin romper el flujo actual.
 
@@ -40,6 +41,9 @@ Escenario de migración a API REST (contactos, propiedades, propietarios) docume
 - **Tests**: `npm test` (requiere `DATABASE_URL` configurada en el entorno).
 - **Tests integración dashboards**: `npm run test:dashboards` — evento `OPERACION_CERRADA` → hechos → APIs (`/api/dashboard/*`, `/api/ceo/overview`, `/api/colaboradores/dashboard`) y smoke UI (`KpiCard` / `Semaforo` con datos de `getCeoOverview()`). Ver `docs/dashboard-integration-tests.md`.
 - **Smoke live dashboards (Neon + proveedores opcionales)**: `npm run dashboards:live-check` — ejecuta las mismas queries analíticas que alimentan los dashboards y, si existen credenciales, llama a Inmovilla REST (`INMOVILLA_API_TOKEN`) y Statefox (`STATEFOX_BEARER_TOKEN`). Detalle en `docs/dashboard-integration-tests.md`.
+- **Verificación live finanzas (Neon)**: `npm run finance:verify -- --period=YYYY-MM` — valida agregación mensual de gastos/ingresos/EBITDA/cash con la DB real. Ver `docs/finanzas-ceo.md`.
+- **Backfill buckets de gastos (Neon)**: `npm run finance:backfill-buckets` — recalcula `Expense.bucket` y `Expense.costType` según categoría para registros existentes.
+- **Generación de recurrentes (Neon)**: `npm run finance:generate-recurring -- --date=YYYY-MM-DD` — crea gastos recurrentes del día en estado esperado (idempotente por periodo).
 - **Testeo cercano a producción (lógica):** además de la suite anterior, el proyecto usa **scripts** (`scripts/` y comandos `npm run …`) para ejecutar flujos de negocio e integración con la misma configuración que el runtime real en la medida de lo posible. Detalle y reglas en `AGENTS.md` y en `docs/plan.md` (*Estrategia de testeo*).
 - **UI con datos mock:** las rutas con interfaz relevante deben soportar un **query parameter** documentado que active fixtures/mock y permita **previsualizar la UI** sin datos reales. Convención y obligaciones descritas en `AGENTS.md` y `docs/plan.md`.
 - **Build**: `npm run build`
@@ -99,7 +103,7 @@ La base de datos operativa es la **rama `develop` de Neon** (no `production`). E
 6. [Módulo 4 — Visita y Afinado Humano](#módulo-4--visita-y-afinado-humano)
 7. [Módulo 5 — Búsqueda de Stock Externo (Statefox API)](#módulo-5--búsqueda-de-stock-externo-statefox-api-rest)
 8. [Módulo 6 — Microsite de Selección para el Comprador](#módulo-6--microsite-de-selección-para-el-comprador)
-9. [Módulo 7 — Validación del Comercial](#módulo-7--validación-del-comercial)
+9. [Módulo 7 — Orquestación IA del Microsite](#módulo-7--orquestación-ia-del-microsite)
 10. [Módulo 8 — Envío del Microsite y Feedback Loop](#módulo-8--envío-del-microsite-al-comprador-y-feedback-loop)
 11. [Resultado Final del Sistema Base](#resultado-final-del-sistema-base)
 12. [Diagrama de Flujo End-to-End](#diagrama-de-flujo-end-to-end)
@@ -367,17 +371,18 @@ Con las propiedades relevantes del mercado (de Statefox API), el sistema genera 
 
 ---
 
-## Módulo 7 — Validación del Comercial
+## Módulo 7 — Orquestación IA del Microsite
 
-Flujo implementado (M6 Item 3):
+Flujo canónico actual:
 
-1. Tras generar la selección (`GENERATE_MICROSITE`), se encola `NOTIFY_MICROSITE_PENDING_VALIDATION` y el comercial recibe un **WhatsApp** con enlace a **`/validar-seleccion/{validationToken}`** (token distinto del enlace del comprador) y recordatorio de SLA (2 h desde la creación).
-2. El comercial abre el micro-frontend interno y en **30–60 s** puede **Aprobar** o **Rechazar**.
-3. **Aprobar** → evento `SELECCION_VALIDADA` en Neon, estado `APPROVED`, job `SEND_MICROSITE_TO_BUYER` → WhatsApp al comprador con **`/seleccion/{token}`** (requiere `buyerPhone` en la selección, resuelto desde `demands_current.telefono` o `demand_snapshots.raw`).
-4. **Rechazar** → evento `SELECCION_RECHAZADA`, estado `REJECTED` (no se envía enlace al comprador).
-5. **SLA:** cron autenticado **`POST /api/cron/microsite-validation-sla`** (mismo criterio que otros cron: `CRON_SECRET`): selecciones `PENDING_VALIDATION` con `validationDueAt` vencido y sin `escalatedAt` → WhatsApp a `MICROSITE_VALIDATION_ESCALATION_TO` y marca `escalatedAt`.
+1. `GENERATE_MICROSITE` crea la selección y ejecuta aprobación automática por IA.
+2. La IA mejora descripciones, aplica reglas de rebranding y marca la selección como `APPROVED`.
+3. Se emite `SELECCION_VALIDADA` y se encola `SEND_MICROSITE_TO_BUYER`.
+4. El comprador recibe por WhatsApp el enlace público **`/seleccion/{token}`**.
 
-Variables: `NEXT_PUBLIC_APP_URL` (enlaces absolutos en WhatsApp), `MICROSITE_VALIDATION_ESCALATION_TO` — ver `.env.example`.
+**Contexto histórico encapsulado:** existió una etapa de validación manual por comercial (`/validar-seleccion/*` + SLA de 2h), hoy retirada del runtime canónico.
+
+Variables clave: `NEXT_PUBLIC_APP_URL` (enlaces absolutos en WhatsApp) — ver `.env.example`.
 
 ---
 

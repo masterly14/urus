@@ -81,8 +81,10 @@ export async function handleFirmaCompletada(
     });
 
     if (notaSession && signedUrl) {
+      const ownerPhone =
+        notaSession.propietarioTelefono || notaSession.propietarioPhone;
       try {
-        await sendNotaEncargoDocumentoFirmado(notaSession.propietarioPhone, {
+        await sendNotaEncargoDocumentoFirmado(ownerPhone, {
           propertyRef:
             notaSession.propertyRef ?? notaSession.refCatastral ?? notaSession.id,
           signedDocumentUrl: signedUrl,
@@ -130,8 +132,9 @@ export async function handleFirmaCompletada(
     });
 
     if (parteSession && signedUrl) {
+      const buyerPhone = parteSession.buyerTelefono || parteSession.buyerPhone;
       try {
-        await sendParteVisitaDocumentoFirmado(parteSession.buyerPhone, {
+        await sendParteVisitaDocumentoFirmado(buyerPhone, {
           propertyRef: parteSession.propertyRef,
           signedDocumentUrl: signedUrl,
           parteVisitaSessionId: parteSession.id,

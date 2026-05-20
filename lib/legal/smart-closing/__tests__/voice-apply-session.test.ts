@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ContractVoiceStructuredPatch } from "@/lib/agents/contract-instruction-types";
 import type { ContractTemplateInput } from "@/types/contracts";
+import type { SectionAddendumsList } from "@/lib/contracts/section-addendums/types";
 import { mergeVoiceApplyIntoSession, type SmartClosingDocState } from "../voice-apply-session";
 
 function emptyPatch(overrides: Partial<ContractVoiceStructuredPatch> = {}): ContractVoiceStructuredPatch {
@@ -31,6 +32,15 @@ function emptyPatch(overrides: Partial<ContractVoiceStructuredPatch> = {}): Cont
     feesFixedNetEur: null,
     feesVatRatePercent: null,
     courtsMunicipality: null,
+    additionalClauseText: null,
+    sectionAddendumInstructions: [],
+    furnitureHasFurniture: null,
+    furnitureOperationRef: null,
+    furniturePropertyAddressLine: null,
+    furniturePartiesLine: null,
+    furnitureItemsToAdd: [],
+    assistantMessage: "",
+    missingDataQuestions: [],
     ambiguousPoints: [],
     reasoning: "",
     ...overrides,
@@ -90,6 +100,14 @@ describe("mergeVoiceApplyIntoSession", () => {
     docxBase64: "QUJD",
     docxFileName: "a.docx",
   };
+  const addendums: SectionAddendumsList = [
+    {
+      id: "ad-1",
+      sectionId: "property",
+      type: "notes",
+      contentDoc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Detalle" }] }] },
+    },
+  ];
 
   it("actualiza documento cuando ok es true", () => {
     const nextInput = arrasInput("v2");
@@ -101,6 +119,7 @@ describe("mergeVoiceApplyIntoSession", () => {
       appliedSummaries: ["Honorarios ajustados"],
       patch: emptyPatch(),
       nextTemplateVersion: "v2",
+      updatedSectionAddendums: addendums,
     });
 
     expect(delta.doc.contractTemplateInput).toEqual(nextInput);
@@ -108,6 +127,7 @@ describe("mergeVoiceApplyIntoSession", () => {
     expect(delta.doc.docxFileName).toBe("b.docx");
     expect(delta.validationIssues).toHaveLength(0);
     expect(delta.appliedSummaries).toEqual(["Honorarios ajustados"]);
+    expect(delta.updatedSectionAddendums).toEqual(addendums);
   });
 
   it("conserva borrador previo cuando ok es false", () => {

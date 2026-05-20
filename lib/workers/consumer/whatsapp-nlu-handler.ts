@@ -26,11 +26,6 @@ import { enqueueJob } from "@/lib/job-queue";
 import { sendTextMessage } from "@/lib/whatsapp";
 import { emitManagementAlert } from "@/lib/notifications/emit";
 import {
-  isCoachActivation,
-  getActiveSession,
-  handleMentalHealthMessage,
-} from "./mental-health-handler";
-import {
   isExerciseRequest,
   routeToDevProgramIfApplicable,
 } from "@/lib/dev-program/exercise-router";
@@ -348,7 +343,6 @@ async function loadSelectionProperties(
   }));
 }
 
-const COACH_PREFIX_RE = /^\/?coach\b/i;
 const ADMIN_ESCALATION_PHONE =
   process.env.WHATSAPP_ADMIN_ESCALATION_PHONE?.trim() || "601257555";
 
@@ -436,50 +430,37 @@ async function loadConversationHistory(
   waId: string,
   limit: number = 10,
 ): Promise<ConversationTurn[]> {
-  const [events, mentalSession] = await Promise.all([
-    prisma.event.findMany({
-      where: {
-        aggregateType: "WHATSAPP_CONVERSATION",
-        aggregateId: waId,
-        type: { in: ["WHATSAPP_RECIBIDO", "WHATSAPP_ENVIADO"] },
-      },
-      orderBy: { position: "desc" },
-      take: limit,
-      select: {
-        id: true,
-        position: true,
-        type: true,
-        aggregateType: true,
-        aggregateId: true,
-        payload: true,
-        metadata: true,
-        correlationId: true,
-        causationId: true,
-        occurredAt: true,
-        createdAt: true,
-      },
-    }),
-    prisma.mentalHealthSession.findUnique({
-      where: { waId },
-      select: { createdAt: true, closedAt: true },
-    }),
-  ]);
+  const events = await prisma.event.findMany({
+    where: {
+      aggregateType: "WHATSAPP_CONVERSATION",
+      aggregateId: waId,
+      type: { in: ["WHATSAPP_RECIBIDO", "WHATSAPP_ENVIADO"] },
+    },
+    orderBy: { position: "desc" },
+    take: limit,
+    select: {
+      id: true,
+      position: true,
+      type: true,
+      aggregateType: true,
+      aggregateId: true,
+      payload: true,
+      metadata: true,
+      correlationId: true,
+      causationId: true,
+      occurredAt: true,
+      createdAt: true,
+    },
+  });
 
   return events
     .reverse()
     .flatMap((evt) => {
       const normalized = normalizeConversationEvent(evt);
-      return normalized ? [{ evt, normalized }] : [];
+      return normalized ? [{ normalized }] : [];
     })
-    .filter(({ evt, normalized }) => {
+    .filter(({ normalized }) => {
       if (normalized.direction !== "inbound") return true;
-      const p = asRecord(evt.payload);
-      const textObj = p.text as Record<string, unknown> | undefined;
-      const body = typeof textObj?.body === "string" ? textObj.body : "";
-      if (COACH_PREFIX_RE.test(body.trim())) return false;
-      if (mentalSession && !mentalSession.closedAt && evt.occurredAt >= mentalSession.createdAt) {
-        return false;
-      }
       return true;
     })
     .map(({ normalized }) => {
@@ -489,27 +470,6 @@ async function loadConversationHistory(
         timestamp: normalized.occurredAt,
       };
     });
-}
-
-// ---------------------------------------------------------------------------
-// M12: routing al Bot de Soporte Mental
-// ---------------------------------------------------------------------------
-
-async function routeToMentalHealthIfApplicable(
-  event: Event,
-  messageText: string,
-  waId: string,
-): Promise<HandlerResult | null> {
-  if (isCoachActivation(messageText)) {
-    return handleMentalHealthMessage(event, messageText, waId);
-  }
-
-  const activeSession = await getActiveSession(waId);
-  if (activeSession) {
-    return handleMentalHealthMessage(event, messageText, waId);
-  }
-
-  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -661,14 +621,6 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
     const devResult = await routeToDevProgramIfApplicable(event, messageText, waId);
     if (devResult) return devResult;
   }
-
-  // --- M12: routing al Bot de Soporte Mental ---
-  const mentalHealthRouted = await routeToMentalHealthIfApplicable(
-    event,
-    messageText,
-    waId,
-  );
-  if (mentalHealthRouted) return mentalHealthRouted;
 
   // --- M12: "hecho" puede ser del programa de desarrollo (si no hay sesión mental activa) ---
   const devCompletionResult = await routeToDevProgramIfApplicable(event, messageText, waId);

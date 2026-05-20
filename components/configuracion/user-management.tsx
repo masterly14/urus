@@ -50,6 +50,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAppSession } from "@/lib/hooks/use-session";
+import { DeleteComercialDialog } from "@/components/configuracion/delete-comercial-dialog";
 
 interface UserRow {
   id: string;
@@ -121,8 +122,6 @@ export function UserManagement() {
   const [roleError, setRoleError] = useState<string | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null);
-  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [invitationDeleteTarget, setInvitationDeleteTarget] = useState<InvitationRow | null>(null);
   const [deletingInvitationId, setDeletingInvitationId] = useState<string | null>(null);
@@ -233,28 +232,6 @@ export function UserManagement() {
     }
 
     setUpdatingRoleUserId(null);
-  }
-
-  async function handleConfirmDelete() {
-    if (!deleteTarget) return;
-    setDeletingUserId(deleteTarget.id);
-    setDeleteError(null);
-    try {
-      const res = await fetch(`/api/users/${encodeURIComponent(deleteTarget.id)}`, {
-        method: "DELETE",
-      });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) {
-        setDeleteError(data.error ?? "No se pudo eliminar el usuario");
-        return;
-      }
-      setDeleteTarget(null);
-      void fetchData();
-    } catch {
-      setDeleteError("Error de red al eliminar el usuario");
-    } finally {
-      setDeletingUserId(null);
-    }
   }
 
   async function handleConfirmDeleteInvitation() {
@@ -583,7 +560,6 @@ export function UserManagement() {
                               title="Eliminar comercial"
                               aria-label={`Eliminar comercial ${user.name}`}
                               onClick={() => {
-                                setDeleteError(null);
                                 setDeleteTarget(user);
                               }}
                             >
@@ -601,44 +577,17 @@ export function UserManagement() {
         </CardContent>
       </Card>
 
-      <AlertDialog
+      <DeleteComercialDialog
+        user={deleteTarget}
         open={deleteTarget !== null}
         onOpenChange={(open) => {
-          if (!open) {
-            setDeleteTarget(null);
-            setDeleteError(null);
-          }
+          if (!open) setDeleteTarget(null);
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar usuario?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Se eliminará automáticamente el comercial {deleteTarget?.name} ({deleteTarget?.email}).
-              Esta acción no se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError ? (
-            <p className="text-sm text-destructive" role="alert">
-              {deleteError}
-            </p>
-          ) : null}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingUserId !== null}>Cancelar</AlertDialogCancel>
-            <Button
-              variant="destructive"
-              disabled={deletingUserId !== null}
-              onClick={() => void handleConfirmDelete()}
-            >
-              {deletingUserId ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Eliminar"
-              )}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onDeleted={() => {
+          setDeleteTarget(null);
+          void fetchData();
+        }}
+      />
 
       {/* Pending Invitations */}
       <Card>

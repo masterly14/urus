@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { contratos as mockContratos } from "@/lib/mock-data/contratos";
 import type { Contrato, EstadoContrato } from "@/lib/mock-data/types";
 import type { LegalDocumentStatus } from "@prisma/client";
-import { ContratosListClient } from "./contratos-list-client";
+import { ContratosListClient } from "./contratos-list-client-v2";
 
 /**
  * Listado de contratos — server component.
@@ -53,10 +53,16 @@ async function loadRealContratos(): Promise<Contrato[]> {
     return {
       id: doc.id,
       operacion: doc.operationId,
-      tipo: (doc.documentKind === "arras" ? "arras" : "reserva") as "arras" | "reserva",
+      tipo: doc.documentKind,
+      documentKind: doc.documentKind,
       versionActual: doc.templateVersion ?? "v1",
       estado: STATUS_MAP[doc.status] ?? "borrador",
       fechaCreacion: doc.createdAt.toISOString(),
+      urls: {
+        cloudinary: doc.cloudinaryUrl,
+        signed: doc.signedDocumentUrl,
+        audit: doc.auditTrailUrl,
+      },
       comercial: "system",
       variables: { precio, comprador, vendedor },
       bloquesActivos: [],

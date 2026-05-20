@@ -533,13 +533,13 @@ async function step5_MicrositeGeneration(): Promise<void> {
       selectionToken = selection.token;
     }
 
-    const validationJobs = await prisma.jobQueue.findMany({
-      where: { type: "NOTIFY_MICROSITE_PENDING_VALIDATION" },
+    const sendJobs = await prisma.jobQueue.findMany({
+      where: { type: "SEND_MICROSITE_TO_BUYER" },
       orderBy: { createdAt: "desc" },
       take: 3,
     });
 
-    const hasValidationJob = validationJobs.some((j) => {
+    const hasSendJob = sendJobs.some((j) => {
       const p = j.payload as Record<string, unknown> | null;
       return p?.selectionId === selectionId;
     });
@@ -556,7 +556,7 @@ async function step5_MicrositeGeneration(): Promise<void> {
       `selection=${selection.id.slice(0, 8)}…`,
       `status=${selection.status}`,
       `props=${(selection.properties as unknown[])?.length ?? 0}`,
-      `validation_job=${hasValidationJob ? "OK" : "MISSING"}`,
+      `send_job=${hasSendJob ? "OK" : "MISSING"}`,
       sfxStatus,
     ].join(", ");
 

@@ -18,6 +18,7 @@ import { enqueueJob } from "@/lib/job-queue";
 import { runConsumerCycle } from "@/lib/workers/consumer";
 import { runProjectionCycle } from "@/lib/projections";
 import type { NLUResult } from "@/lib/agents/types";
+import { acquireE2ELock } from "./e2e-file-lock";
 
 vi.mock("@/lib/agents", () => ({
   classifyBuyerFeedback: vi.fn(),
@@ -34,6 +35,8 @@ const WA_ID = "34600999888";
 const PROPERTY_ID = "sfx-test-001";
 
 const createdEventIds: string[] = [];
+let releaseLock: (() => Promise<void>) | null = null;
+const previousConversationalFlag = process.env.CONVERSATIONAL_AGENT_ENABLED;
 
 async function cleanup() {
   await prisma.micrositeSelectionFeedback.deleteMany({
@@ -87,6 +90,8 @@ async function drainConsumer(maxCycles = 30): Promise<{ processed: number; faile
 }
 
 beforeAll(async () => {
+  releaseLock = await acquireE2ELock("consumer-microsite-e2e");
+  process.env.CONVERSATIONAL_AGENT_ENABLED = "false";
   await cleanup();
 
   await prisma.demandCurrent.create({
@@ -129,7 +134,6 @@ beforeAll(async () => {
       demandNombre: "Test Buyer",
       comercialId: "system",
       token: `fbk-test-${Date.now()}`,
-      validationToken: `val-test-${Date.now()}`,
       status: "APPROVED",
       buyerPhone: WA_ID,
       statefoxQuery: {},
@@ -163,10 +167,19 @@ beforeAll(async () => {
       selectionToken: selection.token,
     },
   });
-}, 30_000);
+}, 240_000);
 
 afterAll(async () => {
+  if (typeof previousConversationalFlag === "string") {
+    process.env.CONVERSATIONAL_AGENT_ENABLED = previousConversationalFlag;
+  } else {
+    delete process.env.CONVERSATIONAL_AGENT_ENABLED;
+  }
   await cleanup();
+  if (releaseLock) {
+    await releaseLock();
+    releaseLock = null;
+  }
   await prisma.$disconnect();
 }, 30_000);
 

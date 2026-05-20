@@ -24,7 +24,13 @@ const QUICK_LINKS = [
 ] as const;
 
 function labelFromPathname(pathname: string): string {
-    const segment = pathname.split("/").filter(Boolean).pop() ?? "Inicio";
+    const parts = pathname.split("/").filter(Boolean);
+    const segment = parts.pop() ?? "Inicio";
+    
+    if (parts.length > 0 && parts[parts.length - 1] === "operaciones" && segment.length > 10) {
+        return `Op. ${segment.slice(0, 6)}...`;
+    }
+
     const labels: Record<string, string> = {
         platform: "Inicio",
         operaciones: "Operaciones",

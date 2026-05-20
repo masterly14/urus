@@ -10,6 +10,7 @@ import {
   Users,
   Zap,
 } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import {
   Card,
   CardContent,
@@ -125,6 +126,15 @@ export default function HumanCapitalDashboard() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Capital Humano"
+        description="Estado emocional y riesgos operativos del equipo comercial."
+        breadcrumbs={[
+          { label: "Inicio", href: "/platform" },
+          { label: "BI", href: "/platform/bi" },
+          { label: "Capital Humano" },
+        ]}
+      />
       {/* ── KPIs ── */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>

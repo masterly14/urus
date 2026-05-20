@@ -2,11 +2,8 @@
  * Envío en caliente del microsite al comprador.
  *
  * Usado por:
- *  - `POST /api/validar-seleccion/[validationToken]` cuando el comercial
- *    aprueba la selección desde su WhatsApp (acción humana, requiere
- *    feedback inmediato).
- *  - `handleSendMicrositeToBuyer` (consumer) como fallback para la cola,
- *    p.ej. cuando lo dispara `lib/microsite/auto-validate.ts` (scheduled).
+ *  - `approveMicrositeByAI` para el flujo canónico IA-first.
+ *  - `handleSendMicrositeToBuyer` (consumer) para la cola y reintentos.
  *
  * Idempotencia: si ya existe un evento WHATSAPP_ENVIADO con
  * `kind = "microsite_link"` y `payload.selectionId = selection.id`,

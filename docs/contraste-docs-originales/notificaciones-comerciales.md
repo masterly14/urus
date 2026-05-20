@@ -31,8 +31,8 @@ El sistema notifica a los comerciales en múltiples puntos del flujo de negocio,
 
 | Notificación | Trigger | Contenido |
 |---|---|---|
-| Validación pendiente | `NOTIFY_MICROSITE_PENDING_VALIDATION` | Enlace a `/validar-seleccion/{token}` + SLA 2h |
-| Escalado validación | Cron SLA microsite | SLA vencido, validar urgente |
+| (Histórico) Validación pendiente | `NOTIFY_MICROSITE_PENDING_VALIDATION` | Flujo retirado: enlace `/validar-seleccion/{token}` + SLA 2h |
+| (Histórico) Escalado validación | Cron SLA microsite | Flujo retirado |
 
 ### Por Pricing (M7)
 

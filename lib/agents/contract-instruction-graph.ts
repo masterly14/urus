@@ -1,12 +1,13 @@
 /**
  * M8 — Grafo LangGraph: transcripción del gestor → parche estructurado sobre contrato.
- * Soporta arras, señal de compra y oferta en firme.
+ * Soporta arras, señal de compra, oferta en firme y anexo mobiliario.
  */
 
 import { Annotation, StateGraph, START, END } from "@langchain/langgraph";
 import { z } from "zod";
 import { llm } from "./llm";
 import { withRetry } from "./utils/retry";
+import { SECTION_ADDENDUM_TYPES } from "@/lib/contracts/section-addendums/types";
 import type {
   ContractInstructionGraphInput,
   ContractVoiceStructuredPatch,
@@ -17,6 +18,7 @@ const KEYS_HANDOVER_ENUM = z.enum([
   "by_agreement_same_as_deed_when_occurs",
   "separate_agreed_date",
 ]);
+const SECTION_ADDENDUM_TYPE_ENUM = z.enum(SECTION_ADDENDUM_TYPES);
 
 const ContractVoicePatchSchema = z.object({
   confidence: z.number().min(0).max(1).describe("Confianza global en la interpretación (0–1)."),
@@ -59,6 +61,29 @@ const ContractVoicePatchSchema = z.object({
   courtsMunicipality: z.string().nullable().describe("Municipio de los juzgados / fuero. null si no."),
 
   additionalClauseText: z.string().nullable().describe("Texto libre dictado por el comercial para agregar como clausula adicional al contrato. null si no dicto ninguna clausula nueva. Limpiar y formalizar el texto sin perder la intencion."),
+  sectionAddendumInstructions: z.array(
+    z.object({
+      sectionId: z.string().min(1),
+      type: SECTION_ADDENDUM_TYPE_ENUM,
+      text: z
+        .string()
+        .min(1)
+        .describe("Texto para insertar en la seccion indicada. Sin encabezados de numeracion."),
+    }),
+  ).describe("Lista de detalles por seccion que el comercial pidio anadir por voz. Vacio si no pidio ninguno."),
+
+  furnitureHasFurniture: z.boolean().nullable().describe("Si el anexo mobiliario declara que existe mobiliario negociado."),
+  furnitureOperationRef: z.string().nullable().describe("Referencia de operacion para anexo mobiliario."),
+  furniturePropertyAddressLine: z.string().nullable().describe("Direccion del inmueble en anexo mobiliario."),
+  furniturePartiesLine: z.string().nullable().describe("Linea resumida de partes en anexo mobiliario."),
+  furnitureItemsToAdd: z.array(
+    z.object({
+      description: z.string().min(1),
+      quantity: z.number().int().positive(),
+      includedInPurchasePrice: z.boolean(),
+      estimatedValueEur: z.number().positive().nullable().optional(),
+    }),
+  ).describe("Items de mobiliario que se deben anadir al anexo. Vacio si no hay nuevos items."),
 
   assistantMessage: z.string().describe("Mensaje conversacional para el comercial: confirma lo que entendiste, resume los cambios aplicados, o pregunta lo que falta. Habla en segunda persona, tono profesional pero cercano."),
   missingDataQuestions: z.array(z.string()).describe("Preguntas concretas sobre datos que faltan o estan incompletos en el contrato. Vacio si todo esta completo."),
@@ -100,6 +125,13 @@ function buildSystemPrompt(documentKind: string): string {
 - timelines.escrituraMaxNaturalDaysFromArrasSignature: días para escritura desde firma arras
 - fees (model "fixed_net" o "percent_of_final_price")
 - jurisdiction.courtsMunicipality: string`,
+    anexo_mobiliario: `Modelo anexo mobiliario:
+- flags.hasFurniture: boolean (si hay/no hay mobiliario negociado)
+- operationRef: referencia operacion
+- propertyAddressLine: direccion del inmueble
+- partiesLine: linea de partes
+- items[]: descripcion, cantidad, incluido en precio y valor estimado opcional
+- Si el comercial dicta "anade ... al anexo", usa furnitureItemsToAdd`,
   };
 
   return `Eres un asistente de contratos inmobiliarios para agentes comerciales en Espana.
@@ -121,6 +153,8 @@ Reglas:
 7. Campos que no aplican al tipo de documento "${documentKind}" deben venir en null.
 8. IMPORTANTE sobre ambiguousPoints: usa ambiguousPoints SOLO para cosas que realmente impiden actuar (por ejemplo, "cambia el precio" sin decir a cuanto). NO pongas erratas, correcciones ortograficas ni notas informativas en ambiguousPoints — esas van en assistantMessage. Si puedes interpretar la intencion del comercial con confianza, APLICA el cambio y comenta la correccion en assistantMessage.
 9. IMPORTANTE sobre additionalClauseText: cuando el comercial dicte una clausula, corrige ortografia y formaliza la redaccion juridica, pero MANTEN la intencion original. No dejes additionalClauseText en null si el comercial claramente pidio agregar una clausula, incluso si hay erratas en la transcripcion.
+10. Si el comercial pide ampliar una seccion concreta (ej. "en inmueble anade..."), rellena sectionAddendumInstructions con sectionId y texto formalizado.
+11. Si el documento es anexo_mobiliario, prioriza furniture* y furnitureItemsToAdd.
 
 Tono de assistantMessage:
 - Habla como un asistente real: "Listo, he actualizado el precio a 250.000 EUR" o "He anadido la clausula que me has indicado".
@@ -174,6 +208,14 @@ function emptyPatch(raw: Record<string, unknown>): ContractVoiceStructuredPatch 
     feesVatRatePercent: (raw.feesVatRatePercent as number | null) ?? null,
     courtsMunicipality: (raw.courtsMunicipality as string | null) ?? null,
     additionalClauseText: (raw.additionalClauseText as string | null) ?? null,
+    sectionAddendumInstructions:
+      (raw.sectionAddendumInstructions as ContractVoiceStructuredPatch["sectionAddendumInstructions"]) ?? [],
+    furnitureHasFurniture: (raw.furnitureHasFurniture as boolean | null) ?? null,
+    furnitureOperationRef: (raw.furnitureOperationRef as string | null) ?? null,
+    furniturePropertyAddressLine: (raw.furniturePropertyAddressLine as string | null) ?? null,
+    furniturePartiesLine: (raw.furniturePartiesLine as string | null) ?? null,
+    furnitureItemsToAdd:
+      (raw.furnitureItemsToAdd as ContractVoiceStructuredPatch["furnitureItemsToAdd"]) ?? [],
     assistantMessage: (raw.assistantMessage as string) ?? "",
     missingDataQuestions: (raw.missingDataQuestions as string[]) ?? [],
     ambiguousPoints: (raw.ambiguousPoints as string[]) ?? [],

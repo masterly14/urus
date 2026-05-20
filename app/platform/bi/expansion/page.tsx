@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -408,21 +409,28 @@ function ExpansionDashboardInner() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Expansión Geográfica"
+        description="Evaluación de readiness y recomendaciones de ciudades para expandir."
+        breadcrumbs={[
+          { label: "Inicio", href: "/platform" },
+          { label: "BI", href: "/platform/bi" },
+          { label: "Expansión" },
+        ]}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRegenerate}
+            disabled={regenerating}
+            className="gap-2"
+          >
+            {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Reevaluar expansión
+          </Button>
+        }
+      />
       {useMock && <MockBadge />}
-
-      <div className="flex items-center justify-between">
-        <div />
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRegenerate}
-          disabled={regenerating}
-          className="gap-2"
-        >
-          {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          Reevaluar expansión
-        </Button>
-      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <ReadinessCard

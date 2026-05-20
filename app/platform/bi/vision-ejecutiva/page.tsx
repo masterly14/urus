@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
     Activity,
@@ -14,17 +15,16 @@ import {
     Users,
     Wallet,
 } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { Semaforo } from "@/components/dashboard/semaforo";
 import { SimpleAreaChart } from "@/components/bi/charts";
-import { CeoSnapshotModal } from "@/components/bi/ceo-snapshot-modal";
 import { useCeoOverview } from "@/lib/hooks/use-ceo-overview";
-import { useCeoSnapshotStatus } from "@/lib/hooks/use-ceo-snapshot-status";
 import { formatEur } from "@/lib/utils/format";
-import type { CeoOverviewPayload, KpiValue, SemaforoStatus } from "@/lib/dashboard/ceo/types";
+import type { CeoOverviewPayload, KpiValue } from "@/lib/dashboard/ceo/types";
 import { datosFinancieros } from "@/lib/mock-data/financiero";
 import { financialData } from "@/lib/mock-data/bi";
 import { MockBadge } from "@/components/bi/mock-badge";
@@ -88,16 +88,9 @@ function VisionEjecutivaPageInner() {
     const searchParams = useSearchParams();
     const useMock = searchParams.get("mock") === "1";
 
-    const { data: apiData, loading, error, refetch } = useCeoOverview();
-    const { data: snapshotStatus, refetch: refetchStatus } = useCeoSnapshotStatus();
-    const [editModalOpen, setEditModalOpen] = useState(false);
+    const { data: apiData, loading, error } = useCeoOverview();
 
     const data: CeoOverviewPayload | null = useMock ? buildMockPayload() : apiData;
-
-    function handleSnapshotSuccess() {
-        void refetch();
-        void refetchStatus();
-    }
 
     if (!useMock && loading) {
         return (
@@ -135,6 +128,15 @@ function VisionEjecutivaPageInner() {
 
     return (
         <div className="space-y-6">
+            <PageHeader
+                title="Visión Ejecutiva"
+                description="Resumen de alto nivel del estado de la empresa."
+                breadcrumbs={[
+                    { label: "Inicio", href: "/platform" },
+                    { label: "BI", href: "/platform/bi" },
+                    { label: "Visión Ejecutiva" },
+                ]}
+            />
             {useMock && <MockBadge />}
             {/* KPIs principales */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -209,14 +211,16 @@ function VisionEjecutivaPageInner() {
                             </CardDescription>
                         </div>
                         <Button
+                            asChild
                             size="sm"
                             variant="ghost"
                             className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                            onClick={() => setEditModalOpen(true)}
-                            title="Editar datos financieros del periodo"
+                            title="Gestionar finanzas del periodo"
                         >
-                            <Pencil className="h-3.5 w-3.5" />
-                            Datos financieros
+                            <Link href="/platform/bi/financiero">
+                                <Pencil className="h-3.5 w-3.5" />
+                                Datos financieros
+                            </Link>
                         </Button>
                     </CardHeader>
                     <CardContent>
@@ -342,17 +346,6 @@ function VisionEjecutivaPageInner() {
                     </CardContent>
                 </Card>
             </div>
-
-            {/* Modal de edición de datos financieros */}
-            {snapshotStatus && (
-                <CeoSnapshotModal
-                    open={editModalOpen}
-                    onOpenChange={setEditModalOpen}
-                    periods={[snapshotStatus.previous, snapshotStatus.current]}
-                    defaultPeriod={snapshotStatus.current.period}
-                    onSuccess={handleSnapshotSuccess}
-                />
-            )}
         </div>
     );
 }

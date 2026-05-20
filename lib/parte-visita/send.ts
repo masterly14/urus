@@ -10,6 +10,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { resolveComercial } from "@/lib/routing/resolve-comercial";
+import { normalizeComercialWhatsappPhone } from "@/lib/routing/comercial-whatsapp";
 import {
   sendParteVisitaContexto,
   sendParteVisitaFlow,
@@ -55,6 +56,14 @@ export async function sendParteVisitaForSession(
     requireActive: false,
   });
   const agenteName = comercial?.nombre ?? "URUS Capital Group";
+  const comercialPhone = normalizeComercialWhatsappPhone(comercial);
+  if (!comercialPhone) {
+    return {
+      ok: false,
+      permanent: true,
+      error: `Comercial ${session.comercialId} sin teléfono WhatsApp para enviar parte de visita`,
+    };
+  }
 
   const fechaVisita = session.visitDateTime.toLocaleDateString("es-ES", {
     day: "2-digit",
@@ -86,13 +95,13 @@ export async function sendParteVisitaForSession(
   });
 
   try {
-    await sendParteVisitaContexto(session.buyerPhone, {
+    await sendParteVisitaContexto(comercialPhone, {
       sessionId: session.id,
       propertyRef: session.propertyRef,
       propertyTitle,
       propertyUrl,
     });
-    await sendParteVisitaFlow(session.buyerPhone, {
+    await sendParteVisitaFlow(comercialPhone, {
       sessionId: session.id,
       buyerName,
       direccion: session.direccion,
@@ -117,7 +126,7 @@ export async function sendParteVisitaForSession(
   });
 
   console.log(
-    `[parte-visita] Flow sent to buyer ${session.buyerPhone} — session=${sessionId}`,
+    `[parte-visita] Flow sent to comercial ${comercialPhone} — session=${sessionId}`,
   );
 
   return { ok: true, status: "sent" };

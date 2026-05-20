@@ -56,6 +56,7 @@ enum EventType {
   CONTRATO_VERSIONADO
   CONTRATO_APROBADO
   CONTRATO_CLAUSULAS_ADICIONALES_EDITADAS
+  CONTRATO_SECCION_AMPLIADA
   FIRMA_ENVIADA
   FIRMA_COMPLETADA
   FIRMA_RECHAZADA
@@ -123,7 +124,6 @@ enum JobType {
   NOTIFY_LEAD_WHATSAPP
   FOLLOW_UP_LEAD
   GENERATE_MICROSITE
-  NOTIFY_MICROSITE_PENDING_VALIDATION
   SEND_MICROSITE_TO_BUYER
   NOTIFY_CONTRACT_DATA_INCOMPLETE
   GENERATE_CONTRACT_DRAFT
@@ -156,7 +156,6 @@ enum JobType {
   NOTA_ENCARGO_ENVIAR_FORMULARIO
   NOTA_ENCARGO_MATCHING_CHECK
   PARTE_VISITA_ENVIAR_FORMULARIO
-  AUTO_VALIDATE_MICROSITE
   SEND_WHATSAPP_MATCH
   EVALUATE_DEMAND_COVERAGE
   REBUILD_MATCHES_FOR_DEMAND
@@ -177,6 +176,7 @@ enum JobType {
   MARKET_RUN_RULES
   MARKET_REINDEX_PROPERTY
   MARKET_PUSH_ADVERTISER_TO_INMOVILLA
+  TRANSFER_PROPERTY_AGENT
 }
 
 enum JobStatus {
@@ -910,6 +910,10 @@ model User {
   comercialId            String?            @unique
   contractTemplates      ContractTemplate[]
   assignedMarketListings MarketListing[]    @relation("MarketListingAssignedByUser")
+  prospectSentMarketListings MarketListing[] @relation("MarketListingProspectSentByUser")
+  incomeEntriesCreated   IncomeEntry[]      @relation("IncomeEntryCreatedBy")
+  treasuryBalances       TreasuryBalance[]  @relation("TreasuryBalanceUpdatedBy")
+  coachChatSessions      CoachChatSession[]
 
   @@map("user")
 }
@@ -984,45 +988,69 @@ model Invitation {
 }
 
 model Comercial {
-  id                    String    @id @default(cuid())
-  nombre                String
-  telefono              String    @default("")
-  email                 String    @default("")
-  ciudad                String
-  especialidad          String    @default("general")
-  activo                Boolean   @default(true)
-  cargaActual           Int       @default(0)
-  cargaMaxima           Int       @default(20)
-  leadsAsignados        Int       @default(0)
-  leadsCerrados         Int       @default(0)
-  tasaConversion        Float     @default(0)
+  id                   String    @id @default(cuid())
+  nombre               String
+  telefono             String    @default("")
+  email                String    @default("")
+  ciudad               String
+  especialidad         String    @default("general")
+  activo               Boolean   @default(true)
+  cargaActual          Int       @default(0)
+  cargaMaxima          Int       @default(20)
+  leadsAsignados       Int       @default(0)
+  leadsCerrados        Int       @default(0)
+  tasaConversion       Float     @default(0)
   /// WhatsApp ID del comercial (E.164 sin +, ej: "34612345678")
-  waId                  String?
+  waId                 String?
   /// Composio userId para la conexión OAuth de Google Calendar
-  composioConnectionId  String?
+  composioConnectionId String?
   /// Fecha en que el comercial autorizó su calendario via Composio
-  composioConnectedAt   DateTime?
+  composioConnectedAt  DateTime?
   /// Proveedor de calendario conectado (google | outlook)
-  calendarProvider      String?   @default("google")
+  calendarProvider     String?   @default("google")
   /// ID numérico del agente en Inmovilla (campo `keyagente` de la ficha de propiedad)
-  inmovillaAgentId      Int?      @unique
+  inmovillaAgentId     Int?      @unique
   /// Iniciales del comercial en las refs de Inmovilla (ej. "MA" → URUS111VMA). Patrón: URUS{num}{V|A}{refCode}
-  inmovillaRefCode      String?
-  /// Si true, los microsites de este comercial se validan automáticamente con IA
-  /// (descripciones generadas + rebranding) y se envían al comprador sin validación manual.
-  autoValidateMicrosite Boolean   @default(false)
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  inmovillaRefCode     String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   referrals              Referral[]
   user                   User?
   invitations            Invitation[]
   assignedMarketListings MarketListing[] @relation("MarketListingAssignedComercial")
+  coachChatSessions      CoachChatSession[]
 
   @@index([ciudad, activo])
   @@index([activo, cargaActual])
   @@index([waId])
   @@map("comerciales")
+}
+
+model ManualSyncTask {
+  id                     String               @id @default(cuid())
+  type                   ManualSyncTaskType
+  recordCode             String
+  recordRef              String?
+  targetComercialId      String
+  targetComercialName    String
+  targetInmovillaAgentId Int?
+  status                 ManualSyncTaskStatus @default(PENDING)
+  createdByUserId        String
+  doneByUserId           String?
+  doneAt                 DateTime?
+  note                   String               @default("")
+  source                 ManualSyncTaskSource
+  sourceUserId           String
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  @@unique([type, recordCode, targetComercialId, sourceUserId, source])
+  @@index([status])
+  @@index([targetComercialId])
+  @@index([createdAt])
+  @@index([sourceUserId])
+  @@map("manual_sync_tasks")
 }
 
 model InmovillaEnumCalidad {
@@ -1083,43 +1111,35 @@ model InmovillaEnumZona {
 }
 
 model MicrositeSelection {
-  id                     String                       @id @default(cuid())
+  id            String                       @id @default(cuid())
   /// * Token público para el comprador: /seleccion/{token}
-  token                  String                       @unique
-  status                 MicrositeSelectionStatus     @default(PENDING_VALIDATION)
-  demandId               String
-  demandNombre           String                       @default("")
-  comercialId            String                       @default("system")
+  token         String                       @unique
+  status        MicrositeSelectionStatus     @default(PENDING_VALIDATION)
+  demandId      String
+  demandNombre  String                       @default("")
+  comercialId   String                       @default("system")
   /// * Query params enviados a Statefox (/properties).
-  statefoxQuery          Json
+  statefoxQuery Json
   /// * Filtros aplicados en memoria (precio/metros/keywords...).
-  resultFilters          Json
+  resultFilters Json
   /// * Lista curada para renderizar el microsite.
-  properties             Json
-  stockCount             Int                          @default(0)
-  sourceEventId          String?
-  createdAt              DateTime                     @default(now())
-  updatedAt              DateTime                     @updatedAt
-  expiresAt              DateTime?
-  firstViewedAt          DateTime?
-  lastViewedAt           DateTime?
-  viewCount              Int                          @default(0)
-  /// * Token opaco para el comercial: /validar-seleccion/{validationToken}
-  validationToken        String                       @unique
+  properties    Json
+  stockCount    Int                          @default(0)
+  sourceEventId String?
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @updatedAt
+  expiresAt     DateTime?
+  firstViewedAt DateTime?
+  lastViewedAt  DateTime?
+  viewCount     Int                          @default(0)
   /// * Teléfono del comprador resuelto al crear la selección (envío WA).
-  buyerPhone             String                       @default("")
-  /// * SLA validación comercial: deadline = createdAt + 2h (M6).
-  validationDueAt        DateTime?
-  validatedAt            DateTime?
-  validatedByComercialId String?
-  escalatedAt            DateTime?
-  feedbacks              MicrositeSelectionFeedback[]
+  buyerPhone    String                       @default("")
+  feedbacks     MicrositeSelectionFeedback[]
   /// * Origen de la selección: "coverage_scan" | "visita_evaluada" | "feedback_loop" | null (legacy).
-  source                 String?
+  source        String?
 
   @@index([demandId, createdAt])
   @@index([token])
-  @@index([status, validationDueAt])
   @@index([demandId, source, createdAt])
   @@map("microsite_selections")
 }
@@ -1188,6 +1208,14 @@ model LegalDocument {
   /// mientras el documento esté en DRAFT.
   additionalClausesDoc       Json?
   additionalClausesUpdatedAt DateTime?
+  /// Detalles añadidos por el comercial dentro de secciones específicas
+  /// del contrato (ej. ampliar el apartado INMUEBLE con datos registrales
+  /// extra o anejos). Estructurado: array de { id, sectionId, type,
+  /// contentDoc (subset TipTap), updatedAtIso? }. sectionId queda validado
+  /// contra el catálogo de cada documentKind en la API. Editable solo
+  /// mientras el documento esté en DRAFT.
+  sectionAddendums           Json?
+  sectionAddendumsUpdatedAt  DateTime?
   cloudinaryUrl              String?
   signedDocumentUrl          String?
   auditTrailUrl              String?
@@ -1526,6 +1554,22 @@ enum OperacionEstado {
   CANCELADA
 }
 
+enum ManualSyncTaskType {
+  PROPERTY
+  DEMAND
+}
+
+enum ManualSyncTaskStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  BLOCKED
+}
+
+enum ManualSyncTaskSource {
+  COMERCIAL_DELETE_TRANSFER
+}
+
 model Operacion {
   id             String          @id @default(cuid())
   codigo         String          @unique
@@ -1837,6 +1881,203 @@ model CeoTarget {
   @@map("ceo_targets")
 }
 
+enum ExpenseStatus {
+  EXPECTED
+  PENDING_CONFIRMATION
+  CONFIRMED
+  NEEDS_CORRECTION
+  CANCELLED
+}
+
+enum ExpensePromptType {
+  CONFIRMATION
+  CORRECTION
+  CLARITY_REQUEST
+}
+
+enum ExpenseCostType {
+  FIJO
+  VARIABLE
+}
+
+enum ExpenseBucket {
+  FACTURA
+  SUSCRIPCION
+  GASTO_VARIABLE
+  AHORRO
+  DEUDA
+}
+
+enum FinanceBudgetBucket {
+  INGRESOS
+  FACTURA
+  SUSCRIPCION
+  GASTO_VARIABLE
+  AHORRO
+  DEUDA
+}
+
+model Expense {
+  id              String        @id @default(cuid())
+  waId            String
+  sourceMessageId String        @unique
+  amount          Decimal       @db.Decimal(12, 2)
+  currency        String        @default("EUR")
+  category        String
+  bucket          ExpenseBucket @default(GASTO_VARIABLE)
+  costType        ExpenseCostType @default(VARIABLE)
+  accountId       String?
+  recurringExpenseId String?
+  description     String
+  vendor          String?
+  expenseDate     DateTime
+  status          ExpenseStatus @default(PENDING_CONFIRMATION)
+  rawInput        Json
+  aiConfidence    Float?
+  createdByRole   String        @default("ceo")
+  confirmedAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  account     BankAccount?       @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  recurringExpense RecurringExpense? @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
+  attachments ExpenseAttachment[]
+
+  @@index([waId, createdAt])
+  @@index([waId, status])
+  @@index([bucket])
+  @@index([accountId, expenseDate])
+  @@index([recurringExpenseId, expenseDate])
+  @@map("expenses")
+}
+
+model RecurringExpense {
+  id                  String        @id @default(cuid())
+  name                String
+  vendor              String
+  amountEur           Decimal       @db.Decimal(12, 2)
+  dayOfMonth          Int
+  category            String
+  bucket              ExpenseBucket @default(FACTURA)
+  accountId           String?
+  active              Boolean       @default(true)
+  lastGeneratedPeriod String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  account  BankAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  expenses Expense[]
+
+  @@index([active, dayOfMonth])
+  @@index([lastGeneratedPeriod])
+  @@map("recurring_expenses")
+}
+
+model MonthlyBudget {
+  id        String             @id @default(cuid())
+  period    String
+  bucket    FinanceBudgetBucket
+  budgetEur Decimal            @db.Decimal(12, 2)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@unique([period, bucket])
+  @@index([period])
+  @@map("monthly_budgets")
+}
+
+model BankAccount {
+  id          String   @id @default(cuid())
+  name        String
+  bankName    String?
+  ownerScope  String   @default("EMPRESA")
+  accountType String   @default("CORRIENTE")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  expenses Expense[]
+  incomes  IncomeEntry[]
+  recurringExpenses RecurringExpense[]
+
+  @@index([isActive, name])
+  @@map("bank_accounts")
+}
+
+model IncomeEntry {
+  id              String   @id @default(cuid())
+  period          String
+  occurredAt      DateTime
+  amount          Decimal  @db.Decimal(12, 2)
+  currency        String   @default("EUR")
+  source          String
+  description     String
+  accountId       String?
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  account       BankAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  createdByUser User? @relation("IncomeEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([period, occurredAt])
+  @@index([accountId, occurredAt])
+  @@index([createdByUserId])
+  @@map("income_entries")
+}
+
+model TreasuryBalance {
+  id              String   @id @default(cuid())
+  period          String   @unique
+  openingBalanceEur Decimal @db.Decimal(12, 2)
+  notes           String?
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  updatedByUser User? @relation("TreasuryBalanceUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([updatedByUserId])
+  @@map("treasury_balances")
+}
+
+model ExpenseAttachment {
+  id            String   @id @default(cuid())
+  expenseId     String
+  expense       Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  mediaType     String
+  metaMediaId   String?
+  cloudinaryUrl String?
+  mimeType      String
+  sha256        String?
+  filename      String?
+  sizeBytes     Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([expenseId])
+  @@index([metaMediaId])
+  @@index([sha256])
+  @@map("expense_attachments")
+}
+
+model ExpenseConversationState {
+  id               String            @id @default(cuid())
+  waId             String            @unique
+  draft            Json
+  attemptCount     Int               @default(0)
+  lastPromptType   ExpensePromptType @default(CONFIRMATION)
+  pendingMessageId String?
+  lastMessageId    String?
+  expiresAt        DateTime
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([expiresAt])
+  @@index([waId, updatedAt])
+  @@map("expense_conversation_states")
+}
+
 model WhatsAppBuyerSession {
   id                         String    @id @default(cuid())
   waId                       String    @unique
@@ -1873,6 +2114,43 @@ model MentalHealthSession {
 
   @@index([waId, lastMessageAt])
   @@map("mental_health_sessions")
+}
+
+model CoachChatSession {
+  id            String             @id @default(cuid())
+  userId        String
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comercialId   String?
+  comercial     Comercial?         @relation(fields: [comercialId], references: [id], onDelete: Cascade)
+  isActive      Boolean            @default(true)
+  flujoActivo   String?
+  flujoStep     Int?
+  subtipoBloqueo String?
+  nivelEnergia  Int?
+  turnCount     Int                @default(0)
+  lastMessageAt DateTime           @default(now())
+  closedAt      DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  messages      CoachChatMessage[]
+
+  @@index([userId, isActive])
+  @@index([comercialId, isActive])
+  @@index([lastMessageAt])
+  @@map("coach_chat_sessions")
+}
+
+model CoachChatMessage {
+  id         String            @id @default(cuid())
+  sessionId  String
+  session    CoachChatSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role       String
+  text       String
+  metadata   Json?
+  createdAt  DateTime          @default(now())
+
+  @@index([sessionId, createdAt])
+  @@map("coach_chat_messages")
 }
 
 model EvalRun {
@@ -2416,6 +2694,8 @@ model MarketListing {
 
   captacionStage           MarketCaptacionStage @default(NEW)
   inmovillaProspectRef     String?
+  captacionProspectSentByUserId String?
+  captacionProspectSentAt  DateTime?
   inmovillaPropertyCodOfer Int?
   captacionLastError       String?
   /// Razon explicita del comercial cuando descarta la oportunidad (move a FAILED
@@ -2436,6 +2716,7 @@ model MarketListing {
   advertiser        MarketAdvertiser?      @relation(fields: [advertiserId], references: [id], onDelete: SetNull)
   assignedComercial Comercial?             @relation("MarketListingAssignedComercial", fields: [assignedComercialId], references: [id], onDelete: SetNull)
   assignedByUser    User?                  @relation("MarketListingAssignedByUser", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  prospectSentByUser User?                 @relation("MarketListingProspectSentByUser", fields: [captacionProspectSentByUserId], references: [id], onDelete: SetNull)
   versions          MarketListingVersion[]
   images            MarketListingImage[]
 
@@ -2451,6 +2732,7 @@ model MarketListing {
   @@index([inmovillaPropertyCodOfer])
   @@index([assignedComercialId, lastSeenAt])
   @@index([assignedByUserId])
+  @@index([captacionProspectSentByUserId, captacionProspectSentAt])
   @@index([geohash])
   @@index([listingReference])
   @@index([cadastralRef])

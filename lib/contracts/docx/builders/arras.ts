@@ -29,9 +29,18 @@ import {
   additionalClausesNumberingConfig,
   buildAdditionalClausesParagraphs,
 } from "@/lib/contracts/additional-clauses/docx-serializer";
+import { buildLetterSectionProperties } from "@/lib/contracts/docx/document-defaults";
+import type { SectionAddendumsList } from "@/lib/contracts/section-addendums/types";
+import { buildSectionAddendumParagraphs } from "@/lib/contracts/section-addendums/docx-serializer";
 
 export interface BuildArrasDocumentOptions {
   additionalClausesDoc?: AdditionalClausesDoc | null;
+  /**
+   * Bloques añadidos por el comercial dentro de una sección concreta
+   * (ej. ampliar "INMUEBLE" con datos registrales extra, anejos, etc.).
+   * Cada bloque se inyecta justo antes de cerrar su sección.
+   */
+  sectionAddendums?: SectionAddendumsList | null;
 }
 
 export interface ArrasRenderModel {
@@ -131,6 +140,10 @@ export async function buildArrasDocument(
     options.additionalClausesDoc ?? null,
   );
 
+  const addendums = options.sectionAddendums ?? null;
+  const sectionAddendum = (sectionId: string): Paragraph[] =>
+    buildSectionAddendumParagraphs(addendums, sectionId);
+
   return new Document({
     styles: {
       default: {
@@ -151,7 +164,7 @@ export async function buildArrasDocument(
     numbering: additionalClausesNumberingConfig,
     sections: [
       {
-        properties: {},
+        properties: buildLetterSectionProperties(),
         children: [
           ...logoHeader,
           new Paragraph({
@@ -164,11 +177,13 @@ export async function buildArrasDocument(
           body(p[0]),
           body(p[1]),
           body(p[2]),
+          ...sectionAddendum("parties"),
           heading("INMUEBLE"),
           body(p[3]),
           body(p[4]),
           body(p[5]),
           body(p[6]),
+          ...sectionAddendum("property"),
           heading("ESTIPULACIONES"),
           heading("PRIMERA.- PRECIO Y ARRAS"),
           body(p[7]),
@@ -176,19 +191,26 @@ export async function buildArrasDocument(
           body(p[9]),
           body(p[10]),
           body(p[11]),
+          ...sectionAddendum("stipulation_first"),
           heading("SEGUNDA.- PLAZO PARA ESCRITURA"),
           body(p[12]),
           body(p[13]),
+          ...sectionAddendum("stipulation_second"),
           heading("TERCERA.- ENTREGA DE LLAVES"),
           body(p[14]),
+          ...sectionAddendum("stipulation_third"),
           heading("CUARTA.- GASTOS E IMPUESTOS"),
           body(p[15]),
+          ...sectionAddendum("stipulation_fourth"),
           heading("QUINTA.- CARGAS"),
           body(p[16]),
+          ...sectionAddendum("stipulation_fifth"),
           heading("SEXTA.- ESTADO DEL INMUEBLE"),
           body(p[17]),
+          ...sectionAddendum("stipulation_sixth"),
           heading("SEPTIMA.- FUERO"),
           body(p[18]),
+          ...sectionAddendum("stipulation_seventh"),
           ...additionalClausesParagraphs,
           body(p[19]),
           new Paragraph({

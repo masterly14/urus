@@ -16,8 +16,8 @@ import { z } from "zod";
 import { classifyBuyerFeedback } from "@/lib/agents/nlu-graph";
 import type { ToolExecutionContext } from "@/lib/agents/conversational-tools";
 import {
-  MICROSITE_HANDOFF_ETA_MINUTES,
-  MICROSITE_HANDOFF_STANDARD_MESSAGE,
+  MICROSITE_DELIVERY_ETA_MINUTES,
+  MICROSITE_DELIVERY_STANDARD_MESSAGE,
 } from "@/lib/agents/conversational-operational-constants";
 import type { PropertySummaryForNLU } from "@/lib/agents/types";
 
@@ -134,15 +134,16 @@ export function createMockConversationalTools(ctx: ToolExecutionContext): Struct
         eventId,
         updatedVariables: variables,
         triggersNewSelection: true,
-        humanValidationRequired: true,
-        estimatedHandoffMinutes: MICROSITE_HANDOFF_ETA_MINUTES,
+        autoApprovedByAI: true,
+        estimatedDeliveryMinutes: MICROSITE_DELIVERY_ETA_MINUTES,
         currentSelectionCompatibleCount: compat.compatibleCount,
         currentSelectionTotal: compat.total,
-        message: MICROSITE_HANDOFF_STANDARD_MESSAGE,
+        message: MICROSITE_DELIVERY_STANDARD_MESSAGE,
         agentGuidance:
           "NO llames request_more_options ni update_demand otra vez en este turno: la nueva selección " +
-          "ya se genera automáticamente. Confirma al comprador el ajuste entendido + validación humana + " +
-          `plazo ~${MICROSITE_HANDOFF_ETA_MINUTES} min.` +
+          "ya se genera y se envía sola al comprador por WhatsApp. Confirma al comprador el ajuste entendido, " +
+          `anuncia en primera persona que se las pasas aquí en unos minutos (~${MICROSITE_DELIVERY_ETA_MINUTES} min). ` +
+          "PROHIBIDO mencionar revisión humana / compañero del equipo." +
           (compat.compatibleCount === 0
             ? " Con los nuevos criterios ninguna de las opciones actuales encaja, dilo."
             : ""),
@@ -174,17 +175,18 @@ export function createMockConversationalTools(ctx: ToolExecutionContext): Struct
       const jobId = nextMockJobId();
       const compat = analyzeCompatibility(ctx.properties, newConstraints);
       return JSON.stringify({
-        status: "queued_for_validation",
+        status: "queued_for_delivery",
         jobId,
         type: "GENERATE_MICROSITE",
-        humanValidationRequired: true,
-        estimatedHandoffMinutes: MICROSITE_HANDOFF_ETA_MINUTES,
+        autoApprovedByAI: true,
+        estimatedDeliveryMinutes: MICROSITE_DELIVERY_ETA_MINUTES,
         currentSelectionCompatibleCount: compat.compatibleCount,
         currentSelectionTotal: compat.total,
-        message: MICROSITE_HANDOFF_STANDARD_MESSAGE,
+        message: MICROSITE_DELIVERY_STANDARD_MESSAGE,
         agentGuidance:
-          "Responde al comprador reconociendo lo pedido + validación humana + " +
-          `plazo ~${MICROSITE_HANDOFF_ETA_MINUTES} min.` +
+          "Responde al comprador reconociendo lo pedido y anuncia en primera persona que TÚ se las " +
+          `buscas y se las pasas aquí mismo en unos minutos (~${MICROSITE_DELIVERY_ETA_MINUTES} min). ` +
+          "PROHIBIDO mencionar revisión humana / compañero del equipo." +
           (compat.compatibleCount === 0
             ? " Con las restricciones indicadas ninguna de las opciones actuales encaja, dilo."
             : "") +

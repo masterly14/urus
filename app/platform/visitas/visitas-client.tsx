@@ -29,6 +29,12 @@ import { GlobalDemandSelector, type GlobalDemandOption } from "@/components/dema
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { VisitPropertyGallery } from "@/app/platform/visitas/visit-property-gallery";
+import { PageHeader } from "@/components/layout/page-header";
+import { KpiCard } from "@/components/ui/kpi-card";
+import { StatusBadge, type StatusBadgeVariant } from "@/components/ui/status-badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 type VisitStatus =
   | "INCOMPLETE"
@@ -253,11 +259,14 @@ function normalizePhoneForInmovillaClientUpdate(phone: string): { telefono1: num
   return { telefono1: Number(digits) };
 }
 
-function statusVariant(status: VisitStatus): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "INCOMPLETE" || status === "DECIDED_RED") return "destructive";
-  if (status === "PENDING_SCHEDULE") return "default";
-  if (status === "SCHEDULED" || status === "COMPLETED") return "secondary";
-  return "outline";
+function statusVariant(status: VisitStatus): StatusBadgeVariant {
+  if (status === "INCOMPLETE" || status === "DECIDED_RED") return "danger";
+  if (status === "PENDING_SCHEDULE") return "warning";
+  if (status === "SCHEDULED" || status === "COMPLETED") return "info";
+  if (status === "DECIDED_GREEN") return "success";
+  if (status === "DECIDED_YELLOW") return "warning";
+  if (status === "CANCELLED") return "neutral";
+  return "neutral";
 }
 
 function InlineHelp({ text }: { text: string }) {
@@ -906,10 +915,6 @@ export function VisitasClient() {
       setError("Selecciona una visita pre-creada para cancelar.");
       return;
     }
-    const confirmed = window.confirm(
-      "¿Seguro que quieres cancelar esta visita? Esta acción cancela la sesión actual.",
-    );
-    if (!confirmed) return;
 
     setCancelling(true);
     setError(null);
@@ -1177,18 +1182,20 @@ export function VisitasClient() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Visitas</h1>
-          <p className="text-sm text-muted-foreground">
-            Gestiona visitas por programar y registra el horario ya coordinado con propietario o agencia.
-          </p>
-        </div>
-        <Button onClick={openManualCreate} disabled={submitting || manualLoading}>
-          <Plus className="mr-2 h-4 w-4" />
-          Crear visita manual
-        </Button>
-      </div>
+      <PageHeader
+        title="Visitas"
+        description="Gestiona visitas por programar y registra el horario ya coordinado con propietario o agencia."
+        breadcrumbs={[
+          { label: "Inicio", href: "/platform" },
+          { label: "Visitas" },
+        ]}
+        actions={
+          <Button onClick={openManualCreate} disabled={submitting || manualLoading}>
+            <Plus className="mr-2 h-4 w-4" />
+            Crear visita manual
+          </Button>
+        }
+      />
 
       {error ? (
         <div className="rounded-lg border border-urus-danger/30 bg-urus-danger/10 p-3 text-sm text-urus-danger">
@@ -1202,30 +1209,27 @@ export function VisitasClient() {
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="border-border/25 bg-card/90">
-          <CardContent className="p-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Para hoy</p>
-            <p className="mt-1 text-2xl font-semibold">{todaysVisits.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/25 bg-card/90">
-          <CardContent className="p-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Pendientes de agenda</p>
-            <p className="mt-1 text-2xl font-semibold">{pendingScheduleVisits.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/25 bg-card/90">
-          <CardContent className="p-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Realizadas / decididas</p>
-            <p className="mt-1 text-2xl font-semibold">{completedVisits.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/25 bg-card/90">
-          <CardContent className="p-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Con documentación</p>
-            <p className="mt-1 text-2xl font-semibold">{documentedVisits.length}</p>
-          </CardContent>
-        </Card>
+        <KpiCard
+          label="Para hoy"
+          value={todaysVisits.length}
+          icon={<CalendarCheck />}
+        />
+        <KpiCard
+          label="Pendientes de agenda"
+          value={pendingScheduleVisits.length}
+          icon={<AlertTriangle />}
+          state={pendingScheduleVisits.length > 0 ? "warning" : "default"}
+        />
+        <KpiCard
+          label="Realizadas / decididas"
+          value={completedVisits.length}
+          icon={<CircleHelp />}
+        />
+        <KpiCard
+          label="Con documentación"
+          value={documentedVisits.length}
+          icon={<ExternalLink />}
+        />
       </div>
 
       {showManualCreate ? (
@@ -1595,14 +1599,18 @@ export function VisitasClient() {
               </Button>
             </div>
             {loading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Cargando...
+              <div className="space-y-3">
+                <Skeleton className="h-[120px] w-full rounded-lg" />
+                <Skeleton className="h-[120px] w-full rounded-lg" />
+                <Skeleton className="h-[120px] w-full rounded-lg" />
               </div>
             ) : paginatedItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No hay visitas por programar para los filtros actuales.
-              </p>
+              <EmptyState
+                icon={CalendarCheck}
+                title="No hay visitas"
+                description="No hay visitas por programar para los filtros actuales."
+                className="py-12"
+              />
             ) : (
               paginatedItems.map((item) => (
                 <button
@@ -1627,10 +1635,10 @@ export function VisitasClient() {
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{item.buyerName || item.demandId || item.draftDemandId}</span>
-                    <Badge variant={statusVariant(item.status)}>{statusLabel[item.status]}</Badge>
-                    {item.source === "legacy_interest" ? <Badge variant="outline">Legacy</Badge> : null}
-                    {item.draftDemandId ? <Badge variant="outline">Demanda provisional</Badge> : null}
-                    {item.draftPropertyId ? <Badge variant="outline">Propiedad provisional</Badge> : null}
+                    <StatusBadge variant={statusVariant(item.status)}>{statusLabel[item.status]}</StatusBadge>
+                    {item.source === "legacy_interest" ? <StatusBadge variant="neutral">Legacy</StatusBadge> : null}
+                    {item.draftDemandId ? <StatusBadge variant="neutral">Demanda provisional</StatusBadge> : null}
+                    {item.draftPropertyId ? <StatusBadge variant="neutral">Propiedad provisional</StatusBadge> : null}
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
                     {item.propertySnapshot.title}
@@ -1718,23 +1726,37 @@ export function VisitasClient() {
                       </Button>
                     ) : null}
                     {selectedCanCancel ? (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        disabled={cancelling || rescheduling || submitting}
-                        onClick={() => void cancelVisit()}
-                      >
-                        {cancelling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Cancelar
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            disabled={cancelling || rescheduling || submitting}
+                          >
+                            {cancelling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Cancelar
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>¿Cancelar visita programada?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              ¿Seguro que quieres cancelar esta visita? Esta acción cancela la sesión actual y no se puede deshacer.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Volver</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => void cancelVisit()}>Sí, cancelar</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     ) : null}
                     {selectedCanDecide ? (
                       <>
                         <Button
                           type="button"
-                          variant="outline"
+                          variant="secondary"
                           disabled={Boolean(deciding)}
-                          className="border-urus-success/50 bg-urus-success/15 text-urus-success hover:bg-urus-success/25 hover:text-urus-success"
                           onClick={() => void decide("green")}
                         >
                           {deciding === "green" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -1742,9 +1764,8 @@ export function VisitasClient() {
                         </Button>
                         <Button
                           type="button"
-                          variant="outline"
+                          variant="secondary"
                           disabled={Boolean(deciding)}
-                          className="border-urus-warning/50 bg-urus-warning/15 text-urus-warning hover:bg-urus-warning/25 hover:text-urus-warning"
                           onClick={() => {
                             setShowYellowContext(true);
                             setError(null);
@@ -1773,9 +1794,8 @@ export function VisitasClient() {
                         </TooltipProvider>
                         <Button
                           type="button"
-                          variant="outline"
+                          variant="destructive"
                           disabled={Boolean(deciding)}
-                          className="border-urus-danger/50 bg-urus-danger/15 text-urus-danger hover:bg-urus-danger/25 hover:text-urus-danger"
                           onClick={() => void decide("red")}
                         >
                           {deciding === "red" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

@@ -357,11 +357,11 @@ registerHandler("POST_VISITA_DECIDIDA", auditOnlyHandler("decision post-visita r
 registerHandler("DEMANDA_REPERFILADO_SOLICITADO", handleDemandaReperfiladoSolicitado);
 registerHandler("DEMANDA_BAJA_SOLICITADA", auditOnlyHandler("baja ejecutada por servicio de decision post-visita"));
 registerHandler("SELECCION_COMPRADOR", handleSeleccionComprador);
-registerHandler("SELECCION_VALIDADA", auditOnlyHandler("side effects en API route /validar-seleccion: DB update + job SEND_MICROSITE_TO_BUYER"));
-registerHandler("SELECCION_RECHAZADA", auditOnlyHandler("side effects en API route /validar-seleccion: DB update a REJECTED"));
+registerHandler("SELECCION_VALIDADA", auditOnlyHandler("side effects ya aplicados en flujo IA (approve + send)"));
+registerHandler("SELECCION_RECHAZADA", auditOnlyHandler("evento legacy sin side effects activos"));
 registerHandler(
   "SELECCION_MICROSITE_DESCRIPCIONES_EDITADAS",
-  auditOnlyHandler("side effects en API route PATCH /validar-seleccion: properties JSON actualizado"),
+  auditOnlyHandler("evento legacy sin side effects activos"),
 );
 
 // --- Smart Closing (M8) ---

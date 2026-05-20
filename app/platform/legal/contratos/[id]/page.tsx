@@ -6,9 +6,7 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
-  ClipboardList,
   ExternalLink,
-  FileText,
   History,
   Loader2,
   MessageSquare,
@@ -30,10 +28,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DocxPreviewPanel } from "@/components/legal/smart-closing/docx-preview-panel";
-import { PayloadSummaryFields } from "@/components/legal/smart-closing/payload-summary-fields";
 import { SmartClosingVoicePanel } from "@/components/legal/smart-closing/voice-panel";
 import { VersionHistoryPanel } from "@/components/legal/smart-closing/version-history-panel";
-import { AdditionalClausesEditor } from "@/components/legal/smart-closing/additional-clauses-editor";
+import { InlineSectionAddendumEditor } from "@/components/legal/smart-closing/inline-section-addendum-editor";
+import { InlineAdditionalClauseEditor } from "@/components/legal/smart-closing/inline-additional-clause-editor";
+import { InlinePayloadFieldEditor } from "@/components/legal/smart-closing/inline-payload-field-editor";
+import {
+  buildClauseHeadingText,
+  getDefaultAdditionalClauseStartNumber,
+  getNextAdditionalClauseNumber,
+  listAdditionalClauseSegments,
+  removeAdditionalClauseByNumber,
+} from "@/lib/contracts/additional-clauses/clause-numbering";
 import {
   useSmartClosingSession,
   type SmartClosingVersioningContext,
@@ -41,8 +47,40 @@ import {
 } from "@/components/legal/smart-closing/use-smart-closing-session";
 import type { SmartClosingContractDetailDto } from "@/lib/legal/smart-closing/contracts-api";
 import type { ContractTemplateInput } from "@/types/contracts";
-import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
+import {
+  isAdditionalClausesDocEmpty,
+  type AdditionalClausesDoc,
+} from "@/lib/contracts/additional-clauses/types";
+import type {
+  SectionAddendum,
+  SectionAddendumsList,
+} from "@/lib/contracts/section-addendums/types";
 import { cn } from "@/lib/utils";
+
+function generateLocalAddendumId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `addendum_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getAddendumPreviewText(addendum: SectionAddendum): string {
+  const text = (addendum.contentDoc.content ?? [])
+    .map((block) => {
+      if (block.type === "paragraph") {
+        return (block.content ?? [])
+          .filter((n) => n.type === "text")
+          .map((n) => n.text ?? "")
+          .join(" ");
+      }
+      return "";
+    })
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return "Detalle sin texto";
+  return text.length > 96 ? `${text.slice(0, 96)}...` : text;
+}
 
 function extractPrimarySignerName(input: ContractTemplateInput): string {
   switch (input.kind) {
@@ -64,7 +102,7 @@ const KIND_LABEL: Record<string, string> = {
   anexo_mobiliario: "Anexo mobiliario",
 };
 
-type SidebarTab = "assistant" | "data" | "history";
+type SidebarTab = "assistant" | "history";
 
 function SmartClosingContractDetail({
   contract,
@@ -125,7 +163,6 @@ function SmartClosingContractDetail({
     previewHtml,
     lastPatch,
     appliedSummaries,
-    validationIssues,
     clarificationQuestions,
     assistantMessage,
     missingDataQuestions,
@@ -141,22 +178,157 @@ function SmartClosingContractDetail({
     sendToSignature,
     applyAdditionalClausesDoc,
     currentAdditionalClausesDoc,
+    applySectionAddendums,
+    currentSectionAddendums,
+    previewFieldAnchors,
   } = useSmartClosingSession(initialTemplate, {
+    contractId: contract.id,
+    contractStatus: contract.status,
     versioningContext,
     initialAdditionalClausesDoc: contract.additionalClausesDoc,
+    initialSectionAddendums: contract.sectionAddendums,
   });
 
-  const clausesRerenderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleClausesPersisted = useCallback(
-    (_updatedAt: string | null, doc: AdditionalClausesDoc | null) => {
-      if (clausesRerenderTimerRef.current) {
-        clearTimeout(clausesRerenderTimerRef.current);
+  const startingClauseNumber = useMemo(
+    () => getDefaultAdditionalClauseStartNumber(docState.contractTemplateInput),
+    [docState.contractTemplateInput],
+  );
+
+  const getCurrentAdditionalClausesDoc = useCallback(
+    () => currentAdditionalClausesDoc ?? contract.additionalClausesDoc,
+    [contract.additionalClausesDoc, currentAdditionalClausesDoc],
+  );
+  const getCurrentSectionAddendums = useCallback(
+    () => (currentSectionAddendums ?? contract.sectionAddendums) as SectionAddendumsList,
+    [contract.sectionAddendums, currentSectionAddendums],
+  );
+  const currentAdditionalClauses = useMemo(
+    () => listAdditionalClauseSegments(getCurrentAdditionalClausesDoc()),
+    [getCurrentAdditionalClausesDoc],
+  );
+
+  const canEditSectionDetails = !approved && contract.status === "DRAFT";
+  const canEditAdditionalClauses = canEditSectionDetails;
+
+  const handleInlineClauseSave = useCallback(
+    async (title: string, contentDoc: AdditionalClausesDoc) => {
+      const currentDoc = getCurrentAdditionalClausesDoc();
+      const nextClauseNumber = getNextAdditionalClauseNumber(currentDoc, startingClauseNumber);
+      const headingText = buildClauseHeadingText(nextClauseNumber, title);
+
+      const baseBlocks =
+        currentDoc && !isAdditionalClausesDocEmpty(currentDoc)
+          ? (currentDoc.content ?? [])
+          : [];
+
+      const nextDoc: AdditionalClausesDoc = {
+        type: "doc",
+        content: [
+          ...baseBlocks,
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: headingText, marks: [{ type: "bold" }] }],
+          },
+          { type: "paragraph" },
+          ...(contentDoc.content ?? []),
+        ],
+      };
+
+      const response = await fetch(`/api/contracts/${contract.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ additionalClausesDoc: nextDoc }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? `Error HTTP ${response.status}`);
       }
-      clausesRerenderTimerRef.current = setTimeout(() => {
-        void applyAdditionalClausesDoc(doc);
-      }, 300);
+
+      await applyAdditionalClausesDoc(nextDoc);
     },
-    [applyAdditionalClausesDoc],
+    [applyAdditionalClausesDoc, contract.id, getCurrentAdditionalClausesDoc, startingClauseNumber],
+  );
+  const handleInlineClauseDelete = useCallback(
+    async (clauseNumber: number) => {
+      const currentDoc = getCurrentAdditionalClausesDoc();
+      const nextDoc = removeAdditionalClauseByNumber(currentDoc, clauseNumber);
+
+      const response = await fetch(`/api/contracts/${contract.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ additionalClausesDoc: nextDoc }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? `Error HTTP ${response.status}`);
+      }
+
+      await applyAdditionalClausesDoc(nextDoc);
+    },
+    [applyAdditionalClausesDoc, contract.id, getCurrentAdditionalClausesDoc],
+  );
+  const handleDeleteClauseFromPreview = useCallback(
+    async (clauseNumber: number) => {
+      const confirmed = window.confirm(
+        `¿Seguro que quieres eliminar la cláusula ${clauseNumber}?`,
+      );
+      if (!confirmed) return;
+      await handleInlineClauseDelete(clauseNumber);
+    },
+    [handleInlineClauseDelete],
+  );
+  const handleInlineAddendumSave = useCallback(
+    async (sectionId: string, contentDoc: AdditionalClausesDoc) => {
+      const baseList = getCurrentSectionAddendums();
+      const nextList: SectionAddendumsList = [
+        ...baseList,
+        {
+          id: generateLocalAddendumId(),
+          sectionId,
+          type: "notes",
+          contentDoc,
+          updatedAtIso: new Date().toISOString(),
+        },
+      ];
+
+      const response = await fetch(`/api/contracts/${contract.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sectionAddendums: nextList }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? `Error HTTP ${response.status}`);
+      }
+
+      await applySectionAddendums(nextList);
+    },
+    [applySectionAddendums, contract.id, getCurrentSectionAddendums],
+  );
+  const handleInlineAddendumDelete = useCallback(
+    async (sectionId: string, addendumId: string) => {
+      const baseList = getCurrentSectionAddendums();
+      const nextList = baseList.filter(
+        (item) => !(item.sectionId === sectionId && item.id === addendumId),
+      );
+
+      const response = await fetch(`/api/contracts/${contract.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sectionAddendums: nextList }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? `Error HTTP ${response.status}`);
+      }
+
+      await applySectionAddendums(nextList);
+    },
+    [applySectionAddendums, contract.id, getCurrentSectionAddendums],
   );
 
   const handleConfirmApproveAndSign = useCallback(async () => {
@@ -164,7 +336,8 @@ function SmartClosingContractDetail({
     const buyerE = signerEmail.trim();
     if (!buyerN || !buyerE) return;
 
-    await approveDraft();
+    const approvedPersisted = await approveDraft();
+    if (!approvedPersisted) return;
     setApproveOpen(false);
 
     const signers: SignatureSigner[] = [
@@ -193,10 +366,14 @@ function SmartClosingContractDetail({
   return (
     <div className="flex min-h-0 flex-col h-[calc(100vh-64px)]">
       {/* ── Compact header ── */}
-      <header className="flex items-center justify-between px-4 py-2.5 border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-950/80 shrink-0">
+      <header className="flex items-center justify-between border-b border-border bg-background/90 px-4 py-2.5 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <Link href="/platform/legal/contratos">
-            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
               <ArrowLeft className="h-3.5 w-3.5" />
             </Button>
           </Link>
@@ -232,7 +409,8 @@ function SmartClosingContractDetail({
             <AlertDialogTrigger asChild>
               <Button
                 size="sm"
-                className="h-7 gap-1.5 text-xs bg-[var(--urus-gold)] hover:bg-[var(--urus-gold)]/90 text-black border-none"
+                variant="default"
+                className="h-7 gap-1.5 text-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 disabled={approved || voiceBusy || phase === "error" || signaturePhase === "sending"}
               >
                 <Send className="h-3 w-3" />
@@ -281,7 +459,8 @@ function SmartClosingContractDetail({
                 <Button
                   onClick={handleConfirmApproveAndSign}
                   disabled={!signerName.trim() || !signerEmail.trim()}
-                  className="bg-[var(--urus-gold)] text-black hover:bg-[var(--urus-gold)]/90"
+                  variant="default"
+                  className="focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   Confirmar y enviar
                 </Button>
@@ -310,7 +489,7 @@ function SmartClosingContractDetail({
         )}
 
         {signaturePhase === "sending" && (
-          <div className="rounded-md border border-[var(--urus-info)]/20 bg-[var(--urus-info)]/5 px-3 py-2 text-xs flex items-center gap-2 text-[var(--urus-info)]">
+          <div className="rounded-md border border-urus-info/20 bg-urus-info/5 px-3 py-2 text-xs flex items-center gap-2 text-urus-info">
             <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
             Enviando a firma digital...
           </div>
@@ -347,7 +526,7 @@ function SmartClosingContractDetail({
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-0">
 
         {/* Left: Document */}
-        <div className="min-h-0 flex flex-col border-r border-neutral-200 dark:border-neutral-800">
+        <div className="min-h-0 flex flex-col border-r border-border">
           <DocxPreviewPanel
             contractTemplateInput={docState.contractTemplateInput}
             docxBase64={docState.docxBase64}
@@ -355,23 +534,70 @@ function SmartClosingContractDetail({
             previewHtml={previewHtml}
             loading={phase === "loading_initial"}
             converting={phase === "converting_preview"}
-          />
-
-          <AdditionalClausesEditor
-            contractId={contract.id}
-            initialDoc={currentAdditionalClausesDoc ?? contract.additionalClausesDoc}
-            readOnly={approved || contract.status !== "DRAFT"}
-            onPersisted={handleClausesPersisted}
+            previewFieldAnchors={previewFieldAnchors}
+            onDeleteClauseClick={
+              canEditAdditionalClauses ? handleDeleteClauseFromPreview : undefined
+            }
+            onInlineFieldSave={
+              canEditSectionDetails ? commitPayloadFieldEdit : undefined
+            }
+            renderInlineEditor={
+              canEditSectionDetails
+                ? (sectionId, onClose) => (
+                    <InlineSectionAddendumEditor
+                      sectionId={sectionId}
+                      existingDetails={getCurrentSectionAddendums()
+                        .filter((item) => item.sectionId === sectionId)
+                        .map((item) => ({
+                          id: item.id,
+                          previewText: getAddendumPreviewText(item),
+                        }))}
+                      onClose={onClose}
+                      onSave={handleInlineAddendumSave}
+                      onDelete={handleInlineAddendumDelete}
+                    />
+                  )
+                : undefined
+            }
+            renderInlineFieldEditor={
+              canEditSectionDetails
+                ? (anchor, onClose) => (
+                    <InlinePayloadFieldEditor
+                      anchor={anchor}
+                      onClose={onClose}
+                      onSave={commitPayloadFieldEdit}
+                    />
+                  )
+                : undefined
+            }
+            renderClauseInlineEditor={
+              canEditAdditionalClauses
+                ? (onClose) => (
+                    <InlineAdditionalClauseEditor
+                      clauseNumber={getNextAdditionalClauseNumber(
+                        getCurrentAdditionalClausesDoc(),
+                        startingClauseNumber,
+                      )}
+                      existingClauses={currentAdditionalClauses.map((clause) => ({
+                        number: clause.number,
+                        headingText: clause.headingText,
+                      }))}
+                      onClose={onClose}
+                      onSave={handleInlineClauseSave}
+                      onDelete={handleInlineClauseDelete}
+                    />
+                  )
+                : undefined
+            }
           />
         </div>
 
         {/* Right: Sidebar with tabs */}
-        <aside className="min-h-0 flex flex-col bg-white dark:bg-neutral-950">
+        <aside className="min-h-0 flex flex-col bg-background">
           {/* Tab bar */}
-          <div className="flex border-b border-neutral-200 dark:border-neutral-800 shrink-0">
+          <div className="flex border-b border-border shrink-0">
             {([
               { id: "assistant" as const, icon: MessageSquare, label: "Asistente" },
-              { id: "data" as const, icon: ClipboardList, label: "Datos" },
               { id: "history" as const, icon: History, label: "Historial" },
             ]).map((tab) => (
               <button
@@ -379,10 +605,10 @@ function SmartClosingContractDetail({
                 type="button"
                 onClick={() => setSidebarTab(tab.id)}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium transition-colors border-b-2 -mb-px",
+                  "flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium transition-colors border-b-2 -mb-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                   sidebarTab === tab.id
-                    ? "border-neutral-900 dark:border-white text-neutral-900 dark:text-white"
-                    : "border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300",
+                    ? "border-primary text-foreground bg-accent/30"
+                    : "border-transparent text-muted-foreground hover:text-foreground hover:bg-accent/20",
                 )}
               >
                 <tab.icon className="h-3.5 w-3.5" />
@@ -406,46 +632,6 @@ function SmartClosingContractDetail({
                   appliedSummaries={appliedSummaries}
                 />
               </div>
-            )}
-
-            {/* ── Datos tab ── */}
-            {sidebarTab === "data" && (
-              <ScrollArea className="h-full">
-                <div className="p-4 space-y-4">
-                  {(appliedSummaries.length > 0 || validationIssues.length > 0) && (
-                    <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 overflow-hidden">
-                      <div className="px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
-                        <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wide">Ultimo cambio</p>
-                      </div>
-                      <div className="px-3 py-2.5 space-y-2">
-                        {appliedSummaries.length > 0 && (
-                          <ul className="text-[11px] space-y-0.5 list-disc pl-3.5 text-neutral-600 dark:text-neutral-400">
-                            {appliedSummaries.map((s, i) => <li key={i}>{s}</li>)}
-                          </ul>
-                        )}
-                        {validationIssues.length > 0 && (
-                          <ul className="text-[11px] space-y-0.5 list-disc pl-3.5 text-urus-danger">
-                            {validationIssues.map((iss, i) => (
-                              <li key={i}>{iss.fieldPath}: {iss.message}</li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <p className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wide mb-2">
-                      Datos del contrato
-                    </p>
-                    <PayloadSummaryFields
-                      payload={docState.contractTemplateInput.payload}
-                      disabled={approved || voiceBusy}
-                      onCommit={commitPayloadFieldEdit}
-                    />
-                  </div>
-                </div>
-              </ScrollArea>
             )}
 
             {/* ── Historial tab ── */}

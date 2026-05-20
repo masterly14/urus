@@ -1,6 +1,6 @@
 /**
  * M8 — Orquesta: intérprete LangGraph → aplicar parches al payload → `generateContractDocx`.
- * Soporta arras, señal de compra y oferta en firme.
+ * Soporta arras, señal de compra, oferta en firme y anexo mobiliario.
  */
 
 import { interpretContractVoiceInstructions } from "@/lib/agents/contract-instruction-graph";
@@ -8,11 +8,19 @@ import type { ContractVoiceStructuredPatch } from "@/lib/agents/contract-instruc
 import type { ContractFieldIssue, ContractTemplateInput } from "@/types/contracts";
 import type { AdditionalClausesDoc, AdditionalClauseBlock } from "@/lib/contracts/additional-clauses/types";
 import { EMPTY_ADDITIONAL_CLAUSES_DOC } from "@/lib/contracts/additional-clauses/types";
+import type { SectionAddendumsList } from "@/lib/contracts/section-addendums/types";
+import { getSectionCatalogForKind } from "@/lib/contracts/section-addendums/catalog";
+import {
+  buildClauseHeadingText,
+  getDefaultAdditionalClauseStartNumber,
+  getNextAdditionalClauseNumber,
+} from "@/lib/contracts/additional-clauses/clause-numbering";
 import { generateContractDocx } from "../docx";
 import { bumpVoiceRevisionTemplateVersion } from "./bump-template-version";
 import { applyArrasVoicePatches } from "./apply-arras-instructions";
 import { applySenalCompraVoicePatches } from "./apply-senal-instructions";
 import { applyOfertaFirmeVoicePatches } from "./apply-oferta-instructions";
+import { applyFurnitureAnnexVoicePatches } from "./apply-anexo-instructions";
 import { getVoiceClarificationDecision } from "./clarification";
 
 export interface InterpretVoiceAndRegenerateParams {
@@ -33,6 +41,12 @@ export interface InterpretVoiceAndRegenerateParams {
    * propagan tal cual a `generateContractDocx` — la voz no las modifica.
    */
   additionalClausesDoc?: AdditionalClausesDoc | null;
+  /**
+   * Detalles añadidos por sección a incluir al regenerar el DOCX. Se
+   * propagan y pueden ampliarse por voz cuando el intérprete devuelve
+   * `sectionAddendumInstructions`.
+   */
+  sectionAddendums?: SectionAddendumsList | null;
 }
 
 interface SharedResultFields {
@@ -48,6 +62,8 @@ interface SharedResultFields {
   missingDataQuestions: string[];
   /** additionalClausesDoc actualizado (incluye clausulas dictadas por voz). */
   updatedAdditionalClausesDoc: AdditionalClausesDoc | null;
+  /** sectionAddendums actualizado (incluye ampliaciones dictadas por voz). */
+  updatedSectionAddendums: SectionAddendumsList | null;
   metrics: {
     interpretationMs: number;
     regenerationMs: number;
@@ -77,9 +93,28 @@ function toBase64(buffer: Buffer): string {
 function appendClauseToDoc(
   existing: AdditionalClausesDoc | null,
   text: string,
+  input: ContractTemplateInput,
 ): AdditionalClausesDoc {
   const base: AdditionalClausesDoc = existing ?? { ...EMPTY_ADDITIONAL_CLAUSES_DOC };
-  const blocks: AdditionalClauseBlock[] = [...(base.content ?? [])];
+  const blocks: AdditionalClauseBlock[] = [...(base.content ?? [])].filter((block) => {
+    if (block.type !== "paragraph") return true;
+    const textNodes = block.content ?? [];
+    return textNodes.some((node) => node.type === "text" && node.text.trim().length > 0);
+  });
+
+  const nextClauseNumber = getNextAdditionalClauseNumber(
+    base,
+    getDefaultAdditionalClauseStartNumber(input),
+  );
+  const headingText = buildClauseHeadingText(
+    nextClauseNumber,
+    "Clausula adicional",
+  );
+
+  blocks.push({
+    type: "paragraph",
+    content: [{ type: "text", text: headingText, marks: [{ type: "bold" }] }],
+  });
 
   const paragraphs = text.split(/\n+/).filter((line) => line.trim().length > 0);
   for (const para of paragraphs) {
@@ -94,7 +129,7 @@ function appendClauseToDoc(
 
 type VoicePatchableInput = Extract<
   ContractTemplateInput,
-  { kind: "arras" | "senal_compra" | "oferta_firme" }
+  { kind: "arras" | "senal_compra" | "oferta_firme" | "anexo_mobiliario" }
 >;
 
 /** Una sola pasada: aplica el parche al payload y devuelve resúmenes (sin tocar `templateVersion`). */
@@ -124,7 +159,63 @@ function applyVoicePatchOnce(
         updatedInput: { ...input, payload: nextPayload },
       };
     }
+    case "anexo_mobiliario": {
+      const { nextPayload, appliedSummaries } = applyFurnitureAnnexVoicePatches(input.payload, patch);
+      return {
+        appliedSummaries,
+        updatedInput: { ...input, payload: nextPayload },
+      };
+    }
   }
+}
+
+function appendSectionAddendums(
+  list: SectionAddendumsList | null,
+  input: ContractTemplateInput,
+  patch: ContractVoiceStructuredPatch,
+): { updatedList: SectionAddendumsList | null; appliedSummaries: string[] } {
+  const instructions = patch.sectionAddendumInstructions
+    .map((item) => ({
+      sectionId: item.sectionId.trim(),
+      type: item.type,
+      text: item.text.trim(),
+    }))
+    .filter((item) => item.sectionId.length > 0 && item.text.length > 0);
+
+  if (instructions.length === 0) {
+    return { updatedList: list ?? null, appliedSummaries: [] };
+  }
+
+  const validSectionIds = new Set(getSectionCatalogForKind(input.kind).map((entry) => entry.id));
+  const nowIso = new Date().toISOString();
+  const base = list ? [...list] : [];
+  const appliedSummaries: string[] = [];
+
+  for (const instruction of instructions) {
+    if (!validSectionIds.has(instruction.sectionId)) continue;
+    const addendumId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `voice_addendum_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    base.push({
+      id: addendumId,
+      sectionId: instruction.sectionId,
+      type: instruction.type,
+      contentDoc: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: instruction.text }],
+          },
+        ],
+      },
+      updatedAtIso: nowIso,
+    });
+    appliedSummaries.push(`Detalle por sección añadido: ${instruction.sectionId}`);
+  }
+
+  return { updatedList: base, appliedSummaries };
 }
 
 export async function interpretVoiceAndRegenerateDocx(
@@ -136,9 +227,15 @@ export async function interpretVoiceAndRegenerateDocx(
     outputTemplateVersion,
     bumpTemplateRevision = true,
     additionalClausesDoc = null,
+    sectionAddendums = null,
   } = params;
 
-  if (input.kind !== "arras" && input.kind !== "senal_compra" && input.kind !== "oferta_firme") {
+  if (
+    input.kind !== "arras" &&
+    input.kind !== "senal_compra" &&
+    input.kind !== "oferta_firme" &&
+    input.kind !== "anexo_mobiliario"
+  ) {
     throw new Error(`Regeneración por voz no soportada para kind="${input.kind}".`);
   }
 
@@ -170,6 +267,7 @@ export async function interpretVoiceAndRegenerateDocx(
       assistantMessage: assistantMessage || clarification.questions.join(" "),
       missingDataQuestions,
       updatedAdditionalClausesDoc: additionalClausesDoc ?? null,
+      updatedSectionAddendums: sectionAddendums ?? null,
       metrics: {
         interpretationMs,
         regenerationMs: 0,
@@ -182,9 +280,13 @@ export async function interpretVoiceAndRegenerateDocx(
 
   let updatedClausesDoc = additionalClausesDoc ?? null;
   if (patch.additionalClauseText?.trim()) {
-    updatedClausesDoc = appendClauseToDoc(updatedClausesDoc, patch.additionalClauseText);
+    updatedClausesDoc = appendClauseToDoc(updatedClausesDoc, patch.additionalClauseText, input);
     appliedSummaries.push("Clausula adicional anadida por voz");
   }
+
+  const { updatedList: updatedSectionAddendums, appliedSummaries: sectionSummaries } =
+    appendSectionAddendums(sectionAddendums, input, patch);
+  appliedSummaries.push(...sectionSummaries);
 
   const hadAppliedChanges = appliedSummaries.length > 0;
 
@@ -206,6 +308,7 @@ export async function interpretVoiceAndRegenerateDocx(
   const regenerationStartedAt = Date.now();
   const docxResult = await generateContractDocx(updatedInput, {
     additionalClausesDoc: updatedClausesDoc,
+    sectionAddendums: updatedSectionAddendums,
   });
   const regenerationMs = Date.now() - regenerationStartedAt;
 
@@ -219,6 +322,7 @@ export async function interpretVoiceAndRegenerateDocx(
     assistantMessage,
     missingDataQuestions,
     updatedAdditionalClausesDoc: updatedClausesDoc,
+    updatedSectionAddendums,
     metrics: { interpretationMs, regenerationMs },
   };
 

@@ -29,6 +29,11 @@ import {
   UserPlus,
   X,
   ZoomIn,
+  Building,
+  BedDouble,
+  Bath,
+  ArrowRight,
+  Maximize2
 } from "lucide-react";
 
 interface PortalEntry {
@@ -507,14 +512,17 @@ export function PropertyDetail({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Características</CardTitle>
+          <Card className="border-0 shadow-none bg-transparent">
+            <CardHeader className="px-0 pt-0">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Building className="h-4 w-4" />
+                Características
+              </CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-              <Detail label="Superficie" value={cluster.builtArea ? `${cluster.builtArea} m²` : "—"} />
-              <Detail label="Habitaciones" value={cluster.rooms ?? "—"} />
-              <Detail label="Baños" value={cluster.bathrooms ?? "—"} />
+            <CardContent className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 px-0">
+              <Detail icon={Maximize2} label="Superficie" value={cluster.builtArea ? `${cluster.builtArea} m²` : "—"} />
+              <Detail icon={BedDouble} label="Habitaciones" value={cluster.rooms ?? "—"} />
+              <Detail icon={Bath} label="Baños" value={cluster.bathrooms ?? "—"} />
               <Detail label="Planta" value={cluster.floor ?? "—"} />
               <Detail label="Tipología" value={cluster.housingType} />
               <Detail label="Operación" value={cluster.operation} />
@@ -562,38 +570,41 @@ export function PropertyDetail({
           </Card>
 
           {cluster.description && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Descripción</CardTitle>
+            <Card className="border-0 shadow-none bg-transparent mt-2">
+              <CardHeader className="px-0 pt-0">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Descripción
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">
+              <CardContent className="px-0">
+                <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground p-4 bg-muted/20 border border-border/40 rounded-md break-words [overflow-wrap:anywhere]">
                   {cluster.description}
                 </p>
               </CardContent>
             </Card>
           )}
 
-          <Card>
-            <CardHeader>
+          <Card className="border-0 shadow-none bg-transparent">
+            <CardHeader className="px-0 pt-0">
               <CardTitle className="text-base">
                 Anuncios por portal ({sortedPortals.length})
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-2 px-0">
               {sortedPortals.map((portal) => (
                 <div
                   key={portal.listingId}
-                  className="flex flex-col gap-1 rounded border p-3 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-2 rounded-md border border-border/40 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between transition-colors hover:bg-muted/40"
                 >
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-1.5">
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline">
+                      <Badge variant="outline" className="bg-background">
                         {SOURCE_LABEL[portal.source] ?? portal.source}
                       </Badge>
                       {portal.listingReference && (
-                        <span className="text-[10px] text-muted-foreground">
-                          {portal.listingReference}
+                        <span className="text-[11px] font-mono text-muted-foreground">
+                          #{portal.listingReference}
                         </span>
                       )}
                     </div>
@@ -601,170 +612,189 @@ export function PropertyDetail({
                       href={portal.canonicalUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                      className="text-xs text-muted-foreground underline-offset-4 hover:underline hover:text-foreground flex items-center gap-1"
                     >
                       {portal.canonicalUrl}
+                      <ExternalLink className="h-3 w-3" />
                     </a>
                   </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <span className="font-medium">{formatPrice(portal.price)}</span>
-                    <span className="text-xs text-muted-foreground">
-                      visto {relativeTime(portal.lastSeenAt)}
-                    </span>
-                    <Badge variant="outline">{portal.status}</Badge>
+                  <div className="flex items-center gap-4 text-sm mt-2 sm:mt-0">
+                    <div className="flex flex-col items-end">
+                      <span className="font-semibold text-base">{formatPrice(portal.price)}</span>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                        visto {relativeTime(portal.lastSeenAt)}
+                      </span>
+                    </div>
+                    <Badge variant={portal.status === "active" ? "secondary" : "outline"} className="capitalize">
+                      {portal.status}
+                    </Badge>
                   </div>
                 </div>
               ))}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
+          <Card className="border-0 shadow-none bg-transparent mt-6">
+            <CardHeader className="px-0 pt-0">
               <CardTitle className="text-base">
-                Timeline ({timeline.length})
+                Línea de tiempo ({timeline.length})
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-0 pt-2">
               {timeline.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground p-4 bg-muted/20 rounded-md border border-border/40">
                   Sin cambios registrados todavía.
                 </p>
               ) : (
-                <ol className="space-y-2 text-sm">
-                  {timeline.map((entry) => {
+                <div className="relative pl-6 space-y-6 before:absolute before:inset-y-0 before:left-[11px] before:w-[2px] before:bg-border/60">
+                  {timeline.map((entry, index) => {
                     const desc = describeTimelineEntry(entry);
                     return (
-                      <li
-                        key={entry.id}
-                        className="flex flex-col gap-0.5 border-b pb-2 last:border-b-0"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium">{desc.title}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(entry.occurredAt).toLocaleString("es-ES")}
-                          </span>
+                      <div key={entry.id} className="relative">
+                        <div className="absolute left-[-29px] top-1 h-[10px] w-[10px] rounded-full bg-background border-2 border-primary z-10" />
+                        <div className="flex flex-col gap-1 bg-muted/20 p-3 rounded-md border border-border/40">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-medium text-sm text-foreground">{desc.title}</span>
+                            <span className="text-xs text-muted-foreground bg-background px-2 py-0.5 rounded-full border border-border/40">
+                              {new Date(entry.occurredAt).toLocaleString("es-ES", {
+                                day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit"
+                              })}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            {entry.source && (
+                              <Badge variant="secondary" className="text-[10px] uppercase tracking-wider bg-background">
+                                {SOURCE_LABEL[entry.source] ?? entry.source}
+                              </Badge>
+                            )}
+                            {desc.detail && <span className="text-xs text-muted-foreground">{desc.detail}</span>}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          {entry.source && (
-                            <Badge variant="outline" className="text-[9px]">
-                              {SOURCE_LABEL[entry.source] ?? entry.source}
-                            </Badge>
-                          )}
-                          {desc.detail && <span>{desc.detail}</span>}
-                        </div>
-                      </li>
+                      </div>
                     );
                   })}
-                </ol>
+                </div>
               )}
             </CardContent>
           </Card>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
           {cluster.lat != null && cluster.lng != null && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Ubicación</CardTitle>
+            <Card className="overflow-hidden border-border/40 shadow-sm">
+              <CardHeader className="bg-muted/20 pb-3 border-b border-border/40">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                  Ubicación
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="overflow-hidden rounded border">
-                  {/* Iframe estatico de Google Maps; no requiere JS extra ni permisos especiales. */}
-                  <iframe
-                    src={`https://www.google.com/maps?q=${cluster.lat},${cluster.lng}&hl=es&z=16&output=embed`}
-                    title={`Mapa de ${cluster.addressApprox ?? cluster.city}`}
-                    className="h-48 w-full border-0"
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                  />
+              <CardContent className="p-0 relative group">
+                {/* Iframe estatico de Google Maps; no requiere JS extra ni permisos especiales. */}
+                <iframe
+                  src={`https://www.google.com/maps?q=${cluster.lat},${cluster.lng}&hl=es&z=16&output=embed`}
+                  title={`Mapa de ${cluster.addressApprox ?? cluster.city}`}
+                  className="h-[240px] w-full border-0 grayscale-[20%] transition-all group-hover:grayscale-0"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+                <div className="absolute bottom-0 w-full p-2 bg-gradient-to-t from-background/80 to-transparent">
+                  <a
+                    href={`https://www.google.com/maps?q=${cluster.lat},${cluster.lng}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex w-full items-center justify-center gap-2 text-xs font-medium bg-background/95 hover:bg-background border border-border/50 text-foreground py-1.5 px-3 rounded shadow-sm backdrop-blur-sm transition-colors"
+                  >
+                    Abrir en Google Maps
+                    <ArrowRight className="h-3 w-3" />
+                  </a>
                 </div>
-                <a
-                  href={`https://www.google.com/maps?q=${cluster.lat},${cluster.lng}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-                >
-                  Abrir en Google Maps
-                </a>
               </CardContent>
             </Card>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Publicante</CardTitle>
+          <Card className="border-0 shadow-sm border border-border/40 overflow-hidden">
+            <CardHeader className="bg-muted/20 pb-4 border-b border-border/40">
+              <CardTitle className="text-sm">Comercial Asignado</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div>
-                <span className="font-medium">
-                  {cluster.advertiserDisplayName ?? "Publicante no identificado"}
+            <CardContent className="space-y-4 pt-4 text-sm">
+              <div className="space-y-2">
+                <Label htmlFor="comercial-select" className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Responsable del Lead
+                </Label>
+                <select
+                  id="comercial-select"
+                  value={cluster.assignedComercialId ?? ""}
+                  onChange={(e) =>
+                    void assignComercial(e.target.value ? e.target.value : null)
+                  }
+                  disabled={assigning}
+                  className="h-10 w-full rounded-md border border-border/80 bg-background px-3 text-sm shadow-sm hover:border-border transition-colors disabled:opacity-50"
+                >
+                  <option value="">Sin asignar</option>
+                  {comerciales.map((c) => (
+                    <option key={c.comercialId} value={c.comercialId}>
+                      {c.comercialNombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {assignmentFeedback && (
+                <div className="rounded border border-border/40 bg-muted/20 p-2.5 text-xs text-muted-foreground">
+                  {assignmentFeedback}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm border border-border/40 overflow-hidden">
+            <CardHeader className="bg-muted/20 pb-4 border-b border-border/40">
+              <CardTitle className="text-sm">Publicante</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-4 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">
+                  {cluster.advertiserDisplayName ?? "No identificado"}
                 </span>
                 {cluster.advertiserType && (
-                  <span className="ml-1 text-xs text-muted-foreground">
-                    ({cluster.advertiserType === "particular" ? "Particular" : "Agencia"})
-                  </span>
+                  <Badge variant="outline" className="text-[10px] uppercase">
+                    {cluster.advertiserType === "particular" ? "Particular" : "Agencia"}
+                  </Badge>
                 )}
               </div>
-              {cluster.phoneCanonical ? (
-                <a
-                  href={`tel:${cluster.phoneCanonical}`}
-                  className="inline-flex items-center gap-1 text-sm hover:underline"
-                >
-                  <Phone className="h-3.5 w-3.5" />
-                  {formatPhone(cluster.phoneCanonical)}
-                </a>
-              ) : (
-                <span className="text-xs text-muted-foreground">
-                  Sin teléfono detectado
-                </span>
-              )}
-              {cluster.inmovillaContactId && (
-                <Badge variant="secondary" className="w-fit text-[10px]">
-                  En CRM ({cluster.inmovillaContactId})
-                </Badge>
-              )}
+              <div className="flex h-10 items-center justify-between rounded-md border border-border/80 bg-background px-3 shadow-sm">
+                {cluster.phoneCanonical ? (
+                  <a
+                    href={`tel:${cluster.phoneCanonical}`}
+                    className="inline-flex items-center gap-2 text-sm font-medium hover:underline text-foreground"
+                  >
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    {formatPhone(cluster.phoneCanonical)}
+                  </a>
+                ) : (
+                  <span className="text-sm text-muted-foreground flex items-center gap-2">
+                     <Phone className="h-4 w-4 opacity-50" />
+                     Sin teléfono
+                  </span>
+                )}
+                {cluster.inmovillaContactId && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    En CRM ({cluster.inmovillaContactId})
+                  </Badge>
+                )}
+              </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Comercial</CardTitle>
+          <Card className="border-0 shadow-sm border border-border/40 overflow-hidden bg-primary/5">
+            <CardHeader className="bg-primary/5 pb-4 border-b border-primary/10">
+              <CardTitle className="text-sm text-primary flex items-center gap-2">
+                Acciones
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <Label htmlFor="comercial-select" className="text-xs">
-                Asignar
-              </Label>
-              <select
-                id="comercial-select"
-                value={cluster.assignedComercialId ?? ""}
-                onChange={(e) =>
-                  void assignComercial(e.target.value ? e.target.value : null)
-                }
-                disabled={assigning}
-                className="h-9 w-full rounded-md border border-neutral-300/60 bg-background/70 px-2 text-sm shadow-sm dark:border-neutral-700/70"
-              >
-                <option value="">Sin asignar</option>
-                {comerciales.map((c) => (
-                  <option key={c.comercialId} value={c.comercialId}>
-                    {c.comercialNombre}
-                  </option>
-                ))}
-              </select>
-              {assignmentFeedback && (
-                <p className="text-xs text-muted-foreground">
-                  {assignmentFeedback}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Acciones</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-3 pt-4">
               <Button
-                className="w-full"
+                className="w-full justify-start"
+                size="lg"
                 disabled={
                   pushing ||
                   !!cluster.inmovillaContactId ||
@@ -778,67 +808,69 @@ export function PropertyDetail({
                 ) : (
                   <UserPlus className="mr-2 h-4 w-4" />
                 )}
-                {cluster.inmovillaContactId ? "En CRM" : "Enviar publicante a CRM"}
+                {cluster.inmovillaContactId ? "Publicante ya en CRM" : "Sincronizar Publicante"}
               </Button>
               {pushFeedback && (
-                <p className="text-xs text-muted-foreground">{pushFeedback}</p>
+                <p className="text-xs text-muted-foreground p-2 bg-background rounded border border-border/40">{pushFeedback}</p>
               )}
 
               <Button
                 asChild
                 variant="outline"
-                className="w-full"
-                title="Ver anuncio en el portal"
+                size="lg"
+                className="w-full justify-start bg-background"
               >
-                <a
-                  href={
-                    sortedPortals[0]?.canonicalUrl ?? "#"
-                  }
-                  target="_blank"
-                  rel="noreferrer"
+                <Link
+                  href={`/platform/captacion/oportunidades?fromListingId=${encodeURIComponent(cluster.representativeListingId)}&openCaptacion=prospecto`}
                 >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Ver en portal
-                </a>
+                  <Building className="mr-2 h-4 w-4" />
+                  Convertir en Prospecto / Alta
+                </Link>
               </Button>
 
               <Button
                 asChild
                 variant="outline"
-                className="w-full"
-                title="Volver a lista de oportunidades para crear prospecto/alta"
-              >
-                <Link
-                  href={`/platform/captacion/oportunidades?fromPropertyId=${encodeURIComponent(cluster.propertyId)}`}
-                >
-                  Crear prospecto / alta
-                </Link>
-              </Button>
-
-              <Button
-                asChild
-                variant="ghost"
-                className="w-full"
-                title="Iniciar nota de encargo a partir de este listing"
+                size="lg"
+                className="w-full justify-start bg-background"
               >
                 <a
                   href={`/platform/captacion?fromListingId=${encodeURIComponent(cluster.representativeListingId)}`}
                 >
                   <FileText className="mr-2 h-4 w-4" />
-                  Nota de encargo
+                  Redactar Nota de Encargo
                 </a>
               </Button>
 
-              <Button
-                asChild
-                variant="ghost"
-                className="w-full"
-              >
-                <Link href="/platform/captacion/oportunidades">
-                  <MapPin className="mr-2 h-4 w-4" />
-                  Volver a oportunidades
-                </Link>
-              </Button>
+              <div className="pt-4 border-t border-primary/10 flex flex-col gap-3">
+                <Button
+                  asChild
+                  variant="ghost"
+                  className="w-full justify-start text-muted-foreground hover:text-foreground"
+                >
+                  <a
+                    href={
+                      sortedPortals[0]?.canonicalUrl ?? "#"
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Abrir original en portal
+                  </a>
+                </Button>
+
+                <Button
+                  asChild
+                  variant="ghost"
+                  className="w-full justify-start text-muted-foreground hover:text-foreground"
+                >
+                  <Link href="/platform/captacion/oportunidades">
+                    <MapPin className="mr-2 h-4 w-4" />
+                    Volver a mapa de oportunidades
+                  </Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -914,13 +946,16 @@ export function PropertyDetail({
 function Detail({
   label,
   value,
+  icon: Icon,
 }: {
   label: string;
   value: string | number | null;
+  icon?: React.ElementType;
 }) {
   return (
-    <div className="flex flex-col">
-      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+    <div className="flex flex-col p-3 rounded-md bg-muted/20 border border-border/40">
+      <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+        {Icon && <Icon className="h-3 w-3" />}
         {label}
       </span>
       <span className="text-sm font-medium">{value ?? "—"}</span>

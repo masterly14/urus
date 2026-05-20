@@ -23,6 +23,15 @@ function parseStr(v: unknown): string | null {
   return s.length > 0 ? s : null;
 }
 
+function parseNumber(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const parsed = Number(v.replace(",", ".").trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 function normalizeForComparison(value: string): string {
   return value
     .normalize("NFD")
@@ -142,6 +151,8 @@ export async function extractPropertyForPricing(
     estado: property.estado,
     fechaAlta: property.fechaAlta || null,
     fechaActualizacion: property.fechaActualizacion || null,
+    latitud: parseNumber(raw.latitud),
+    longitud: parseNumber(raw.longitud),
     extras,
   };
 }

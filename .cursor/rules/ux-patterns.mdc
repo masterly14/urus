@@ -1,0 +1,577 @@
+---
+description: Patrón de experiencia de usuario centrado en el usuario para Urus Capital Group. Aplica a toda interfaz de React/Next.js construida con shadcn/ui y Tailwind. Prioriza claridad, consistencia, accesibilidad y feedback inmediato sobre creatividad visual. Usa los design tokens definidos en globals.css (urus-gold, urus-success, urus-warning, urus-danger, urus-info, urus-ai).
+globs:
+  - "**/*.tsx"
+  - "**/*.jsx"
+  - "**/components/**"
+  - "**/app/**"
+  - "**/pages/**"
+  - "**/ui/**"
+alwaysApply: false
+---
+
+# Manual de Experiencia de Usuario — Urus Capital Group
+
+Este documento define el patrón de UX/UI obligatorio para toda interfaz construida en este proyecto. La regla maestra es: **el usuario nunca debe adaptarse al sistema; el sistema se adapta al usuario.** Cuando exista conflicto entre estética, originalidad y claridad, **siempre gana la claridad.**
+
+Los usuarios objetivo son tres roles operativos (CEO, admin, comercial). El comercial es el power user que vive en la plataforma todo el día — su flujo prima sobre cualquier decoración.
+
+---
+
+## 1. Filosofía base
+
+La interfaz se diseña para que un usuario nuevo entienda **qué es esto, qué puede hacer y dónde está** en menos de 3 segundos. Toda decisión de UI debe justificarse con uno de estos criterios:
+
+- Reduce la carga cognitiva.
+- Acelera una tarea frecuente.
+- Previene un error.
+- Comunica el estado actual del sistema.
+- Hace accesible la funcionalidad a más personas.
+
+Si una decisión no cumple ninguno de los anteriores, **no se implementa**, sin importar lo bonita que se vea.
+
+### Reglas de oro
+
+- **Claridad sobre creatividad.** Un botón parece un botón. Un enlace, un enlace.
+- **Reconocer antes que recordar.** Mostrar opciones visibles en lugar de obligar a memorizar.
+- **Consistencia absoluta.** Mismos patrones en toda la plataforma.
+- **Feedback inmediato.** Toda acción produce respuesta visible en menos de 100ms.
+- **Prevenir errores antes que manejarlos.** Validación inline, botones deshabilitados, confirmaciones para acciones destructivas.
+
+---
+
+## 2. Sistema de design tokens (uso obligatorio)
+
+**NUNCA usar colores hexadecimales ni clases de color crudas de Tailwind (`bg-red-500`, `text-yellow-400`) en componentes de UI.** Todos los colores semánticos deben venir de los tokens definidos en `globals.css`.
+
+### Tokens semánticos disponibles
+
+| Token | Uso |
+|---|---|
+| `bg-background` / `text-foreground` | Fondo y texto base de la app |
+| `bg-card` / `text-card-foreground` | Superficies elevadas (cards, paneles, modales) |
+| `bg-muted` / `text-muted-foreground` | Texto secundario, separadores, placeholders |
+| `bg-primary` / `text-primary-foreground` | CTA principal único por pantalla |
+| `bg-secondary` / `text-secondary-foreground` | CTA secundario o decorativo |
+| `bg-accent` / `text-accent-foreground` | Hover, estado activo, énfasis sutil |
+| `bg-destructive` / `text-destructive-foreground` | Acción destructiva (eliminar, cancelar) |
+| `border-border` | Bordes de cards, inputs, separadores |
+| `ring-ring` | Focus ring de elementos interactivos |
+| `text-urus-gold` | Color de marca, solo branding (logo, acento puntual) |
+
+### Tokens de estado semántico
+
+| Token | Significado | Uso |
+|---|---|---|
+| `urus-success` / `urus-success-bg` | Éxito, completado, positivo | Cierres exitosos, deltas positivos, badges "Completado" |
+| `urus-warning` / `urus-warning-bg` | Atención, pendiente, advertencia | Visitas pendientes, SLA cerca de vencer, badges "En proceso" |
+| `urus-danger` / `urus-danger-bg` | Error, cancelado, urgente | Operaciones canceladas, alertas activas, SLA vencido |
+| `urus-info` / `urus-info-bg` | Informativo neutral | Tooltips, notas, badges "Nuevo" |
+| `urus-ai` / `urus-ai-bg` | Procesos con IA | Features de IA (Coach, Cruces, Análisis), badges "IA" |
+
+### Reglas estrictas
+
+- **El color de marca `urus-gold` se reserva para branding.** No es el color de CTAs por defecto. Si una pantalla tiene un CTA primario, usar `bg-primary`.
+- **Los badges semánticos siempre usan `bg-{state}-bg text-{state}` con borde sutil.** Ejemplo: `bg-urus-success-bg text-urus-success border border-urus-success/20`.
+- **Para hover y estados activos usar `bg-accent` o `bg-muted/60`, nunca colores crudos.**
+- **Sombras vienen de `shadow-card` y `shadow-elevated`.** No usar `shadow-md`, `shadow-lg` de Tailwind sin justificación.
+
+```tsx
+// ❌ MALO
+<div className="bg-red-500 text-white">Cancelada</div>
+<span className="text-yellow-500">Pendiente</span>
+<button className="bg-[#c9a84c]">Crear</button>
+
+// ✅ BUENO
+<Badge variant="danger">Cancelada</Badge>
+<Badge variant="warning">Pendiente</Badge>
+<Button variant="default">Crear</Button>
+```
+
+---
+
+## 3. Layout y jerarquía visual
+
+### Estructura de página obligatoria
+
+Toda página dentro de `/platform/*` sigue esta estructura, sin excepciones:
+
+```tsx
+<PageLayout>
+  <PageHeader
+    title="Demandas"
+    description="Todas las demandas activas del sistema"
+    breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Demandas" }]}
+    actions={<Button>Nueva demanda</Button>}
+  />
+
+  <PageContent>
+    {/* KPIs si aplica */}
+    <KpiGrid>...</KpiGrid>
+
+    {/* Filtros si aplica */}
+    <FilterBar>...</FilterBar>
+
+    {/* Contenido principal */}
+    <DataTable />
+  </PageContent>
+</PageLayout>
+```
+
+**Si una página no tiene `<PageHeader />`, está mal.** El usuario debe ver siempre: dónde está, qué puede hacer ahí, y la acción principal.
+
+### Jerarquía tipográfica
+
+| Elemento | Tamaño | Peso | Uso |
+|---|---|---|---|
+| `h1` page title | `text-2xl` | `font-semibold` | Solo el título de la página, una vez por vista |
+| `h2` section | `text-lg` | `font-semibold` | Secciones dentro de la página |
+| `h3` subsection | `text-base` | `font-medium` | Subsecciones, títulos de card |
+| Body | `text-sm` | `font-normal` | Texto principal |
+| Caption | `text-xs` | `font-normal` `text-muted-foreground` | Metadatos, fechas, hints |
+
+**Reglas:**
+- Nunca usar más de 3 niveles de jerarquía en una misma vista.
+- El page title siempre va acompañado de una descripción de 1 línea (`text-sm text-muted-foreground`).
+- Números grandes (KPIs) usan `text-3xl font-bold tabular-nums`.
+
+### Espaciado consistente
+
+Usar siempre la escala de Tailwind, nunca valores arbitrarios:
+
+- Entre secciones: `space-y-6` o `gap-6`
+- Entre elementos relacionados: `space-y-4` o `gap-4`
+- Padding interno de cards: `p-6` (desktop) / `p-4` (mobile)
+- Padding de página: `p-6` en contenedor principal
+
+```tsx
+// ❌ MALO
+<div className="mt-[23px] mb-3 ml-5">
+
+// ✅ BUENO
+<div className="mt-6 mb-4 ml-4">
+```
+
+---
+
+## 4. Navegación
+
+### Sidebar (navegación primaria)
+
+El sidebar es la única navegación primaria. **No coexisten tabs persistentes encima del sidebar.** Si necesitas tabs, son contextuales a una página, no navegación global.
+
+**Estructura de grupos del sidebar:**
+
+```
+NAVEGACIÓN     → items operativos del día a día (Panel, Demandas, Visitas, Operaciones, Conversaciones)
+PROCESOS IA    → features asistidas por IA (badge "IA" en urus-ai)
+HERRAMIENTAS   → utilidades (Colaboradores, Legal)
+ANÁLISIS       → reportes y dashboards (Inteligencia, Rendimiento)
+ADMIN          → configuración y testing (solo visible según rol)
+```
+
+**Reglas:**
+- Item activo: fondo `bg-accent` + barra lateral izquierda de 3px en `bg-primary`, ícono y texto en `text-foreground` (no solo cambiar color).
+- Items con submenú: chevron `<ChevronRight />` que rota a `<ChevronDown />` al expandir.
+- Headers de grupo (`NAVEGACIÓN`, `PROCESOS IA`...): `text-xs uppercase tracking-wider text-muted-foreground`, NUNCA clickeables.
+- Items inactivos: `text-muted-foreground`, hover `text-foreground bg-muted/40`.
+- Badge "IA" usa `bg-urus-ai-bg text-urus-ai` con `text-xs px-1.5 py-0.5 rounded`.
+
+### Breadcrumbs (obligatorios en jerarquías profundas)
+
+Toda vista a más de 1 nivel de profundidad debe mostrar breadcrumbs en el `<PageHeader />`:
+
+```tsx
+<Breadcrumb>
+  <BreadcrumbItem href="/platform">Inicio</BreadcrumbItem>
+  <BreadcrumbItem href="/platform/demandas">Demandas</BreadcrumbItem>
+  <BreadcrumbItem current>DEM-1234</BreadcrumbItem>
+</Breadcrumb>
+```
+
+### Tabs (uso restringido)
+
+Tabs **solo** para alternar entre vistas del mismo recurso (ej: "Detalle | Historial | Documentos" de una operación). **Prohibido:**
+
+- Tabs persistentes globales (como navegador con pestañas).
+- Tabs que actúan como sidebar paralelo.
+- Más de 5 tabs en una misma vista (usar dropdown si hay más).
+
+---
+
+## 5. Componentes obligatorios y reutilizables
+
+Cada uno de los siguientes patrones DEBE existir como componente único reutilizable. Si no existe, crearlo en `components/ui/` antes de implementar la página.
+
+### `<PageHeader />`
+
+Props mínimas: `title`, `description`, `breadcrumbs?`, `actions?`. Layout fijo: título grande a la izquierda, acciones a la derecha. Sin variaciones por página.
+
+### `<KpiCard />`
+
+```tsx
+<KpiCard
+  label="Operaciones activas"
+  value={12}
+  delta={{ value: 8, direction: "up" }}
+  hint="3 atascadas (>7d)"
+  icon={<PieChart />}
+  state="default" | "warning" | "danger"  // según valor
+  href="/platform/operaciones"  // opcional, si es clickeable
+/>
+```
+
+**Reglas:**
+- Valor en `text-3xl font-bold tabular-nums`.
+- Label en `text-xs uppercase tracking-wider text-muted-foreground`.
+- Si tiene `href`, agregar chevron a la derecha y `cursor-pointer hover:bg-accent/40`.
+- Si `state="warning"` o `"danger"` y valor > 0, aplicar borde izquierdo de 3px en color del estado.
+- Delta de 0% no se muestra (ruido visual).
+
+### `<DataTable />`
+
+Tabla única para toda lista tabular. **Prohibido construir tablas desde cero con `<table>` raw.**
+
+- Columnas con `text-xs uppercase tracking-wider text-muted-foreground` en header.
+- Filas con `hover:bg-muted/40 cursor-pointer` si son navegables.
+- Skeleton loaders durante carga (NO usar `███` como placeholder).
+- Empty state cuando no hay datos: ilustración mínima + texto + CTA.
+- Paginación o scroll virtual si > 50 filas.
+
+### `<FilterBar />`
+
+Barra de filtros consistente:
+
+- Máximo 4 filtros visibles. El resto va en un botón "Más filtros" con popover.
+- Aplicar automáticamente al cambiar (NO botón "Aplicar filtros").
+- Botón "Limpiar filtros" solo visible cuando hay al menos uno activo.
+- Buscador siempre a la izquierda, ocupa el ancho disponible.
+
+### `<StatusBadge />`
+
+Badge semántico único para estados:
+
+```tsx
+<StatusBadge variant="success">Cerrado</StatusBadge>
+<StatusBadge variant="warning">En negociación</StatusBadge>
+<StatusBadge variant="danger">Cancelada</StatusBadge>
+<StatusBadge variant="info">Nuevo</StatusBadge>
+<StatusBadge variant="neutral">Contactado</StatusBadge>
+```
+
+**Mapeo obligatorio para LeadStatus** (10 estados del pipeline):
+
+| Estado | Variante |
+|---|---|
+| `NUEVO` | `info` |
+| `CONTACTADO` | `neutral` |
+| `EN_SELECCION` | `neutral` |
+| `VISITA_PENDIENTE` | `warning` |
+| `VISITA_CONFIRMADA` | `warning` |
+| `VISITA_REALIZADA` | `info` |
+| `EN_NEGOCIACION` | `warning` |
+| `EN_FIRMA` | `warning` |
+| `CERRADO` | `success` |
+| `PERDIDO` | `danger` |
+
+### `<EmptyState />`
+
+Para listas, tablas y secciones vacías:
+
+```tsx
+<EmptyState
+  icon={<Inbox />}
+  title="No hay demandas todavía"
+  description="Cuando llegue un lead, aparecerá aquí automáticamente."
+  action={<Button>Crear demanda manual</Button>}
+/>
+```
+
+**Prohibido dejar pantallas vacías sin contexto** (como "0 sesiones" sin más).
+
+---
+
+## 6. Componentes interactivos
+
+### Botones
+
+Jerarquía estricta de variantes:
+
+- **`variant="default"` (primary):** Una sola por pantalla. La acción más importante.
+- **`variant="secondary"`:** Acciones secundarias frecuentes.
+- **`variant="outline"`:** Acciones terciarias o complementarias.
+- **`variant="ghost"`:** Acciones discretas (iconos, filtros, toggles).
+- **`variant="destructive"`:** Solo para acciones destructivas (eliminar, cancelar permanentemente).
+
+**Reglas:**
+- Touch target mínimo: 40x40px (`h-10` mínimo en mobile).
+- Texto de botón en imperativo: "Crear visita" no "Crear una visita".
+- Si la acción es asíncrona, mostrar loading state con spinner y deshabilitar.
+- Acciones destructivas SIEMPRE confirmadas con `<AlertDialog />`.
+
+```tsx
+// ❌ MALO — sin loading state, sin confirmación
+<Button onClick={deleteOperation}>Eliminar</Button>
+
+// ✅ BUENO
+<AlertDialog>
+  <AlertDialogTrigger asChild>
+    <Button variant="destructive">Eliminar operación</Button>
+  </AlertDialogTrigger>
+  <AlertDialogContent>
+    <AlertDialogTitle>¿Eliminar operación OP-2026-0001?</AlertDialogTitle>
+    <AlertDialogDescription>
+      Esta acción no se puede deshacer. Se perderán los datos asociados.
+    </AlertDialogDescription>
+    <AlertDialogAction onClick={handleDelete}>
+      {isPending ? <Spinner /> : "Sí, eliminar"}
+    </AlertDialogAction>
+  </AlertDialogContent>
+</AlertDialog>
+```
+
+### Inputs y formularios
+
+- Label siempre visible encima del input (NO placeholders como labels).
+- Estado de error inline debajo del input, con `text-destructive text-xs`.
+- Validar al perder foco (`onBlur`), NO al escribir (excepto longitud máxima).
+- Required fields marcados con `*` en el label.
+- Botón de submit deshabilitado mientras haya errores o el form esté incompleto.
+- Mostrar feedback de éxito tras submit (toast o transición de estado).
+
+### Botón "papelera" / acciones destructivas globales
+
+**Prohibido tener un botón de eliminar pestaña, eliminar vista o similar en posición fija de la página sin contexto claro.** Si existe, debe:
+
+- Tener tooltip explicando qué elimina.
+- Pedir confirmación.
+- Ofrecer "Deshacer" durante 5 segundos via toast.
+
+---
+
+## 7. Feedback y estados del sistema
+
+### Los cuatro estados de toda vista
+
+Toda vista que cargue datos debe manejar explícitamente:
+
+1. **Loading:** Skeleton loaders con la forma del contenido final. Nunca spinner pelado en pantalla vacía.
+2. **Empty:** `<EmptyState />` con CTA cuando aplique.
+3. **Error:** Mensaje claro + botón "Reintentar" + opción de reportar.
+4. **Success (con datos):** El estado normal.
+
+```tsx
+if (isLoading) return <DataTableSkeleton rows={5} />;
+if (error) return <ErrorState onRetry={refetch} />;
+if (!data || data.length === 0) return <EmptyState ... />;
+return <DataTable data={data} />;
+```
+
+### Toasts
+
+- Éxito: `toast.success("Operación creada")` — duración 3s.
+- Error: `toast.error("No se pudo crear")` — duración 5s + botón reintentar.
+- Info: `toast("Cambios guardados automáticamente")` — duración 3s.
+- Posición fija: bottom-right en desktop, top-center en mobile.
+
+### Loading inmediato (< 100ms)
+
+- Botones: cambiar a estado loading inmediatamente al click, NO esperar respuesta.
+- Filtros: optimistic UI — actualizar la tabla instantáneamente, revertir si falla.
+- Forms: deshabilitar submit y mostrar spinner inline en el botón.
+
+---
+
+## 8. Accesibilidad (a11y) — no negociable
+
+### Mínimos obligatorios
+
+- Contraste WCAG AA mínimo: 4.5:1 para texto normal, 3:1 para texto grande.
+- Touch targets: 44x44px mínimo en mobile.
+- Focus visible: usar `focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2` en todo elemento interactivo.
+- Navegación por teclado: Tab, Shift+Tab, Enter, Esc deben funcionar en todo flujo crítico.
+- Modales: trap focus, cerrar con Esc, retornar foco al disparador.
+
+### ARIA
+
+- Iconos sin texto: `aria-label` obligatorio.
+- Estados dinámicos: `aria-live="polite"` en notificaciones, `aria-busy="true"` durante loading.
+- Formularios: `<label htmlFor>` o `aria-labelledby` en todo input.
+
+### Color nunca es el único indicador
+
+- Estados nunca dependen solo del color. Siempre acompañar con ícono o texto.
+- Errores de form: ícono + color + texto descriptivo.
+
+```tsx
+// ❌ MALO
+<span className="text-urus-danger">Cancelada</span>
+
+// ✅ BUENO
+<StatusBadge variant="danger">
+  <XCircle className="h-3 w-3" />
+  Cancelada
+</StatusBadge>
+```
+
+---
+
+## 9. Responsive y mobile
+
+### Breakpoints (Tailwind defaults)
+
+- `sm`: 640px — mobile landscape, tablets pequeñas.
+- `md`: 768px — tablets.
+- `lg`: 1024px — desktop pequeño.
+- `xl`: 1280px — desktop estándar.
+
+### Reglas
+
+- Diseñar mobile-first: clases sin prefijo son mobile.
+- Sidebar colapsable en `< lg` (drawer con overlay).
+- Tablas en mobile: convertir a cards o lista, NO scroll horizontal en tablas críticas.
+- KPI grids: 1 col en mobile, 2 en tablet, 4 en desktop.
+- Touch targets siempre ≥ 44x44px.
+
+```tsx
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+  {kpis.map(...)}
+</div>
+```
+
+---
+
+## 10. Performance percibida
+
+### Skeleton loaders
+
+- Usar `<Skeleton />` con la forma exacta del contenido final.
+- Animación `animate-pulse` suave.
+- Nunca dejar la pantalla en blanco durante > 100ms.
+
+### Optimistic UI
+
+- Operaciones CRUD: actualizar UI inmediatamente, revertir si falla.
+- Aplicar especialmente en: marcar tareas, cambiar estados, filtros, toggle de favoritos.
+
+### Transiciones
+
+- Cambios de estado: `transition-colors duration-150`.
+- Hover: nunca > 200ms.
+- Expand/collapse: `transition-all duration-200 ease-in-out`.
+- **No animaciones gratuitas.** Cada transición debe comunicar un cambio de estado.
+
+---
+
+## 11. Patrones específicos por feature
+
+### Chat y conversaciones
+
+- Mensajes propios: alineados a la derecha, fondo `bg-primary/10` o `bg-muted`.
+- Mensajes del otro: alineados a la izquierda, fondo `bg-card border border-border`.
+- **NUNCA usar `urus-gold` como fondo de mensajes** (fatiga visual, reservado para branding).
+- Timestamp en `text-xs text-muted-foreground` debajo del mensaje.
+- Indicador "escribiendo..." con animación de puntos.
+- Audio reproductor con controles nativos del SO, no inline en burbuja.
+
+### Pipeline / Kanban / Estados
+
+- Los 10 estados de `LeadStatus` siempre con el mismo color en toda la app (ver tabla en sección 5).
+- Transiciones de estado animadas (200ms).
+- Tooltip al hover mostrando "Última actividad: hace X días".
+
+### Mapas y geolocalización
+
+- Loading state explícito mientras carga el mapa.
+- Botón "Centrar en mi ubicación" arriba a la derecha.
+- Markers con tooltip al hover, popup al click.
+
+### Features con IA
+
+- Badge `IA` en `bg-urus-ai-bg text-urus-ai` siempre presente cerca del título.
+- Disclaimer breve cuando un valor es generado por IA: "Sugerido por IA · Editable".
+- Loading state con texto explícito: "Analizando..." no solo spinner.
+
+---
+
+## 12. Modo oscuro
+
+- Toda la app debe funcionar en claro y oscuro sin ajustes manuales.
+- Usar SIEMPRE tokens (`bg-background`, `text-foreground`), NUNCA colores fijos.
+- Probar contraste en ambos modos antes de hacer merge.
+- Sombras en oscuro: más sutiles, ya definidas en `--shadow-card` y `--shadow-elevated`.
+
+---
+
+## 13. Antipatrones prohibidos
+
+Estos patrones están **prohibidos** en el codebase. Si Cursor los genera, deben corregirse.
+
+### Color y estilo
+
+- ❌ Colores hex o RGB hardcoded en componentes (`bg-[#c9a84c]`, `text-[#dc2626]`).
+- ❌ Clases de color crudas de Tailwind para estados semánticos (`bg-red-500`, `text-yellow-400`).
+- ❌ Usar `urus-gold` como color de mensaje, fondo de chat o estado activo masivo.
+- ❌ Mezclar más de 2 colores semánticos en una misma vista sin jerarquía clara.
+
+### Navegación
+
+- ❌ Tabs persistentes globales encima del sidebar (estilo navegador con pestañas).
+- ❌ Botones de "eliminar pestaña/vista" en posición fija sin tooltip.
+- ❌ Cambiar la estructura del sidebar entre páginas.
+- ❌ Item activo del sidebar solo distinguido por color de texto.
+
+### Componentes
+
+- ❌ Construir tablas con `<table>` raw en lugar de `<DataTable />`.
+- ❌ KPI cards con layout custom — usar `<KpiCard />`.
+- ❌ Page headers con layout inventado — usar `<PageHeader />`.
+- ❌ Botones sin variant explícito o con clases custom de color.
+
+### Estados
+
+- ❌ Placeholders como `███████` o `---` para datos cargando — usar `<Skeleton />`.
+- ❌ Pantallas en blanco mientras carga — siempre skeleton o spinner contextual.
+- ❌ Empty states con solo "0" o "No hay datos" — siempre con contexto y CTA si aplica.
+- ❌ Botones de acción asíncrona sin loading state.
+
+### Formularios
+
+- ❌ Placeholders usados como labels.
+- ❌ Validar en cada keystroke (excepto contadores de caracteres).
+- ❌ Errores de form como toast — siempre inline debajo del campo.
+- ❌ Botones de submit habilitados con form incompleto.
+
+### Accesibilidad
+
+- ❌ Estados representados solo por color.
+- ❌ Botones con solo icono sin `aria-label`.
+- ❌ Modales sin trap focus o sin cerrar con Esc.
+- ❌ Contrastes por debajo de WCAG AA.
+
+### Densidad
+
+- ❌ Más de 4 KPI cards en una fila desktop.
+- ❌ Tablas con más de 8 columnas visibles simultáneamente.
+- ❌ Barras de filtros con más de 4 inputs visibles.
+- ❌ Sidebars con más de 7 ítems por grupo.
+
+---
+
+## 14. Checklist antes de commitear UI
+
+Antes de marcar como hecho cualquier vista, verificar:
+
+- [ ] Usa `<PageHeader />` con title, description y actions.
+- [ ] Maneja los 4 estados (loading, empty, error, success).
+- [ ] Todos los colores vienen de tokens (no hex ni clases crudas).
+- [ ] Estados semánticos usan `<StatusBadge />` con variant.
+- [ ] Funciona en modo claro y oscuro.
+- [ ] Funciona en mobile (test en 375px).
+- [ ] Navegable solo con teclado.
+- [ ] Acciones destructivas tienen confirmación.
+- [ ] Acciones asíncronas tienen loading state.
+- [ ] Empty states tienen CTA o contexto, no solo "0".
+- [ ] Sin placeholders tipo `███` o texto vacío.
+- [ ] Tipografía sigue la escala de la sección 3.
+- [ ] Espaciado usa la escala de Tailwind (sin valores arbitrarios).

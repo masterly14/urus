@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { portalForSource } from "@/lib/market/source-mapping";
 
 const DEFAULT_IMPORT_PORTALS = ["idealista"] as const;
+const DEFAULT_MAX_IMPORT_IMAGES = 1;
 
 function parseImportPortalsEnv(raw: string | undefined): Set<string> {
   const value = (raw ?? "").trim();
@@ -18,8 +19,8 @@ function parseImportPortalsEnv(raw: string | undefined): Set<string> {
   );
 }
 
-function normalizeUrls(urls: string[]): string[] {
-  return urls.filter((url) => /^https?:\/\//i.test(url)).slice(0, 30);
+function normalizeUrls(urls: string[], maxImages = DEFAULT_MAX_IMPORT_IMAGES): string[] {
+  return urls.filter((url) => /^https?:\/\//i.test(url)).slice(0, maxImages);
 }
 
 function buildMarketImageImportIdempotencyKey(
@@ -128,6 +129,7 @@ export async function queueMarketImageImportsForListings(
       type: "MARKET_IMPORT_LISTING_IMAGES",
       payload: {
         listingId: listing.id,
+        maxImages: DEFAULT_MAX_IMPORT_IMAGES,
       },
       priority: 85,
       maxAttempts: 4,

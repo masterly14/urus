@@ -17,6 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
 import { sendContractDraftReadyNotification } from "@/lib/whatsapp/send";
 import { emitManagementAlert } from "@/lib/notifications/emit";
+import { contractTemplateInputSchema } from "@/lib/legal/smart-closing/contracts-api";
 
 interface ContratoVersionadoPayload {
   operationId: string;
@@ -33,6 +34,7 @@ interface ContratoVersionadoPayload {
     secureUrl?: string;
     bytes?: number;
   };
+  contractInput?: unknown;
 }
 
 function parsePayload(raw: unknown): ContratoVersionadoPayload | null {
@@ -68,6 +70,7 @@ function parsePayload(raw: unknown): ContratoVersionadoPayload | null {
       p.cloudinary && typeof p.cloudinary === "object"
         ? (p.cloudinary as ContratoVersionadoPayload["cloudinary"])
         : undefined,
+    contractInput: p.contractInput,
   };
 }
 
@@ -108,11 +111,19 @@ export async function handleContratoVersionado(
   }
 
   const cloudinaryUrl = cloudinary?.secureUrl;
+  const parsedContractInput = payload.contractInput
+    ? contractTemplateInputSchema.safeParse(payload.contractInput)
+    : null;
 
   await prisma.legalDocument.update({
     where: { id: legalDoc.id },
     data: {
       templateVersion: nextTemplateVersion,
+      ...(parsedContractInput?.success
+        ? {
+            contractInput: parsedContractInput.data,
+          }
+        : {}),
       ...(cloudinaryUrl ? { cloudinaryUrl } : {}),
       ...(legalDoc.status === "APPROVED" || legalDoc.status === "SENT_TO_SIGNATURE"
         ? {}

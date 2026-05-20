@@ -16,7 +16,9 @@ import {
 } from "@/lib/legal/smart-closing/voice-apply-session";
 import type { ContractFieldIssue, ContractTemplateInput } from "@/types/contracts";
 import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/types";
+import type { SectionAddendumsList } from "@/lib/contracts/section-addendums/types";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
+import type { PreviewFieldAnchor } from "@/lib/legal/smart-closing/preview-field-anchors";
 
 /** Contexto para persistir CONTRATO_VERSIONADO tras voice-apply (Neon). */
 export interface SmartClosingVersioningContext {
@@ -76,8 +78,11 @@ function isVoiceApplyResponse(data: unknown): data is VoiceApplyClientResponse {
 export function useSmartClosingSession(
   initialInput: ContractTemplateInput,
   options?: {
+    contractId?: string;
+    contractStatus?: string;
     versioningContext?: SmartClosingVersioningContext;
     initialAdditionalClausesDoc?: AdditionalClausesDoc | null;
+    initialSectionAddendums?: SectionAddendumsList | null;
   },
 ) {
   const versioningContextRef = useRef(options?.versioningContext);
@@ -85,6 +90,9 @@ export function useSmartClosingSession(
 
   const additionalClausesDocRef = useRef<AdditionalClausesDoc | null>(
     options?.initialAdditionalClausesDoc ?? null,
+  );
+  const sectionAddendumsRef = useRef<SectionAddendumsList | null>(
+    options?.initialSectionAddendums ?? null,
   );
 
   const [phase, setPhase] = useState<SmartClosingPhase>("loading_initial");
@@ -103,7 +111,10 @@ export function useSmartClosingSession(
   const [missingDataQuestions, setMissingDataQuestions] = useState<string[]>([]);
   const [currentAdditionalClausesDoc, setCurrentAdditionalClausesDoc] =
     useState<AdditionalClausesDoc | null>(options?.initialAdditionalClausesDoc ?? null);
-  const [approved, setApproved] = useState(false);
+  const [currentSectionAddendums, setCurrentSectionAddendums] =
+    useState<SectionAddendumsList | null>(options?.initialSectionAddendums ?? null);
+  const [previewFieldAnchors, setPreviewFieldAnchors] = useState<PreviewFieldAnchor[]>([]);
+  const [approved, setApproved] = useState(options?.contractStatus !== "DRAFT");
   const [signaturePhase, setSignaturePhase] = useState<SignaturePhase>("idle");
   const [signatureResult, setSignatureResult] = useState<SignatureResult | null>(null);
   const [signatureError, setSignatureError] = useState<string | null>(null);
@@ -141,6 +152,7 @@ export function useSmartClosingSession(
           body: JSON.stringify({
             contractTemplateInput: input,
             additionalClausesDoc: additionalClausesDocRef.current,
+            sectionAddendums: sectionAddendumsRef.current,
           }),
         });
         const data: unknown = await res.json();
@@ -155,6 +167,7 @@ export function useSmartClosingSession(
           docxBase64?: string;
           docxFileName?: string;
           validationIssues?: ContractFieldIssue[];
+          previewFieldAnchors?: PreviewFieldAnchor[];
         };
         if (body.ok === false) {
           setValidationIssues(body.validationIssues ?? []);
@@ -172,6 +185,9 @@ export function useSmartClosingSession(
           docxBase64: body.docxBase64,
           docxFileName: body.docxFileName,
         });
+        setPreviewFieldAnchors(
+          Array.isArray(body.previewFieldAnchors) ? body.previewFieldAnchors : [],
+        );
         const previewOk = await refreshPreviewFromBase64(body.docxBase64);
         return previewOk;
       } catch (e) {
@@ -205,6 +221,29 @@ export function useSmartClosingSession(
         if (payloadEditInFlight.current) return false;
         payloadEditInFlight.current = true;
         try {
+          if (options?.contractId && options.contractStatus === "DRAFT") {
+            const persistRes = await fetch(`/api/contracts/${options.contractId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contractTemplateInput: nextInput,
+                payloadEdit: {
+                  fieldPath: path,
+                  previousValue: oldVal,
+                  nextValue: coerced,
+                },
+              }),
+            });
+            if (!persistRes.ok) {
+              const data = (await persistRes.json().catch(() => null)) as
+                | { error?: string; validationIssues?: ContractFieldIssue[] }
+                | null;
+              if (data?.validationIssues?.length) {
+                setValidationIssues(data.validationIssues);
+              }
+              throw new Error(data?.error ?? `Error HTTP ${persistRes.status}`);
+            }
+          }
           return await loadInitialRender(nextInput);
         } finally {
           payloadEditInFlight.current = false;
@@ -215,7 +254,7 @@ export function useSmartClosingSession(
         return false;
       }
     },
-    [approved, loadInitialRender],
+    [approved, loadInitialRender, options?.contractId, options?.contractStatus],
   );
 
   useEffect(() => {
@@ -249,6 +288,7 @@ export function useSmartClosingSession(
             transcript: trimmed,
             contractTemplateInput: current.contractTemplateInput,
             additionalClausesDoc: additionalClausesDocRef.current,
+            sectionAddendums: sectionAddendumsRef.current,
             ...(vc
               ? {
                   versioningContext: {
@@ -288,8 +328,17 @@ export function useSmartClosingSession(
           additionalClausesDocRef.current = merged.updatedAdditionalClausesDoc;
           setCurrentAdditionalClausesDoc(merged.updatedAdditionalClausesDoc);
         }
+        if (merged.updatedSectionAddendums) {
+          sectionAddendumsRef.current = merged.updatedSectionAddendums;
+          setCurrentSectionAddendums(merged.updatedSectionAddendums);
+        }
 
         if (data.ok && merged.doc.docxBase64) {
+          setPreviewFieldAnchors(
+            "previewFieldAnchors" in data && Array.isArray(data.previewFieldAnchors)
+              ? (data.previewFieldAnchors as PreviewFieldAnchor[])
+              : [],
+          );
           return await refreshPreviewFromBase64(merged.doc.docxBase64);
         }
         setPhase("idle");
@@ -303,28 +352,42 @@ export function useSmartClosingSession(
     [approved, refreshPreviewFromBase64],
   );
 
-  const approveDraft = useCallback(async () => {
+  const approveDraft = useCallback(async (): Promise<boolean> => {
     const vc = versioningContextRef.current;
-    if (vc?.operationId && vc?.propertyCode) {
-      try {
-        const current = docStateRef.current;
-        await fetch("/api/contracts/approve", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            operationId: vc.operationId,
-            propertyCode: vc.propertyCode,
-            documentKind: current.contractTemplateInput.kind,
-            templateVersion: current.contractTemplateInput.templateVersion,
-          }),
-        });
-      } catch {
-        // MVP: si falla la persistencia, el flujo continúa (FIRMA_ENVIADA implica aprobación)
+    if (!vc?.operationId || !vc?.propertyCode) {
+      setErrorMessage("Falta contexto de operación para aprobar el contrato.");
+      setPhase("error");
+      return false;
+    }
+    try {
+      const current = docStateRef.current;
+      const response = await fetch("/api/contracts/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operationId: vc.operationId,
+          propertyCode: vc.propertyCode,
+          documentKind: current.contractTemplateInput.kind,
+          templateVersion: current.contractTemplateInput.templateVersion,
+        }),
+      });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        setErrorMessage(data?.error ?? `No se pudo aprobar el contrato (HTTP ${response.status})`);
+        setPhase("error");
+        return false;
       }
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "No se pudo aprobar el contrato",
+      );
+      setPhase("error");
+      return false;
     }
     setApproved(true);
     setPhase("idle");
     setErrorMessage(null);
+    return true;
   }, []);
 
   const resetApproval = useCallback(() => {
@@ -413,6 +476,19 @@ export function useSmartClosingSession(
     [loadInitialRender],
   );
 
+  /**
+   * Actualiza los detalles por sección en memoria y re-renderiza el DOCX.
+   * La persistencia en BD vive en el `SectionAddendumsManager`.
+   */
+  const applySectionAddendums = useCallback(
+    async (list: SectionAddendumsList | null) => {
+      sectionAddendumsRef.current = list;
+      setCurrentSectionAddendums(list);
+      await loadInitialRender(docStateRef.current.contractTemplateInput);
+    },
+    [loadInitialRender],
+  );
+
   return {
     phase,
     errorMessage,
@@ -441,5 +517,8 @@ export function useSmartClosingSession(
     sendToSignature,
     applyAdditionalClausesDoc,
     currentAdditionalClausesDoc,
+    applySectionAddendums,
+    currentSectionAddendums,
+    previewFieldAnchors,
   };
 }

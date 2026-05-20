@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { fromZonedTime } from "date-fns-tz";
 import {
   Card,
@@ -81,6 +81,13 @@ interface ComercialOption {
   id: string;
   nombre: string;
   ciudad: string | null;
+}
+
+interface ListingNotaEncargoPrefill {
+  listingId: string;
+  refCatastral: string | null;
+  propietarioPhone: string | null;
+  assignedComercialId: string | null;
 }
 
 const STATE_LABELS: Record<string, string> = {
@@ -300,8 +307,11 @@ const MOCK_SESIONES: NotaEncargoSesion[] = [
 // ---------------------------------------------------------------------------
 
 function CaptacionPageContent() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const isMock = searchParams.get("mock") === "1";
+  const fromListingId = searchParams.get("fromListingId");
 
   const [sesiones, setSesiones] = useState<NotaEncargoSesion[]>([]);
   const [loading, setLoading] = useState(!isMock);
@@ -336,6 +346,9 @@ function CaptacionPageContent() {
   );
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [prefillAppliedForListingId, setPrefillAppliedForListingId] = useState<
+    string | null
+  >(null);
 
   const fetchSesiones = useCallback(() => {
     if (isMock) {
@@ -393,6 +406,63 @@ function CaptacionPageContent() {
   useEffect(() => {
     fetchSesiones();
   }, [fetchSesiones]);
+
+  useEffect(() => {
+    if (!fromListingId || prefillAppliedForListingId === fromListingId) return;
+
+    async function prefillFromListing() {
+      try {
+        const response = await fetch(
+          `/api/market/listings/${encodeURIComponent(fromListingId)}/nota-encargo-prefill`,
+        );
+        const payload = (await response.json().catch(() => ({}))) as {
+          ok?: boolean;
+          prefill?: ListingNotaEncargoPrefill;
+          error?: { message?: string };
+        };
+        if (!response.ok || !payload.ok || !payload.prefill) {
+          setFormError(
+            payload.error?.message ??
+              "No se pudieron precargar los datos de la captación.",
+          );
+          setSheetOpen(true);
+          return;
+        }
+
+        const prefill = payload.prefill;
+        if (prefill.refCatastral) setRefCatastral(prefill.refCatastral);
+        if (prefill.propietarioPhone) setPhone(prefill.propietarioPhone);
+        if (prefill.assignedComercialId) {
+          setSelectedComercialId(prefill.assignedComercialId);
+        }
+        setFormError(null);
+        setSheetOpen(true);
+      } catch (error) {
+        setFormError(
+          error instanceof Error
+            ? error.message
+            : "No se pudieron precargar los datos de la captación.",
+        );
+        setSheetOpen(true);
+      } finally {
+        setPrefillAppliedForListingId(fromListingId);
+        const next = new URLSearchParams(searchParams.toString());
+        next.delete("fromListingId");
+        const nextQuery = next.toString();
+        router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, {
+          scroll: false,
+        });
+      }
+    }
+
+    void prefillFromListing();
+  }, [
+    fromListingId,
+    pathname,
+    prefillAppliedForListingId,
+    router,
+    searchParams,
+  ]);
 
   useEffect(() => {
     if (!canChooseComercial) {
@@ -865,6 +935,11 @@ function CaptacionPageContent() {
               el recordatorio, el formulario y la firma al propietario por
               WhatsApp.
             </SheetDescription>
+            {prefillAppliedForListingId ? (
+              <p className="text-xs text-muted-foreground">
+                Datos de captación precargados desde la ficha seleccionada.
+              </p>
+            ) : null}
           </SheetHeader>
 
           <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-6 px-4 pb-6">

@@ -122,6 +122,26 @@ const postHandler = async (request: Request) => {
   const { propertyCode, demandId, buyerClientId, sellerClientId, ciudad } = parsed.data;
   const comercialId = parsed.data.comercialId ?? session.comercialId ?? undefined;
 
+  if (session.role === "ceo" && !comercialId) {
+    return NextResponse.json(
+      { error: "Para crear una operación como CEO debes seleccionar un comercial responsable" },
+      { status: 400 },
+    );
+  }
+
+  if (comercialId) {
+    const comercial = await prisma.comercial.findUnique({
+      where: { id: comercialId },
+      select: { id: true, activo: true },
+    });
+    if (!comercial) {
+      return NextResponse.json({ error: "Comercial no encontrado" }, { status: 400 });
+    }
+    if (!comercial.activo) {
+      return NextResponse.json({ error: "El comercial seleccionado no está activo" }, { status: 400 });
+    }
+  }
+
   const existingActive = await prisma.operacion.findFirst({
     where: {
       propertyCode,

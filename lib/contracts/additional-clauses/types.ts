@@ -54,8 +54,6 @@ export interface AdditionalClausesDoc {
 }
 
 /** Título de la sección en el docx final. */
-export const ADDITIONAL_CLAUSES_HEADING = "CLAUSULAS ADICIONALES" as const;
-
 /** Mapa S/M/L → half-points docx, coherente con los builders existentes. */
 export const ADDITIONAL_CLAUSES_FONT_SIZE_HALFPOINTS: Record<
   AdditionalClauseFontSize,
@@ -79,7 +77,7 @@ export const EMPTY_ADDITIONAL_CLAUSES_DOC: AdditionalClausesDoc = {
 /**
  * True cuando el documento no aporta ningún texto útil al PDF final
  * (sin nodos o con párrafos vacíos). En ese caso los builders docx
- * omiten por completo la sección "Cláusulas adicionales".
+ * omiten por completo la sección de cláusulas añadidas por el comercial.
  */
 export function isAdditionalClausesDocEmpty(
   doc: AdditionalClausesDoc | null | undefined,

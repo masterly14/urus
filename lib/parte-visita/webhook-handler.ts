@@ -11,6 +11,11 @@ import { completeVisit } from "@/lib/visit-scheduling/session-manager";
 import { sendParteVisitaFlow } from "./whatsapp";
 import { resolveParteVisitaBuyerName } from "./resolve-buyer-name";
 import { resolveComercial } from "@/lib/routing/resolve-comercial";
+import {
+  findComercialByIncomingWaId,
+  normalizeComercialWhatsappPhone,
+  samePhoneByLast9,
+} from "@/lib/routing/comercial-whatsapp";
 
 export async function handleParteVisitaNfmReply(
   from: string,
@@ -35,6 +40,18 @@ export async function handleParteVisitaNfmReply(
   if (session.state !== "FORMULARIO_ENVIADO") {
     console.log(
       `[parte-visita-webhook] Session ${session.id} not in FORMULARIO_ENVIADO state (${session.state}) — ignoring`,
+    );
+    return false;
+  }
+
+  const comercial = await resolveComercial({
+    comercialId: session.comercialId,
+    requireActive: false,
+  });
+  const comercialPhone = normalizeComercialWhatsappPhone(comercial);
+  if (!samePhoneByLast9(from, comercialPhone)) {
+    console.log(
+      `[parte-visita-webhook] Ignoring nfm_reply for session ${session.id}: from ${from} does not match comercial`,
     );
     return false;
   }
@@ -82,17 +99,20 @@ export async function handleParteVisitaOffFlowMessage(
     return false;
   }
 
+  const senderComercial = await findComercialByIncomingWaId(from);
+  if (!senderComercial) return false;
+
   const session = await prisma.parteVisitaSession.findFirst({
-    where: { buyerPhone: from, state: "FORMULARIO_ENVIADO" },
+    where: { comercialId: senderComercial.id, state: "FORMULARIO_ENVIADO" },
     orderBy: { updatedAt: "desc" },
   });
   if (!session) return false;
 
-  const comercial = await resolveComercial({
+  const sessionComercial = await resolveComercial({
     comercialId: session.comercialId,
     requireActive: false,
   });
-  const agenteName = comercial?.nombre ?? "URUS Capital Group";
+  const agenteName = sessionComercial?.nombre ?? "URUS Capital Group";
   const fechaVisita = session.visitDateTime.toLocaleDateString("es-ES", {
     day: "2-digit",
     month: "2-digit",
@@ -109,7 +129,9 @@ export async function handleParteVisitaOffFlowMessage(
   });
 
   try {
-    await sendParteVisitaFlow(session.buyerPhone, {
+    const comercialPhone = normalizeComercialWhatsappPhone(sessionComercial);
+    if (!comercialPhone) return false;
+    await sendParteVisitaFlow(comercialPhone, {
       sessionId: session.id,
       buyerName,
       direccion: session.direccion,
@@ -121,7 +143,7 @@ export async function handleParteVisitaOffFlowMessage(
       horaVisita,
     });
     console.log(
-      `[parte-visita-webhook] Off-flow message from ${from}. Flow resent for session ${session.id}`,
+      `[parte-visita-webhook] Off-flow message from comercial ${from}. Flow resent for session ${session.id}`,
     );
   } catch (err) {
     console.warn(

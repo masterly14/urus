@@ -3,21 +3,37 @@
  * de evaluación. Un solo origen para que el prompt, la tool real y los mocks
  * hablen del mismo plazo ante el comprador.
  *
- * Si cambia la SLA interna del comercial, actualiza aquí y se refleja en todos
- * los canales (respuesta del agente, evals, UI de debug).
+ * El microsite opera en modo IA-first (ver
+ * `docs/contraste-docs-originales/validacion-comercial.md`): tras `update_demand`
+ * o `request_more_options`, el job `GENERATE_MICROSITE` aprueba la selección
+ * automáticamente con IA y encola `SEND_MICROSITE_TO_BUYER` sin intervención
+ * humana. NO existe revisor humano intermedio.
+ *
+ * Si en el futuro se reintroduce la validación manual, actualizar aquí y se
+ * reflejará en todos los canales (respuesta del agente, evals, UI de debug).
  */
 
 /**
- * Plazo estimado (minutos) entre que se encola una nueva selección y llega
- * al comprador tras la validación del comercial humano. Es el número que el
- * agente puede comunicar al comprador como "unos ~X minutos".
+ * Plazo estimado (minutos) entre que se encola una nueva selección y llega al
+ * comprador por WhatsApp. Cubre: descripciones IA en paralelo + envío
+ * WhatsApp. En condiciones normales son segundos; usamos un upper bound
+ * conservador realista para que el agente comunique un plazo concreto pero
+ * sincero al comprador.
  */
-export const MICROSITE_HANDOFF_ETA_MINUTES = 30;
+export const MICROSITE_DELIVERY_ETA_MINUTES = 5;
 
 /**
- * Texto estándar que la tool entrega al agente como "agentGuidance" para que
- * no se invente plazos ni omita la existencia del paso de validación humano.
+ * Frase natural que el agente debe usar al hablar al comprador del plazo.
+ * Cumple la regla de AGENTS.md de no decir "pronto" / "en breve": "minutos"
+ * es un plazo concreto.
  */
-export const MICROSITE_HANDOFF_STANDARD_MESSAGE =
-  `Nueva selección encolada. Un compañero del equipo la revisa antes de enviársela al comprador; ` +
-  `normalmente tarda unos ${MICROSITE_HANDOFF_ETA_MINUTES} minutos en llegar.`;
+export const MICROSITE_DELIVERY_BUYER_PHRASE = "en unos minutos te llegan aquí mismo";
+
+/**
+ * Texto estándar que la tool entrega al agente en el campo `message`. Resume
+ * el side-effect operativo SIN inventar pasos humanos: el job ya queda en
+ * marcha y la entrega es automática.
+ */
+export const MICROSITE_DELIVERY_STANDARD_MESSAGE =
+  `Nueva selección encolada. Se enriquece con IA y se envía al comprador automáticamente; ` +
+  `suele tardar pocos minutos en llegar (estimado ~${MICROSITE_DELIVERY_ETA_MINUTES} min).`;

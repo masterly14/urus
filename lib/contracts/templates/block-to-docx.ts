@@ -6,13 +6,13 @@ import {
   TextRun,
 } from "docx";
 import type { TemplateBlock } from "@/types/contract-template";
-import type { SharedClauseBlockId } from "@/types/contracts";
 import {
   buildGastosClause,
   buildCargasClause,
   buildEstadoInmuebleClause,
   buildFueroClause,
 } from "@/lib/contracts/docx/blocks/shared";
+import { resolveVariablesInText } from "./variable-resolver";
 
 const FONT = "Calibri";
 const HEADING_COLOR = "1A365D";
@@ -79,6 +79,7 @@ export function blockToDocxParagraphs(
   block: TemplateBlock,
   overrides?: Record<string, string | null> | null,
   jurisdictionMunicipality?: string,
+  payload?: Record<string, unknown>,
 ): Paragraph[] {
   switch (block.type) {
     case "title":
@@ -105,7 +106,8 @@ export function blockToDocxParagraphs(
           : SHARED_CLAUSE_TEXT[clauseId]?.()) ??
         `[Clausula: ${clauseId}]`;
 
-      return [bodyParagraph(text)];
+      const resolvedText = payload ? resolveVariablesInText(text, payload) : text;
+      return [bodyParagraph(resolvedText)];
     }
 
     case "signature_block": {
