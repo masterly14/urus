@@ -3,9 +3,26 @@
  *
  * Función reutilizable, ejecutada en caliente desde el endpoint
  * `/api/parte-visita/send` (QStash callback en el instante de la visita) y,
- * como red de seguridad, desde el job handler legacy y el script de rescate.
+ * como red de seguridad, desde el cron `/api/cron/parte-visita-rescate` y el
+ * script de rescate manual.
  *
- * Es idempotente: si la sesión no está en `PENDING`, no reenvía.
+ * Es idempotente y safe a la concurrencia:
+ *   - Si la sesión no está en `PENDING`, no reenvía (skip).
+ *   - Si dos llamadas entran en paralelo (p. ej. QStash retry + cron rescate),
+ *     solo una completa el envío. La otra detecta el cambio de estado y
+ *     devuelve `already_sent` sin reenviar.
+ *
+ * Protocolo de claim (lock optimista):
+ *   1. Se envía la plantilla de contexto al comercial. Esta operación es
+ *      idempotente desde el punto de vista de WhatsApp: enviar dos veces el
+ *      mismo template es molesto pero no daña; lo aceptamos como riesgo
+ *      reducido frente al riesgo mayor de no enviar nunca.
+ *   2. ANTES del envío del Flow (el mensaje crítico que abre el formulario),
+ *      hacemos un `updateMany` condicional `PENDING -> FORMULARIO_ENVIADO`.
+ *      Solo el primer caller obtiene `count=1` y prosigue. Los demás
+ *      detectan `count=0` y abortan limpiamente.
+ *   3. Si el envío del Flow falla, revertimos `FORMULARIO_ENVIADO -> PENDING`
+ *      (rollback condicional) para que el cron de rescate pueda reintentarlo.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -101,6 +118,39 @@ export async function sendParteVisitaForSession(
       propertyTitle,
       propertyUrl,
     });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[parte-visita] Error enviando contexto a ${comercialPhone} (session=${sessionId}): ${message}`,
+    );
+    return { ok: false, permanent: false, error: `contexto: ${message}` };
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // Claim atómico antes del envío del Flow.
+  // Si otro proceso (QStash retry, cron rescate, script manual) ya transicionó
+  // PENDING → FORMULARIO_ENVIADO, `count` será 0 y abortamos sin reenviar.
+  // ────────────────────────────────────────────────────────────────────────
+  const claim = await prisma.parteVisitaSession.updateMany({
+    where: { id: sessionId, state: "PENDING" },
+    data: { state: "FORMULARIO_ENVIADO" },
+  });
+  if (claim.count === 0) {
+    const fresh = await prisma.parteVisitaSession.findUnique({
+      where: { id: sessionId },
+      select: { state: true },
+    });
+    console.log(
+      `[parte-visita] Race condition detectada en session=${sessionId}: otro proceso ya transicionó a ${fresh?.state ?? "?"}. Saltando envío del Flow.`,
+    );
+    return {
+      ok: true,
+      status: fresh?.state === "FORMULARIO_ENVIADO" ? "already_sent" : "not_pending",
+      sessionState: fresh?.state,
+    };
+  }
+
+  try {
     await sendParteVisitaFlow(comercialPhone, {
       sessionId: session.id,
       buyerName,
@@ -115,15 +165,17 @@ export async function sendParteVisitaForSession(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(
-      `[parte-visita] Error sending Flow to ${session.buyerPhone}: ${message}`,
+      `[parte-visita] Error enviando Flow a ${comercialPhone} (session=${sessionId}): ${message}`,
     );
-    return { ok: false, permanent: false, error: message };
+    // Rollback condicional: solo si el state sigue siendo FORMULARIO_ENVIADO
+    // (no se ha avanzado por una respuesta del comercial que nunca llegó
+    // porque el envío falló).
+    await prisma.parteVisitaSession.updateMany({
+      where: { id: sessionId, state: "FORMULARIO_ENVIADO" },
+      data: { state: "PENDING" },
+    });
+    return { ok: false, permanent: false, error: `flow: ${message}` };
   }
-
-  await prisma.parteVisitaSession.update({
-    where: { id: sessionId },
-    data: { state: "FORMULARIO_ENVIADO" },
-  });
 
   console.log(
     `[parte-visita] Flow sent to comercial ${comercialPhone} — session=${sessionId}`,

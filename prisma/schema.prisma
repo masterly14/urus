@@ -2358,6 +2358,9 @@ model ParteVisitaSession {
   signatureRequestId String?
   documentUrl        String?
   signedDocumentUrl  String?
+  qstashMessageId    String?
+  schedulePublishError String?
+  scheduleAttempts   Int              @default(0)
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
@@ -2365,6 +2368,7 @@ model ParteVisitaSession {
   @@index([propertyCode])
   @@index([draftDemandId])
   @@index([buyerPhone, state])
+  @@index([state, visitDateTime])
   @@map("parte_visita_sessions")
 }
 

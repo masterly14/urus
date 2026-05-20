@@ -9,6 +9,14 @@
  *
  * No se usa `job_queue` para este flujo: la cola compartida tiene throughput
  * limitado y puede acumular backlog (ver `docs/visitas-gestion-comercial.md`).
+ *
+ * Tolerancia a fallos del publish (post-mortem 2026-05-20):
+ *   Si QStash falla AFTER de crear la sesión, esta función NO lanza: deja la
+ *   sesión creada con `qstashMessageId=null` y `schedulePublishError` poblado.
+ *   Una llamada posterior con el mismo `visitSessionId` reintenta el publish
+ *   en vez de hacer un `return` ciego (bug original). El cron
+ *   `/api/cron/parte-visita-rescate` también barre las sesiones huérfanas
+ *   (PENDING + visitDateTime ≤ now) y las republica o rescata.
  */
 
 import { Client } from "@upstash/qstash";
@@ -35,6 +43,31 @@ export type ParteVisitaScheduleDetails = {
   precio: number;
 };
 
+export type ScheduleParteVisitaOutcome =
+  | {
+      status: "scheduled";
+      parteVisitaSessionId: string;
+      qstashMessageId: string;
+      sendAtIso: string;
+      created: boolean;
+      republished: boolean;
+    }
+  | {
+      status: "already_scheduled";
+      parteVisitaSessionId: string;
+      qstashMessageId: string;
+    }
+  | {
+      status: "publish_failed";
+      parteVisitaSessionId: string;
+      error: string;
+    }
+  | {
+      status: "skipped_terminal";
+      parteVisitaSessionId: string;
+      state: string;
+    };
+
 export class ParteVisitaScheduleError extends Error {
   constructor(message: string) {
     super(message);
@@ -56,6 +89,10 @@ function getQstashClient(): Client {
  * Publica en QStash el envío del Parte de Visita para una sesión existente,
  * apuntando a `visitDateTime` (o ejecución inmediata si la fecha ya pasó).
  * Devuelve el `messageId` de QStash para trazabilidad.
+ *
+ * NO persiste nada — solo habla con QStash. La persistencia del messageId la
+ * hace `scheduleParteVisitaFromDetails` para mantener `lib/parte-visita/schedule.ts`
+ * como única fuente de verdad sobre el estado del schedule.
  */
 export async function publishParteVisitaSendSchedule(params: {
   parteVisitaSessionId: string;
@@ -84,18 +121,60 @@ export async function publishParteVisitaSendSchedule(params: {
   };
 }
 
+/**
+ * Crea (o reutiliza) la `ParteVisitaSession` y se asegura de que tenga un
+ * schedule activo en QStash. Idempotente en ambos niveles:
+ *
+ *   1. Si ya existe la sesión y tiene `qstashMessageId`, no toca nada.
+ *   2. Si existe pero NO tiene `qstashMessageId` (publish anterior falló),
+ *      republica y persiste el nuevo `qstashMessageId`. Este es el fix del
+ *      bug histórico: antes hacía `return` ciego dejando huérfanas.
+ *   3. Si no existe, crea la sesión y publica.
+ *
+ * Tolerancia a fallos del publish: si QStash falla, NO se lanza al caller —
+ * se persiste el error en `schedulePublishError` y se devuelve un outcome
+ * `publish_failed`. El caller decide si quiere romper su flujo o seguir
+ * (el cron `/api/cron/parte-visita-rescate` rescatará la sesión cuando
+ * llegue su `visitDateTime`).
+ *
+ * Si el state ya está en una transición posterior (`FORMULARIO_ENVIADO`,
+ * `FIRMADA`, etc.), tampoco hacemos nada: outcome `skipped_terminal`.
+ */
 export async function scheduleParteVisitaFromDetails(
   details: ParteVisitaScheduleDetails,
-): Promise<void> {
+): Promise<ScheduleParteVisitaOutcome> {
   const existing = await prisma.parteVisitaSession.findUnique({
     where: { visitSessionId: details.visitSessionId },
-    select: { id: true },
+    select: { id: true, state: true, qstashMessageId: true },
   });
+
   if (existing) {
-    console.log(
-      `[parte-visita] ParteVisitaSession already exists for visit ${details.visitSessionId} — skipping`,
-    );
-    return;
+    if (existing.state !== "PENDING") {
+      console.log(
+        `[parte-visita] Session ${existing.id} no PENDING (state=${existing.state}) — no se reprograma`,
+      );
+      return {
+        status: "skipped_terminal",
+        parteVisitaSessionId: existing.id,
+        state: existing.state,
+      };
+    }
+
+    if (existing.qstashMessageId) {
+      console.log(
+        `[parte-visita] Session ${existing.id} ya tiene qstashMessageId=${existing.qstashMessageId} — no se reprograma`,
+      );
+      return {
+        status: "already_scheduled",
+        parteVisitaSessionId: existing.id,
+        qstashMessageId: existing.qstashMessageId,
+      };
+    }
+
+    return republishExistingSession({
+      parteVisitaSessionId: existing.id,
+      visitDateTime: details.visitDateTime,
+    });
   }
 
   const session = await prisma.parteVisitaSession.create({
@@ -111,26 +190,104 @@ export async function scheduleParteVisitaFromDetails(
       tipoOperacion: details.tipoOperacion,
       precio: details.precio,
     },
+    select: { id: true },
   });
 
-  const { messageId, sendAtIso } = await publishParteVisitaSendSchedule({
+  return publishAndPersist({
     parteVisitaSessionId: session.id,
     visitDateTime: details.visitDateTime,
+    created: true,
+    republished: false,
   });
+}
 
-  console.log(
-    `[parte-visita] QStash scheduled for visit ${details.visitSessionId} — session=${session.id} sendAt=${sendAtIso} qstashMessageId=${messageId || "(unknown)"}`,
-  );
+/**
+ * Reintenta el publish para una sesión que ya existe pero no tiene
+ * `qstashMessageId`. Usado por `scheduleParteVisitaFromDetails` cuando la
+ * llamada original falló y por el cron de rescate.
+ */
+export async function republishExistingSession(params: {
+  parteVisitaSessionId: string;
+  visitDateTime: Date;
+}): Promise<ScheduleParteVisitaOutcome> {
+  return publishAndPersist({
+    parteVisitaSessionId: params.parteVisitaSessionId,
+    visitDateTime: params.visitDateTime,
+    created: false,
+    republished: true,
+  });
+}
+
+async function publishAndPersist(params: {
+  parteVisitaSessionId: string;
+  visitDateTime: Date;
+  created: boolean;
+  republished: boolean;
+}): Promise<ScheduleParteVisitaOutcome> {
+  try {
+    const { messageId, sendAtIso } = await publishParteVisitaSendSchedule({
+      parteVisitaSessionId: params.parteVisitaSessionId,
+      visitDateTime: params.visitDateTime,
+    });
+
+    await prisma.parteVisitaSession.update({
+      where: { id: params.parteVisitaSessionId },
+      data: {
+        qstashMessageId: messageId || null,
+        schedulePublishError: null,
+        scheduleAttempts: { increment: 1 },
+      },
+    });
+
+    console.log(
+      `[parte-visita] QStash scheduled — session=${params.parteVisitaSessionId} sendAt=${sendAtIso} qstashMessageId=${messageId || "(unknown)"} created=${params.created} republished=${params.republished}`,
+    );
+
+    return {
+      status: "scheduled",
+      parteVisitaSessionId: params.parteVisitaSessionId,
+      qstashMessageId: messageId,
+      sendAtIso,
+      created: params.created,
+      republished: params.republished,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    try {
+      await prisma.parteVisitaSession.update({
+        where: { id: params.parteVisitaSessionId },
+        data: {
+          schedulePublishError: message.slice(0, 500),
+          scheduleAttempts: { increment: 1 },
+        },
+      });
+    } catch (persistErr) {
+      console.error(
+        `[parte-visita] No se pudo persistir schedulePublishError en ${params.parteVisitaSessionId}:`,
+        persistErr instanceof Error ? persistErr.message : persistErr,
+      );
+    }
+
+    console.error(
+      `[parte-visita] QStash publish FAILED — session=${params.parteVisitaSessionId} error="${message}"`,
+    );
+
+    return {
+      status: "publish_failed",
+      parteVisitaSessionId: params.parteVisitaSessionId,
+      error: message,
+    };
+  }
 }
 
 export async function scheduleParteVisita(
   visitSession: VisitSchedulingSession,
-): Promise<void> {
+): Promise<ScheduleParteVisitaOutcome | null> {
   if (!visitSession.confirmedSlotStart) {
     console.warn(
       `[parte-visita] Cannot schedule: session ${visitSession.id} has no confirmedSlotStart`,
     );
-    return;
+    return null;
   }
 
   const property = await prisma.propertyCurrent.findUnique({
@@ -140,7 +297,7 @@ export async function scheduleParteVisita(
     console.warn(
       `[parte-visita] PropertyCurrent not found for ${visitSession.propertyCode} — skipping`,
     );
-    return;
+    return null;
   }
 
   const snapshot = await prisma.propertySnapshot.findFirst({
@@ -162,7 +319,7 @@ export async function scheduleParteVisita(
   const tipoOperacion = resolveOperationType(property.tipoOfer);
   const precio = property.precio;
 
-  await scheduleParteVisitaFromDetails({
+  return scheduleParteVisitaFromDetails({
     visitSessionId: visitSession.id,
     propertyCode: visitSession.propertyCode,
     propertyRef: property.ref,

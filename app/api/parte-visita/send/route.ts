@@ -1,18 +1,3 @@
-/**
- * Endpoint dedicado al envío del Parte de Visita.
- *
- * QStash publica un mensaje diferido con `notBefore = visitDateTime` apuntando
- * a esta ruta. Al llegar el instante de la visita, QStash invoca este endpoint
- * y se envía el WhatsApp Flow de forma síncrona — sin pasar por la cola
- * interna ni esperar a un cron poller.
- *
- * Autenticación:
- *   - Firma `Upstash-Signature` (QStash), o
- *   - Header `Authorization: Bearer <CRON_SECRET>` como fallback de rescate.
- *
- * Idempotencia: si la sesión ya no está en `PENDING` (cancelada, ya enviada o
- * en otro estado), responde 200 OK sin reenviar.
- */
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
