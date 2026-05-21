@@ -98,14 +98,10 @@ const ContractVoicePatchSchema = z.object({
  * `consumer:market`) puedan arrancar sin `OPENAI_API_KEY`, posponemos el
  * binding hasta la primera invocación efectiva.
  */
-let cachedInstructionClassifier: ReturnType<typeof llm.withStructuredOutput<typeof ContractVoicePatchSchema>> | null = null;
 function getInstructionClassifier() {
-  if (!cachedInstructionClassifier) {
-    cachedInstructionClassifier = llm.withStructuredOutput(ContractVoicePatchSchema, {
-      name: "interpretar_instrucciones_contrato",
-    });
-  }
-  return cachedInstructionClassifier;
+  return llm.withStructuredOutput(ContractVoicePatchSchema, {
+    name: "interpretar_instrucciones_contrato",
+  });
 }
 
 function buildSystemPrompt(documentKind: string): string {
