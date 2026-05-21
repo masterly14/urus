@@ -116,6 +116,25 @@ describe("handleMatchGenerado", () => {
     expect(mockSendMatchWhatsAppHot).not.toHaveBeenCalled();
   });
 
+  it("source=auto_property_creada: tampoco envía WhatsApp al comprador", async () => {
+    const { handleMatchGenerado } = await import("../match-generado-handler");
+    const result = await handleMatchGenerado(
+      makeEvent({
+        demandId: "DEM-100",
+        propertyId: "PROP-1",
+        totalScore: 88,
+        source: "auto_property_creada",
+      }),
+    );
+
+    expect(result.success).toBe(true);
+    expect(mockSendMatchWhatsAppHot).not.toHaveBeenCalled();
+    const notifyJobs = (result.followUpJobs ?? []).filter(
+      (j) => j.type === "NOTIFY_LEAD_WHATSAPP",
+    );
+    expect(notifyJobs).toHaveLength(1);
+  });
+
   it("source=rematch_manual: sí envía WhatsApp al comprador", async () => {
     const { handleMatchGenerado } = await import("../match-generado-handler");
     const result = await handleMatchGenerado(

@@ -47,6 +47,9 @@ const MATCHING_RELEVANT_FIELDS = new Set([
  * Se toman los N mejores por `totalScore` (matches vienen ya ordenados).
  */
 const MAX_MATCHES_PER_PROPERTY = 20;
+const SCORE_DELTA_THRESHOLD = 5;
+
+type PropertyMatchSource = "auto_property_creada" | "auto_property_modificada";
 
 const PRICING_RELEVANT_FIELDS = new Set([
   "precio",
@@ -113,6 +116,12 @@ async function isPriceChangeFromRecommendation(propertyCode: string): Promise<bo
     orderBy: { createdAt: "desc" },
   });
   return recentApply !== null;
+}
+
+function getPropertyMatchSource(event: Event): PropertyMatchSource {
+  return event.type === "PROPIEDAD_MODIFICADA"
+    ? "auto_property_modificada"
+    : "auto_property_creada";
 }
 
 export async function handlePropertyMatching(event: Event): Promise<HandlerResult> {
@@ -220,11 +229,33 @@ export async function handlePropertyMatching(event: Event): Promise<HandlerResul
       );
     }
 
+    const source = getPropertyMatchSource(event);
+    let emitted = 0;
+    let skipped = 0;
+
     for (const match of topMatches) {
+      const aggregateId = `${match.demandId}:${match.propertyId}`;
+      const lastMatch = await prisma.event.findFirst({
+        where: { type: "MATCH_GENERADO", aggregateId },
+        orderBy: { position: "desc" },
+        select: { payload: true },
+      });
+
+      if (lastMatch) {
+        const prevPayload = lastMatch.payload as Record<string, unknown> | null;
+        const prevScore =
+          typeof prevPayload?.totalScore === "number" ? prevPayload.totalScore : 0;
+        const delta = Math.abs(match.totalScore - prevScore);
+        if (delta < SCORE_DELTA_THRESHOLD) {
+          skipped++;
+          continue;
+        }
+      }
+
       const matchEvent = await appendEvent({
         type: "MATCH_GENERADO",
         aggregateType: "MATCH",
-        aggregateId: `${match.demandId}:${match.propertyId}`,
+        aggregateId,
         payload: {
           demandId: match.demandId,
           demandRef: match.demandRef,
@@ -233,6 +264,9 @@ export async function handlePropertyMatching(event: Event): Promise<HandlerResul
           propertyRef: match.propertyRef,
           totalScore: match.totalScore,
           matchScore: JSON.parse(JSON.stringify(match.matchScore)),
+          source,
+          sourceEventId: event.id,
+          causationId: event.id,
         } as unknown as JsonValue,
         correlationId: event.correlationId ?? undefined,
         causationId: event.id,
@@ -244,7 +278,12 @@ export async function handlePropertyMatching(event: Event): Promise<HandlerResul
         idempotencyKey: `process_event:${matchEvent.id}`,
         sourceEventId: matchEvent.id,
       });
+      emitted++;
     }
+
+    console.log(
+      `[consumer:matching] Propiedad ${propertyId} source=${source} — ${emitted} MATCH_GENERADO emitidos, ${skipped} saltados (Δ<${SCORE_DELTA_THRESHOLD})`,
+    );
 
     return { success: true, followUpJobs };
   } catch (err) {

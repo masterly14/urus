@@ -30,10 +30,10 @@ interface MatchGeneradoPayload {
   matchScore?: Record<string, unknown>;
   /**
    * Origen del MATCH_GENERADO. Usado para gobernar canales:
-   * - `auto_demand_creada` / `auto_demand_modificada`: el match se generó
-   *   automáticamente al entrar/modificarse la demanda. El comprador no
-   *   recibe WhatsApp directo (lo recibirá agrupado en el microsite); el
-   *   comercial sí recibe NOTIFY_LEAD_WHATSAPP por match.
+   * - `auto_demand_*` / `auto_property_*`: el match se generó
+   *   automáticamente. El comprador no recibe WhatsApp directo (lo recibirá
+   *   agrupado en el microsite); el comercial sí recibe NOTIFY_LEAD_WHATSAPP
+   *   por match.
    * - `rematch_manual` / `rematch_inline`: rematch lanzado por CEO/Admin.
    *   Mantiene el comportamiento legacy (WhatsApp al comprador en caliente).
    * - undefined: emitido desde el lado-propiedad (PROPIEDAD_CREADA /
@@ -77,17 +77,16 @@ export async function handleMatchGenerado(
   const { demandId, propertyId, totalScore } = payload;
 
   /**
-   * Los matches generados desde el lado-demanda (DEMANDA_CREADA /
-   * DEMANDA_MODIFICADA via `MATCH_DEMAND_AGAINST_INTERNAL`) no envían
-   * WhatsApp directo al comprador. El flujo canónico para el comprador
-   * es: mensaje inicial NLU → microsite agrupado tras validación. Si
-   * mandáramos `sendMatchWhatsAppHot` aquí, una demanda con 20 cruces
-   * generaría 20 WhatsApps al comprador, pisando la conversación NLU
-   * y rompiendo el patrón de microsite.
+   * Los matches generados automáticamente no envían WhatsApp directo al
+   * comprador. El flujo canónico para el comprador es: mensaje inicial NLU →
+   * microsite agrupado tras validación. Si mandáramos `sendMatchWhatsAppHot`
+   * aquí, una ejecución con 20 cruces generaría 20 WhatsApps al comprador,
+   * pisando la conversación NLU y rompiendo el patrón de microsite.
    */
-  const isAutoFromDemandSide =
+  const isAutomaticMatch =
     typeof payload.source === "string" &&
-    payload.source.startsWith("auto_demand_");
+    (payload.source.startsWith("auto_demand_") ||
+      payload.source.startsWith("auto_property_"));
 
   console.log(
     `[consumer:match] MATCH_GENERADO demandId=${demandId} propertyId=${propertyId} score=${totalScore} source=${payload.source ?? "(legacy)"}`,
@@ -132,7 +131,7 @@ export async function handleMatchGenerado(
     });
   }
 
-  if (isAutoFromDemandSide) {
+  if (isAutomaticMatch) {
     console.log(
       `[consumer:match] omitido WhatsApp al comprador demandId=${demandId} property=${propertyId} (source=${payload.source}); flujo canónico vía microsite agrupado`,
     );
