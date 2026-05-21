@@ -1,7 +1,14 @@
-import type { EventType } from "@prisma/client";
 import type { Event } from "@/types/domain";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import type { EventHandler, HandlerResult } from "./types";
+import {
+  registerHandler,
+  getHandler,
+  getRegisteredTypes,
+} from "./registry";
+
+export { registerHandler, getHandler, getRegisteredTypes };
+
 import { handleLeadIngestado } from "./lead-scoring-handler";
 import { handleLeadContactado } from "./lead-contacted-handler";
 import { handlePropertyMatching } from "./matching-handler";
@@ -36,20 +43,6 @@ import {
 } from "./visit-scheduling-event-handlers";
 import { handleNotaEncargoFormularioCompletado } from "./nota-encargo-handlers";
 import { handleNotaEncargoLinkOnPropertyCreated } from "./nota-encargo-link-handler";
-
-const registry = new Map<EventType, EventHandler>();
-
-export function registerHandler(type: EventType, handler: EventHandler): void {
-  registry.set(type, handler);
-}
-
-export function getHandler(type: EventType): EventHandler | undefined {
-  return registry.get(type);
-}
-
-export function getRegisteredTypes(): EventType[] {
-  return [...registry.keys()];
-}
 
 function buildProjectionJob(
   eventId: string,

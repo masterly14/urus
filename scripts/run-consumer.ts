@@ -17,7 +17,9 @@
  *       - `CONSUMER_RAILWAY_MODE=true`: usa `RAILWAY_CONSUMER_JOB_TYPES`
  *         (negocio general; excluye image-worker y pipeline market dedicado).
  *       - `CONSUMER_MARKET_MODE=true`: usa `MARKET_CONSUMER_JOB_TYPES`
- *         (post-crawl de Market).
+ *         (post-crawl de Market). En este modo SOLO se carga
+ *         `market-job-handlers`, evitando importar agentes LLM y otras
+ *         dependencias que el worker Market no necesita.
  *
  * Variables de entorno:
  *   CONSUMER_ALWAYS_ON         (default false) — modo Railway 24/7.
@@ -32,12 +34,13 @@
 import "dotenv/config";
 import { randomUUID } from "crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
+import type { JobType } from "@prisma/client";
+import { runConsumerLoop } from "../lib/workers/consumer/consumer";
 import {
-  runConsumerLoop,
   ALL_CONSUMER_JOB_TYPES,
   MARKET_CONSUMER_JOB_TYPES,
   RAILWAY_CONSUMER_JOB_TYPES,
-} from "../lib/workers/consumer";
+} from "../lib/workers/consumer/types";
 
 const DEFAULT_MAX_CYCLES = 600;
 const DEFAULT_IDLE_MS = 1_000;
@@ -54,7 +57,7 @@ const RAILWAY_MODE =
 const MARKET_MODE =
   process.env.CONSUMER_MARKET_MODE === "true" || cliArgs.includes("--market-mode");
 
-type JobTypes = typeof ALL_CONSUMER_JOB_TYPES;
+type ConsumerMode = "default" | "railway" | "market";
 
 interface HealthState {
   startedAt: number;
@@ -77,18 +80,42 @@ const healthState: HealthState = {
 let healthServer: ReturnType<typeof createServer> | null = null;
 let shuttingDown = false;
 
-function selectJobTypes(): JobTypes {
+function selectJobTypes(): JobType[] {
   if (MARKET_MODE) return MARKET_CONSUMER_JOB_TYPES;
   return RAILWAY_MODE ? RAILWAY_CONSUMER_JOB_TYPES : ALL_CONSUMER_JOB_TYPES;
 }
 
-function resolveConsumerMode(): "default" | "railway" | "market" {
+function resolveConsumerMode(): ConsumerMode {
   if (MARKET_MODE && RAILWAY_MODE) {
     throw new Error("CONSUMER_MARKET_MODE y CONSUMER_RAILWAY_MODE no pueden estar activos a la vez.");
   }
   if (MARKET_MODE) return "market";
   if (RAILWAY_MODE) return "railway";
   return "default";
+}
+
+/**
+ * Carga y registra los handlers correctos para el modo activo.
+ *
+ * En modo `market` se importa SOLO `market-job-handlers`, evitando arrastrar
+ * agentes LLM, WhatsApp, contratos, etc. Esto permite que el proceso arranque
+ * sin las env vars del consumer general (OPENAI_API_KEY, BETTER_AUTH_SECRET,
+ * ...) y reduce significativamente la superficie cargada en memoria.
+ *
+ * En el resto de modos se importa el barrel completo, que mantiene el
+ * comportamiento histórico (todos los handlers registrados al cargar).
+ */
+async function loadHandlers(mode: ConsumerMode): Promise<void> {
+  if (mode === "market") {
+    const { registerMarketJobHandlers } = await import(
+      "../lib/workers/consumer/market-job-handlers"
+    );
+    registerMarketJobHandlers();
+    return;
+  }
+
+  // Modo general/railway: dispara los side effects de registro completo.
+  await import("../lib/workers/consumer");
 }
 
 function delay(ms: number): Promise<void> {
@@ -150,8 +177,7 @@ async function runOneLoop(workerId: string, maxCycles: number, pollIntervalMs: n
   }
 }
 
-async function runAlwaysOn(): Promise<void> {
-  const mode = resolveConsumerMode();
+async function runAlwaysOn(mode: ConsumerMode): Promise<void> {
   const workerId = `${mode}-consumer-${randomUUID().slice(0, 8)}`;
   const maxCycles = Number(process.env.CONSUMER_MAX_CYCLES) || DEFAULT_MAX_CYCLES;
   const idleMs = Number(process.env.CONSUMER_IDLE_MS) || DEFAULT_IDLE_MS;
@@ -183,8 +209,7 @@ async function runAlwaysOn(): Promise<void> {
   );
 }
 
-async function runCliOnce(): Promise<void> {
-  const mode = resolveConsumerMode();
+async function runCliOnce(mode: ConsumerMode): Promise<void> {
   const maxCycles = Number(process.env.CONSUMER_MAX_CYCLES) || DEFAULT_MAX_CYCLES;
   const workerId = `cli-consumer-${randomUUID().slice(0, 8)}`;
 
@@ -233,10 +258,13 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
 async function main(): Promise<void> {
+  const mode = resolveConsumerMode();
+  await loadHandlers(mode);
+
   if (ALWAYS_ON) {
-    await runAlwaysOn();
+    await runAlwaysOn(mode);
   } else {
-    await runCliOnce();
+    await runCliOnce(mode);
   }
 }
 

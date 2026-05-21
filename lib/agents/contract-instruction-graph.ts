@@ -92,9 +92,21 @@ const ContractVoicePatchSchema = z.object({
   reasoning: z.string().describe("Breve razonamiento para auditoria."),
 });
 
-const llmStructured = llm.withStructuredOutput(ContractVoicePatchSchema, {
-  name: "interpretar_instrucciones_contrato",
-});
+/**
+ * Inicialización lazy: `llm.withStructuredOutput` valida la API key del proveedor
+ * en tiempo de import. Para que workers que NO usan este grafo (p. ej.
+ * `consumer:market`) puedan arrancar sin `OPENAI_API_KEY`, posponemos el
+ * binding hasta la primera invocación efectiva.
+ */
+let cachedInstructionClassifier: ReturnType<typeof llm.withStructuredOutput<typeof ContractVoicePatchSchema>> | null = null;
+function getInstructionClassifier() {
+  if (!cachedInstructionClassifier) {
+    cachedInstructionClassifier = llm.withStructuredOutput(ContractVoicePatchSchema, {
+      name: "interpretar_instrucciones_contrato",
+    });
+  }
+  return cachedInstructionClassifier;
+}
 
 function buildSystemPrompt(documentKind: string): string {
   const kindSpecific: Record<string, string> = {
@@ -228,7 +240,7 @@ async function interpretNode(state: InstructionStateType): Promise<Partial<Instr
 
   try {
     const raw = await withRetry(() =>
-      llmStructured.invoke([
+      getInstructionClassifier().invoke([
         { role: "system", content: buildSystemPrompt(documentKind) },
         {
           role: "user",

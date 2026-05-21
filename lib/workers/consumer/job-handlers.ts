@@ -1,6 +1,14 @@
-import type { JobType } from "@prisma/client";
 import type { JobRecord } from "@/lib/job-queue/types";
 import type { HandlerResult } from "./types";
+import {
+  registerJobHandler,
+  getJobHandler,
+  type JobHandler,
+} from "./registry";
+
+export { registerJobHandler, getJobHandler };
+export type { JobHandler };
+
 import { appendEvent } from "@/lib/event-store";
 import { canExecute, recordSuccess, recordFailure } from "@/lib/circuit-breaker";
 import {
@@ -37,18 +45,6 @@ import {
   handleSendReviewReminder,
   handleSendReferralRequest,
 } from "./post-sale-job-handler";
-
-export type JobHandler = (job: JobRecord) => Promise<HandlerResult>;
-
-const jobRegistry = new Map<JobType, JobHandler>();
-
-export function registerJobHandler(type: JobType, handler: JobHandler): void {
-  jobRegistry.set(type, handler);
-}
-
-export function getJobHandler(type: JobType): JobHandler | undefined {
-  return jobRegistry.get(type);
-}
 
 async function handleNotifyLeadWhatsApp(job: JobRecord): Promise<HandlerResult> {
   const payload = (job.payload ?? {}) as Record<string, unknown>;

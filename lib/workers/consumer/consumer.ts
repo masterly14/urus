@@ -9,8 +9,7 @@ import {
 } from "@/lib/observability";
 import { emitNotification } from "@/lib/notifications/emit";
 import { resolveComercialByProperty, resolveComercialByDemand } from "@/lib/routing/resolve-comercial";
-import { getHandler } from "./handlers";
-import { getJobHandler, type JobHandler } from "./job-handlers";
+import { getHandler, getJobHandler, type JobHandler } from "./registry";
 import type {
   ConsumerConfig,
   ConsumerCycleResult,
