@@ -1,0 +1,42 @@
+# Railway Consumer Market dedicado — drena MARKET_CONSUMER_JOB_TYPES (post-crawl).
+#
+# Reutiliza scripts/run-consumer.ts con CONSUMER_MARKET_MODE=true para procesar
+# exclusivamente el pipeline Market post-crawl (NORMALIZE/RESOLVE/FETCH_DETAIL/
+# DIFF/REFRESH_SNAPSHOT/IMPORT_LISTING_IMAGES/PUSH_ADVERTISER) y aislar su
+# throughput del consumer general (Dockerfile.consumer).
+#
+# No instala Playwright/Chromium — los handlers no requieren navegador. Los
+# crawls reales corren en el Market Worker (workers/market-worker/Dockerfile) y
+# se disparan vía MARKET_CRAWL_SEED desde el crawl-dispatcher.
+
+FROM node:22-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Dummy DATABASE_URL solo para build: prisma generate valida el schema pero
+# no conecta a la DB. La URL real se inyecta en runtime por Railway.
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+
+COPY package.json package-lock.json .npmrc prisma.config.ts ./
+COPY prisma ./prisma/
+RUN npm ci --legacy-peer-deps --ignore-scripts
+
+RUN npx prisma generate
+
+COPY tsconfig.json ./
+COPY lib ./lib/
+COPY types ./types/
+COPY scripts/run-consumer.ts ./scripts/
+
+ENV PORT=8080
+ENV CONSUMER_ALWAYS_ON=true
+ENV CONSUMER_MARKET_MODE=true
+ENV CONSUMER_RAILWAY_MODE=false
+
+EXPOSE 8080
+
+CMD ["npx", "tsx", "scripts/run-consumer.ts"]

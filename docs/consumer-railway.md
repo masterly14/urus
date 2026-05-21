@@ -108,23 +108,68 @@ significativo a Railway.
 
 ## Consumer Market dedicado
 
-Para post-crawl de Market usar un segundo servicio con el mismo entrypoint:
+Para post-crawl de Market usar un segundo servicio Railway con el mismo
+entrypoint pero distinto Dockerfile:
+
+- **Dockerfile path:** `Dockerfile.consumer-market`
+- **Comando interno:** equivalente a `npm run consumer:market` (el Dockerfile
+  ya inyecta `CONSUMER_ALWAYS_ON=true`, `CONSUMER_MARKET_MODE=true` y
+  `CONSUMER_RAILWAY_MODE=false`).
+
+Env vars en Railway (mismas que el consumer general; las flags de modo ya
+vienen en el Dockerfile):
 
 ```bash
-npm run consumer:market
-```
-
-Env recomendado:
-
-```bash
-CONSUMER_ALWAYS_ON=true
-CONSUMER_MARKET_MODE=true
-CONSUMER_RAILWAY_MODE=false
-PORT=8080
+DATABASE_URL=postgresql://...neon.tech/...
+OPENAI_API_KEY=...
+INMOVILLA_API_TOKEN=...
+STATEFOX_BEARER_TOKEN=...
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
+CRON_SECRET=...
+NEXT_PUBLIC_APP_URL=https://...
 ```
 
 Procesa exclusivamente `MARKET_CONSUMER_JOB_TYPES` y reduce la
 competencia con jobs de negocio general.
+
+## Market Crawl Dispatcher (always-on)
+
+Tercer servicio Railway dedicado a drenar `MARKET_CRAWL_SEED` 24/7. Llama a
+`runCrawlTick()` en bucle y delega los crawls reales al Market Worker.
+
+- **Dockerfile path:** `Dockerfile.market-crawl-dispatcher`
+- **Comando interno:** `npx tsx scripts/run-market-crawl-dispatcher.ts`
+- **Puerto health:** `8081` (`GET /internal/health`).
+
+Env vars mínimas:
+
+```bash
+DATABASE_URL=postgresql://...neon.tech/...
+MARKET_WORKER_URL=https://market-worker.up.railway.app
+MARKET_WORKER_SHARED_SECRET=...
+# Tunables (opcionales)
+MARKET_CRAWL_DISPATCHER_BATCH_SIZE=5
+MARKET_CRAWL_DISPATCHER_POLL_MS=1500
+MARKET_CRAWL_DISPATCHER_IDLE_MS=1000
+```
+
+## Mapa de Dockerfiles → Servicios Railway
+
+| Servicio Railway              | Dockerfile path                          | Entrypoint                                     | Puerto |
+| ----------------------------- | ---------------------------------------- | ---------------------------------------------- | ------ |
+| `urus-consumer`               | `Dockerfile.consumer`                    | `scripts/run-consumer.ts` (railway-mode)       | 8080   |
+| `urus-consumer-market`        | `Dockerfile.consumer-market`             | `scripts/run-consumer.ts` (market-mode)        | 8080   |
+| `urus-market-crawl-dispatcher`| `Dockerfile.market-crawl-dispatcher`     | `scripts/run-market-crawl-dispatcher.ts`       | 8081   |
+| `urus-image-worker`           | `Dockerfile.image-worker`                | `scripts/run-image-worker.ts`                  | 8080   |
+| `urus-market-worker`          | `workers/market-worker/Dockerfile`       | `npm start` (workers/market-worker)            | 8080   |
+| `urus-session-proxy`          | `Dockerfile.railway`                     | `railway-entrypoint.sh`                        | n/a    |
+
+> Si Railway autodetecta Nixpacks (no se especifica Dockerfile path), intentará
+> ejecutar `npm run build` que dispara `next build` y compila TODA la
+> aplicación. **Siempre** configura el Dockerfile path en Settings → Build de
+> cada servicio.
 
 ## Plan de rollout
 

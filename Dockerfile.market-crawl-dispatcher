@@ -1,0 +1,39 @@
+# Railway Market Crawl Dispatcher — drena MARKET_CRAWL_SEED 24/7 con prioridad alta.
+#
+# Lanza scripts/run-market-crawl-dispatcher.ts en modo always-on. Llama a
+# runCrawlTick() en bucle y delega los crawls reales al Market Worker
+# (workers/market-worker), por lo que NO necesita Playwright/Chromium en esta
+# imagen.
+#
+# Aislar este servicio del consumer general permite garantizar latencia baja
+# para crawls on-demand disparados por pricing/microsite cuando faltan
+# comparables locales.
+
+FROM node:22-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Dummy DATABASE_URL solo para build: prisma generate valida el schema pero
+# no conecta a la DB. La URL real se inyecta en runtime por Railway.
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+
+COPY package.json package-lock.json .npmrc prisma.config.ts ./
+COPY prisma ./prisma/
+RUN npm ci --legacy-peer-deps --ignore-scripts
+
+RUN npx prisma generate
+
+COPY tsconfig.json ./
+COPY lib ./lib/
+COPY types ./types/
+COPY scripts/run-market-crawl-dispatcher.ts ./scripts/
+
+ENV PORT=8081
+
+EXPOSE 8081
+
+CMD ["npx", "tsx", "scripts/run-market-crawl-dispatcher.ts"]

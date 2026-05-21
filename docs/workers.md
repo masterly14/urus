@@ -17,10 +17,11 @@ El consumer procesa un job por ciclo (secuencial). La cola usa `FOR UPDATE SKIP 
 - **Cron**: invocar el endpoint `/api/cron/consumer` con mayor frecuencia o desde múltiples schedulers.
 - **CLI**: lanzar varias instancias de `npm run consumer` simultáneamente; cada una genera un `workerId` único.
 - **Vercel**: las funciones serverless ya ejecutan invocaciones concurrentes de forma natural.
-- **Railway 24/7 (recomendado para latencia hot)**:
-  - `npm run consumer:railway` (general): procesa `RAILWAY_CONSUMER_JOB_TYPES` (excluye image-worker y pipeline Market post-crawl).
-  - `npm run consumer:market` (dedicado): procesa `MARKET_CONSUMER_JOB_TYPES` para aislar throughput de Market.
-  Ambos conviven con el cron QStash sin colisiones (`FOR UPDATE SKIP LOCKED`). Despliegue y rollout: [`docs/consumer-railway.md`](consumer-railway.md).
+- **Railway 24/7 (recomendado para latencia hot)** — un servicio Railway por proceso, cada uno con su Dockerfile dedicado (importante: configurar el `Dockerfile path` en Settings → Build para evitar que Nixpacks compile toda la app Next):
+  - `urus-consumer` → `Dockerfile.consumer` → `scripts/run-consumer.ts` con `CONSUMER_RAILWAY_MODE=true`. Procesa `RAILWAY_CONSUMER_JOB_TYPES` (excluye image-worker y pipeline Market post-crawl).
+  - `urus-consumer-market` → `Dockerfile.consumer-market` → `scripts/run-consumer.ts` con `CONSUMER_MARKET_MODE=true`. Procesa `MARKET_CONSUMER_JOB_TYPES`.
+  - `urus-market-crawl-dispatcher` → `Dockerfile.market-crawl-dispatcher` → `scripts/run-market-crawl-dispatcher.ts`. Drena `MARKET_CRAWL_SEED` con prioridad alta.
+  Todos conviven con el cron QStash sin colisiones (`FOR UPDATE SKIP LOCKED`). Despliegue y rollout: [`docs/consumer-railway.md`](consumer-railway.md).
 
 Para el volumen actual (3 comerciales, ~37 propiedades), una sola instancia es más que suficiente.
 
