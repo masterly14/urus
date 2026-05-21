@@ -118,13 +118,17 @@ type NLUStateType = typeof NLUState.State;
 
 // ── LLMs estructurados ──────────────────────────────────────────────────────
 
-const llmContextual = llm.withStructuredOutput(ContextualNLUOutputSchema, {
-  name: "clasificar_feedback_comprador",
-});
+function getContextualClassifier() {
+  return llm.withStructuredOutput(ContextualNLUOutputSchema, {
+    name: "clasificar_feedback_comprador",
+  });
+}
 
-const llmSimple = llm.withStructuredOutput(SimpleNLUOutputSchema, {
-  name: "clasificar_respuesta_whatsapp",
-});
+function getSimpleClassifier() {
+  return llm.withStructuredOutput(SimpleNLUOutputSchema, {
+    name: "clasificar_respuesta_whatsapp",
+  });
+}
 
 // ── Prompts ─────────────────────────────────────────────────────────────────
 
@@ -352,7 +356,7 @@ async function clasificarContextual(state: NLUStateType): Promise<Partial<NLUSta
   try {
     const systemPrompt = buildContextualSystemPrompt(properties, history);
     const result = await withRetry(() =>
-      llmContextual.invoke([
+      getContextualClassifier().invoke([
         { role: "system", content: systemPrompt },
         { role: "user", content: messageText },
       ]),
@@ -400,7 +404,7 @@ async function clasificarSimple(state: NLUStateType): Promise<Partial<NLUStateTy
 
   try {
     const result = await withRetry(() =>
-      llmSimple.invoke([
+      getSimpleClassifier().invoke([
         { role: "system", content: SIMPLE_SYSTEM_PROMPT },
         { role: "user", content: `Analiza esta respuesta del comprador:\n\n"${messageText}"` },
       ]),
