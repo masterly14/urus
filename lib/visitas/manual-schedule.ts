@@ -3,8 +3,8 @@ import { fromZonedTime } from "date-fns-tz";
 import { appendEvent } from "@/lib/event-store/event-store";
 import { enqueueJob } from "@/lib/job-queue";
 import { prisma } from "@/lib/prisma";
-import { createCalendarEvent, type CalendarEventInput } from "@/lib/composio";
-import { cancelCalendarEvent } from "@/lib/composio/calendar";
+import type { CalendarEventInput } from "@/lib/composio";
+import { cancelCalendarEvent, createCalendarEventDirect } from "@/lib/composio/calendar";
 import { scheduleParteVisitaFromDetails } from "@/lib/parte-visita/schedule";
 import { updateDemandLeadStatus } from "@/lib/projections/update-lead-status";
 import { cancelVisitAtomically } from "@/lib/visit-scheduling/confirm-visit";
@@ -48,6 +48,7 @@ export type ManualVisitCancelResult = {
   eventId: string;
   visitSessionId: string;
   calendarCancelled: boolean;
+  qstashMessageDeleted: boolean;
 };
 
 export type ManualVisitRescheduleInput = {
@@ -66,6 +67,7 @@ export type ManualVisitRescheduleResult = {
   newSessionId: string;
   scheduleEventId: string;
   calendarCancelled: boolean;
+  qstashMessageDeleted: boolean;
   calendar: {
     success: boolean;
     eventId?: string;
@@ -205,16 +207,57 @@ async function cancelCalendarForSession(input: {
 async function cancelParteVisitaSessionForVisit(visitSessionId: string) {
   const parte = await prisma.parteVisitaSession.findUnique({
     where: { visitSessionId },
-    select: { id: true, state: true },
+    select: { id: true, state: true, qstashMessageId: true },
   });
-  if (!parte) return;
+  if (!parte) return false;
   if (parte.state === "CANCELADA" || parte.state === "FIRMADA" || parte.state === "DOCUMENTO_ENVIADO") {
-    return;
+    return false;
   }
   await prisma.parteVisitaSession.update({
     where: { id: parte.id },
     data: { state: "CANCELADA" },
   });
+
+  if (!parte.qstashMessageId) return false;
+
+  const deleted = await deleteQstashMessage(parte.qstashMessageId);
+  if (deleted) {
+    await prisma.parteVisitaSession.update({
+      where: { id: parte.id },
+      data: { qstashMessageId: null },
+    });
+  }
+  return deleted;
+}
+
+async function deleteQstashMessage(messageId: string): Promise<boolean> {
+  const token = process.env.QSTASH_TOKEN?.trim();
+  if (!token) {
+    console.warn(
+      `[visitas] No se pudo borrar mensaje QStash ${messageId}: QSTASH_TOKEN no configurado`,
+    );
+    return false;
+  }
+
+  try {
+    const response = await fetch(`https://qstash.upstash.io/v2/messages/${messageId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.ok) return true;
+
+    const body = await response.text().catch(() => "");
+    console.warn(
+      `[visitas] No se pudo borrar mensaje QStash ${messageId}: HTTP ${response.status} ${response.statusText} ${body.slice(0, 200)}`,
+    );
+    return false;
+  } catch (err) {
+    console.warn(
+      `[visitas] No se pudo borrar mensaje QStash ${messageId}:`,
+      err instanceof Error ? err.message : err,
+    );
+    return false;
+  }
 }
 
 export async function scheduleManualVisit(
@@ -267,38 +310,42 @@ export async function scheduleManualVisit(
     throw new Error("La propiedad ya tiene una visita confirmada en ese horario");
   }
 
-  const calendarResult = await createCalendarEvent(
-    buildCalendarInput({
-      demandName,
-      property: property ?? {
-        propertyId: effectiveDraftPropertyId || "",
-        source: "external",
-        title: "Propiedad provisional",
-        reference: `DRAFT-${effectiveDraftPropertyId}`,
-        cadastralReference: null,
-        address: "Direccion pendiente de completar",
-        city: null,
-        zone: null,
-        price: null,
-        rooms: null,
-        metersBuilt: null,
-        portalUrl: null,
-        contact: {
-          kind: "propietario",
-          name: "Propietario provisional",
-          phones: [],
-          source: "property_current",
-        },
-        missingContactPhone: false,
-        interestedAt: new Date().toISOString(),
+  const calendarInput = buildCalendarInput({
+    demandName,
+    property: property ?? {
+      propertyId: effectiveDraftPropertyId || "",
+      source: "external",
+      title: "Propiedad provisional",
+      reference: `DRAFT-${effectiveDraftPropertyId}`,
+      cadastralReference: null,
+      address: "Direccion pendiente de completar",
+      city: null,
+      zone: null,
+      price: null,
+      rooms: null,
+      metersBuilt: null,
+      portalUrl: null,
+      contact: {
+        kind: "propietario",
+        name: "Propietario provisional",
+        phones: [],
+        source: "property_current",
       },
-      fecha: input.fecha,
-      horaInicio: input.horaInicio,
-      horaFin: input.horaFin,
-      notas: input.notas,
-    }),
-    comercial.composioConnectionId,
-  );
+      missingContactPhone: false,
+      interestedAt: new Date().toISOString(),
+    },
+    fecha: input.fecha,
+    horaInicio: input.horaInicio,
+    horaFin: input.horaFin,
+    notas: input.notas,
+  });
+  const calendarResult = await createCalendarEventDirect(comercial.composioConnectionId, {
+    summary: calendarInput.titulo,
+    description: calendarInput.descripcion,
+    startDatetime: `${calendarInput.fecha}T${calendarInput.horaInicio}:00`,
+    endDatetime: `${calendarInput.fecha}T${calendarInput.horaFin}:00`,
+    location: calendarInput.ubicacion,
+  });
 
   const visitSession = await prisma.visitSchedulingSession.create({
     data: {
@@ -422,7 +469,7 @@ export async function cancelManualVisit(
     comercialId: input.comercialId,
     calendarEventId: session.calendarEventId,
   });
-  await cancelParteVisitaSessionForVisit(session.id);
+  const qstashMessageDeleted = await cancelParteVisitaSessionForVisit(session.id);
 
   await prisma.visitWorkItem.update({
     where: { id: workItem.id },
@@ -452,6 +499,7 @@ export async function cancelManualVisit(
       reason: input.reason ?? "",
       calendarEventId: session.calendarEventId || null,
       calendarCancelled,
+      qstashMessageDeleted,
       source: "manual_visitas_ui",
     },
   });
@@ -470,6 +518,7 @@ export async function cancelManualVisit(
     eventId: event.id,
     visitSessionId: session.id,
     calendarCancelled,
+    qstashMessageDeleted,
   };
 }
 
@@ -497,7 +546,7 @@ export async function rescheduleManualVisit(
     comercialId: input.comercialId,
     calendarEventId: previousSession.calendarEventId,
   });
-  await cancelParteVisitaSessionForVisit(previousSession.id);
+  const qstashMessageDeleted = await cancelParteVisitaSessionForVisit(previousSession.id);
 
   const aggregate = buildVisitAggregate({
     demandId: workItem.demandId,
@@ -520,6 +569,7 @@ export async function rescheduleManualVisit(
       previousSlotEnd: previousSession.confirmedSlotEnd?.toISOString() ?? null,
       previousCalendarEventId: previousSession.calendarEventId || null,
       calendarCancelled,
+      qstashMessageDeleted,
       source: "manual_visitas_ui",
     },
   });
@@ -557,6 +607,7 @@ export async function rescheduleManualVisit(
     newSessionId: scheduleResult.visitSessionId,
     scheduleEventId: scheduleResult.eventId,
     calendarCancelled,
+    qstashMessageDeleted,
     calendar: scheduleResult.calendar,
   };
 }

@@ -393,6 +393,7 @@ export function VisitasClient() {
   const [items, setItems] = useState<VisitWorkItemDto[]>([]);
   const [activeTab, setActiveTab] = useState<VisitTab>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [showCancelled, setShowCancelled] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedId, setSelectedId] = useState(initialVisitId);
   const [fecha, setFecha] = useState(tomorrow());
@@ -445,17 +446,21 @@ export function VisitasClient() {
     () => items.find((item) => item.id === selectedId) ?? null,
     [items, selectedId],
   );
+  const filteredItems = useMemo(
+    () => (showCancelled ? items : items.filter((item) => item.status !== "CANCELLED")),
+    [items, showCancelled],
+  );
   const todaysVisits = useMemo(
     () =>
-      items.filter((item) => {
+      filteredItems.filter((item) => {
         const slot = item.scheduledSlotStart ?? item.scheduledSlotEnd;
         return isMadridToday(slot);
       }),
-    [items],
+    [filteredItems],
   );
   const completedVisits = useMemo(
     () =>
-      items.filter((item) =>
+      filteredItems.filter((item) =>
         [
           "COMPLETED",
           "DECIDED_GREEN",
@@ -463,31 +468,31 @@ export function VisitasClient() {
           "DECIDED_RED",
         ].includes(item.status),
       ),
-    [items],
+    [filteredItems],
   );
   const documentedVisits = useMemo(
     () =>
-      items.filter(
+      filteredItems.filter(
         (item) =>
           Boolean(item.parteVisita?.documentUrl) ||
           Boolean(item.parteVisita?.signedDocumentUrl) ||
           item.parteVisita?.state === "DOCUMENTO_ENVIADO",
       ),
-    [items],
+    [filteredItems],
   );
   const pendingScheduleVisits = useMemo(
     () =>
-      items.filter((item) =>
+      filteredItems.filter((item) =>
         ["PENDING_SCHEDULE", "INCOMPLETE"].includes(item.status),
       ),
-    [items],
+    [filteredItems],
   );
   const scheduledVisits = useMemo(
-    () => items.filter((item) => item.status === "SCHEDULED"),
-    [items],
+    () => filteredItems.filter((item) => item.status === "SCHEDULED"),
+    [filteredItems],
   );
   const visibleItems = useMemo(() => {
-    let filtered = items;
+    let filtered = filteredItems;
     if (activeTab === "TODAY") filtered = todaysVisits;
     else if (activeTab === "SCHEDULED") filtered = scheduledVisits;
     else if (activeTab === "DONE") filtered = completedVisits;
@@ -511,7 +516,7 @@ export function VisitasClient() {
     scheduledVisits,
     completedVisits,
     documentedVisits,
-    items,
+    filteredItems,
     searchQuery,
   ]);
 
@@ -1563,7 +1568,7 @@ export function VisitasClient() {
                 variant={activeTab === "ALL" ? "default" : "outline"}
                 onClick={() => setActiveTab("ALL")}
               >
-                Todas ({items.length})
+                Todas ({filteredItems.length})
               </Button>
               <Button
                 type="button"
@@ -1596,6 +1601,14 @@ export function VisitasClient() {
                 onClick={() => setActiveTab("DOCUMENTED")}
               >
                 Documentadas ({documentedVisits.length})
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={showCancelled ? "secondary" : "outline"}
+                onClick={() => setShowCancelled((current) => !current)}
+              >
+                {showCancelled ? "Ocultar canceladas" : "Mostrar canceladas"}
               </Button>
             </div>
             {loading ? (
