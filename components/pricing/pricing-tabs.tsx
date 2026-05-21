@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isPricingMarketStudyUiEnabled } from "@/lib/pricing/ui-feature-flags";
 
-const tabs = [
+const allTabs = [
   {
     key: "cartera",
     label: "Cartera interna",
@@ -25,6 +26,9 @@ const tabs = [
 
 export function PricingTabs() {
   const pathname = usePathname();
+  const tabs = isPricingMarketStudyUiEnabled()
+    ? allTabs
+    : allTabs.filter((tab) => tab.key !== "mercado");
 
   return (
     <div className="inline-flex items-center gap-1 rounded-lg border border-border/50 bg-accent/20 p-1">

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { isPricingMarketStudyUiEnabled } from "@/lib/pricing/ui-feature-flags";
 import useSWR from "swr";
 import Link from "next/link";
 import Image from "next/image";
@@ -83,6 +85,18 @@ interface ZoneDetailState {
 type MercadoHeatLayer = "precio_m2" | "densidad_demografica" | "accesibilidad_media";
 
 export default function MercadoPage() {
+    const router = useRouter();
+
+    useEffect(() => {
+        if (!isPricingMarketStudyUiEnabled()) {
+            router.replace("/platform/pricing");
+        }
+    }, [router]);
+
+    if (!isPricingMarketStudyUiEnabled()) {
+        return null;
+    }
+
     const { data, error: swrError, isLoading: swrLoading } = useSWR<MercadoResponse>(
         "/api/pricing/mercado",
         { revalidateOnMount: true, keepPreviousData: true },

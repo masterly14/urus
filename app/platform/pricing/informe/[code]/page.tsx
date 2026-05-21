@@ -45,6 +45,7 @@ import { proxiedStatefoxImageUrl } from "@/lib/statefox/image-url";
 import { useStatefoxImageCachePolling } from "@/lib/statefox/image-cache/use-image-cache-polling";
 import { pricingFixture } from "@/lib/mock-data/pricing-fixture";
 import { AnalysisProcessingCard } from "@/components/pricing/analysis-processing-card";
+import { isPricingMarketStudyUiEnabled } from "@/lib/pricing/ui-feature-flags";
 import { useGlobalLoader } from "@/lib/hooks/use-global-loader";
 
 type ViewState =
@@ -1800,11 +1801,12 @@ function TabMercado({ data }: { data: PricingAnalysisResult }) {
 // ── Tab: Análisis ─────────────────────────────────────────────────────────────
 
 function TabAnalisis({ data }: { data: PricingAnalysisResult }) {
+  const marketStudyUi = isPricingMarketStudyUiEnabled();
   return (
     <div className="space-y-5">
-      <SectionOptimalPricing data={data} />
+      {marketStudyUi && <SectionOptimalPricing data={data} />}
       <SectionComparacionPrecios data={data} />
-      <SectionZoneStudy data={data} />
+      {marketStudyUi && <SectionZoneStudy data={data} />}
       <SectionTemporalTrend trend={data.trend} />
     </div>
   );
