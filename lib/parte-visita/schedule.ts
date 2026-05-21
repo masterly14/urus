@@ -224,6 +224,7 @@ async function publishAndPersist(params: {
   created: boolean;
   republished: boolean;
 }): Promise<ScheduleParteVisitaOutcome> {
+  const destinationUrl = `${getPublicAppUrl()}${SEND_ROUTE}`;
   try {
     const { messageId, sendAtIso } = await publishParteVisitaSendSchedule({
       parteVisitaSessionId: params.parteVisitaSessionId,
@@ -253,6 +254,13 @@ async function publishAndPersist(params: {
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const errorName = err instanceof Error ? err.name : typeof err;
+    const stack = err instanceof Error ? err.stack : undefined;
+    const cause =
+      err instanceof Error && "cause" in err
+        ? String((err as Error & { cause?: unknown }).cause ?? "")
+        : "";
+    const scheduledIso = params.visitDateTime.toISOString();
     try {
       await prisma.parteVisitaSession.update({
         where: { id: params.parteVisitaSessionId },
@@ -269,8 +277,11 @@ async function publishAndPersist(params: {
     }
 
     console.error(
-      `[parte-visita] QStash publish FAILED — session=${params.parteVisitaSessionId} error="${message}"`,
+      `[parte-visita] QStash publish FAILED — session=${params.parteVisitaSessionId} error="${message}" name="${errorName}" cause="${cause || "(none)"}" destination="${destinationUrl}" visitDateTime="${scheduledIso}" created=${params.created} republished=${params.republished}`,
     );
+    if (stack) {
+      console.error(`[parte-visita] QStash publish stack — session=${params.parteVisitaSessionId}\n${stack}`);
+    }
 
     return {
       status: "publish_failed",
