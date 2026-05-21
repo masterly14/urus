@@ -37,8 +37,9 @@ import {
   requeueJob,
 } from "@/lib/job-queue";
 import {
-  ACTIVE_SOURCES_V1,
   getActiveSourcesV1,
+  MARKET_PRIORITY_BACKGROUND,
+  MARKET_PRIORITY_NORMALIZE_ON_DEMAND,
   type MarketSource,
 } from "@/lib/market";
 import {
@@ -69,11 +70,25 @@ export interface CrawlTickResult {
   blocked: number;
   accepted: number;
   noWork: boolean;
+  normalizeJobsEnqueued: number;
+  queueWaitMsAvg: number;
+  queueWaitMsP95: number;
+  queueWaitMsMax: number;
 }
 
 export interface RefreshSnapshotResult {
   enqueued: number;
   cities: string[];
+}
+
+function computePercentile(values: number[], percentile: number): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.min(
+    sorted.length - 1,
+    Math.max(0, Math.ceil((percentile / 100) * sorted.length) - 1),
+  );
+  return Math.round(sorted[index]);
 }
 
 // ---------------------------------------------------------------------------
@@ -286,7 +301,17 @@ export async function runCrawlTick(options: {
     console.warn(
       "[market:scheduler] crawl-tick: MARKET_WORKER_BASE_URL/SHARED_SECRET no configurados — skip",
     );
-    return { processed: 0, failed: 0, blocked: 0, accepted: 0, noWork: true };
+    return {
+      processed: 0,
+      failed: 0,
+      blocked: 0,
+      accepted: 0,
+      noWork: true,
+      normalizeJobsEnqueued: 0,
+      queueWaitMsAvg: 0,
+      queueWaitMsP95: 0,
+      queueWaitMsMax: 0,
+    };
   }
 
   const result: CrawlTickResult = {
@@ -295,7 +320,12 @@ export async function runCrawlTick(options: {
     blocked: 0,
     accepted: 0,
     noWork: true,
+    normalizeJobsEnqueued: 0,
+    queueWaitMsAvg: 0,
+    queueWaitMsP95: 0,
+    queueWaitMsMax: 0,
   };
+  const queueWaitSamplesMs: number[] = [];
 
   for (let i = 0; i < batchSize; i++) {
     const { job } = await dequeueJob({
@@ -304,6 +334,9 @@ export async function runCrawlTick(options: {
     });
     if (!job) break;
     result.noWork = false;
+    queueWaitSamplesMs.push(
+      Math.max(0, Date.now() - Math.max(job.createdAt.getTime(), job.availableAt.getTime())),
+    );
 
     const payload = (job.payload ?? {}) as unknown as CrawlSeedJobPayload;
     if (!payload.runId || !payload.seedId || !payload.url || !payload.source) {
@@ -345,11 +378,13 @@ export async function runCrawlTick(options: {
           type: "MARKET_NORMALIZE_BATCH",
           payload: { batchSize: 50, source: payload.source },
           idempotencyKey: `market:normalize-batch:${payload.source}:${minuteBucket}`,
+          priority: MARKET_PRIORITY_NORMALIZE_ON_DEMAND,
         }).catch((err) => {
           if (!/Unique constraint|P2002/i.test(String(err))) {
             throw err;
           }
         });
+        result.normalizeJobsEnqueued++;
       } else if (response.status === "accepted") {
         result.accepted++;
         if (response.reason === "CONCURRENCY_LIMIT") {
@@ -404,8 +439,15 @@ export async function runCrawlTick(options: {
     }
   }
 
+  if (queueWaitSamplesMs.length > 0) {
+    const total = queueWaitSamplesMs.reduce((acc, ms) => acc + ms, 0);
+    result.queueWaitMsAvg = Math.round(total / queueWaitSamplesMs.length);
+    result.queueWaitMsP95 = computePercentile(queueWaitSamplesMs, 95);
+    result.queueWaitMsMax = Math.max(...queueWaitSamplesMs);
+  }
+
   console.log(
-    `[market:scheduler] crawl-tick processed=${result.processed} accepted=${result.accepted} blocked=${result.blocked} failed=${result.failed}`,
+    `[market:scheduler] crawl-tick processed=${result.processed} accepted=${result.accepted} blocked=${result.blocked} failed=${result.failed} normalizeEnqueued=${result.normalizeJobsEnqueued} queueWaitAvgMs=${result.queueWaitMsAvg} queueWaitP95Ms=${result.queueWaitMsP95} queueWaitMaxMs=${result.queueWaitMsMax}`,
   );
   return result;
 }
@@ -466,6 +508,7 @@ export async function enqueueRefreshSnapshot(options: {
         type: "MARKET_REFRESH_SNAPSHOT",
         payload: { city },
         idempotencyKey: `market:snapshot:${city}:${bucket}`,
+        priority: MARKET_PRIORITY_BACKGROUND,
       });
       result.enqueued++;
       result.cities.push(city);

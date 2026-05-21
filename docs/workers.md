@@ -17,7 +17,10 @@ El consumer procesa un job por ciclo (secuencial). La cola usa `FOR UPDATE SKIP 
 - **Cron**: invocar el endpoint `/api/cron/consumer` con mayor frecuencia o desde múltiples schedulers.
 - **CLI**: lanzar varias instancias de `npm run consumer` simultáneamente; cada una genera un `workerId` único.
 - **Vercel**: las funciones serverless ya ejecutan invocaciones concurrentes de forma natural.
-- **Railway 24/7 (recomendado para latencia hot)**: proceso always-on con `npm run consumer:railway` (script `scripts/run-consumer.ts` con `--always-on --railway-mode`). Procesa el subset `RAILWAY_CONSUMER_JOB_TYPES` (todos excepto `IMPORT_STATEFOX_PORTAL_IMAGES` y `MARKET_*`) con poll cada 500 ms y health endpoint `GET /internal/health`. Convive con el cron QStash sin colisiones gracias a `FOR UPDATE SKIP LOCKED`. Despliegue, env vars y rollout: [`docs/consumer-railway.md`](consumer-railway.md).
+- **Railway 24/7 (recomendado para latencia hot)**:
+  - `npm run consumer:railway` (general): procesa `RAILWAY_CONSUMER_JOB_TYPES` (excluye image-worker y pipeline Market post-crawl).
+  - `npm run consumer:market` (dedicado): procesa `MARKET_CONSUMER_JOB_TYPES` para aislar throughput de Market.
+  Ambos conviven con el cron QStash sin colisiones (`FOR UPDATE SKIP LOCKED`). Despliegue y rollout: [`docs/consumer-railway.md`](consumer-railway.md).
 
 Para el volumen actual (3 comerciales, ~37 propiedades), una sola instancia es más que suficiente.
 
@@ -120,6 +123,17 @@ es retriable mediante backoff de la cola.
 |------|-----------------|
 | `POST /api/cron/ingestion/properties` | `runPropertiesIngestionCycle()` |
 | `POST /api/cron/ingestion/demands` | `runDemandsIngestionCycle()` |
+
+### Dispatcher always-on de Crawl Market
+
+Para latencia baja en `MARKET_CRAWL_SEED`, ejecutar adicionalmente:
+
+```bash
+npm run market:crawl-dispatcher
+```
+
+Este proceso drena `MARKET_CRAWL_SEED` en bucle corto (1-2s) y deja
+`/api/cron/market/crawl-tick` como fallback de seguridad.
 
 Autorización: header `Authorization: Bearer <token>` (valor en variable de entorno `CRON_SECRET`).
 

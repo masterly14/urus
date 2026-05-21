@@ -2,16 +2,16 @@
 #
 # Lanza scripts/run-consumer.ts en modo always-on, expone un mini health
 # server en /internal/health y procesa el subset RAILWAY_CONSUMER_JOB_TYPES
-# (todos los tipos canónicos excepto IMPORT_STATEFOX_PORTAL_IMAGES y
-# MARKET_*, que ya tienen worker/cron dedicado).
+# (todos los tipos canónicos excepto IMPORT_STATEFOX_PORTAL_IMAGES y el
+# pipeline Market post-crawl, que corre en un consumer dedicado `consumer:market`).
 #
 # Convive de forma segura con el cron QStash de Vercel: la cola usa
 # FOR UPDATE SKIP LOCKED y cada instancia genera su propio workerId.
 # Si Railway se cae, el cron de Vercel sigue drenando la cola.
 #
 # Este Dockerfile NO instala Playwright/Chromium — el consumer no necesita
-# navegador. Los handlers que requieren scraping (image-worker, market-*)
-# están excluidos vía RAILWAY_CONSUMER_JOB_TYPES.
+# navegador. Los handlers que requieren scraping (image-worker y
+# MARKET_CRAWL_SEED via crawl-dispatcher + Market Worker) quedan fuera.
 
 FROM node:22-slim
 

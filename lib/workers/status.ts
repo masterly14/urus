@@ -65,11 +65,24 @@ export interface WorkersStatusFull {
   db: "ok" | "error";
   timestamp: string;
   workers: WorkerInfo[];
+  marketPipeline: MarketPipelineStatus;
   jobQueue: JobQueueCounts;
   pendingJobs: PendingJobInfo[];
   pendingByType: PendingJobsByType[];
   recentErrors: RecentError[];
   circuitBreakers: CircuitBreakerInfo[];
+}
+
+export interface MarketPipelineStatus {
+  pendingCrawlSeed: number;
+  inProgressCrawlSeed: number;
+  pendingNormalizeBatch: number;
+  oldestPendingCrawlAgeMinutes: number | null;
+  oldestPendingNormalizeAgeMinutes: number | null;
+  completedRunsLastHour: number;
+  crawlDurationAvgMsLastHour: number;
+  crawlDurationP95MsLastHour: number;
+  onDemandCrawlEnqueuedLastHour: number;
 }
 
 export interface WorkersStatusMinimal {
@@ -91,6 +104,16 @@ function computeAgeMinutes(date: Date | null): number | null {
 
 function toIsoOrNull(date: Date | null | undefined): string | null {
   return date ? date.toISOString() : null;
+}
+
+function computeP95(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.min(
+    sorted.length - 1,
+    Math.max(0, Math.ceil(0.95 * sorted.length) - 1),
+  );
+  return Math.round(sorted[index]);
 }
 
 async function checkDb(): Promise<boolean> {
@@ -257,6 +280,82 @@ async function getRecentErrors(): Promise<RecentError[]> {
   }));
 }
 
+async function getMarketPipelineStatus(): Promise<MarketPipelineStatus> {
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const [pendingCrawlSeed, inProgressCrawlSeed, pendingNormalizeBatch] = await Promise.all([
+    prisma.jobQueue.count({
+      where: { type: JobType.MARKET_CRAWL_SEED, status: JobStatus.PENDING },
+    }),
+    prisma.jobQueue.count({
+      where: { type: JobType.MARKET_CRAWL_SEED, status: JobStatus.IN_PROGRESS },
+    }),
+    prisma.jobQueue.count({
+      where: { type: JobType.MARKET_NORMALIZE_BATCH, status: JobStatus.PENDING },
+    }),
+  ]);
+
+  const [oldestPendingCrawl, oldestPendingNormalize] = await Promise.all([
+    prisma.jobQueue.findFirst({
+      where: { type: JobType.MARKET_CRAWL_SEED, status: JobStatus.PENDING },
+      orderBy: { createdAt: "asc" },
+      select: { createdAt: true },
+    }),
+    prisma.jobQueue.findFirst({
+      where: { type: JobType.MARKET_NORMALIZE_BATCH, status: JobStatus.PENDING },
+      orderBy: { createdAt: "asc" },
+      select: { createdAt: true },
+    }),
+  ]);
+
+  const completedRuns = await prisma.marketCrawlRun.findMany({
+    where: {
+      status: "COMPLETED",
+      finishedAt: { gte: oneHourAgo },
+      startedAt: { not: null },
+    },
+    select: { startedAt: true, finishedAt: true },
+    take: 500,
+    orderBy: { finishedAt: "desc" },
+  });
+  const runDurationsMs = completedRuns
+    .map((run) => {
+      if (!run.finishedAt) return null;
+      return Math.max(0, run.finishedAt.getTime() - run.startedAt.getTime());
+    })
+    .filter((ms): ms is number => ms != null);
+
+  const onDemandCrawlEnqueuedLastHour = await prisma.jobQueue.count({
+    where: {
+      type: JobType.MARKET_CRAWL_SEED,
+      createdAt: { gte: oneHourAgo },
+      idempotencyKey: { startsWith: "market:crawl:on-demand:" },
+    },
+  });
+
+  const crawlDurationAvgMsLastHour = runDurationsMs.length > 0
+    ? Math.round(runDurationsMs.reduce((acc, ms) => acc + ms, 0) / runDurationsMs.length)
+    : 0;
+
+  return {
+    pendingCrawlSeed,
+    inProgressCrawlSeed,
+    pendingNormalizeBatch,
+    oldestPendingCrawlAgeMinutes: oldestPendingCrawl
+      ? Math.round(((Date.now() - oldestPendingCrawl.createdAt.getTime()) / 60_000) * 10) /
+          10
+      : null,
+    oldestPendingNormalizeAgeMinutes: oldestPendingNormalize
+      ? Math.round(
+        ((Date.now() - oldestPendingNormalize.createdAt.getTime()) / 60_000) * 10,
+      ) / 10
+      : null,
+    completedRunsLastHour: completedRuns.length,
+    crawlDurationAvgMsLastHour,
+    crawlDurationP95MsLastHour: computeP95(runDurationsMs),
+    onDemandCrawlEnqueuedLastHour,
+  };
+}
+
 export async function getWorkersStatusMinimal(): Promise<WorkersStatusMinimal> {
   const timestamp = new Date().toISOString();
   const dbOk = await checkDb();
@@ -278,6 +377,17 @@ export async function getWorkersStatusFull(): Promise<WorkersStatusFull> {
       db: "error",
       timestamp,
       workers: [],
+      marketPipeline: {
+        pendingCrawlSeed: 0,
+        inProgressCrawlSeed: 0,
+        pendingNormalizeBatch: 0,
+        oldestPendingCrawlAgeMinutes: null,
+        oldestPendingNormalizeAgeMinutes: null,
+        completedRunsLastHour: 0,
+        crawlDurationAvgMsLastHour: 0,
+        crawlDurationP95MsLastHour: 0,
+        onDemandCrawlEnqueuedLastHour: 0,
+      },
       jobQueue: { pending: 0, inProgress: 0, completed: 0, failed: 0, deadLetter: 0 },
       pendingJobs: [],
       pendingByType: [],
@@ -299,6 +409,7 @@ export async function getWorkersStatusFull(): Promise<WorkersStatusFull> {
     pendingByType,
     recentErrors,
     circuitBreakers,
+    marketPipeline,
   ] =
     await Promise.all([
       getLastIngestionMetricSuccess("properties"),
@@ -313,6 +424,7 @@ export async function getWorkersStatusFull(): Promise<WorkersStatusFull> {
       getPendingJobsByType(),
       getRecentErrors(),
       getCircuitBreakers(),
+      getMarketPipelineStatus(),
     ]);
 
   const lastPropSuccess = lastPropMetricSuccess ?? lastPropSnapshotUpdate;
@@ -369,6 +481,7 @@ export async function getWorkersStatusFull(): Promise<WorkersStatusFull> {
     db: "ok",
     timestamp,
     workers,
+    marketPipeline,
     jobQueue,
     pendingJobs,
     pendingByType,

@@ -5,6 +5,7 @@ export type { JobHandler } from "./job-handlers";
 
 export {
   ALL_CONSUMER_JOB_TYPES,
+  MARKET_CONSUMER_JOB_TYPES,
   RAILWAY_CONSUMER_JOB_TYPES,
 } from "./types";
 

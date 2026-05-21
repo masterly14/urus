@@ -95,6 +95,23 @@ export const ALL_CONSUMER_JOB_TYPES: JobType[] = [
 ];
 
 /**
+ * Subconjunto Market de post-crawl.
+ *
+ * Nota: `MARKET_CRAWL_SEED` no aparece aquí porque lo drena exclusivamente
+ * `runCrawlTick` (scheduler market + Market Worker HTTP).
+ */
+export const MARKET_CONSUMER_JOB_TYPES: JobType[] = [
+  "MARKET_NORMALIZE_BATCH",
+  "MARKET_FETCH_DETAIL",
+  "MARKET_RESOLVE_IDENTITY",
+  "MARKET_RESOLVE_ADVERTISER",
+  "MARKET_DIFF_AND_VERSION",
+  "MARKET_REFRESH_SNAPSHOT",
+  "MARKET_IMPORT_LISTING_IMAGES",
+  "MARKET_PUSH_ADVERTISER_TO_INMOVILLA",
+];
+
+/**
  * Subconjunto de tipos que procesa el consumer dedicado en Railway (24/7).
  *
  * Excluye solo los tipos que tienen worker o cron especializado y que NO
@@ -102,30 +119,19 @@ export const ALL_CONSUMER_JOB_TYPES: JobType[] = [
  *  - `IMPORT_STATEFOX_PORTAL_IMAGES`: gestionado por el `image-worker` Railway
  *    (ver `docs/image-worker-railway.md`).
  *
- * Los `MARKET_*` que estan en `ALL_CONSUMER_JOB_TYPES`
- * (`MARKET_NORMALIZE_BATCH`, `MARKET_FETCH_DETAIL`, `MARKET_RESOLVE_*`,
- * `MARKET_DIFF_AND_VERSION`, `MARKET_REFRESH_SNAPSHOT`,
- * `MARKET_IMPORT_LISTING_IMAGES`, `MARKET_PUSH_ADVERTISER_TO_INMOVILLA`)
- * SI los procesa este consumer: comparten handler con `/api/cron/consumer`
- * y necesitan latencia de segundos, no la cadencia QStash. El unico
- * `MARKET_*` que queda fuera es `MARKET_CRAWL_SEED`, pero ese ni siquiera
- * esta en `ALL_CONSUMER_JOB_TYPES`: lo procesa exclusivamente
- * `/api/cron/market/crawl-tick` con su propio cliente HTTP al worker.
- *
- * Historico (mayo 2026): este filtro excluia todo `MARKET_*` con la idea
- * de que los procesarian los crons `/api/cron/market/*`. No era cierto:
- * salvo `crawl-tick`, esos crons solo encolan o refrescan snapshots, no
- * drenan la cola. Resultado: los `MARKET_FETCH_DETAIL` quedaban PENDING
- * a la espera del cron QStash de `/api/cron/consumer` (cadencia 15-60min)
- * mientras el consumer Railway 24/7 los ignoraba. Bug arquitectonico
- * detectado durante el batch de reencolado del 2026-05-20.
+ * Los `MARKET_*` de post-crawl ahora tienen consumer dedicado
+ * (`consumer:market`) para aislar throughput y evitar starvation de jobs de
+ * negocio general.
  *
  * El cron QStash de Vercel (`/api/cron/consumer`) sigue tomando todos los
  * tipos con `ALL_CONSUMER_JOB_TYPES` como red de seguridad: incluso si el
  * proceso Railway se cae, los jobs excluidos los siguen procesando sus
  * workers/crons especializados.
  */
-const RAILWAY_EXCLUDED_TYPES: readonly JobType[] = ["IMPORT_STATEFOX_PORTAL_IMAGES"];
+const RAILWAY_EXCLUDED_TYPES: readonly JobType[] = [
+  "IMPORT_STATEFOX_PORTAL_IMAGES",
+  ...MARKET_CONSUMER_JOB_TYPES,
+];
 const RAILWAY_EXCLUDED_PREFIXES: readonly string[] = [];
 
 export const RAILWAY_CONSUMER_JOB_TYPES: JobType[] = ALL_CONSUMER_JOB_TYPES.filter(

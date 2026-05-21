@@ -21,8 +21,15 @@
  *    caducar para Idealista; el usuario las re-importa manualmente).
  */
 
+import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { enqueueJob } from "@/lib/job-queue";
+import {
+  effectiveUrgentPriority,
+  getActiveSourcesV1,
+  type MarketSource,
+} from "@/lib/market";
 import {
   queueMarketImageImportsForListings,
   selectMarketListingImages,
@@ -40,6 +47,20 @@ const DEFAULT_MAX_RESULTS = 60;
 const DEFAULT_RADIUS_METERS = 1_000;
 const EXPANDED_RADIUS_METERS = 1_500;
 const MAX_RADIUS_METERS = 2_000;
+const ON_DEMAND_CRAWL_BUCKET_MS = 10 * 60_000;
+const ON_DEMAND_CRAWL_MAX_SEEDS = 3;
+const ON_DEMAND_CRAWL_BUDGET_MS = 60_000;
+const ON_DEMAND_CRAWL_BUDGET_REQUESTS = 50;
+
+type SeedForOnDemandCrawl = {
+  id: string;
+  source: MarketSource;
+  operation: "sale" | "rent";
+  url: string;
+  priority: number;
+  lastCursor: string | null;
+  zone: string | null;
+};
 
 function normalizeForComparison(value: string): string {
   return value
@@ -63,6 +84,120 @@ function distanceMeters(
     Math.sin(deltaLat / 2) ** 2 +
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) ** 2;
   return 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
+}
+
+function pickOnDemandSeeds(
+  seeds: SeedForOnDemandCrawl[],
+  zona: string,
+): SeedForOnDemandCrawl[] {
+  if (!zona.trim()) return seeds.slice(0, ON_DEMAND_CRAWL_MAX_SEEDS);
+  const targetZone = normalizeForComparison(zona);
+  const zoneMatched = seeds.filter((seed) => {
+    const seedZone = normalizeForComparison(seed.zone ?? "");
+    if (!seedZone) return false;
+    return seedZone.includes(targetZone) || targetZone.includes(seedZone);
+  });
+  const source = zoneMatched.length > 0 ? zoneMatched : seeds;
+  return source.slice(0, ON_DEMAND_CRAWL_MAX_SEEDS);
+}
+
+async function triggerOnDemandAreaCrawl(
+  input: PricingPropertyInput,
+): Promise<void> {
+  const city = normalizeForComparison(input.ciudad ?? "");
+  if (!city) return;
+
+  const activeSources = getActiveSourcesV1().filter(
+    (source): source is Exclude<MarketSource, "unknown"> => source !== "unknown",
+  );
+  if (activeSources.length === 0) return;
+
+  const seeds = await prisma.marketSeed.findMany({
+    where: {
+      active: true,
+      operation: input.tipoOperacion === "rent" ? "rent" : "sale",
+      source: { in: activeSources },
+      city: { startsWith: city, mode: "insensitive" },
+    },
+    orderBy: [{ priority: "desc" }, { updatedAt: "desc" }],
+    take: 20,
+    select: {
+      id: true,
+      source: true,
+      operation: true,
+      url: true,
+      priority: true,
+      lastCursor: true,
+      zone: true,
+    },
+  });
+  if (seeds.length === 0) return;
+
+  const selectedSeeds = pickOnDemandSeeds(seeds, input.zona ?? "");
+  const bucket = Math.floor(Date.now() / ON_DEMAND_CRAWL_BUCKET_MS);
+  let enqueued = 0;
+  let duplicates = 0;
+
+  for (const seed of selectedSeeds) {
+    const correlationId = randomUUID();
+    const run = await prisma.marketCrawlRun.create({
+      data: {
+        seedId: seed.id,
+        source: seed.source,
+        status: "RUNNING",
+        budgetMs: ON_DEMAND_CRAWL_BUDGET_MS,
+        budgetRequests: ON_DEMAND_CRAWL_BUDGET_REQUESTS,
+        cursorIn: seed.lastCursor,
+        correlationId,
+      },
+      select: { id: true },
+    });
+
+    try {
+      await enqueueJob({
+        type: "MARKET_CRAWL_SEED",
+        payload: {
+          runId: run.id,
+          seedId: seed.id,
+          source: seed.source,
+          operation: seed.operation,
+          url: seed.url,
+          cursor: seed.lastCursor,
+          budgetMs: ON_DEMAND_CRAWL_BUDGET_MS,
+          budgetRequests: ON_DEMAND_CRAWL_BUDGET_REQUESTS,
+          traceId: correlationId,
+        },
+        idempotencyKey: `market:crawl:on-demand:${input.propertyCode}:${seed.id}:${bucket}`,
+        priority: effectiveUrgentPriority(seed.priority),
+      });
+      enqueued++;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (/Unique constraint|P2002/i.test(message)) {
+        duplicates++;
+        await prisma.marketCrawlRun.delete({ where: { id: run.id } }).catch(() => undefined);
+      } else {
+        await prisma.marketCrawlRun
+          .update({
+            where: { id: run.id },
+            data: {
+              status: "FAILED",
+              errorCode: "ON_DEMAND_ENQUEUE_ERROR",
+              errorMessage: message.slice(0, 2000),
+              finishedAt: new Date(),
+            },
+          })
+          .catch(() => undefined);
+      }
+    }
+  }
+
+  if (enqueued > 0 || duplicates > 0) {
+    console.log(
+      `[market:comparables] on-demand crawl enqueued=${enqueued} duplicates=${duplicates} ` +
+        `property=${input.propertyCode} city=${input.ciudad} zone=${input.zona ?? "(sin-zona)"}`,
+    );
+  }
 }
 
 const HOUSING_MAP: Record<string, string[]> = {
@@ -188,7 +323,18 @@ export async function fetchMarketComparables(
       expanded.length >= minComparables
         ? expanded
         : withDistance.filter((item) => item.distance <= MAX_RADIUS_METERS);
-    rankedRows = capped.map((item) => item.row);
+    if (capped.length > 0) {
+      rankedRows = capped.map((item) => item.row);
+    } else {
+      rankedRows = withDistance.map((item) => item.row);
+      await triggerOnDemandAreaCrawl(input).catch((err) => {
+        console.warn(
+          `[market:comparables] no se pudo encolar recrawl on-demand para ${input.propertyCode}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      });
+    }
   }
 
   const comparables = rankedRows.slice(0, maxResults).map((row) => mapToComparable(row));
@@ -261,7 +407,7 @@ function mapToComparable(row: RowWithIncludes): PricingComparable {
     zona: row.zone ?? "",
     tipologia: row.housingType,
     advertiserType,
-    extras: extractExtras(row),
+    extras: extractExtras(),
     link: row.canonicalUrl,
     diasPublicado: computeDaysPublished(row.firstSeenAt),
     descripcion: row.description,
@@ -302,7 +448,7 @@ function computeDaysPublished(firstSeenAt: Date | null): number | null {
   );
 }
 
-function extractExtras(row: RowWithIncludes): Partial<PricingPropertyExtras> {
+function extractExtras(): Partial<PricingPropertyExtras> {
   // MarketListing aun no tiene un set rico de extras; cuando los extractores
   // los pueblen (terraza/garaje/etc.), poblar desde columnas dedicadas o JSON.
   // Mantenemos shape compatible con Statefox para no romper el pipeline.

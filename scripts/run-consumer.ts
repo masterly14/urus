@@ -13,13 +13,16 @@
  *     servidor HTTP en `:PORT` con `GET /internal/health` y maneja
  *     SIGTERM/SIGINT para drenado limpio.
  *
- *     Con `CONSUMER_RAILWAY_MODE=true` filtra los tipos a
- *     `RAILWAY_CONSUMER_JOB_TYPES` (excluye `IMPORT_STATEFOX_PORTAL_IMAGES`
- *     y `MARKET_*`, que ya tienen worker/cron dedicado).
+ *     Modos:
+ *       - `CONSUMER_RAILWAY_MODE=true`: usa `RAILWAY_CONSUMER_JOB_TYPES`
+ *         (negocio general; excluye image-worker y pipeline market dedicado).
+ *       - `CONSUMER_MARKET_MODE=true`: usa `MARKET_CONSUMER_JOB_TYPES`
+ *         (post-crawl de Market).
  *
  * Variables de entorno:
  *   CONSUMER_ALWAYS_ON         (default false) — modo Railway 24/7.
  *   CONSUMER_RAILWAY_MODE      (default false) — usa subset Railway de tipos.
+ *   CONSUMER_MARKET_MODE       (default false) — usa subset Market de tipos.
  *   CONSUMER_MAX_CYCLES        (default 600)   — ciclos por loop interno.
  *   CONSUMER_IDLE_MS           (default 1000)  — sleep entre loops always-on.
  *   CONSUMER_POLL_INTERVAL_MS  (default 500)   — pausa entre `dequeueJob` cuando no hay trabajo (always-on).
@@ -32,6 +35,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "http";
 import {
   runConsumerLoop,
   ALL_CONSUMER_JOB_TYPES,
+  MARKET_CONSUMER_JOB_TYPES,
   RAILWAY_CONSUMER_JOB_TYPES,
 } from "../lib/workers/consumer";
 
@@ -47,6 +51,8 @@ const ALWAYS_ON =
   process.env.CONSUMER_ALWAYS_ON === "true" || cliArgs.includes("--always-on");
 const RAILWAY_MODE =
   process.env.CONSUMER_RAILWAY_MODE === "true" || cliArgs.includes("--railway-mode");
+const MARKET_MODE =
+  process.env.CONSUMER_MARKET_MODE === "true" || cliArgs.includes("--market-mode");
 
 type JobTypes = typeof ALL_CONSUMER_JOB_TYPES;
 
@@ -72,7 +78,17 @@ let healthServer: ReturnType<typeof createServer> | null = null;
 let shuttingDown = false;
 
 function selectJobTypes(): JobTypes {
+  if (MARKET_MODE) return MARKET_CONSUMER_JOB_TYPES;
   return RAILWAY_MODE ? RAILWAY_CONSUMER_JOB_TYPES : ALL_CONSUMER_JOB_TYPES;
+}
+
+function resolveConsumerMode(): "default" | "railway" | "market" {
+  if (MARKET_MODE && RAILWAY_MODE) {
+    throw new Error("CONSUMER_MARKET_MODE y CONSUMER_RAILWAY_MODE no pueden estar activos a la vez.");
+  }
+  if (MARKET_MODE) return "market";
+  if (RAILWAY_MODE) return "railway";
+  return "default";
 }
 
 function delay(ms: number): Promise<void> {
@@ -94,6 +110,7 @@ function startHealthServer(port: number): ReturnType<typeof createServer> {
         totalFailed: healthState.totalFailed,
         loopsRun: healthState.loopsRun,
         currentlyRunning: healthState.currentlyRunning,
+        mode: resolveConsumerMode(),
         jobTypes: selectJobTypes().length,
       });
       res.statusCode = 200;
@@ -134,7 +151,8 @@ async function runOneLoop(workerId: string, maxCycles: number, pollIntervalMs: n
 }
 
 async function runAlwaysOn(): Promise<void> {
-  const workerId = `railway-consumer-${randomUUID().slice(0, 8)}`;
+  const mode = resolveConsumerMode();
+  const workerId = `${mode}-consumer-${randomUUID().slice(0, 8)}`;
   const maxCycles = Number(process.env.CONSUMER_MAX_CYCLES) || DEFAULT_MAX_CYCLES;
   const idleMs = Number(process.env.CONSUMER_IDLE_MS) || DEFAULT_IDLE_MS;
   const pollIntervalMs =
@@ -144,7 +162,7 @@ async function runAlwaysOn(): Promise<void> {
   healthServer = startHealthServer(port);
 
   console.log(
-    `[run-consumer] Always-on iniciado workerId=${workerId} maxCycles=${maxCycles} idleMs=${idleMs} pollIntervalMs=${pollIntervalMs} railwayMode=${RAILWAY_MODE} types=${selectJobTypes().length}`,
+    `[run-consumer] Always-on iniciado workerId=${workerId} mode=${mode} maxCycles=${maxCycles} idleMs=${idleMs} pollIntervalMs=${pollIntervalMs} types=${selectJobTypes().length}`,
   );
 
   while (!shuttingDown) {
@@ -166,11 +184,12 @@ async function runAlwaysOn(): Promise<void> {
 }
 
 async function runCliOnce(): Promise<void> {
+  const mode = resolveConsumerMode();
   const maxCycles = Number(process.env.CONSUMER_MAX_CYCLES) || DEFAULT_MAX_CYCLES;
   const workerId = `cli-consumer-${randomUUID().slice(0, 8)}`;
 
   console.log(
-    `[run-consumer] Iniciando consumer workerId=${workerId} maxCycles=${maxCycles} railwayMode=${RAILWAY_MODE} types=${selectJobTypes().length}\n`,
+    `[run-consumer] Iniciando consumer workerId=${workerId} mode=${mode} maxCycles=${maxCycles} types=${selectJobTypes().length}\n`,
   );
 
   const result = await runConsumerLoop({

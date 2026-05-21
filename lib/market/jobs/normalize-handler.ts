@@ -23,6 +23,8 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { JobRecord, EnqueueJobInput } from "@/lib/job-queue/types";
 import {
+  MARKET_PRIORITY_BACKGROUND,
+  MARKET_PRIORITY_FOLLOW_UP,
   applyQuality,
   normalizeRawListing,
   type CanonicalListing,
@@ -289,6 +291,7 @@ export async function handleMarketNormalizeBatch(
       type: "MARKET_RESOLVE_IDENTITY",
       payload: { listingId, source: raw.source },
       idempotencyKey: `market:identity:${listingId}`,
+      priority: MARKET_PRIORITY_FOLLOW_UP,
     });
 
     // Política nueva (mayo 2026): encolamos detail interactivo para todo
@@ -308,6 +311,7 @@ export async function handleMarketNormalizeBatch(
         payload: { listingId },
         idempotencyKey: `market:fetch-detail:${listingId}`,
         maxAttempts: 3,
+        priority: MARKET_PRIORITY_FOLLOW_UP,
       });
     }
 
@@ -327,6 +331,7 @@ export async function handleMarketNormalizeBatch(
       type: "MARKET_NORMALIZE_BATCH",
       payload: { batchSize },
       idempotencyKey: `market:normalize-batch:${minuteBucket}`,
+      priority: MARKET_PRIORITY_BACKGROUND,
     });
   }
 

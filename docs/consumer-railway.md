@@ -23,30 +23,12 @@ El servicio Railway se ejecuta con `CONSUMER_RAILWAY_MODE=true` y toma
 jobs del subset `RAILWAY_CONSUMER_JOB_TYPES` (definido en
 [lib/workers/consumer/types.ts](../lib/workers/consumer/types.ts)).
 
-Excluye **solo** los tipos con worker/cron especializado que NO deben
-drenarse desde el consumer genérico:
+Excluye los tipos con worker/cron especializado que NO deben drenarse
+desde el consumer general:
 
 - `IMPORT_STATEFOX_PORTAL_IMAGES` → ya lo procesa el `image-worker` Railway.
-
-Los `MARKET_*` que están en `ALL_CONSUMER_JOB_TYPES`
-(`MARKET_NORMALIZE_BATCH`, `MARKET_FETCH_DETAIL`, `MARKET_RESOLVE_IDENTITY`,
-`MARKET_RESOLVE_ADVERTISER`, `MARKET_DIFF_AND_VERSION`,
-`MARKET_REFRESH_SNAPSHOT`, `MARKET_IMPORT_LISTING_IMAGES`,
-`MARKET_PUSH_ADVERTISER_TO_INMOVILLA`) **SÍ** los procesa este consumer:
-comparten handler con `/api/cron/consumer` y necesitan latencia de
-segundos, no la cadencia QStash. El único `MARKET_*` que queda fuera es
-`MARKET_CRAWL_SEED`, pero ese ni siquiera está en `ALL_CONSUMER_JOB_TYPES`:
-lo procesa exclusivamente `/api/cron/market/crawl-tick` con su propio
-cliente HTTP al worker.
-
-> **Histórico (mayo 2026)**: este filtro excluía todo `MARKET_*` con la
-> idea de que los procesarían los crons `/api/cron/market/*`. No era
-> cierto: salvo `crawl-tick`, esos crons solo encolan seeds o refrescan
-> snapshots, no drenan la cola. Resultado: los `MARKET_FETCH_DETAIL`
-> quedaban PENDING a la espera del cron QStash `/api/cron/consumer`
-> (cadencia 15-60 min) mientras el consumer Railway 24/7 los ignoraba.
-> Bug arquitectónico detectado durante un reencolado masivo el
-> 2026-05-20 y corregido en el mismo commit que esta sección.
+- `MARKET_*` post-crawl → ahora se procesan en `consumer:market` (servicio
+  dedicado) para aislar throughput Market del negocio general.
 
 El cron QStash de Vercel (`/api/cron/consumer`) sigue tomando todos los tipos
 canónicos (`ALL_CONSUMER_JOB_TYPES`) como red de seguridad: si Railway se
@@ -58,9 +40,10 @@ Mismas que las API Routes de Vercel (los handlers son idénticos), más las
 específicas del proceso:
 
 ```
-# Activación del modo Railway (también puede pasarse vía CLI flags)
+# Activación del modo Railway general (también por flags CLI)
 CONSUMER_ALWAYS_ON=true
 CONSUMER_RAILWAY_MODE=true
+CONSUMER_MARKET_MODE=false
 PORT=8080
 
 # Tunables (opcionales)
@@ -122,6 +105,26 @@ significativo a Railway.
    - `GET /internal/health` responde `200` con `status: "ok"`.
    - `GET /api/workers/status` (con auth) en Vercel muestra
      `consumer.lastSuccessAt` actualizado en los últimos minutos.
+
+## Consumer Market dedicado
+
+Para post-crawl de Market usar un segundo servicio con el mismo entrypoint:
+
+```bash
+npm run consumer:market
+```
+
+Env recomendado:
+
+```bash
+CONSUMER_ALWAYS_ON=true
+CONSUMER_MARKET_MODE=true
+CONSUMER_RAILWAY_MODE=false
+PORT=8080
+```
+
+Procesa exclusivamente `MARKET_CONSUMER_JOB_TYPES` y reduce la
+competencia con jobs de negocio general.
 
 ## Plan de rollout
 
