@@ -19,6 +19,7 @@ import type { AdditionalClausesDoc } from "@/lib/contracts/additional-clauses/ty
 import type { SectionAddendumsList } from "@/lib/contracts/section-addendums/types";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import type { PreviewFieldAnchor } from "@/lib/legal/smart-closing/preview-field-anchors";
+import { useGlobalLoader } from "@/lib/hooks/use-global-loader";
 
 /** Contexto para persistir CONTRATO_VERSIONADO tras voice-apply (Neon). */
 export interface SmartClosingVersioningContext {
@@ -85,6 +86,7 @@ export function useSmartClosingSession(
     initialSectionAddendums?: SectionAddendumsList | null;
   },
 ) {
+  const { withGlobalLoading } = useGlobalLoader();
   const versioningContextRef = useRef(options?.versioningContext);
   versioningContextRef.current = options?.versioningContext;
 
@@ -221,30 +223,39 @@ export function useSmartClosingSession(
         if (payloadEditInFlight.current) return false;
         payloadEditInFlight.current = true;
         try {
-          if (options?.contractId && options.contractStatus === "DRAFT") {
-            const persistRes = await fetch(`/api/contracts/${options.contractId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                contractTemplateInput: nextInput,
-                payloadEdit: {
-                  fieldPath: path,
-                  previousValue: oldVal,
-                  nextValue: coerced,
-                },
-              }),
-            });
-            if (!persistRes.ok) {
-              const data = (await persistRes.json().catch(() => null)) as
-                | { error?: string; validationIssues?: ContractFieldIssue[] }
-                | null;
-              if (data?.validationIssues?.length) {
-                setValidationIssues(data.validationIssues);
+          return await withGlobalLoading(
+            async () => {
+              if (options?.contractId && options.contractStatus === "DRAFT") {
+                const persistRes = await fetch(`/api/contracts/${options.contractId}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    contractTemplateInput: nextInput,
+                    payloadEdit: {
+                      fieldPath: path,
+                      previousValue: oldVal,
+                      nextValue: coerced,
+                    },
+                  }),
+                });
+                if (!persistRes.ok) {
+                  const data = (await persistRes.json().catch(() => null)) as
+                    | { error?: string; validationIssues?: ContractFieldIssue[] }
+                    | null;
+                  if (data?.validationIssues?.length) {
+                    setValidationIssues(data.validationIssues);
+                  }
+                  throw new Error(data?.error ?? `Error HTTP ${persistRes.status}`);
+                }
               }
-              throw new Error(data?.error ?? `Error HTTP ${persistRes.status}`);
-            }
-          }
-          return await loadInitialRender(nextInput);
+              return await loadInitialRender(nextInput);
+            },
+            {
+              reason: "contracts-inline-edit",
+              message: "Actualizando contrato...",
+              suppressOverlay: true,
+            },
+          );
         } finally {
           payloadEditInFlight.current = false;
         }
@@ -279,35 +290,42 @@ export function useSmartClosingSession(
       setClarificationQuestions([]);
 
       try {
-        const current = docStateRef.current;
-        const vc = versioningContextRef.current;
-        const res = await fetch("/api/contracts/voice-apply", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            transcript: trimmed,
-            contractTemplateInput: current.contractTemplateInput,
-            additionalClausesDoc: additionalClausesDocRef.current,
-            sectionAddendums: sectionAddendumsRef.current,
-            ...(vc
-              ? {
-                  versioningContext: {
-                    ...vc,
-                    recordVersionEvent: vc.recordVersionEvent !== false,
-                  },
-                }
-              : {}),
-          }),
-        });
+        const data = await withGlobalLoading(
+          async () => {
+            const current = docStateRef.current;
+            const vc = versioningContextRef.current;
+            const res = await fetch("/api/contracts/voice-apply", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                transcript: trimmed,
+                contractTemplateInput: current.contractTemplateInput,
+                additionalClausesDoc: additionalClausesDocRef.current,
+                sectionAddendums: sectionAddendumsRef.current,
+                ...(vc
+                  ? {
+                      versioningContext: {
+                        ...vc,
+                        recordVersionEvent: vc.recordVersionEvent !== false,
+                      },
+                    }
+                  : {}),
+              }),
+            });
 
-        const data: unknown = await res.json();
+            const body: unknown = await res.json();
 
-        if (!res.ok) {
-          const err = data as { error?: string };
-          setErrorMessage(err.error ?? `Error HTTP ${res.status}`);
-          setPhase("error");
-          return false;
-        }
+            if (!res.ok) {
+              const err = body as { error?: string };
+              throw new Error(err.error ?? `Error HTTP ${res.status}`);
+            }
+            return body;
+          },
+          {
+            reason: "contracts-voice-apply",
+            message: "Aplicando cambios por voz...",
+          },
+        );
 
         if (!isVoiceApplyResponse(data)) {
           setErrorMessage("Respuesta de voice-apply inválida");
@@ -349,7 +367,7 @@ export function useSmartClosingSession(
         return false;
       }
     },
-    [approved, refreshPreviewFromBase64],
+    [approved, refreshPreviewFromBase64, withGlobalLoading],
   );
 
   const approveDraft = useCallback(async (): Promise<boolean> => {
@@ -360,23 +378,29 @@ export function useSmartClosingSession(
       return false;
     }
     try {
-      const current = docStateRef.current;
-      const response = await fetch("/api/contracts/approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          operationId: vc.operationId,
-          propertyCode: vc.propertyCode,
-          documentKind: current.contractTemplateInput.kind,
-          templateVersion: current.contractTemplateInput.templateVersion,
-        }),
-      });
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { error?: string } | null;
-        setErrorMessage(data?.error ?? `No se pudo aprobar el contrato (HTTP ${response.status})`);
-        setPhase("error");
-        return false;
-      }
+      await withGlobalLoading(
+        async () => {
+          const current = docStateRef.current;
+          const response = await fetch("/api/contracts/approve", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              operationId: vc.operationId,
+              propertyCode: vc.propertyCode,
+              documentKind: current.contractTemplateInput.kind,
+              templateVersion: current.contractTemplateInput.templateVersion,
+            }),
+          });
+          if (!response.ok) {
+            const data = (await response.json().catch(() => null)) as { error?: string } | null;
+            throw new Error(data?.error ?? `No se pudo aprobar el contrato (HTTP ${response.status})`);
+          }
+        },
+        {
+          reason: "contracts-approve",
+          message: "Aprobando contrato...",
+        },
+      );
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "No se pudo aprobar el contrato",
@@ -388,7 +412,7 @@ export function useSmartClosingSession(
     setPhase("idle");
     setErrorMessage(null);
     return true;
-  }, []);
+  }, [withGlobalLoading]);
 
   const resetApproval = useCallback(() => {
     setApproved(false);
@@ -424,27 +448,34 @@ export function useSmartClosingSession(
       setSignatureResult(null);
 
       try {
-        const res = await fetch("/api/contracts/sign", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            operationId: vc.operationId,
-            propertyCode: vc.propertyCode,
-            documentKind: current.contractTemplateInput.kind,
-            templateVersion: current.contractTemplateInput.templateVersion,
-            docxBase64: current.docxBase64,
-            signers,
-          }),
-        });
+        const data = await withGlobalLoading(
+          async () => {
+            const res = await fetch("/api/contracts/sign", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                operationId: vc.operationId,
+                propertyCode: vc.propertyCode,
+                documentKind: current.contractTemplateInput.kind,
+                templateVersion: current.contractTemplateInput.templateVersion,
+                docxBase64: current.docxBase64,
+                signers,
+              }),
+            });
 
-        const data: unknown = await res.json();
+            const body: unknown = await res.json();
 
-        if (!res.ok) {
-          const err = data as { error?: string; detail?: string };
-          setSignatureError(err.error ?? `Error HTTP ${res.status}`);
-          setSignaturePhase("error");
-          return;
-        }
+            if (!res.ok) {
+              const err = body as { error?: string };
+              throw new Error(err.error ?? `Error HTTP ${res.status}`);
+            }
+            return body;
+          },
+          {
+            reason: "contracts-send-signature",
+            message: "Enviando a firma...",
+          },
+        );
 
         setSignatureResult(data as SignatureResult);
         setSignaturePhase("sent");
@@ -453,7 +484,7 @@ export function useSmartClosingSession(
         setSignaturePhase("error");
       }
     },
-    [],
+    [withGlobalLoading],
   );
 
   const dismissError = useCallback(() => {

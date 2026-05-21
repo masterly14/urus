@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -15,6 +14,7 @@ import {
 } from "lucide-react";
 import { useSession } from "@/lib/hooks/use-session";
 import { CeoSnapshotAlert } from "@/components/bi/ceo-snapshot-alert";
+import { PlatformLink } from "@/components/loading/platform-link";
 
 interface BILayoutProps {
     children: React.ReactNode;
@@ -63,7 +63,7 @@ export default function BILayout({ children }: BILayoutProps) {
                     const isActive = pathname.startsWith(item.href);
                     const Icon = item.icon;
                     return (
-                        <Link
+                        <PlatformLink
                             key={item.href}
                             href={item.href}
                             className={cn(
@@ -75,7 +75,7 @@ export default function BILayout({ children }: BILayoutProps) {
                         >
                             <Icon className="h-4 w-4" />
                             <span>{item.name}</span>
-                        </Link>
+                        </PlatformLink>
                     );
                 })}
             </div>

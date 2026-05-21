@@ -56,7 +56,7 @@ describe("extractPropertyForPricing", () => {
   it("extrae variables correctamente de un inmueble completo", async () => {
     mockPropertyCurrent.mockResolvedValue(BASE_PROPERTY);
     mockPropertySnapshot.mockResolvedValue({
-      raw: { keyacci: 1, terraza: true, ascensor: true, piscina: false },
+      raw: { keyacci: 1, key_loca: 224499, key_zona: 1901999, terraza: true, ascensor: true, piscina: false },
     });
     mockEnumTipo.mockResolvedValue({ nombre: "Piso" });
 
@@ -67,6 +67,9 @@ describe("extractPropertyForPricing", () => {
     expect(result.precioM2).toBe(Math.round(150000 / 85));
     expect(result.metrosConstruidos).toBe(85);
     expect(result.ciudad).toBe("Córdoba");
+    expect(result.zonaRaw).toBe("Centro");
+    expect(result.keyLoca).toBe(224499);
+    expect(result.keyZona).toBe(1901999);
     expect(result.tipologiaNombre).toBe("Piso");
     expect(result.keyTipo).toBe(3);
     expect(result.tipoOperacion).toBe("sale");
@@ -138,6 +141,8 @@ describe("extractPropertyForPricing", () => {
     const result = await extractPropertyForPricing("12345");
     expect(result.extras.terraza).toBe(false);
     expect(result.extras.garaje).toBe(false);
+    expect(result.keyLoca).toBeNull();
+    expect(result.keyZona).toBeNull();
   });
 
   it("usa nombre desde raw.tipo si catálogo no resuelve", async () => {

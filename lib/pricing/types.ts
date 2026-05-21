@@ -20,6 +20,9 @@ export interface PricingPropertyInput {
   banyos: number;
   ciudad: string;
   zona: string;
+  zonaRaw: string;
+  keyLoca: number | null;
+  keyZona: number | null;
   /** Nombre textual de tipología (ej. "Piso", "Chalet"). Resuelto desde key_tipo. */
   tipologiaNombre: string;
   /** key_tipo numérico original de Inmovilla (como string en PropertyCurrent.tipoOfer). */
@@ -31,6 +34,88 @@ export interface PricingPropertyInput {
   latitud: number | null;
   longitud: number | null;
   extras: PricingPropertyExtras;
+}
+
+export type ComparabilityResolutionMethod =
+  | "key_zona"
+  | "alias"
+  | "canonical_name"
+  | "unknown";
+
+export type ComparabilityConfidenceLevel = "high" | "medium" | "low";
+
+export interface ComparabilityRelationRule {
+  toZoneCode: string;
+  strength: "strong" | "medium" | "weak";
+  reason: string | null;
+}
+
+export interface PropertyComparabilityProfile {
+  propertyCode: string;
+  catalogVersion: string;
+  resolutionMethod: ComparabilityResolutionMethod;
+  confidenceLevel: ComparabilityConfidenceLevel;
+  confidenceFlags: string[];
+  zoneRaw: string;
+  zoneCode: string | null;
+  zoneNameCanonical: string | null;
+  keyLoca: number | null;
+  keyZona: number | null;
+  macroArea: "Centro" | "Norte" | "Sur" | "Este" | "Oeste" | "Sierra" | "Periurbano" | null;
+  marketSegment: "popular" | "medio" | "medio_alto" | "premium" | null;
+  qualityProfile: "basico" | "medio" | "alto" | null;
+  pricingProfileStatus:
+    | "ready"
+    | "heuristic"
+    | "not_ready"
+    | "redirected"
+    | "not_applicable"
+    | "deprecated"
+    | "unknown";
+  coverageStatus:
+    | "validated"
+    | "known_unprofiled"
+    | "redirected"
+    | "out_of_scope"
+    | "deprecated"
+    | "unknown";
+  comparableRadiusMode: "intra_zone_only" | "zone_plus_mirrors" | "dynamic" | null;
+  allowedZoneCodes: string[];
+  excludedZoneCodes: string[];
+  comparableRelations: ComparabilityRelationRule[];
+  excludedRelations: ComparabilityRelationRule[];
+  priceBandM2Min: number | null;
+  priceBandM2Max: number | null;
+  builtAt: string;
+}
+
+export type ComparableDecision = "included" | "excluded";
+
+export type ComparableDecisionReason =
+  | "NO_COMPARABILITY_PROFILE"
+  | "ZONE_INCLUDED_READY"
+  | "ZONE_INCLUDED_HEURISTIC"
+  | "ZONE_INCLUDED_FALLBACK"
+  | "ZONE_EXCLUDED_NOT_COMPARABLE"
+  | "ZONE_NOT_ALLOWED"
+  | "ZONE_UNKNOWN_FALLBACK";
+
+export interface ComparableDecisionTrace {
+  statefoxId: string;
+  candidateZoneRaw: string;
+  candidateZoneCodeResolved: string | null;
+  decision: ComparableDecision;
+  reason: ComparableDecisionReason;
+}
+
+export interface PricingComparabilityMeta {
+  comparabilityFilterApplied: boolean;
+  effectiveAllowedZoneCodes: string[];
+  effectiveExcludedZoneCodes: string[];
+  candidatesBeforeFilter: number;
+  candidatesAfterFilter: number;
+  excludedByReason: Record<string, number>;
+  comparableDecisions: ComparableDecisionTrace[];
 }
 
 export interface PricingPropertyExtras {
@@ -117,6 +202,82 @@ export interface PricingTrendSummary {
   summary: string;
 }
 
+export type DensityBucket = "baja" | "media" | "alta" | "muy_alta" | "sin_datos";
+
+export interface ZoneDemographicsSummary {
+  available: boolean;
+  city: string;
+  districtCode: string | null;
+  districtName: string | null;
+  zoneCode: string | null;
+  zoneName: string | null;
+  population: number | null;
+  surfaceKm2: number | null;
+  densityPerKm2: number | null;
+  densityBucket: DensityBucket;
+  year: number | null;
+  source: string | null;
+}
+
+export interface ZonePoiSummaryItem {
+  name: string;
+  rating: number | null;
+  lat: number;
+  lng: number;
+  address: string | null;
+}
+
+export interface ZoneTravelModeSummary {
+  mode: "driving" | "transit" | "walking";
+  destinations: number;
+  minutesP50: number | null;
+  minutesP90: number | null;
+  distanceKmP50: number | null;
+}
+
+export interface ZoneStudySummary {
+  transportSummary: {
+    totalStops: number;
+    topStops: ZonePoiSummaryItem[];
+  };
+  schoolsSummary: {
+    totalSchools: number;
+    topSchools: ZonePoiSummaryItem[];
+    avgSchoolRating: number | null;
+  };
+  travelTimeSummary: {
+    byMode: ZoneTravelModeSummary[];
+    accessibilityScore: number | null;
+  };
+  demographicsSummary: ZoneDemographicsSummary;
+}
+
+export interface OptimalPricingSummary {
+  comparablesUsed: number;
+  minPriceM2: number;
+  p25PriceM2: number;
+  p50PriceM2: number;
+  p75PriceM2: number;
+  maxPriceM2: number;
+  minPrice: number;
+  p25Price: number;
+  p50Price: number;
+  p75Price: number;
+  maxPrice: number;
+  baremoBajoPriceM2: number;
+  baremoAltoPriceM2: number;
+  baremoBajoPrice: number;
+  baremoAltoPrice: number;
+  recommendedMinPrice: number;
+  recommendedMaxPrice: number;
+  pricingPosition:
+    | "por_debajo_baremo_bajo"
+    | "en_baremo_bajo"
+    | "en_media"
+    | "en_baremo_alto"
+    | "por_encima_baremo_alto";
+}
+
 // ---------------------------------------------------------------------------
 // Resultado completo del análisis
 // ---------------------------------------------------------------------------
@@ -124,8 +285,11 @@ export interface PricingTrendSummary {
 export interface PricingAnalysisResult {
   propertyCode: string;
   input: PricingPropertyInput;
+  comparabilityProfile?: PropertyComparabilityProfile;
   comparables: PricingComparable[];
   stats: PricingClusterStats;
+  zoneStudy?: ZoneStudySummary;
+  optimalPricing?: OptimalPricingSummary;
   analyzedAt: string;
   trend?: PricingTrendSummary;
   queryMeta: {
@@ -135,6 +299,7 @@ export interface PricingAnalysisResult {
     pagesScanned: number;
     totalResultsFromAPI: number;
     filteredResults: number;
+    comparability: PricingComparabilityMeta;
   };
   recommendation?: PricingRecommendation;
   recommendationError?: string;

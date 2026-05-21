@@ -19,6 +19,10 @@ import { mapTiposToHousing } from "@/lib/statefox/query-builder";
 import type { PricingAnalysisResult, PricingOptions } from "./types";
 import { buildPricingTrendSummary } from "./trend-summary";
 import { persistPricingReport } from "./report-repo";
+import { buildPropertyComparabilityProfile } from "@/lib/market-zones/property-comparability-profile";
+import { buildDemographicsSummary } from "@/lib/market/demographics";
+import { buildZoneStudySummary } from "@/lib/market/accessibility";
+import { buildOptimalPricingSummary } from "./optimal-price";
 
 export type { PricingAnalysisResult, PricingOptions } from "./types";
 export type { PricingPropertyInput, PricingComparable, PricingComparableAdvertiser, PricingClusterStats, SemaforoStatus } from "./types";
@@ -36,23 +40,34 @@ export async function runPricingAnalysis(
   options?: PricingOptions,
 ): Promise<PricingAnalysisResult> {
   const input = await extractPropertyForPricing(propertyCode);
+  const comparabilityProfile = await buildPropertyComparabilityProfile(input);
 
   const housing = mapTiposToHousing(input.tipologiaNombre);
 
-  const { comparables, totalResultsFromAPI, pagesScanned } = await fetchPricingComparables(input, {
+  const { comparables, totalResultsFromAPI, pagesScanned, comparabilityMeta } = await fetchPricingComparables(input, {
     priceRangePercent: options?.priceRangePercent,
     metersRangePercent: options?.metersRangePercent,
     maxPages: options?.maxPages,
     minComparables: options?.minComparables,
+    comparabilityProfile,
   });
 
   const stats = analyzeCluster(input, comparables);
+  const demographicsSummary = await buildDemographicsSummary(input, comparabilityProfile);
+  const zoneStudyWithoutDemographics = await buildZoneStudySummary(input, comparabilityProfile);
+  const optimalPricing = buildOptimalPricingSummary(input, comparables);
 
   const result: PricingAnalysisResult = {
     propertyCode,
     input,
+    comparabilityProfile,
     comparables,
     stats,
+    zoneStudy: {
+      ...zoneStudyWithoutDemographics,
+      demographicsSummary,
+    },
+    optimalPricing,
     analyzedAt: new Date().toISOString(),
     trend: buildPricingTrendSummary({ input, comparables, stats }),
     queryMeta: {
@@ -62,6 +77,7 @@ export async function runPricingAnalysis(
       pagesScanned,
       totalResultsFromAPI,
       filteredResults: comparables.length,
+      comparability: comparabilityMeta,
     },
   };
 
@@ -73,6 +89,7 @@ export async function runPricingAnalysis(
       stats: result.stats,
       trend: result.trend,
       queryMeta: result.queryMeta,
+      comparabilityProfile: result.comparabilityProfile,
       analyzedAt: result.analyzedAt,
       comparablesCount: comparables.length,
     } as unknown as JsonValue,

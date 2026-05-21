@@ -26,6 +26,7 @@ import { StepperProgress } from "@/components/post-venta/stepper-progress";
 import { TimelineEvent } from "@/components/post-venta/pipeline-kanban";
 import { operaciones } from "@/lib/mock-data/operaciones";
 import { comerciales } from "@/lib/mock-data/comerciales";
+import { FadeIn, Fade, AnimatePresence } from "@/components/ui/motion";
 import type { OperacionPostVenta } from "@/lib/postventa/pipeline-types";
 
 const tipoClienteConfig = {
@@ -118,23 +119,23 @@ function OperacionDetalleContent({ params }: { params: Promise<{ id: string }> }
 
     if (loading) {
         return (
-            <div className="space-y-6">
+            <Fade className="space-y-6">
                 <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                     <ArrowLeft className="h-4 w-4" />
                     Volver al Pipeline
                 </Link>
                 <Card className="border-border/50">
-                    <CardContent className="py-12 text-sm text-muted-foreground">
+                    <CardContent className="py-12 text-sm text-center text-muted-foreground">
                         Cargando operación...
                     </CardContent>
                 </Card>
-            </div>
+            </Fade>
         );
     }
 
     if (!operation) {
         return (
-            <div className="space-y-6">
+            <FadeIn className="space-y-6">
                 <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                     <ArrowLeft className="h-4 w-4" />
                     Volver a Operaciones
@@ -145,7 +146,7 @@ function OperacionDetalleContent({ params }: { params: Promise<{ id: string }> }
                         <p className="text-sm text-muted-foreground">{loadError ?? "La operación solicitada no existe en el sistema."}</p>
                     </CardContent>
                 </Card>
-            </div>
+            </FadeIn>
         );
     }
 
@@ -177,7 +178,7 @@ function OperacionDetalleContent({ params }: { params: Promise<{ id: string }> }
     );
 
     return (
-        <div className="space-y-6">
+        <FadeIn className="space-y-6">
             {/* Back link */}
             <Link
                 href={backHref}
@@ -476,7 +477,7 @@ function OperacionDetalleContent({ params }: { params: Promise<{ id: string }> }
                     </Card>
                 </div>
             </div>
-        </div>
+        </FadeIn>
     );
 }
 

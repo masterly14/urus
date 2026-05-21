@@ -41,6 +41,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate, formatEur } from "@/lib/utils/format";
+import { FadeIn, Fade, AnimatePresence } from "@/components/ui/motion";
 import { useSession } from "@/lib/hooks/use-session";
 
 type FinanceOverviewResponse = {
@@ -699,24 +700,26 @@ export default function FinancialDashboard() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
+      <Fade className="flex h-64 items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
+      </Fade>
     );
   }
 
   if (!overview) {
     return (
-      <Card>
-        <CardContent className="py-10 text-center">
-          <p className="text-sm text-muted-foreground">No hay datos financieros disponibles.</p>
-        </CardContent>
-      </Card>
+      <FadeIn>
+        <Card>
+          <CardContent className="py-10 text-center">
+            <p className="text-sm text-muted-foreground">No hay datos financieros disponibles.</p>
+          </CardContent>
+        </Card>
+      </FadeIn>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <FadeIn className="space-y-6">
       <PageHeader
         title="Financiero"
         description="Control mensual de gastos, ingresos y tesorería para CEO y Admin."
@@ -1553,7 +1556,7 @@ export default function FinancialDashboard() {
         ) : null}
         </div>
       </div>
-    </div>
+    </FadeIn>
   );
 }
 

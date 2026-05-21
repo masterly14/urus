@@ -16,6 +16,9 @@ export interface ZoneAggregation {
   propiedadesUrus: number;
   tendenciaPorcentaje: number;
   demanda: DemandLevel;
+  densityPerKm2?: number | null;
+  densityBucket?: "baja" | "media" | "alta" | "muy_alta" | "sin_datos";
+  accessibilityMinutesDriving?: number | null;
 }
 
 export interface CompetitorProperty {
@@ -29,6 +32,9 @@ export interface CompetitorProperty {
   gapPorcentaje: number;
   diasPublicado: number | null;
   totalComparables: number;
+  optimalPriceMin?: number | null;
+  optimalPriceMax?: number | null;
+  densityBucket?: "baja" | "media" | "alta" | "muy_alta" | "sin_datos";
 }
 
 export interface MercadoResponse {

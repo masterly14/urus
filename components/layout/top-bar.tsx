@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useGlobalLoader } from "@/lib/hooks/use-global-loader";
 
 const severityColors: Record<string, string> = {
     critical: "bg-[var(--urus-danger)]",
@@ -83,6 +84,7 @@ function getNotificationHref(notification: AppNotification): string | null {
 
     switch (notification.eventType) {
         case "PRICING_ANALISIS_GENERADO":
+        case "PRICING_ANALISIS_FALLIDO":
             return propertyCode
                 ? `/platform/pricing/informe/${encodeURIComponent(propertyCode)}`
                 : "/platform/pricing";
@@ -133,6 +135,7 @@ function getNotificationHref(notification: AppNotification): string | null {
 
 export function TopBar({ logoSrc }: { logoSrc?: string }) {
     const router = useRouter();
+    const { startNavigation } = useGlobalLoader();
     const { session, isCeoOrAdmin } = useSession();
     const { notifications, unreadCount, markAsRead, markAllRead, connected } = useNotifications();
     const [currentPage, setCurrentPage] = useState(1);
@@ -157,7 +160,10 @@ export function TopBar({ logoSrc }: { logoSrc?: string }) {
     const handleNotificationClick = (notification: AppNotification) => {
         void markAsRead(notification.id);
         const href = getNotificationHref(notification);
-        if (href) router.push(href);
+        if (href) {
+            startNavigation(href);
+            router.push(href);
+        }
     };
 
     return (
@@ -338,7 +344,12 @@ export function TopBar({ logoSrc }: { logoSrc?: string }) {
                             <User className="mr-2 h-4 w-4" /> Perfil
                         </DropdownMenuItem>
                         {isCeoOrAdmin && (
-                            <DropdownMenuItem onClick={() => router.push("/platform/configuracion")}>
+                            <DropdownMenuItem
+                                onClick={() => {
+                                    startNavigation("/platform/configuracion");
+                                    router.push("/platform/configuracion");
+                                }}
+                            >
                                 <Settings className="mr-2 h-4 w-4" /> Configuración
                             </DropdownMenuItem>
                         )}

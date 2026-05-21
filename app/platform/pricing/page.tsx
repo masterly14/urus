@@ -10,8 +10,6 @@ import {
   MapPin,
   LayoutGrid,
   List,
-  ArrowUpRight,
-  BarChart3,
   Loader2,
   AlertTriangle,
   Search,
@@ -24,6 +22,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { FadeIn, Fade } from "@/components/ui/motion";
 import { PropertyCard } from "@/components/pricing/property-card";
 import { AiIndicator } from "@/components/ui/ai-indicator";
 import {
@@ -35,6 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { propertiesListFixture } from "@/lib/mock-data/pricing-fixture";
+import { PricingTabs } from "@/components/pricing/pricing-tabs";
 
 export interface PropertyListItem {
   codigo: string;
@@ -61,6 +61,7 @@ export interface PropertyListItem {
   propietarioDni?: string | null;
   propietarioPhone?: string | null;
   propietarioDomicilioFiscal?: string | null;
+  analysisStatus?: "idle" | "processing" | "completed" | "failed";
 }
 
 const PAGE_SIZE_GRID = 12;
@@ -171,11 +172,19 @@ export default function PricingPage() {
 
   const { data: swrData, error: swrError, isLoading } = useSWR<{ properties: PropertyListItem[] }>(
     isMock ? null : "/api/pricing/properties",
-    { revalidateOnMount: true, keepPreviousData: true },
+    {
+      revalidateOnMount: true,
+      revalidateOnFocus: true,
+      keepPreviousData: true,
+      refreshInterval: (currentData) =>
+        currentData?.properties?.some((property) => property.analysisStatus === "processing")
+          ? 4000
+          : 0,
+    },
   );
 
-  const properties = isMock
-    ? propertiesListFixture
+  const properties: PropertyListItem[] = isMock
+    ? (propertiesListFixture as PropertyListItem[])
     : (swrData?.properties ?? []);
   const loading = !isMock && isLoading && properties.length === 0;
   const error = swrError ? (swrError instanceof Error ? swrError.message : "Error cargando propiedades") : null;
@@ -240,7 +249,7 @@ export default function PricingPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <Fade className="space-y-6">
         <div className="flex items-center gap-3">
           <Loader2 className="h-5 w-5 animate-spin text-secondary" />
           <p className="text-sm text-muted-foreground">
@@ -257,13 +266,13 @@ export default function PricingPage() {
             <Skeleton key={i} className="h-48 rounded-lg" />
           ))}
         </div>
-      </div>
+      </Fade>
     );
   }
 
   if (error) {
     return (
-      <div className="space-y-6">
+      <Fade className="space-y-6">
         <Card className="border-[var(--urus-danger)]/30">
           <CardContent className="p-8 text-center space-y-4">
             <AlertTriangle className="h-12 w-12 text-[var(--urus-danger)] mx-auto" />
@@ -271,12 +280,12 @@ export default function PricingPage() {
             <p className="text-sm text-muted-foreground">{error}</p>
           </CardContent>
         </Card>
-      </div>
+      </Fade>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <FadeIn className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
@@ -285,7 +294,7 @@ export default function PricingPage() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold tracking-tight">Análisis de mercado</h1>
+              <h1 className="text-2xl font-bold tracking-tight">Cartera interna</h1>
               <AiIndicator label="Valoración IA" />
             </div>
             <p className="text-sm text-muted-foreground">
@@ -293,16 +302,7 @@ export default function PricingPage() {
             </p>
           </div>
         </div>
-        <Link href="/platform/pricing/mercado">
-          <Badge
-            variant="outline"
-            className="gap-1.5 px-3 py-1.5 hover:bg-accent/40 cursor-pointer transition-colors"
-          >
-            <BarChart3 className="h-3 w-3 text-secondary" />
-            Vista de Mercado
-            <ArrowUpRight className="h-3 w-3" />
-          </Badge>
-        </Link>
+        <PricingTabs />
       </div>
 
       {/* Summary cards */}
@@ -392,7 +392,7 @@ export default function PricingPage() {
                 onChange={(e) => setOnlyEligible(e.target.checked)}
                 className="h-3.5 w-3.5 accent-[var(--color-secondary)]"
               />
-              Solo elegibles Análisis de mercado
+              Solo elegibles para análisis
             </label>
 
             <div className="flex items-center gap-2 ml-auto">
@@ -507,6 +507,26 @@ export default function PricingPage() {
                               {p.titulo || p.ref || p.codigo}
                             </span>
                           )}
+                          {p.analysisStatus === "processing" && (
+                            <div className="mt-1">
+                              <Badge
+                                variant="outline"
+                                className="border-secondary/30 text-[9px] text-secondary"
+                              >
+                                Haciendo análisis
+                              </Badge>
+                            </div>
+                          )}
+                          {p.analysisStatus === "failed" && (
+                            <div className="mt-1">
+                              <Badge
+                                variant="outline"
+                                className="border-[var(--urus-danger)]/40 text-[9px] text-[var(--urus-danger)]"
+                              >
+                                Análisis con error
+                              </Badge>
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap items-center gap-1.5">
@@ -582,6 +602,6 @@ export default function PricingPage() {
           <Pagination current={page} total={totalPages} onChange={setPage} />
         </div>
       )}
-    </div>
+    </FadeIn>
   );
 }

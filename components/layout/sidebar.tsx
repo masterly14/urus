@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "@/lib/hooks/use-session";
+import { PlatformLink } from "@/components/loading/platform-link";
 import {
     LayoutDashboard,
     Brain,
@@ -13,7 +13,6 @@ import {
     MessageSquare,
     DollarSign,
     TrendingUp,
-    ShoppingBag,
     FileText,
     FileSignature,
     PieChart,
@@ -107,14 +106,10 @@ const navGroups: NavGroup[] = [
                 badge: "IA",
             },
             {
-                label: "Análisis de mercado",
+                label: "Cartera interna",
                 href: "/platform/pricing",
                 icon: DollarSign,
                 badge: "IA",
-                children: [
-                    { label: "Semáforo General", href: "/platform/pricing", icon: TrendingUp },
-                    { label: "Mercado", href: "/platform/pricing/mercado", icon: ShoppingBag },
-                ],
             },
             {
                 label: "Coach Emocional",
@@ -280,7 +275,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                                         return (
                                             <Tooltip key={item.label}>
                                                 <TooltipTrigger asChild>
-                                                    <Link
+                                                    <PlatformLink
                                                         href={item.href}
                                                         className={cn(
                                                             "flex items-center justify-center rounded-md p-2 transition-colors duration-150 hover:bg-muted/60 relative",
@@ -288,7 +283,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                                                         )}
                                                     >
                                                         <Icon className="h-4 w-4" />
-                                                    </Link>
+                                                    </PlatformLink>
                                                 </TooltipTrigger>
                                                 <TooltipContent side="right">{item.label}</TooltipContent>
                                             </Tooltip>
@@ -320,7 +315,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                                                     />
                                                 </Button>
                                             ) : (
-                                                <Link
+                                                <PlatformLink
                                                     href={item.href}
                                                     className={cn(
                                                         "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors duration-150 hover:bg-muted/60",
@@ -334,7 +329,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                                                             {item.badge}
                                                         </Badge>
                                                     )}
-                                                </Link>
+                                                </PlatformLink>
                                             )}
 
                                             {hasChildren && isExpanded && (
@@ -343,7 +338,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                                                         const ChildIcon = child.icon;
                                                         const childActive = pathname === child.href;
                                                         return (
-                                                            <Link
+                                                            <PlatformLink
                                                                 key={child.href}
                                                                 href={child.href}
                                                                 className={cn(
@@ -353,7 +348,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                                                             >
                                                                 <ChildIcon className="h-3 w-3 shrink-0" />
                                                                 <span className="truncate">{child.label}</span>
-                                                            </Link>
+                                                            </PlatformLink>
                                                         );
                                                     })}
                                                 </div>

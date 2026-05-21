@@ -431,6 +431,8 @@ model PricingReport {
   recommendation            Json?
   recommendationError       String?
   trend                     Json?
+  zoneStudy                 Json?
+  optimalPricing            Json?
   queryMeta                 Json
   lastAnalysisEventId       String?
   lastRecommendationEventId String?
@@ -441,6 +443,78 @@ model PricingReport {
   @@index([sourceTrigger, analyzedAt])
   @@index([semaforo, analyzedAt])
   @@map("pricing_reports")
+}
+
+model DemographicZoneIndex {
+  id            String                   @id @default(cuid())
+  city          String
+  districtCode  String
+  districtName  String
+  zoneCode      String?
+  zoneName      String?
+  population    Int
+  surfaceKm2    Float
+  densityPerKm2 Float
+  densityBucket DemographicDensityBucket
+  year          Int
+  source        String
+  geometryRef   String?
+  importedAt    DateTime                 @default(now())
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  @@unique([city, districtCode, year])
+  @@index([city, year])
+  @@index([city, zoneCode])
+  @@index([city, densityBucket])
+  @@map("demographic_zone_index")
+}
+
+model ZonePoiIndex {
+  id           String      @id @default(cuid())
+  city         String
+  zoneCode     String?
+  districtCode String?
+  poiType      ZonePoiType
+  name         String
+  lat          Float
+  lng          Float
+  rating       Float?
+  address      String?
+  source       String
+  externalId   String?
+  fetchedAt    DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([source, externalId])
+  @@index([city, zoneCode, poiType])
+  @@index([city, districtCode, poiType])
+  @@index([city, poiType, rating])
+  @@map("zone_poi_index")
+}
+
+model ZoneTravelTimeIndex {
+  id              String                    @id @default(cuid())
+  city            String
+  originZoneCode  String
+  originZoneName  String
+  destinationType ZoneTravelDestinationType
+  destinationName String
+  mode            ZoneTravelMode
+  minutesP50      Float
+  minutesP90      Float
+  distanceKmP50   Float?
+  sampleSize      Int                       @default(1)
+  source          String
+  computedAt      DateTime                  @default(now())
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  @@unique([city, originZoneCode, destinationType, destinationName, mode])
+  @@index([city, originZoneCode, mode])
+  @@index([city, destinationType, mode])
+  @@map("zone_travel_time_index")
 }
 
 model StatefoxComparableImage {
@@ -2564,6 +2638,239 @@ enum MarketCircuitBreakerStatus {
   CLOSED
   OPEN
   HALF_OPEN
+}
+
+enum MarketZoneValidationPriority {
+  P1_active_inventory
+  P2_historical_inventory
+  P3_no_stock
+}
+
+enum MarketZoneCoverageStatus {
+  validated
+  known_unprofiled
+  redirected
+  out_of_scope
+  deprecated
+}
+
+enum MarketZonePricingProfileStatus {
+  ready
+  heuristic
+  not_ready
+  redirected
+  not_applicable
+  deprecated
+}
+
+enum MarketZoneMacroArea {
+  Centro
+  Norte
+  Sur
+  Este
+  Oeste
+  Sierra
+  Periurbano
+}
+
+enum MarketZoneMarketSegment {
+  popular
+  medio
+  medio_alto
+  premium
+}
+
+enum MarketZoneQualityProfile {
+  basico
+  medio
+  alto
+}
+
+enum MarketZoneDemandLevel {
+  baja
+  media
+  alta
+}
+
+enum MarketZoneLiquidityLevel {
+  lenta
+  media
+  rapida
+}
+
+enum MarketZoneBuildingAgeProfile {
+  nuevo
+  mixto
+  antiguo
+}
+
+enum MarketZoneComparableRadiusMode {
+  intra_zone_only
+  zone_plus_mirrors
+  dynamic
+}
+
+enum MarketZoneSourceQuality {
+  alta
+  media
+  baja
+}
+
+enum MarketZoneRelationType {
+  comparable
+  not_comparable
+}
+
+enum MarketZoneRelationStrength {
+  strong
+  medium
+  weak
+}
+
+enum MarketZoneAliasType {
+  canonical
+  inmovilla_name
+  raw_variant
+  redirect_legacy
+}
+
+enum DemographicDensityBucket {
+  baja
+  media
+  alta
+  muy_alta
+}
+
+enum ZonePoiType {
+  transport
+  school
+  health
+  retail
+  green
+}
+
+enum ZoneTravelMode {
+  driving
+  transit
+  walking
+}
+
+enum ZoneTravelDestinationType {
+  city_center
+  transport
+  school
+  health
+  retail
+  green
+}
+
+model MarketZoneProfile {
+  id                 String                         @id @default(cuid())
+  catalogVersion     String                         @default("v1.1")
+  priorityRank       Int
+  validationPriority MarketZoneValidationPriority
+  keyLoca            Int
+  keyZona            Int                            @unique
+  zonaInmovilla      String
+  suggestedZoneCode  String                         @unique
+
+  coverageStatus       MarketZoneCoverageStatus
+  pricingProfileStatus MarketZonePricingProfileStatus
+  zoneNameCanonical    String
+  macroArea            MarketZoneMacroArea?
+
+  marketSegment      MarketZoneMarketSegment?
+  qualityProfile     MarketZoneQualityProfile?
+  demandLevel        MarketZoneDemandLevel?
+  liquidityLevel     MarketZoneLiquidityLevel?
+  priceBandM2Min     Float?
+  priceBandM2Max     Float?
+  dominantHousingTypes String[]                    @default([])
+  buildingAgeProfile MarketZoneBuildingAgeProfile?
+  amenitiesProfile   String[]                       @default([])
+
+  comparableRadiusMode           MarketZoneComparableRadiusMode?
+  comparableWithZoneCodes        String[]           @default([])
+  notComparableWithZoneCodes     String[]           @default([])
+
+  sourceQuality    MarketZoneSourceQuality?
+  ownerTeam        String                           @default("")
+  validatedBy      String?
+  validatedAt      DateTime?
+  isActive         Boolean                          @default(true)
+  redirectToZoneCode String?
+
+  inventoryCountActive      Int                      @default(0)
+  inventoryCountHistorical  Int                      @default(0)
+  avgPriceM2Active          Float?
+  medianPriceM2Active       Float?
+  avgPriceM2Historical      Float?
+  medianPriceM2Historical   Float?
+  unitSizeMinActive         Float?
+  unitSizeMaxActive         Float?
+  dominantTiposDetected     String[]                @default([])
+  sampleActivePropertyCodes String[]                @default([])
+  sampleHistoricalPropertyCodes String[]            @default([])
+  rawZoneVariants           String[]                @default([])
+  notes                     String                  @default("")
+
+  importedAt DateTime                               @default(now())
+  updatedAt  DateTime                               @updatedAt
+
+  outgoingRelations MarketZoneRelation[]            @relation("MarketZoneRelationsFrom")
+  incomingRelations MarketZoneRelation[]            @relation("MarketZoneRelationsTo")
+  aliases           MarketZoneAlias[]
+
+  @@index([catalogVersion, keyLoca])
+  @@index([coverageStatus, pricingProfileStatus])
+  @@index([isActive, pricingProfileStatus])
+  @@index([validationPriority, priorityRank])
+  @@index([zoneNameCanonical])
+  @@map("market_zone_profiles")
+}
+
+model MarketZoneRelation {
+  id                 String                    @id @default(cuid())
+  catalogVersion     String                    @default("v1.1")
+  fromZoneCode       String
+  toZoneCode         String
+  relationType       MarketZoneRelationType
+  strength           MarketZoneRelationStrength @default(medium)
+  reason             String?
+  isSymmetric        Boolean                   @default(false)
+  asymmetryReason    String?
+  conflictResolvedBy String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  fromZone MarketZoneProfile @relation("MarketZoneRelationsFrom", fields: [fromZoneCode], references: [suggestedZoneCode], onDelete: Cascade)
+  toZone   MarketZoneProfile @relation("MarketZoneRelationsTo", fields: [toZoneCode], references: [suggestedZoneCode], onDelete: Cascade)
+
+  @@unique([fromZoneCode, toZoneCode, relationType])
+  @@index([fromZoneCode, relationType])
+  @@index([toZoneCode, relationType])
+  @@index([catalogVersion])
+  @@map("market_zone_relations")
+}
+
+model MarketZoneAlias {
+  id              String             @id @default(cuid())
+  keyLoca         Int
+  keyZona         Int
+  zoneCode        String
+  aliasRaw        String
+  aliasNormalized String
+  aliasType       MarketZoneAliasType
+  isActive        Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  zone MarketZoneProfile @relation(fields: [zoneCode], references: [suggestedZoneCode], onDelete: Cascade)
+
+  @@unique([zoneCode, aliasNormalized, aliasType])
+  @@index([keyLoca, keyZona])
+  @@index([aliasNormalized])
+  @@map("market_zone_aliases")
 }
 
 /// Semilla de rastreo: combinación (source, operation, city[, zone]) con URL de

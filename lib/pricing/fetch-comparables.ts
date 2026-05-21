@@ -22,7 +22,16 @@ import type {
 } from "@/lib/statefox/types";
 import { isExpiredStatefoxImageUrl } from "@/lib/statefox/image-expiry";
 import { hydrateComparablesWithImageCache } from "@/lib/statefox/image-cache";
-import type { PricingPropertyInput, PricingComparable, PricingPropertyExtras } from "./types";
+import { prisma } from "@/lib/prisma";
+import type {
+  ComparableDecisionReason,
+  ComparableDecisionTrace,
+  PricingComparabilityMeta,
+  PricingPropertyInput,
+  PricingComparable,
+  PricingPropertyExtras,
+  PropertyComparabilityProfile,
+} from "./types";
 
 const DEFAULT_PRICE_RANGE_PERCENT = 20;
 const DEFAULT_METERS_RANGE_PERCENT = 20;
@@ -35,12 +44,14 @@ export interface FetchComparablesOptions {
   metersRangePercent?: number;
   maxPages?: number;
   minComparables?: number;
+  comparabilityProfile?: PropertyComparabilityProfile;
 }
 
 export interface FetchComparablesResult {
   comparables: PricingComparable[];
   totalResultsFromAPI: number;
   pagesScanned: number;
+  comparabilityMeta: PricingComparabilityMeta;
 }
 
 function normalizeForComparison(s: string): string {
@@ -157,6 +168,173 @@ function toComparable(id: string, prop: StatefoxSnapshotProperty): PricingCompar
   };
 }
 
+function createDefaultComparabilityMeta(candidateCount: number): PricingComparabilityMeta {
+  return {
+    comparabilityFilterApplied: false,
+    effectiveAllowedZoneCodes: [],
+    effectiveExcludedZoneCodes: [],
+    candidatesBeforeFilter: candidateCount,
+    candidatesAfterFilter: candidateCount,
+    excludedByReason: {},
+    comparableDecisions: [],
+  };
+}
+
+function classifyComparabilityMode(
+  profile: PropertyComparabilityProfile,
+): "ready" | "heuristic" | "fallback" {
+  if (profile.pricingProfileStatus === "ready") return "ready";
+  if (profile.pricingProfileStatus === "heuristic") return "heuristic";
+  return "fallback";
+}
+
+async function resolveCandidateZoneCodes(
+  candidates: PricingComparable[],
+  profile: PropertyComparabilityProfile | undefined,
+): Promise<Map<string, string | null>> {
+  const zoneByComparableId = new Map<string, string | null>();
+  if (!profile) return zoneByComparableId;
+  const keyLoca = profile.keyLoca ?? 224499;
+  const catalogVersion = profile.catalogVersion || "v1.1";
+
+  const aliases = await prisma.marketZoneAlias.findMany({
+    where: { keyLoca, isActive: true },
+    select: { aliasNormalized: true, zoneCode: true },
+  });
+  const aliasMap = new Map<string, string>();
+  for (const alias of aliases) {
+    if (!aliasMap.has(alias.aliasNormalized)) aliasMap.set(alias.aliasNormalized, alias.zoneCode);
+  }
+
+  const canonicals = await prisma.marketZoneProfile.findMany({
+    where: { catalogVersion, keyLoca, isActive: true },
+    select: { suggestedZoneCode: true, zoneNameCanonical: true },
+  });
+  const canonicalMap = new Map<string, string>();
+  for (const item of canonicals) {
+    canonicalMap.set(normalizeForComparison(item.zoneNameCanonical), item.suggestedZoneCode);
+  }
+
+  for (const candidate of candidates) {
+    const zoneRaw = candidate.zona ?? "";
+    const zoneNormalized = normalizeForComparison(zoneRaw);
+    let resolved: string | null = null;
+    if (zoneNormalized) {
+      resolved = aliasMap.get(zoneNormalized) ?? canonicalMap.get(zoneNormalized) ?? null;
+    }
+    zoneByComparableId.set(candidate.statefoxId, resolved);
+  }
+  return zoneByComparableId;
+}
+
+async function applyComparabilityFilter(
+  candidates: PricingComparable[],
+  profile: PropertyComparabilityProfile | undefined,
+): Promise<{ filtered: PricingComparable[]; meta: PricingComparabilityMeta }> {
+  if (!profile) {
+    return {
+      filtered: candidates,
+      meta: createDefaultComparabilityMeta(candidates.length),
+    };
+  }
+
+  const mode = classifyComparabilityMode(profile);
+  const resolvedZones = await resolveCandidateZoneCodes(candidates, profile);
+
+  const excludedSet = new Set(profile.excludedZoneCodes);
+  const allowedSet = new Set<string>();
+  if (mode === "ready") {
+    for (const code of profile.allowedZoneCodes) allowedSet.add(code);
+  } else if (mode === "heuristic") {
+    if (profile.zoneCode) allowedSet.add(profile.zoneCode);
+    for (const code of profile.allowedZoneCodes) allowedSet.add(code);
+  } else {
+    if (profile.zoneCode) allowedSet.add(profile.zoneCode);
+  }
+
+  const decisions: ComparableDecisionTrace[] = [];
+  const included: PricingComparable[] = [];
+  const excludedByReason: Record<string, number> = {};
+
+  const bump = (reason: ComparableDecisionReason): void => {
+    excludedByReason[reason] = (excludedByReason[reason] ?? 0) + 1;
+  };
+
+  for (const candidate of candidates) {
+    const zoneCode = resolvedZones.get(candidate.statefoxId) ?? null;
+    const zoneRaw = candidate.zona ?? "";
+
+    if (zoneCode && excludedSet.has(zoneCode)) {
+      const reason: ComparableDecisionReason = "ZONE_EXCLUDED_NOT_COMPARABLE";
+      decisions.push({
+        statefoxId: candidate.statefoxId,
+        candidateZoneRaw: zoneRaw,
+        candidateZoneCodeResolved: zoneCode,
+        decision: "excluded",
+        reason,
+      });
+      bump(reason);
+      continue;
+    }
+
+    if (allowedSet.size > 0) {
+      if (!zoneCode || !allowedSet.has(zoneCode)) {
+        const reason: ComparableDecisionReason =
+          mode === "fallback" ? "ZONE_UNKNOWN_FALLBACK" : "ZONE_NOT_ALLOWED";
+        decisions.push({
+          statefoxId: candidate.statefoxId,
+          candidateZoneRaw: zoneRaw,
+          candidateZoneCodeResolved: zoneCode,
+          decision: "excluded",
+          reason,
+        });
+        bump(reason);
+        continue;
+      }
+    } else if (mode === "fallback") {
+      const reason: ComparableDecisionReason = "ZONE_UNKNOWN_FALLBACK";
+      decisions.push({
+        statefoxId: candidate.statefoxId,
+        candidateZoneRaw: zoneRaw,
+        candidateZoneCodeResolved: zoneCode,
+        decision: "excluded",
+        reason,
+      });
+      bump(reason);
+      continue;
+    }
+
+    const includeReason: ComparableDecisionReason =
+      mode === "ready"
+        ? "ZONE_INCLUDED_READY"
+        : mode === "heuristic"
+          ? "ZONE_INCLUDED_HEURISTIC"
+          : "ZONE_INCLUDED_FALLBACK";
+
+    decisions.push({
+      statefoxId: candidate.statefoxId,
+      candidateZoneRaw: zoneRaw,
+      candidateZoneCodeResolved: zoneCode,
+      decision: "included",
+      reason: includeReason,
+    });
+    included.push(candidate);
+  }
+
+  return {
+    filtered: included,
+    meta: {
+      comparabilityFilterApplied: true,
+      effectiveAllowedZoneCodes: [...allowedSet].sort(),
+      effectiveExcludedZoneCodes: [...excludedSet].sort(),
+      candidatesBeforeFilter: candidates.length,
+      candidatesAfterFilter: included.length,
+      excludedByReason,
+      comparableDecisions: decisions,
+    },
+  };
+}
+
 /**
  * Devuelve comparables para pricing. Source elegida via env:
  *   - MARKET_PRICING_SOURCE=marketlisting => `lib/market/comparables.ts`
@@ -180,7 +358,13 @@ export async function fetchPricingComparables(
       minComparables: options?.minComparables,
     });
     if (result.comparables.length > 0) {
-      return result;
+      const filtered = await applyComparabilityFilter(result.comparables, options?.comparabilityProfile);
+      return {
+        comparables: filtered.filtered,
+        totalResultsFromAPI: result.totalResultsFromAPI,
+        pagesScanned: result.pagesScanned,
+        comparabilityMeta: filtered.meta,
+      };
     }
     // Fallback explicito a Statefox si MarketListing no devuelve nada
     // (ciudad sin seeds activos, p. ej.). Loguamos para tener visibilidad.
@@ -246,5 +430,14 @@ export async function fetchPricingComparables(
   }
 
   const comparablesWithCachedImages = await hydrateComparablesWithImageCache(comparables);
-  return { comparables: comparablesWithCachedImages, totalResultsFromAPI, pagesScanned };
+  const filtered = await applyComparabilityFilter(
+    comparablesWithCachedImages,
+    options?.comparabilityProfile,
+  );
+  return {
+    comparables: filtered.filtered,
+    totalResultsFromAPI,
+    pagesScanned,
+    comparabilityMeta: filtered.meta,
+  };
 }

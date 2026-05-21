@@ -1,0 +1,227 @@
+"use client";
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { usePathname } from "next/navigation";
+import { GlobalHouseLoaderOverlay } from "@/components/loading/global-house-loader-overlay";
+
+type LoaderToken = string;
+
+interface LoadingEntry {
+  token: LoaderToken;
+  reason: string;
+  message?: string;
+  startedAt: number;
+}
+
+interface GlobalLoaderTaskOptions {
+  reason?: string;
+  message?: string;
+  suppressOverlay?: boolean;
+}
+
+interface GlobalLoaderContextValue {
+  startLoading: (options?: { reason?: string; message?: string }) => LoaderToken;
+  stopLoading: (token: LoaderToken) => void;
+  suppressOverlay: (reason?: string) => () => void;
+  withGlobalLoading: <T>(task: () => Promise<T>, options?: GlobalLoaderTaskOptions) => Promise<T>;
+  startNavigation: (targetHref?: string) => LoaderToken | null;
+  isOverlayVisible: boolean;
+}
+
+export const GlobalLoaderContext = createContext<GlobalLoaderContextValue | null>(null);
+
+const OPEN_DELAY_MS = 120;
+const HOUSE_DRAW_CYCLE_MS = 3_800;
+const MIN_VISIBLE_MS = Math.round(HOUSE_DRAW_CYCLE_MS * 0.7);
+const NAVIGATION_TIMEOUT_MS = 12_000;
+
+function token(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function GlobalLoaderProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const [loadingEntries, setLoadingEntries] = useState<Map<LoaderToken, LoadingEntry>>(new Map());
+  const [suppressions, setSuppressions] = useState<Map<LoaderToken, string>>(new Map());
+  const [visible, setVisible] = useState(false);
+
+  const previousPathname = useRef(pathname);
+  const openTimerRef = useRef<number | null>(null);
+  const hideTimerRef = useRef<number | null>(null);
+  const visibleSinceRef = useRef<number>(0);
+  const navigationTokensRef = useRef<Map<LoaderToken, number>>(new Map());
+
+  const clearOpenTimer = useCallback(() => {
+    if (!openTimerRef.current) return;
+    window.clearTimeout(openTimerRef.current);
+    openTimerRef.current = null;
+  }, []);
+
+  const clearHideTimer = useCallback(() => {
+    if (!hideTimerRef.current) return;
+    window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = null;
+  }, []);
+
+  const startLoading = useCallback((options?: { reason?: string; message?: string }) => {
+    const nextToken = token("load");
+    setLoadingEntries((current) => {
+      const next = new Map(current);
+      next.set(nextToken, {
+        token: nextToken,
+        reason: options?.reason ?? "task",
+        message: options?.message,
+        startedAt: Date.now(),
+      });
+      return next;
+    });
+    return nextToken;
+  }, []);
+
+  const stopLoading = useCallback((entryToken: LoaderToken) => {
+    setLoadingEntries((current) => {
+      if (!current.has(entryToken)) return current;
+      const next = new Map(current);
+      next.delete(entryToken);
+      return next;
+    });
+  }, []);
+
+  const suppressOverlay = useCallback((reason = "suppressed") => {
+    const suppressionToken = token("suppress");
+    setSuppressions((current) => {
+      const next = new Map(current);
+      next.set(suppressionToken, reason);
+      return next;
+    });
+    return () => {
+      setSuppressions((current) => {
+        if (!current.has(suppressionToken)) return current;
+        const next = new Map(current);
+        next.delete(suppressionToken);
+        return next;
+      });
+    };
+  }, []);
+
+  const withGlobalLoading = useCallback(
+    async <T,>(task: () => Promise<T>, options?: GlobalLoaderTaskOptions): Promise<T> => {
+      const currentToken = startLoading({ reason: options?.reason, message: options?.message });
+      const releaseSuppression = options?.suppressOverlay
+        ? suppressOverlay(options.reason ?? "suppressed-task")
+        : null;
+      try {
+        return await task();
+      } finally {
+        releaseSuppression?.();
+        stopLoading(currentToken);
+      }
+    },
+    [startLoading, stopLoading, suppressOverlay],
+  );
+
+  const startNavigation = useCallback(
+    (targetHref?: string): LoaderToken | null => {
+      if (typeof targetHref === "string" && !targetHref.startsWith("/platform")) {
+        return null;
+      }
+      const navToken = startLoading({ reason: "navigation", message: "Abriendo siguiente vista..." });
+      const timeoutId = window.setTimeout(() => {
+        stopLoading(navToken);
+        navigationTokensRef.current.delete(navToken);
+      }, NAVIGATION_TIMEOUT_MS);
+      navigationTokensRef.current.set(navToken, timeoutId);
+      return navToken;
+    },
+    [startLoading, stopLoading],
+  );
+
+  useEffect(() => {
+    if (previousPathname.current === pathname) return;
+    previousPathname.current = pathname;
+    for (const [navToken, timeoutId] of navigationTokensRef.current.entries()) {
+      window.clearTimeout(timeoutId);
+      stopLoading(navToken);
+      navigationTokensRef.current.delete(navToken);
+    }
+  }, [pathname, stopLoading]);
+
+  useEffect(() => {
+    const wantsVisible = loadingEntries.size > 0 && suppressions.size === 0;
+
+    if (wantsVisible) {
+      clearHideTimer();
+      if (!visible && !openTimerRef.current) {
+        openTimerRef.current = window.setTimeout(() => {
+          setVisible(true);
+          visibleSinceRef.current = Date.now();
+          openTimerRef.current = null;
+        }, OPEN_DELAY_MS);
+      }
+      return;
+    }
+
+    clearOpenTimer();
+    if (!visible) return;
+
+    const elapsed = Date.now() - visibleSinceRef.current;
+    const remaining = Math.max(0, MIN_VISIBLE_MS - elapsed);
+    clearHideTimer();
+    hideTimerRef.current = window.setTimeout(() => {
+      setVisible(false);
+      hideTimerRef.current = null;
+    }, remaining);
+  }, [loadingEntries.size, suppressions.size, visible, clearHideTimer, clearOpenTimer]);
+
+  useEffect(() => {
+    return () => {
+      clearOpenTimer();
+      clearHideTimer();
+      for (const timeoutId of navigationTokensRef.current.values()) {
+        window.clearTimeout(timeoutId);
+      }
+      navigationTokensRef.current.clear();
+    };
+  }, [clearHideTimer, clearOpenTimer]);
+
+  const overlayMessage = useMemo(() => {
+    if (loadingEntries.size === 0) return null;
+    const latest = Array.from(loadingEntries.values()).sort((a, b) => b.startedAt - a.startedAt)[0];
+    return latest?.message ?? null;
+  }, [loadingEntries]);
+
+  const value = useMemo<GlobalLoaderContextValue>(
+    () => ({
+      startLoading,
+      stopLoading,
+      suppressOverlay,
+      withGlobalLoading,
+      startNavigation,
+      isOverlayVisible: visible,
+    }),
+    [startLoading, stopLoading, suppressOverlay, withGlobalLoading, startNavigation, visible],
+  );
+
+  return (
+    <GlobalLoaderContext.Provider value={value}>
+      {children}
+      <GlobalHouseLoaderOverlay visible={visible} message={overlayMessage} />
+    </GlobalLoaderContext.Provider>
+  );
+}
+
+export function useGlobalLoaderContext() {
+  const context = useContext(GlobalLoaderContext);
+  if (!context) {
+    throw new Error("useGlobalLoaderContext debe usarse dentro de GlobalLoaderProvider");
+  }
+  return context;
+}

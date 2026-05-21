@@ -17,6 +17,16 @@ function classifyDemand(propCount: number, avgGap: number): DemandLevel {
   return "baja";
 }
 
+function classifyDensityBucket(
+  densityPerKm2: number | null | undefined,
+): "baja" | "media" | "alta" | "muy_alta" | "sin_datos" {
+  if (typeof densityPerKm2 !== "number" || !Number.isFinite(densityPerKm2)) return "sin_datos";
+  if (densityPerKm2 < 2000) return "baja";
+  if (densityPerKm2 < 5000) return "media";
+  if (densityPerKm2 < 9000) return "alta";
+  return "muy_alta";
+}
+
 const getHandler = async (request: Request) => {
   const session = await getSessionFromRequest(request);
   if (!session) return unauthorized();
@@ -52,6 +62,8 @@ const getHandler = async (request: Request) => {
       totalComparables: true,
       comparables: true,
       analyzedAt: true,
+      zoneStudy: true,
+      optimalPricing: true,
     },
   });
 
@@ -108,6 +120,53 @@ const getHandler = async (request: Request) => {
     }
   }
 
+  const zoneNames = Array.from(zoneMap.keys()).filter((zone) => zone !== "Sin zona");
+  const [demographicRows, drivingTravelRows] = await Promise.all([
+    zoneNames.length
+      ? prisma.demographicZoneIndex.findMany({
+          where: {
+            city: ciudad,
+            OR: [
+              { zoneName: { in: zoneNames } },
+              { districtName: { in: zoneNames } },
+            ],
+          },
+          orderBy: [{ year: "desc" }, { updatedAt: "desc" }],
+        })
+      : Promise.resolve([]),
+    zoneNames.length
+      ? prisma.zoneTravelTimeIndex.findMany({
+          where: {
+            city: ciudad,
+            mode: "driving",
+            originZoneName: { in: zoneNames },
+          },
+          orderBy: [{ updatedAt: "desc" }],
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const demographicByZone = new Map<string, { densityPerKm2: number | null; densityBucket: "baja" | "media" | "alta" | "muy_alta" | "sin_datos" }>();
+  for (const row of demographicRows) {
+    const key = (row.zoneName ?? row.districtName).trim().toLowerCase();
+    if (demographicByZone.has(key)) continue;
+    demographicByZone.set(key, {
+      densityPerKm2: row.densityPerKm2 ?? null,
+      densityBucket: row.densityBucket ?? classifyDensityBucket(row.densityPerKm2),
+    });
+  }
+
+  const travelByZone = new Map<string, number>();
+  for (const row of drivingTravelRows) {
+    const key = row.originZoneName.trim().toLowerCase();
+    const prev = travelByZone.get(key);
+    if (typeof prev === "number") {
+      travelByZone.set(key, Math.round(((prev + row.minutesP50) / 2) * 10) / 10);
+    } else {
+      travelByZone.set(key, row.minutesP50);
+    }
+  }
+
   const zones: ZoneAggregation[] = [];
   for (const [zona, data] of zoneMap) {
     if (data.preciosM2.length === 0) continue;
@@ -133,6 +192,9 @@ const getHandler = async (request: Request) => {
       propiedadesUrus: data.urusCount,
       tendenciaPorcentaje: tendencia,
       demanda: classifyDemand(data.count, avgGap),
+      densityPerKm2: demographicByZone.get(zona.toLowerCase())?.densityPerKm2 ?? null,
+      densityBucket: demographicByZone.get(zona.toLowerCase())?.densityBucket ?? "sin_datos",
+      accessibilityMinutesDriving: travelByZone.get(zona.toLowerCase()) ?? null,
     });
   }
 
@@ -169,6 +231,16 @@ const getHandler = async (request: Request) => {
       gapPorcentaje: report.gapPorcentaje,
       diasPublicado,
       totalComparables: report.totalComparables,
+      optimalPriceMin:
+        (report.optimalPricing as { recommendedMinPrice?: number } | null)?.recommendedMinPrice ?? null,
+      optimalPriceMax:
+        (report.optimalPricing as { recommendedMaxPrice?: number } | null)?.recommendedMaxPrice ?? null,
+      densityBucket:
+        (report.zoneStudy as {
+          demographicsSummary?: {
+            densityBucket?: "baja" | "media" | "alta" | "muy_alta" | "sin_datos";
+          };
+        } | null)?.demographicsSummary?.densityBucket ?? "sin_datos",
     });
   }
 

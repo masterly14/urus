@@ -28,6 +28,7 @@ import {
   Phone,
   Building2,
   Image as ImageIcon,
+  Target,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,9 +44,12 @@ import { formatStatefoxHousingLabel } from "@/lib/statefox/housing-label";
 import { proxiedStatefoxImageUrl } from "@/lib/statefox/image-url";
 import { useStatefoxImageCachePolling } from "@/lib/statefox/image-cache/use-image-cache-polling";
 import { pricingFixture } from "@/lib/mock-data/pricing-fixture";
+import { AnalysisProcessingCard } from "@/components/pricing/analysis-processing-card";
+import { useGlobalLoader } from "@/lib/hooks/use-global-loader";
 
 type ViewState =
   | { kind: "loading" }
+  | { kind: "processing"; propertyCode: string; message?: string }
   | {
       kind: "error";
       status: number;
@@ -317,7 +321,7 @@ function InformeError({
         href="/platform/pricing"
         className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
-        <ArrowLeft className="h-3 w-3" /> Volver a Análisis de mercado
+        <ArrowLeft className="h-3 w-3" /> Volver a Cartera interna
       </Link>
       <Card className="border-[var(--urus-danger)]/30">
         <CardContent className="p-8 text-center space-y-4">
@@ -1267,6 +1271,119 @@ function SectionExtras({ data }: { data: PricingAnalysisResult }) {
   );
 }
 
+function SectionOptimalPricing({ data }: { data: PricingAnalysisResult }) {
+  if (!data.optimalPricing) return null;
+  const optimal = data.optimalPricing;
+  const ownPrice = data.input.precio;
+  const ownInside =
+    ownPrice >= optimal.baremoBajoPrice && ownPrice <= optimal.baremoAltoPrice;
+
+  return (
+    <Card className="border border-border">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <Target className="h-4 w-4 text-secondary" />
+          <CardTitle className="text-sm font-semibold">Precio óptimo (baremos)</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0 space-y-4">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <MiniStat label="Mínimo" value={`${formatEur(optimal.minPrice)} €`} />
+          <MiniStat label="P25 (bajo)" value={`${formatEur(optimal.p25Price)} €`} />
+          <MiniStat label="P50 (media)" value={`${formatEur(optimal.p50Price)} €`} />
+          <MiniStat label="P75 (alto)" value={`${formatEur(optimal.p75Price)} €`} />
+          <MiniStat label="Máximo" value={`${formatEur(optimal.maxPrice)} €`} />
+        </div>
+        <div className="rounded-lg border border-border/20 p-3 bg-accent/10">
+          <p className="text-xs text-muted-foreground">
+            Rango recomendado:{" "}
+            <span className="font-mono font-semibold text-foreground">
+              {formatEur(optimal.recommendedMinPrice)} € - {formatEur(optimal.recommendedMaxPrice)} €
+            </span>
+          </p>
+          <p className="text-[11px] mt-1 text-muted-foreground">
+            Posición actual:{" "}
+            <span className={ownInside ? "text-[var(--urus-success)] font-medium" : "text-[var(--urus-danger)] font-medium"}>
+              {ownInside ? "dentro de baremo" : "fuera de baremo"}
+            </span>{" "}
+            ({optimal.pricingPosition})
+          </p>
+          <p className="text-[10px] text-muted-foreground/70 mt-1">
+            Base estadística: {optimal.comparablesUsed} comparables filtrados por comparabilidad de zona/tipología.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SectionZoneStudy({ data }: { data: PricingAnalysisResult }) {
+  if (!data.zoneStudy) return null;
+  const study = data.zoneStudy;
+  return (
+    <Card className="border border-border">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-secondary" />
+          <CardTitle className="text-sm font-semibold">Estudio de zona</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0 space-y-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <MiniStat
+            label="Densidad"
+            value={
+              study.demographicsSummary.densityPerKm2 != null
+                ? `${Math.round(study.demographicsSummary.densityPerKm2).toLocaleString("es-ES")} hab/km²`
+                : "N/D"
+            }
+          />
+          <MiniStat label="Bucket" value={study.demographicsSummary.densityBucket} />
+          <MiniStat
+            label="Transporte"
+            value={`${study.transportSummary.totalStops}`}
+          />
+          <MiniStat
+            label="Colegios"
+            value={`${study.schoolsSummary.totalSchools}`}
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="rounded-lg border border-border/20 p-3 bg-accent/5">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Demora estilo Google Maps (P50)</p>
+            <div className="mt-2 space-y-1.5">
+              {study.travelTimeSummary.byMode.map((mode) => (
+                <div key={mode.mode} className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">{mode.mode}</span>
+                  <span className="font-mono font-medium">
+                    {mode.minutesP50 != null ? `${mode.minutesP50.toFixed(1)} min` : "N/D"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border/20 p-3 bg-accent/5">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Entorno colegios (top)</p>
+            <div className="mt-2 space-y-1">
+              {study.schoolsSummary.topSchools.slice(0, 3).map((school) => (
+                <div key={`${school.name}-${school.lat}-${school.lng}`} className="text-xs text-muted-foreground">
+                  {school.name}
+                  {typeof school.rating === "number" && (
+                    <span className="font-mono text-foreground"> · {school.rating.toFixed(1)}</span>
+                  )}
+                </div>
+              ))}
+              {study.schoolsSummary.topSchools.length === 0 && (
+                <p className="text-xs text-muted-foreground">Sin colegios indexados para la zona.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Section H: Metadata ───────────────────────────────────────────────────────
 
 function SectionMetadata({ data }: { data: PricingAnalysisResult }) {
@@ -1323,6 +1440,13 @@ export default function InformePricingPage({
 }) {
   const { code } = use(params);
   const [state, setState] = useState<ViewState>({ kind: "loading" });
+  const { suppressOverlay } = useGlobalLoader();
+
+  useEffect(() => {
+    if (state.kind !== "processing") return;
+    const releaseSuppression = suppressOverlay("pricing-analysis-processing-card");
+    return releaseSuppression;
+  }, [state.kind, suppressOverlay]);
 
   const isMock = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mock");
 
@@ -1334,6 +1458,31 @@ export default function InformePricingPage({
 
     setState({ kind: "loading" });
     try {
+      const statusRes = await fetch(`/api/pricing/status/${code}`);
+      if (statusRes.ok) {
+        const statusBody = await statusRes.json();
+        if (statusBody.status === "processing") {
+          setState({
+            kind: "processing",
+            propertyCode: code,
+            message: "El análisis se está ejecutando en segundo plano.",
+          });
+          return;
+        }
+        if (statusBody.status === "failed") {
+          setState({
+            kind: "error",
+            status: 500,
+            message:
+              statusBody.message ??
+              "No se pudo completar el análisis anterior. Intenta generarlo de nuevo.",
+            action: "analyze",
+            actionLabel: "Volver a intentar análisis",
+          });
+          return;
+        }
+      }
+
       const res = await fetch(`/api/pricing/report/${code}`);
 
       if (!res.ok) {
@@ -1344,7 +1493,10 @@ export default function InformePricingPage({
           message: body.message ?? body.error ?? `Error ${res.status}`,
           missingFields: body.missingFields,
           action: res.status === 404 ? "analyze" : "load",
-          actionLabel: res.status === 404 ? "Generar análisis ahora" : "Reintentar carga",
+          actionLabel:
+            res.status === 404
+              ? "Iniciar análisis en segundo plano"
+              : "Reintentar carga",
         });
         return;
       }
@@ -1368,9 +1520,9 @@ export default function InformePricingPage({
       return;
     }
 
-    setState({ kind: "loading" });
+    setState({ kind: "processing", propertyCode: code });
     try {
-      const res = await fetch("/api/pricing/analyze", {
+      const res = await fetch("/api/pricing/analyze/async", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ propertyCode: code }),
@@ -1388,9 +1540,11 @@ export default function InformePricingPage({
         });
         return;
       }
-
-      const data: PricingAnalysisResult = await res.json();
-      setState({ kind: "success", data });
+      setState({
+        kind: "processing",
+        propertyCode: code,
+        message: "El análisis se está ejecutando en segundo plano.",
+      });
     } catch (err) {
       setState({
         kind: "error",
@@ -1416,17 +1570,87 @@ export default function InformePricingPage({
     };
   }, [loadReport]);
 
+  useEffect(() => {
+    if (state.kind !== "processing" || isMock) return;
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/pricing/status/${code}`);
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        if (body.status === "completed") {
+          await loadReport();
+        }
+        if (body.status === "idle") {
+          setState({
+            kind: "error",
+            status: 404,
+            message:
+              "El análisis no está en ejecución en este momento. Puedes iniciarlo nuevamente.",
+            action: "analyze",
+            actionLabel: "Iniciar análisis en segundo plano",
+          });
+        }
+        if (body.status === "failed") {
+          setState({
+            kind: "error",
+            status: 500,
+            message:
+              body.message ??
+              "El análisis terminó con error. Puedes volver a intentarlo.",
+            action: "analyze",
+            actionLabel: "Reintentar análisis",
+          });
+        }
+      } catch {
+        // Ignoramos fallos transitorios de red y seguimos el polling.
+      }
+    };
+
+    const interval = window.setInterval(() => {
+      void poll();
+    }, 4000);
+
+    void poll();
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [state.kind, code, loadReport, isMock]);
+
   if (state.kind === "loading") {
     return (
       <div className="space-y-6">
         <Link href="/platform/pricing" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="h-3 w-3" /> Volver a Análisis de mercado
+          <ArrowLeft className="h-3 w-3" /> Volver a Cartera interna
         </Link>
         <div className="flex items-center gap-3 mb-2">
           <Loader2 className="h-5 w-5 animate-spin text-secondary" />
           <p className="text-sm text-muted-foreground">Analizando inmueble <span className="font-mono font-bold text-foreground">{code}</span> contra el mercado...</p>
         </div>
         <InformeSkeleton />
+      </div>
+    );
+  }
+
+  if (state.kind === "processing") {
+    return (
+      <div className="-m-6 flex h-[calc(100vh-5rem)] flex-col relative">
+        <div className="absolute left-8 top-8 z-20">
+          <Link
+            href="/platform/pricing"
+            className="inline-flex items-center gap-1 text-xs text-[#9ea8ca] hover:text-[#f4efe6] transition-colors"
+          >
+            <ArrowLeft className="h-3 w-3" /> Volver a Cartera interna
+          </Link>
+        </div>
+        <AnalysisProcessingCard propertyCode={state.propertyCode} />
+        {state.message && (
+          <div className="absolute bottom-8 left-0 right-0 z-20 text-center">
+            <p className="text-sm text-[#8c95b3]">{state.message}</p>
+          </div>
+        )}
       </div>
     );
   }
@@ -1471,7 +1695,7 @@ function InformeContent({ data, onRefresh }: { data: PricingAnalysisResult; onRe
       {/* Nav bar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <Link href="/platform/pricing" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="h-3 w-3" /> Volver a Análisis de mercado
+          <ArrowLeft className="h-3 w-3" /> Volver a Cartera interna
         </Link>
         <button
           onClick={onRefresh}
@@ -1578,7 +1802,9 @@ function TabMercado({ data }: { data: PricingAnalysisResult }) {
 function TabAnalisis({ data }: { data: PricingAnalysisResult }) {
   return (
     <div className="space-y-5">
+      <SectionOptimalPricing data={data} />
       <SectionComparacionPrecios data={data} />
+      <SectionZoneStudy data={data} />
       <SectionTemporalTrend trend={data.trend} />
     </div>
   );

@@ -33,6 +33,7 @@ import { Progress } from "@/components/ui/progress";
 import { SimpleBarChart } from "@/components/bi/charts";
 import { cn } from "@/lib/utils";
 import { formatEur, formatNum } from "@/lib/utils/format";
+import { FadeIn, Fade, AnimatePresence } from "@/components/ui/motion";
 import { MockBadge } from "@/components/bi/mock-badge";
 import { useCeoCityPerformance } from "@/lib/hooks/use-ceo-cities";
 import { useDashboardComerciales } from "@/lib/hooks/use-dashboard-comercial";
@@ -167,24 +168,24 @@ function OperationalDashboardInner() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <Fade className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         <span className="ml-3 text-muted-foreground">Cargando rendimiento por ciudad...</span>
-      </div>
+      </Fade>
     );
   }
 
   if (hasError) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <Fade className="flex items-center justify-center h-64">
         <AlertTriangle className="h-6 w-6 text-destructive mr-2" />
         <span className="text-destructive">{cityError ?? agentError}</span>
-      </div>
+      </Fade>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <FadeIn className="space-y-6">
       <PageHeader
         title="Rendimiento Operativo"
         description="Métricas de rendimiento por ciudad y comercial."
@@ -493,7 +494,7 @@ function OperationalDashboardInner() {
           )}
         </TabsContent>
       </Tabs>
-    </div>
+    </FadeIn>
   );
 }
 

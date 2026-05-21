@@ -14,6 +14,10 @@ import {
   PricingNotEligibleError,
 } from "@/lib/pricing";
 import { enqueueJob } from "@/lib/job-queue";
+import {
+  notifyPricingAnalysisFailed,
+  notifyPricingAnalysisReady,
+} from "@/lib/notifications/pricing-analysis";
 
 export async function handlePricingAnalysis(
   job: JobRecord,
@@ -30,6 +34,8 @@ export async function handlePricingAnalysis(
   }
 
   const trigger = typeof payload.trigger === "string" ? payload.trigger : undefined;
+  const requestedByUserId =
+    typeof payload.requestedByUserId === "string" ? payload.requestedByUserId : null;
   const options: PricingOptions = {};
   if (typeof payload.maxPages === "number") options.maxPages = payload.maxPages;
   if (typeof payload.generateRecommendation === "boolean")
@@ -62,12 +68,26 @@ export async function handlePricingAnalysis(
       sourceEventId: job.sourceEventId ?? undefined,
     });
 
+    if (requestedByUserId) {
+      await notifyPricingAnalysisReady({
+        userId: requestedByUserId,
+        propertyCode,
+      });
+    }
+
     return { success: true };
   } catch (err) {
     if (err instanceof PricingNotEligibleError) {
       console.warn(
         `[consumer:pricing] ${propertyCode} no elegible para Smart Pricing: ${err.reasons.join("; ")}`,
       );
+      if (requestedByUserId) {
+        await notifyPricingAnalysisFailed({
+          userId: requestedByUserId,
+          propertyCode,
+          errorMessage: "La propiedad no cumple los criterios para este análisis.",
+        });
+      }
       return { success: true };
     }
 
@@ -75,6 +95,14 @@ export async function handlePricingAnalysis(
       console.warn(
         `[consumer:pricing] Datos incompletos para ${propertyCode}: ${err.message}`,
       );
+      if (requestedByUserId) {
+        await notifyPricingAnalysisFailed({
+          userId: requestedByUserId,
+          propertyCode,
+          errorMessage:
+            "Faltan datos de la propiedad para completar el análisis.",
+        });
+      }
       return { success: true };
     }
 
@@ -82,6 +110,13 @@ export async function handlePricingAnalysis(
     console.error(
       `[consumer:pricing] Error en análisis de ${propertyCode}: ${errorMsg}`,
     );
+    if (requestedByUserId) {
+      await notifyPricingAnalysisFailed({
+        userId: requestedByUserId,
+        propertyCode,
+        errorMessage: errorMsg,
+      });
+    }
     return { success: false, error: errorMsg };
   }
 }

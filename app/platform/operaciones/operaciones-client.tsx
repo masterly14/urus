@@ -33,6 +33,7 @@ import { useSession } from "@/lib/hooks/use-session";
 import { operacionEstadoFilterLabels, PIPELINE_OPERACION_ESTADO_VALUES } from "@/lib/postventa/pipeline-filter-options";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
+import { FadeIn, Fade, AnimatePresence } from "@/components/ui/motion";
 import { CrearOperacionDialog } from "./crear-operacion-dialog";
 import { DetalleSheet } from "./detalle-sheet";
 import { AvanzarDialog } from "./avanzar-dialog";
@@ -239,44 +240,52 @@ export function OperacionesClient() {
         </div>
       </div>
 
-      {error && (
-        <Card className="border-destructive/30">
-          <CardContent className="p-3 text-sm text-destructive">{error}</CardContent>
-        </Card>
-      )}
+      <AnimatePresence mode="wait">
+        {error && (
+          <Fade key="error">
+            <Card className="border-destructive/30">
+              <CardContent className="p-3 text-sm text-destructive">{error}</CardContent>
+            </Card>
+          </Fade>
+        )}
 
-      {loading && (
-        <Card>
-          <CardContent className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Cargando operaciones...
-          </CardContent>
-        </Card>
-      )}
+        {loading && !error && (
+          <Fade key="loading">
+            <Card>
+              <CardContent className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Cargando operaciones...
+              </CardContent>
+            </Card>
+          </Fade>
+        )}
 
-      {!loading && !error && operaciones.length === 0 && (
-        <EmptyState
-          icon={Search}
-          title="No se encontraron operaciones"
-          description="Ajusta los filtros de búsqueda o crea una nueva operación para comenzar."
-          className="bg-card border border-border/60 rounded-lg shadow-sm"
-        />
-      )}
+        {!loading && !error && operaciones.length === 0 && (
+          <FadeIn key="empty">
+            <EmptyState
+              icon={Search}
+              title="No se encontraron operaciones"
+              description="Ajusta los filtros de búsqueda o crea una nueva operación para comenzar."
+              className="bg-card border border-border/60 rounded-lg shadow-sm"
+            />
+          </FadeIn>
+        )}
 
-      {!loading && operaciones.length > 0 && (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Referencia</TableHead>
-                <TableHead>Propiedad</TableHead>
-                <TableHead>Ciudad</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Etapa</TableHead>
-                <TableHead className="text-right">Días</TableHead>
-                <TableHead>Fecha</TableHead>
-                <TableHead className="w-8" />
-              </TableRow>
-            </TableHeader>
+        {!loading && !error && operaciones.length > 0 && (
+          <FadeIn key="data">
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Referencia</TableHead>
+                    <TableHead>Propiedad</TableHead>
+                    <TableHead>Ciudad</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Etapa</TableHead>
+                    <TableHead className="text-right">Días</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead className="w-8" />
+                  </TableRow>
+                </TableHeader>
             <TableBody>
               {operaciones.map((op) => (
                 <TableRow
@@ -397,10 +406,12 @@ export function OperacionesClient() {
                   </TableCell>
                 </TableRow>
               ))}
-            </TableBody>
-          </Table>
-        </Card>
-      )}
+              </TableBody>
+            </Table>
+          </Card>
+        </FadeIn>
+        )}
+      </AnimatePresence>
 
       {total > limit && (
         <div className="flex items-center justify-between text-xs">

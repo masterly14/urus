@@ -7,10 +7,28 @@ vi.mock("@/lib/statefox/client", () => ({
   getSnapshot: vi.fn(),
 }));
 
+vi.mock("@/lib/statefox/image-cache", () => ({
+  hydrateComparablesWithImageCache: vi.fn(async (comparables: unknown) => comparables),
+}));
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    marketZoneAlias: {
+      findMany: vi.fn(),
+    },
+    marketZoneProfile: {
+      findMany: vi.fn(),
+    },
+  },
+}));
+
 import { getSnapshot } from "@/lib/statefox/client";
+import { prisma } from "@/lib/prisma";
 import { fetchPricingComparables } from "@/lib/pricing/fetch-comparables";
 
 const mockGetSnapshot = getSnapshot as ReturnType<typeof vi.fn>;
+const mockAliasFindMany = prisma.marketZoneAlias.findMany as ReturnType<typeof vi.fn>;
+const mockProfileFindMany = prisma.marketZoneProfile.findMany as ReturnType<typeof vi.fn>;
 
 function makeInput(overrides?: Partial<PricingPropertyInput>): PricingPropertyInput {
   return {
@@ -22,12 +40,17 @@ function makeInput(overrides?: Partial<PricingPropertyInput>): PricingPropertyIn
     banyos: 2,
     ciudad: "Murcia",
     zona: "Centro",
+    zonaRaw: "Centro",
+    keyLoca: 224499,
+    keyZona: 1901999,
     tipologiaNombre: "Piso",
     keyTipo: 3,
     tipoOperacion: "sale",
     estado: "Disponible",
     fechaAlta: "2026-01-01",
     fechaActualizacion: "2026-03-01",
+    latitud: null,
+    longitud: null,
     extras: {
       terraza: false,
       garaje: false,
@@ -75,6 +98,9 @@ function makeSnapshotResponse(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  process.env.MARKET_PRICING_SOURCE = "statefox";
+  mockAliasFindMany.mockResolvedValue([]);
+  mockProfileFindMany.mockResolvedValue([]);
 });
 
 describe("fetchPricingComparables (snapshot)", () => {
@@ -294,5 +320,108 @@ describe("fetchPricingComparables (snapshot)", () => {
     expect(totalResultsFromAPI).toBe(3);
     expect(pagesScanned).toBe(2);
     expect(comparables.length).toBe(2);
+  });
+
+  it("aplica filtro de comparabilidad ready con allowed + excluded", async () => {
+    mockGetSnapshot.mockResolvedValue(
+      makeSnapshotResponse({
+        "id-allow": makeSnapshotProp({ pZone: { name: "Centro" } }),
+        "id-mirror": makeSnapshotProp({ _id: "id.2", pZone: { name: "Ciudad Jardín" }, pPrice: 205000 }),
+        "id-excluded": makeSnapshotProp({ _id: "id.3", pZone: { name: "Levante" }, pPrice: 195000 }),
+      }),
+    );
+    mockAliasFindMany.mockResolvedValue([
+      { aliasNormalized: "centro", zoneCode: "COR-IMV-1901999" },
+      { aliasNormalized: "ciudad jardin", zoneCode: "COR-IMV-1902199" },
+      { aliasNormalized: "levante", zoneCode: "COR-IMV-1904399" },
+    ]);
+    mockProfileFindMany.mockResolvedValue([
+      { suggestedZoneCode: "COR-IMV-1901999", zoneNameCanonical: "Centro" },
+      { suggestedZoneCode: "COR-IMV-1902199", zoneNameCanonical: "Ciudad Jardín" },
+      { suggestedZoneCode: "COR-IMV-1904399", zoneNameCanonical: "Levante" },
+    ]);
+
+    const result = await fetchPricingComparables(makeInput(), {
+      maxPages: 1,
+      comparabilityProfile: {
+        propertyCode: "TEST-001",
+        catalogVersion: "v1.1",
+        resolutionMethod: "key_zona",
+        confidenceLevel: "high",
+        confidenceFlags: [],
+        zoneRaw: "Centro",
+        zoneCode: "COR-IMV-1901999",
+        zoneNameCanonical: "Centro",
+        keyLoca: 224499,
+        keyZona: 1901999,
+        macroArea: "Centro",
+        marketSegment: "medio_alto",
+        qualityProfile: "medio",
+        pricingProfileStatus: "ready",
+        coverageStatus: "validated",
+        comparableRadiusMode: "zone_plus_mirrors",
+        allowedZoneCodes: ["COR-IMV-1901999", "COR-IMV-1902199"],
+        excludedZoneCodes: ["COR-IMV-1904399"],
+        comparableRelations: [],
+        excludedRelations: [],
+        priceBandM2Min: 2000,
+        priceBandM2Max: 2600,
+        builtAt: new Date().toISOString(),
+      },
+    });
+
+    expect(result.comparables.length).toBe(2);
+    expect(result.comparabilityMeta.comparabilityFilterApplied).toBe(true);
+    expect(result.comparabilityMeta.excludedByReason.ZONE_EXCLUDED_NOT_COMPARABLE).toBe(1);
+  });
+
+  it("aplica fallback conservador para not_ready", async () => {
+    mockGetSnapshot.mockResolvedValue(
+      makeSnapshotResponse({
+        "id-allow": makeSnapshotProp({ pZone: { name: "Centro" } }),
+        "id-other": makeSnapshotProp({ _id: "id.2", pZone: { name: "Ciudad Jardín" }, pPrice: 205000 }),
+      }),
+    );
+    mockAliasFindMany.mockResolvedValue([
+      { aliasNormalized: "centro", zoneCode: "COR-IMV-1901999" },
+      { aliasNormalized: "ciudad jardin", zoneCode: "COR-IMV-1902199" },
+    ]);
+    mockProfileFindMany.mockResolvedValue([
+      { suggestedZoneCode: "COR-IMV-1901999", zoneNameCanonical: "Centro" },
+      { suggestedZoneCode: "COR-IMV-1902199", zoneNameCanonical: "Ciudad Jardín" },
+    ]);
+
+    const result = await fetchPricingComparables(makeInput(), {
+      maxPages: 1,
+      comparabilityProfile: {
+        propertyCode: "TEST-001",
+        catalogVersion: "v1.1",
+        resolutionMethod: "key_zona",
+        confidenceLevel: "low",
+        confidenceFlags: ["UNKNOWN_ZONE"],
+        zoneRaw: "Centro",
+        zoneCode: "COR-IMV-1901999",
+        zoneNameCanonical: "Centro",
+        keyLoca: 224499,
+        keyZona: 1901999,
+        macroArea: "Centro",
+        marketSegment: "medio_alto",
+        qualityProfile: "medio",
+        pricingProfileStatus: "not_ready",
+        coverageStatus: "known_unprofiled",
+        comparableRadiusMode: "zone_plus_mirrors",
+        allowedZoneCodes: ["COR-IMV-1901999", "COR-IMV-1902199"],
+        excludedZoneCodes: [],
+        comparableRelations: [],
+        excludedRelations: [],
+        priceBandM2Min: 2000,
+        priceBandM2Max: 2600,
+        builtAt: new Date().toISOString(),
+      },
+    });
+
+    expect(result.comparables.length).toBe(1);
+    expect(result.comparables[0].zona).toBe("Centro");
+    expect(result.comparabilityMeta.excludedByReason.ZONE_UNKNOWN_FALLBACK).toBe(1);
   });
 });

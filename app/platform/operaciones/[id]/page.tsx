@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/layout/page-header";
+import { FadeIn, Fade, AnimatePresence } from "@/components/ui/motion";
 import { OperacionSummaryCard } from "@/components/operaciones/operacion-summary-card";
 import { CompletarDatosDialog } from "@/app/platform/operaciones/completar-datos-dialog";
 import { OperacionColaboradoresSection } from "@/components/operaciones/colaboradores/operacion-colaboradores-section";
@@ -386,18 +387,18 @@ export default function OperacionDetailPage({ params }: { params: Promise<{ id: 
 
   if (loading && !data) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <Fade className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
+      </Fade>
     );
   }
 
   if (error || !data) {
-    return <div className="p-6 text-destructive text-center">Error al cargar la operación</div>;
+    return <FadeIn className="p-6 text-destructive text-center">Error al cargar la operación</FadeIn>;
   }
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-10 px-4">
+    <FadeIn className="space-y-6 max-w-6xl mx-auto pb-10 px-4">
       <Link href="/platform/operaciones" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group">
         <ChevronLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" /> Volver a Operaciones
       </Link>
@@ -764,6 +765,6 @@ export default function OperacionDetailPage({ params }: { params: Promise<{ id: 
           }}
         />
       )}
-    </div>
+    </FadeIn>
   );
 }

@@ -311,7 +311,6 @@ async function getMarketPipelineStatus(): Promise<MarketPipelineStatus> {
     where: {
       status: "COMPLETED",
       finishedAt: { gte: oneHourAgo },
-      startedAt: { not: null },
     },
     select: { startedAt: true, finishedAt: true },
     take: 500,

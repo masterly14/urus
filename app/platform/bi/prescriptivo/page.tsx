@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils/format";
+import { FadeIn, Fade, AnimatePresence } from "@/components/ui/motion";
 import { MockBadge } from "@/components/bi/mock-badge";
 import { AiIndicator } from "@/components/ui/ai-indicator";
 import { useCeoDiagnostic, useRegenerateDiagnostic } from "@/lib/hooks/use-ceo-diagnostic";
@@ -371,43 +372,47 @@ function PrescriptiveDashboardInner() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <Fade className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
+      </Fade>
     );
   }
 
   if (error && !useMock) {
     return (
-      <Card className="border-urus-danger/30 dark:border-urus-danger/30">
-        <CardContent className="py-8 text-center">
-          <AlertTriangle className="h-8 w-8 text-urus-danger mx-auto mb-2" />
-          <p className="text-sm text-urus-danger dark:text-urus-danger">{error}</p>
-          <Button variant="outline" size="sm" className="mt-4" onClick={refetch}>
-            Reintentar
-          </Button>
-        </CardContent>
-      </Card>
+      <Fade>
+        <Card className="border-urus-danger/30 dark:border-urus-danger/30">
+          <CardContent className="py-8 text-center">
+            <AlertTriangle className="h-8 w-8 text-urus-danger mx-auto mb-2" />
+            <p className="text-sm text-urus-danger dark:text-urus-danger">{error}</p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={refetch}>
+              Reintentar
+            </Button>
+          </CardContent>
+        </Card>
+      </Fade>
     );
   }
 
   if (!diagnostic) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center space-y-4">
-          <Brain className="h-12 w-12 text-muted-foreground mx-auto" />
-          <div>
-            <p className="font-medium">Sin diagnóstico disponible</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Genera el primer diagnóstico estratégico con IA.
-            </p>
-          </div>
-          <Button onClick={handleRegenerate} disabled={regenerating} className="gap-2">
-            {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
-            Generar diagnóstico
-          </Button>
-        </CardContent>
-      </Card>
+      <FadeIn>
+        <Card>
+          <CardContent className="py-12 text-center space-y-4">
+            <Brain className="h-12 w-12 text-muted-foreground mx-auto" />
+            <div>
+              <p className="font-medium">Sin diagnóstico disponible</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Genera el primer diagnóstico estratégico con IA.
+              </p>
+            </div>
+            <Button onClick={handleRegenerate} disabled={regenerating} className="gap-2">
+              {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
+              Generar diagnóstico
+            </Button>
+          </CardContent>
+        </Card>
+      </FadeIn>
     );
   }
 
@@ -417,7 +422,7 @@ function PrescriptiveDashboardInner() {
   });
 
   return (
-    <div className="space-y-6">
+    <FadeIn className="space-y-6">
       <PageHeader
         title="Diagnóstico Estratégico IA"
         description="Recomendaciones generadas automáticamente a partir de datos operativos y financieros."
@@ -471,7 +476,7 @@ function PrescriptiveDashboardInner() {
           <RulesCard />
         </div>
       </div>
-    </div>
+    </FadeIn>
   );
 }
 

@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { X, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkspaceTabs } from "@/lib/stores/workspace-tabs";
+import { useGlobalLoader } from "@/lib/hooks/use-global-loader";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -20,7 +21,7 @@ const QUICK_LINKS = [
     { label: "Cruces", href: "/platform/matching/cruces" },
     { label: "Colaboradores", href: "/platform/colaboradores" },
     { label: "Legal", href: "/platform/legal/contratos" },
-    { label: "Análisis de mercado", href: "/platform/pricing" },
+    { label: "Cartera interna", href: "/platform/pricing" },
 ] as const;
 
 function labelFromPathname(pathname: string): string {
@@ -42,7 +43,7 @@ function labelFromPathname(pathname: string): string {
         feedback: "Ciclo de Mejora",
         colaboradores: "Colaboradores",
         ranking: "Clasificación",
-        pricing: "Análisis de mercado",
+        pricing: "Cartera interna",
         mercado: "Mercado",
         captacion: "Captación",
         coach: "Coach",
@@ -61,6 +62,7 @@ function labelFromPathname(pathname: string): string {
 export function WorkspaceTabsBar({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
     const router = useRouter();
     const pathname = usePathname();
+    const { startNavigation } = useGlobalLoader();
     const { tabs, activeTabId, openTab, closeTab, clearTabsKeepCurrent, setActive } = useWorkspaceTabs();
     const scrollPositions = useRef<Map<string, number>>(new Map());
 
@@ -85,6 +87,7 @@ export function WorkspaceTabsBar({ sidebarCollapsed }: { sidebarCollapsed: boole
     const handleTabClick = (tabId: string, href: string) => {
         scrollPositions.current.set(pathname, window.scrollY);
         setActive(tabId);
+        startNavigation(href);
         router.push(href);
     };
 
@@ -92,11 +95,13 @@ export function WorkspaceTabsBar({ sidebarCollapsed }: { sidebarCollapsed: boole
         e.stopPropagation();
         closeTab(tabId);
         if (activeTabId === tabId) {
+            startNavigation("/platform");
             router.push("/platform");
         }
     };
 
     const handleQuickLink = (href: string) => {
+        startNavigation(href);
         router.push(href);
     };
 

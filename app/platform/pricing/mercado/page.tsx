@@ -45,6 +45,7 @@ import type {
     MarketReportRecord,
     MarketReport,
 } from "@/lib/pricing/market-report-types";
+import { PricingTabs } from "@/components/pricing/pricing-tabs";
 
 const HEAT_COLORS = [
     "#22c55e", "#84cc16", "#a3e635", "#eab308", "#f59e0b",
@@ -79,6 +80,8 @@ interface ZoneDetailState {
     data: ZoneDetailResponse | null;
 }
 
+type MercadoHeatLayer = "precio_m2" | "densidad_demografica" | "accesibilidad_media";
+
 export default function MercadoPage() {
     const { data, error: swrError, isLoading: swrLoading } = useSWR<MercadoResponse>(
         "/api/pricing/mercado",
@@ -90,6 +93,7 @@ export default function MercadoPage() {
         : null;
 
     const [selectedZone, setSelectedZone] = useState<string | null>(null);
+    const [heatLayer, setHeatLayer] = useState<MercadoHeatLayer>("precio_m2");
     const [zoneDetails, setZoneDetails] = useState<Record<string, ZoneDetailState>>({});
     const detailPanelRef = useRef<HTMLDivElement | null>(null);
 
@@ -211,6 +215,21 @@ export default function MercadoPage() {
         () => zones.length > 0 ? Math.min(...zones.map((z) => z.precioMedioM2)) : 0,
         [zones],
     );
+    const densityValues = useMemo(
+        () => zones.map((z) => z.densityPerKm2).filter((value): value is number => typeof value === "number"),
+        [zones],
+    );
+    const accessibilityValues = useMemo(
+        () =>
+            zones
+                .map((z) => z.accessibilityMinutesDriving)
+                .filter((value): value is number => typeof value === "number" && value > 0),
+        [zones],
+    );
+    const minDensity = densityValues.length > 0 ? Math.min(...densityValues) : 0;
+    const maxDensity = densityValues.length > 0 ? Math.max(...densityValues) : 1;
+    const minAccessibility = accessibilityValues.length > 0 ? Math.min(...accessibilityValues) : 0;
+    const maxAccessibility = accessibilityValues.length > 0 ? Math.max(...accessibilityValues) : 1;
 
     const zonesWithColor = useMemo(
         () => zones.map((z, i) => ({ ...z, color: zoneColor(i, zones.length) })),
@@ -265,7 +284,7 @@ export default function MercadoPage() {
         return (
             <div className="space-y-6">
                 <Link href="/platform/pricing" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                    <ArrowLeft className="h-3 w-3" /> Volver a Análisis de mercado
+                    <ArrowLeft className="h-3 w-3" /> Volver a Cartera interna
                 </Link>
                 <div className="flex flex-col items-center justify-center min-h-[300px] gap-3 text-muted-foreground">
                     <BarChart3 className="h-8 w-8 opacity-30" />
@@ -290,22 +309,25 @@ export default function MercadoPage() {
     return (
         <div className="space-y-6">
             <Link href="/platform/pricing" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                <ArrowLeft className="h-3 w-3" /> Volver a Análisis de mercado
+                <ArrowLeft className="h-3 w-3" /> Volver a Cartera interna
             </Link>
 
-            <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
-                    <BarChart3 className="h-5 w-5 text-secondary" />
+            <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center">
+                        <BarChart3 className="h-5 w-5 text-secondary" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight">Mercado</h1>
+                        <p className="text-sm text-muted-foreground">
+                            Análisis comparativo por zona, tendencias y competencia directa
+                            {data?.ciudad && data.ciudad !== "Todas" && (
+                                <span className="ml-1">— {data.ciudad}</span>
+                            )}
+                        </p>
+                    </div>
                 </div>
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Vista de Mercado</h1>
-                    <p className="text-sm text-muted-foreground">
-                        Análisis comparativo por zona, tendencias y competencia directa
-                        {data?.ciudad && data.ciudad !== "Todas" && (
-                            <span className="ml-1">— {data.ciudad}</span>
-                        )}
-                    </p>
-                </div>
+                <PricingTabs />
             </div>
 
             {/* ── AI Market Report ──────────────────────────────────────── */}
@@ -323,24 +345,61 @@ export default function MercadoPage() {
             {/* Heat Map by Zone */}
             <Card className="border border-border">
                 <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="inline-flex rounded-lg border border-border/30 bg-accent/10 p-1">
+                            {([
+                                { id: "precio_m2", label: "Precio €/m²" },
+                                { id: "densidad_demografica", label: "Densidad INE" },
+                                { id: "accesibilidad_media", label: "Accesibilidad" },
+                            ] as const).map((layer) => (
+                                <button
+                                    key={layer.id}
+                                    type="button"
+                                    onClick={() => setHeatLayer(layer.id)}
+                                    className={`rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors ${
+                                        heatLayer === layer.id
+                                            ? "bg-card text-foreground shadow-sm"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    }`}
+                                >
+                                    {layer.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                     <div className="flex items-center gap-2">
                         <Flame className="h-4 w-4 text-[var(--urus-danger)]" />
-                        <CardTitle className="text-sm font-semibold">Mapa de Calor — Precio Medio por Zona (€/m²)</CardTitle>
+                        <CardTitle className="text-sm font-semibold">
+                            Mapa de Calor — {heatLayer === "precio_m2" ? "Precio Medio por Zona (€/m²)" : heatLayer === "densidad_demografica" ? "Densidad Demográfica (INE)" : "Accesibilidad Media (min en coche)"}
+                        </CardTitle>
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">
-                        Cada tarjeta es una zona con el <span className="font-medium text-foreground">€/m² medio</span> agregado
-                        de tu cartera y sus comparables. La <span className="font-medium text-foreground">intensidad del fondo</span> indica
-                        el ranking relativo de precio (verde = más barata, rojo = más cara dentro de las zonas mostradas).
-                        La flecha muestra la <span className="font-medium text-foreground">diferencia media frente al mercado</span>:
-                        positivo = tu cartera está por debajo del mercado en esa zona (hay margen al alza);
-                        negativo = tu cartera está por encima.
+                        {heatLayer === "precio_m2"
+                            ? "Cada tarjeta muestra el €/m² medio agregado de tu cartera y comparables. La intensidad del fondo refleja el ranking relativo (verde = más barata, rojo = más cara)."
+                            : heatLayer === "densidad_demografica"
+                                ? "Cada tarjeta usa el dato de densidad demográfica por distrito/zona (fuente INE). A mayor intensidad de color, mayor densidad."
+                                : "Cada tarjeta usa minutos P50 de desplazamiento en coche. A menor tiempo medio, mayor accesibilidad y color más favorable."}
                     </p>
                 </CardHeader>
                 <CardContent className="pt-0">
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                         {zonesWithColor.map((zone) => {
-                            const range = maxPrecioM2 - minPrecioM2;
-                            const intensity = range > 0 ? (zone.precioMedioM2 - minPrecioM2) / range : 0.5;
+                            const intensity = (() => {
+                                if (heatLayer === "densidad_demografica") {
+                                    if (typeof zone.densityPerKm2 !== "number") return 0.15;
+                                    const range = maxDensity - minDensity;
+                                    return range > 0 ? (zone.densityPerKm2 - minDensity) / range : 0.5;
+                                }
+                                if (heatLayer === "accesibilidad_media") {
+                                    if (typeof zone.accessibilityMinutesDriving !== "number") return 0.15;
+                                    const range = maxAccessibility - minAccessibility;
+                                    if (range <= 0) return 0.5;
+                                    // Menos minutos => mayor intensidad visual positiva.
+                                    return 1 - (zone.accessibilityMinutesDriving - minAccessibility) / range;
+                                }
+                                const range = maxPrecioM2 - minPrecioM2;
+                                return range > 0 ? (zone.precioMedioM2 - minPrecioM2) / range : 0.5;
+                            })();
                             const dem = demandaConfig(zone.demanda);
                             const isActive = selectedZone === zone.zona;
                             const isExpandable = zone.propiedadesUrus > 0;
@@ -378,8 +437,14 @@ export default function MercadoPage() {
                                         </div>
 
                                         <p className="text-xl font-bold font-mono">
-                                            {zone.precioMedioM2.toLocaleString("es-ES")}
-                                            <span className="text-[10px] text-muted-foreground font-normal"> €/m²</span>
+                                            {heatLayer === "densidad_demografica"
+                                                ? (typeof zone.densityPerKm2 === "number" ? zone.densityPerKm2.toLocaleString("es-ES") : "N/D")
+                                                : heatLayer === "accesibilidad_media"
+                                                    ? (typeof zone.accessibilityMinutesDriving === "number" ? zone.accessibilityMinutesDriving.toFixed(1) : "N/D")
+                                                    : zone.precioMedioM2.toLocaleString("es-ES")}
+                                            <span className="text-[10px] text-muted-foreground font-normal">
+                                                {heatLayer === "densidad_demografica" ? " hab/km²" : heatLayer === "accesibilidad_media" ? " min" : " €/m²"}
+                                            </span>
                                         </p>
 
                                         <div className="flex items-center justify-between">
@@ -398,7 +463,7 @@ export default function MercadoPage() {
                                             className="text-[8px] w-full justify-center"
                                             style={{ borderColor: `color-mix(in oklch, ${dem.color} 40%, transparent)`, color: dem.color }}
                                         >
-                                            {dem.label}
+                                            {heatLayer === "densidad_demografica" ? `Densidad ${zone.densityBucket ?? "sin_datos"}` : dem.label}
                                         </Badge>
 
                                         {isExpandable && (

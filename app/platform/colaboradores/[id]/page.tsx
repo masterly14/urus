@@ -31,6 +31,7 @@ import type { ColaboradorClasificacion } from "@/components/colaboradores/clasif
 import { ColaboradorForm } from "@/components/colaboradores/colaborador-form";
 import { HitoKanban } from "@/components/colaboradores/hito-kanban";
 import { DocumentoUpload } from "@/components/colaboradores/documento-upload";
+import { FadeIn, Fade, AnimatePresence } from "@/components/ui/motion";
 
 type HitoEstado = "PENDIENTE" | "EN_PROGRESO" | "COMPLETADO" | "BLOQUEADO" | "CANCELADO";
 
@@ -158,15 +159,15 @@ export default function ColaboradorDetallePage({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <Fade className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
+      </Fade>
     );
   }
 
   if (!detail) {
     return (
-      <div className="space-y-6 max-w-5xl mx-auto pb-10">
+      <FadeIn className="space-y-6 max-w-5xl mx-auto pb-10">
         <Link href="/platform/colaboradores" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-4 w-4" />
           Volver a Colaboradores
@@ -177,7 +178,7 @@ export default function ColaboradorDetallePage({
             <p className="text-sm text-muted-foreground">El colaborador solicitado no existe o ha sido eliminado.</p>
           </CardContent>
         </Card>
-      </div>
+      </FadeIn>
     );
   }
 
@@ -188,7 +189,7 @@ export default function ColaboradorDetallePage({
       : "var(--urus-danger)";
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-10">
+    <FadeIn className="space-y-6 max-w-6xl mx-auto pb-10">
       {/* Back link */}
       <Link
         href="/platform/colaboradores"
@@ -448,6 +449,6 @@ export default function ColaboradorDetallePage({
           </Card>
         </div>
       </div>
-    </div>
+    </FadeIn>
   );
 }

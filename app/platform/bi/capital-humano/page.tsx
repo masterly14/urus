@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { FadeIn, Fade, AnimatePresence } from "@/components/ui/motion";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -98,17 +99,17 @@ export default function HumanCapitalDashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
+      <Fade className="flex items-center justify-center h-64 text-muted-foreground text-sm">
         Cargando datos de capital humano…
-      </div>
+      </Fade>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="flex items-center justify-center h-64 text-urus-danger text-sm">
+      <FadeIn className="flex items-center justify-center h-64 text-urus-danger text-sm">
         No se pudieron cargar los datos. Inténtalo de nuevo.
-      </div>
+      </FadeIn>
     );
   }
 
@@ -125,7 +126,7 @@ export default function HumanCapitalDashboard() {
   );
 
   return (
-    <div className="space-y-6">
+    <FadeIn className="space-y-6">
       <PageHeader
         title="Capital Humano"
         description="Estado emocional y riesgos operativos del equipo comercial."
@@ -312,7 +313,7 @@ export default function HumanCapitalDashboard() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </FadeIn>
   );
 }
 

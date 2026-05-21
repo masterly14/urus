@@ -32,6 +32,12 @@ function parseNumber(v: unknown): number | null {
   return null;
 }
 
+function parseInteger(v: unknown): number | null {
+  const parsed = parseNumber(v);
+  if (parsed == null) return null;
+  return Math.trunc(parsed);
+}
+
 function normalizeForComparison(value: string): string {
   return value
     .normalize("NFD")
@@ -145,6 +151,9 @@ export async function extractPropertyForPricing(
     banyos: property.banyos,
     ciudad: property.ciudad,
     zona: property.zona,
+    zonaRaw: property.zona,
+    keyLoca: parseInteger(raw.key_loca),
+    keyZona: parseInteger(raw.key_zona),
     tipologiaNombre,
     keyTipo,
     tipoOperacion,

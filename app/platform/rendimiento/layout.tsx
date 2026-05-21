@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
@@ -10,6 +9,7 @@ import {
     Users,
 } from "lucide-react";
 import { useSession } from "@/lib/hooks/use-session";
+import { PlatformLink } from "@/components/loading/platform-link";
 
 interface PerformanceLayoutProps {
     children: React.ReactNode;
@@ -56,7 +56,7 @@ export default function PerformanceLayout({ children }: PerformanceLayoutProps) 
                     const isActive = pathname.startsWith(item.href);
                     const Icon = item.icon;
                     return (
-                        <Link
+                        <PlatformLink
                             key={item.href}
                             href={item.href}
                             className={cn(
@@ -68,7 +68,7 @@ export default function PerformanceLayout({ children }: PerformanceLayoutProps) 
                         >
                             <Icon className="h-4 w-4" />
                             <span>{item.name}</span>
-                        </Link>
+                        </PlatformLink>
                     );
                 })}
             </div>

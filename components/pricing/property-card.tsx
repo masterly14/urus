@@ -16,6 +16,7 @@ import {
   UserRound,
   Phone,
   IdCard,
+  Loader2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -126,6 +127,15 @@ function PropertyImage({ property }: { property: PropertyListItem }) {
           <ExternalLink className="h-3.5 w-3.5" />
           {getPortalLabel(property.portalName)}
         </a>
+      )}
+
+      {property.analysisStatus === "processing" && (
+        <div className="pointer-events-none absolute inset-0 z-[3] flex items-center justify-center bg-[color-mix(in_oklch,var(--color-background)_62%,transparent)] backdrop-blur-[1px]">
+          <div className="inline-flex items-center gap-2 rounded-full border border-secondary/30 bg-background/85 px-3 py-1.5 text-xs font-medium text-secondary shadow-sm">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Haciendo análisis
+          </div>
+        </div>
       )}
     </div>
   );
@@ -242,9 +252,15 @@ export function PropertyCard({ property, className }: PropertyCardProps) {
             {property.agente || property.ciudad}
           </span>
           {isEligible ? (
-            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-secondary opacity-0 transition-opacity group-hover:opacity-100">
-              Ver informe <ArrowRight className="h-3.5 w-3.5" />
-            </span>
+            property.analysisStatus === "processing" ? (
+              <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-secondary">
+                Haciendo análisis
+              </span>
+            ) : (
+              <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-secondary opacity-0 transition-opacity group-hover:opacity-100">
+                Ver informe <ArrowRight className="h-3.5 w-3.5" />
+              </span>
+            )
           ) : (
             <Badge
               variant="outline"

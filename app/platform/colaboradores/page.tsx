@@ -44,6 +44,7 @@ import { ClasificacionBadge } from "@/components/colaboradores/clasificacion-bad
 import type { ColaboradorClasificacion } from "@/components/colaboradores/clasificacion-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ColaboradorForm } from "@/components/colaboradores/colaborador-form";
+import { FadeIn, Fade, AnimatePresence } from "@/components/ui/motion";
 
 type ColaboradorRow = {
   id: string;
@@ -129,14 +130,14 @@ export default function ColaboradoresPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <Fade className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
+      </Fade>
     );
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-10">
+    <FadeIn className="space-y-6 max-w-7xl mx-auto pb-10">
       <PageHeader
         title="Colaboradores Externos"
         description="Gestión de proveedores, plazos y rendimiento operativo."
@@ -359,6 +360,6 @@ export default function ColaboradoresPage() {
           </div>
         )}
       </Card>
-    </div>
+    </FadeIn>
   );
 }

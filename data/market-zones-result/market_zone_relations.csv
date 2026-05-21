@@ -1,0 +1,27 @@
+city,from_zone_code,to_zone_code,relation_type,strength,is_symmetric,asymmetry_reason,reason,validated_by,validated_at
+Córdoba,COR-008,COR-009,comparable,medium,true,,"Ambos urbanos centrales, producto piso, demanda turística y residencial. Casco más antiguo, Centro más moderno: compatibles en banda.",comercial_cordoba,2026-05-21
+Córdoba,COR-009,COR-010,comparable,strong,true,,"Centro y Ciudad Jardín: pisos medio_alto, demanda familiar/profesional, ticket similar.",comercial_cordoba,2026-05-21
+Córdoba,COR-010,COR-018,comparable,strong,true,,"Ciudad Jardín y Parque Cruz Conde: ambos submercados consolidados oeste, producto piso medio_alto.",comercial_cordoba,2026-05-21
+Córdoba,COR-009,COR-018,comparable,medium,true,,"Centro y Parque Cruz Conde: comparables por ticket y producto, no por ubicación.",comercial_cordoba,2026-05-21
+Córdoba,COR-002,COR-018,comparable,medium,true,,"Arroyo del Moro y Parque Cruz Conde: pisos modernos medio_alto/alto, demanda alta.",comercial_cordoba,2026-05-21
+Córdoba,COR-002,COR-010,comparable,medium,true,,"Arroyo del Moro y Ciudad Jardín: producto piso moderno con amenities, segmento medio_alto.",comercial_cordoba,2026-05-21
+Córdoba,COR-005,COR-013,comparable,medium,true,,El Brillante y El Tablero: ambos premium con chalets/pareados de gran tamaño en urbanización.,comercial_cordoba,2026-05-21
+Córdoba,COR-005,COR-012,comparable,medium,true,,"El Brillante y El Patriarca: premium residencial, producto unifamiliar grande.",comercial_cordoba,2026-05-21
+Córdoba,COR-012,COR-013,comparable,strong,true,,"El Patriarca y El Tablero: urbanizaciones premium nuevas, adosados/pareados/chalets.",comercial_cordoba,2026-05-21
+Córdoba,COR-007,COR-014,comparable,medium,true,,Campo de la Verdad Baja (Ribera) y Fuensanta-Arcángel: ambos pisos segmento medio con ticket 2400-2800.,comercial_cordoba,2026-05-21
+Córdoba,COR-006,COR-016,comparable,medium,true,,"Campo de la Verdad Alta y Levante: ambos submercados populares, edificación antigua, ticket bajo.",comercial_cordoba,2026-05-21
+Córdoba,COR-011,COR-015,comparable,weak,true,,El Higuerón y Las Lomas: ambos producto casa con parcela en zona periurbana. Comparable débil por nicho.,comercial_cordoba,2026-05-21
+Córdoba,COR-001,COR-019,comparable,weak,true,,"Andalucía (adosados) y Santa Rosa: segmento medio, producto residencial con cierta similitud de ticket.",comercial_cordoba,2026-05-21
+Córdoba,COR-003,COR-008,comparable,weak,false,Av. Barcelona puede usar Casco como referencia aspiracional por proximidad; el inverso no aplica: Casco no debe basar precio en zona de menor recorrido.,Asimétrica: Av. Barcelona puede mirar a Casco; Casco no debe mirar a Av. Barcelona.,comercial_cordoba,2026-05-21
+Córdoba,COR-019,COR-010,comparable,weak,false,Santa Rosa puede aspirar a referencias de Ciudad Jardín en producto piso medio; el inverso arrastraría banda alta.,"Asimétrica: Santa Rosa puede tomar referencias de Ciudad Jardín, no viceversa.",comercial_cordoba,2026-05-21
+Córdoba,COR-006,COR-007,not_comparable,strong,true,,Mismo nombre 'Campo de la Verdad' pero Alta es popular antiguo (1.200-1.500) y Baja es Ribera medio (2.400-2.800). Diferencia 80%+ en €/m². No comparar nunca por proximidad.,comercial_cordoba,2026-05-21
+Córdoba,COR-008,COR-006,not_comparable,strong,true,,"Casco Antiguo (medio_alto, demanda turística) y Campo de la Verdad Alta (popular antiguo): cercanos pero producto y segmento incompatibles.",comercial_cordoba,2026-05-21
+Córdoba,COR-009,COR-016,not_comparable,strong,true,,Centro y Levante: distancia corta pero Centro es medio_alto consolidado y Levante popular antiguo. No mezclar.,comercial_cordoba,2026-05-21
+Córdoba,COR-010,COR-019,not_comparable,medium,true,,Ciudad Jardín y Santa Rosa: limítrofes pero Ciudad Jardín tiene producto consolidado alto y Santa Rosa es mixta media. Riesgo de contagio bajista.,comercial_cordoba,2026-05-21
+Córdoba,COR-005,COR-004,not_comparable,strong,true,,"El Brillante (premium chalets) y Barrio del Naranjo (medio piso): cercanos en mapa, producto y segmento distintos.",comercial_cordoba,2026-05-21
+Córdoba,COR-014,COR-016,not_comparable,medium,true,,Fuensanta-Arcángel y Levante: cercanos pero Arcángel es medio con demanda alta y Levante popular antiguo. No mezclar.,comercial_cordoba,2026-05-21
+Córdoba,COR-003,COR-009,not_comparable,medium,true,,Av. Barcelona y Centro: cercanos pero distinto recorrido de precio y producto. Centro es medio_alto consolidado.,comercial_cordoba,2026-05-21
+Córdoba,COR-017,COR-018,not_comparable,weak,true,,Medina Azahara y Parque Cruz Conde: cercanos pero Medina Azahara tiene tipado débil (inventario actual es plaza parking). Bloquear hasta refuerzo de datos.,comercial_cordoba,2026-05-21
+Córdoba,COR-011,COR-021,not_comparable,medium,true,,El Higuerón y Villarrubia: ambos periurbanos pero submercados muy distintos. El Higuerón es residencial nicho; Villarrubia pedanía rural.,comercial_cordoba,2026-05-21
+Córdoba,COR-015,COR-021,not_comparable,medium,true,,Las Lomas (revisar pertenencia) y Villarrubia: distintos pueblos/pedanías. No comparables aunque ambos rurales.,comercial_cordoba,2026-05-21
+Córdoba,COR-013,COR-015,not_comparable,strong,true,,"El Tablero (premium urbanización Córdoba) y Las Lomas (La Carlota, fuera Córdoba capital). No comparables.",comercial_cordoba,2026-05-21
