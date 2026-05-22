@@ -56,7 +56,9 @@ export function GlobalLoaderProvider({ children }: { children: React.ReactNode }
   const previousPathname = useRef(pathname);
   const openTimerRef = useRef<number | null>(null);
   const hideTimerRef = useRef<number | null>(null);
+  const navClearTimerRef = useRef<number | null>(null);
   const visibleSinceRef = useRef<number>(0);
+  const navigationStartedAtRef = useRef<number | null>(null);
   const navigationTokensRef = useRef<Map<LoaderToken, number>>(new Map());
 
   const clearOpenTimer = useCallback(() => {
@@ -69,6 +71,12 @@ export function GlobalLoaderProvider({ children }: { children: React.ReactNode }
     if (!hideTimerRef.current) return;
     window.clearTimeout(hideTimerRef.current);
     hideTimerRef.current = null;
+  }, []);
+
+  const clearNavClearTimer = useCallback(() => {
+    if (!navClearTimerRef.current) return;
+    window.clearTimeout(navClearTimerRef.current);
+    navClearTimerRef.current = null;
   }, []);
 
   const startLoading = useCallback((options?: { reason?: string; message?: string }) => {
@@ -94,6 +102,15 @@ export function GlobalLoaderProvider({ children }: { children: React.ReactNode }
       return next;
     });
   }, []);
+
+  const clearNavigationTokens = useCallback(() => {
+    for (const [navToken, timeoutId] of navigationTokensRef.current.entries()) {
+      window.clearTimeout(timeoutId);
+      stopLoading(navToken);
+      navigationTokensRef.current.delete(navToken);
+    }
+    navigationStartedAtRef.current = null;
+  }, [stopLoading]);
 
   const suppressOverlay = useCallback((reason = "suppressed") => {
     const suppressionToken = token("suppress");
@@ -133,7 +150,18 @@ export function GlobalLoaderProvider({ children }: { children: React.ReactNode }
       if (typeof targetHref === "string" && !targetHref.startsWith("/platform")) {
         return null;
       }
+
+      clearNavClearTimer();
+      navigationStartedAtRef.current = Date.now();
+
       const navToken = startLoading({ reason: "navigation", message: "Abriendo siguiente vista..." });
+
+      // Mostrar de inmediato: en rutas ligeras la navegación termina antes del OPEN_DELAY_MS.
+      clearOpenTimer();
+      clearHideTimer();
+      setVisible(true);
+      visibleSinceRef.current = Date.now();
+
       const timeoutId = window.setTimeout(() => {
         stopLoading(navToken);
         navigationTokensRef.current.delete(navToken);
@@ -141,18 +169,24 @@ export function GlobalLoaderProvider({ children }: { children: React.ReactNode }
       navigationTokensRef.current.set(navToken, timeoutId);
       return navToken;
     },
-    [startLoading, stopLoading],
+    [startLoading, stopLoading, clearOpenTimer, clearHideTimer, clearNavClearTimer],
   );
 
   useEffect(() => {
     if (previousPathname.current === pathname) return;
     previousPathname.current = pathname;
-    for (const [navToken, timeoutId] of navigationTokensRef.current.entries()) {
-      window.clearTimeout(timeoutId);
-      stopLoading(navToken);
-      navigationTokensRef.current.delete(navToken);
-    }
-  }, [pathname, stopLoading]);
+
+    if (navigationTokensRef.current.size === 0) return;
+
+    const startedAt = navigationStartedAtRef.current ?? Date.now();
+    const remaining = Math.max(0, MIN_VISIBLE_MS - (Date.now() - startedAt));
+
+    clearNavClearTimer();
+    navClearTimerRef.current = window.setTimeout(() => {
+      clearNavigationTokens();
+      navClearTimerRef.current = null;
+    }, remaining);
+  }, [pathname, clearNavClearTimer, clearNavigationTokens]);
 
   useEffect(() => {
     const wantsVisible = loadingEntries.size > 0 && suppressions.size === 0;
@@ -185,12 +219,13 @@ export function GlobalLoaderProvider({ children }: { children: React.ReactNode }
     return () => {
       clearOpenTimer();
       clearHideTimer();
+      clearNavClearTimer();
       for (const timeoutId of navigationTokensRef.current.values()) {
         window.clearTimeout(timeoutId);
       }
       navigationTokensRef.current.clear();
     };
-  }, [clearHideTimer, clearOpenTimer]);
+  }, [clearHideTimer, clearOpenTimer, clearNavClearTimer]);
 
   const overlayMessage = useMemo(() => {
     if (loadingEntries.size === 0) return null;

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { PlatformLink } from "@/components/loading/platform-link";
 import { useMemo } from "react";
 import useSWR from "swr";
 import {
@@ -255,7 +255,7 @@ export default function PlatformHomePage() {
         {quickLinks.map((item) => {
           const Icon = item.icon;
           return (
-            <Link key={item.href} href={item.href}>
+            <PlatformLink key={item.href} href={item.href}>
               <Card className="h-full transition-colors duration-150 hover:bg-muted/40 hover:border-primary/30">
                 <CardHeader className="pb-1">
                   <Icon className="h-5 w-5 text-primary" />
@@ -263,7 +263,7 @@ export default function PlatformHomePage() {
                   <CardDescription className="text-xs">{item.description}</CardDescription>
                 </CardHeader>
               </Card>
-            </Link>
+            </PlatformLink>
           );
         })}
       </div>

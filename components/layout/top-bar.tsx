@@ -7,7 +7,6 @@ import { useSession } from "@/lib/hooks/use-session";
 import { signOut } from "@/lib/auth/client";
 import { useNotifications } from "@/lib/hooks/use-notifications";
 import type { AppNotification } from "@/lib/mock-data/types";
-import { ModeToggle } from "@/components/mode-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -176,9 +175,6 @@ export function TopBar() {
                 <Badge variant="outline" className="text-xs font-medium px-2 py-0.5">
                     {ROLE_LABELS[session.role] ?? session.role}
                 </Badge>
-
-                {/* Mode Toggle */}
-                <ModeToggle />
 
                 {/* Notifications */}
                 <Popover>
