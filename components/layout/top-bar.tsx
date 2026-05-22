@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Bell, ChevronLeft, ChevronRight, ExternalLink, LogOut, Settings, User } from "lucide-react";
 import { useSession } from "@/lib/hooks/use-session";
 import { signOut } from "@/lib/auth/client";
@@ -26,6 +26,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useGlobalLoader } from "@/lib/hooks/use-global-loader";
 import { TopBarBranding } from "@/components/layout/top-bar-branding";
+import { normalizePlatformHref, useWorkspaceTabs } from "@/lib/stores/workspace-tabs";
 
 const severityColors: Record<string, string> = {
     critical: "bg-[var(--urus-danger)]",
@@ -132,9 +133,21 @@ function getNotificationHref(notification: AppNotification): string | null {
     return sourceFallbackMap[notification.source] ?? null;
 }
 
+function shouldShowNavigationLoader(
+    pathname: string,
+    href: string,
+    isHrefAlreadyOpened: (href: string) => boolean,
+): boolean {
+    if (!href.startsWith("/platform")) return false;
+    if (normalizePlatformHref(pathname) === normalizePlatformHref(href)) return false;
+    return !isHrefAlreadyOpened(href);
+}
+
 export function TopBar() {
     const router = useRouter();
+    const pathname = usePathname();
     const { startNavigation } = useGlobalLoader();
+    const { isHrefAlreadyOpened } = useWorkspaceTabs();
     const { session, isCeoOrAdmin } = useSession();
     const { notifications, unreadCount, markAsRead, markAllRead, connected } = useNotifications();
     const [currentPage, setCurrentPage] = useState(1);
@@ -160,7 +173,9 @@ export function TopBar() {
         void markAsRead(notification.id);
         const href = getNotificationHref(notification);
         if (href) {
-            startNavigation(href);
+            if (shouldShowNavigationLoader(pathname, href, isHrefAlreadyOpened)) {
+                startNavigation(href);
+            }
             router.push(href);
         }
     };
@@ -321,8 +336,11 @@ export function TopBar() {
                         {isCeoOrAdmin && (
                             <DropdownMenuItem
                                 onClick={() => {
-                                    startNavigation("/platform/configuracion");
-                                    router.push("/platform/configuracion");
+                                    const href = "/platform/configuracion";
+                                    if (shouldShowNavigationLoader(pathname, href, isHrefAlreadyOpened)) {
+                                        startNavigation(href);
+                                    }
+                                    router.push(href);
                                 }}
                             >
                                 <Settings className="mr-2 h-4 w-4" /> Configuración

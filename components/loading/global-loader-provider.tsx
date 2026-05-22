@@ -39,9 +39,22 @@ interface GlobalLoaderContextValue {
 export const GlobalLoaderContext = createContext<GlobalLoaderContextValue | null>(null);
 
 const OPEN_DELAY_MS = 120;
+/** Duración de un ciclo completo del trazo de la casa (animate drawPath). */
 const HOUSE_DRAW_CYCLE_MS = 3_800;
-const MIN_VISIBLE_MS = Math.round(HOUSE_DRAW_CYCLE_MS * 0.7);
+/** Mínimo para percibir la animación de la casa en cargas muy rápidas. */
+const MIN_BRIEF_HOUSE_MS = 1_000;
+/** Tras terminar la carga, margen breve antes de ocultar el overlay. */
+const MIN_AFTER_LOAD_MS = 200;
 const NAVIGATION_TIMEOUT_MS = 12_000;
+
+function navigationVisibleRemainingMs(elapsedMs: number): number {
+  if (elapsedMs >= HOUSE_DRAW_CYCLE_MS) return 0;
+  const targetTotalMs =
+    elapsedMs < 250
+      ? HOUSE_DRAW_CYCLE_MS
+      : Math.max(MIN_BRIEF_HOUSE_MS, elapsedMs);
+  return Math.max(0, targetTotalMs - elapsedMs);
+}
 
 function token(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -178,8 +191,9 @@ export function GlobalLoaderProvider({ children }: { children: React.ReactNode }
 
     if (navigationTokensRef.current.size === 0) return;
 
-    const startedAt = navigationStartedAtRef.current ?? Date.now();
-    const remaining = Math.max(0, MIN_VISIBLE_MS - (Date.now() - startedAt));
+    const startedAt = navigationStartedAtRef.current ?? visibleSinceRef.current ?? Date.now();
+    const elapsed = Date.now() - startedAt;
+    const remaining = navigationVisibleRemainingMs(elapsed);
 
     clearNavClearTimer();
     navClearTimerRef.current = window.setTimeout(() => {
@@ -207,7 +221,7 @@ export function GlobalLoaderProvider({ children }: { children: React.ReactNode }
     if (!visible) return;
 
     const elapsed = Date.now() - visibleSinceRef.current;
-    const remaining = Math.max(0, MIN_VISIBLE_MS - elapsed);
+    const remaining = Math.max(0, MIN_AFTER_LOAD_MS - elapsed);
     clearHideTimer();
     hideTimerRef.current = window.setTimeout(() => {
       setVisible(false);

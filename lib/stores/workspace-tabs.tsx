@@ -22,6 +22,14 @@ interface WorkspaceTabsState {
     closeTab: (id: string) => void;
     clearTabsKeepCurrent: (currentHref: string, currentLabel: string) => void;
     setActive: (id: string) => void;
+    isHrefAlreadyOpened: (href: string) => boolean;
+}
+
+/** Normaliza rutas /platform para comparar pestañas y destinos de navegación. */
+export function normalizePlatformHref(href: string): string {
+    const pathOnly = href.split("?")[0]?.split("#")[0] ?? href;
+    if (pathOnly === "/platform" || pathOnly === "/platform/") return "/platform";
+    return pathOnly.replace(/\/$/, "") || "/platform";
 }
 
 const HOME_TAB: WorkspaceTab = {
@@ -94,9 +102,25 @@ export function WorkspaceTabsProvider({ children }: { children: ReactNode }) {
         setActiveTabId(id);
     }, []);
 
+    const isHrefAlreadyOpened = useCallback(
+        (href: string) => {
+            const target = normalizePlatformHref(href);
+            return tabs.some((tab) => normalizePlatformHref(tab.href) === target);
+        },
+        [tabs],
+    );
+
     return (
         <WorkspaceTabsContext.Provider
-            value={{ tabs, activeTabId, openTab, closeTab, clearTabsKeepCurrent, setActive }}
+            value={{
+                tabs,
+                activeTabId,
+                openTab,
+                closeTab,
+                clearTabsKeepCurrent,
+                setActive,
+                isHrefAlreadyOpened,
+            }}
         >
             {children}
         </WorkspaceTabsContext.Provider>

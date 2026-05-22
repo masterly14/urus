@@ -4,7 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { X, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useWorkspaceTabs } from "@/lib/stores/workspace-tabs";
+import { normalizePlatformHref, useWorkspaceTabs } from "@/lib/stores/workspace-tabs";
 import { useGlobalLoader } from "@/lib/hooks/use-global-loader";
 import {
     DropdownMenu,
@@ -63,7 +63,8 @@ export function WorkspaceTabsBar({ sidebarCollapsed }: { sidebarCollapsed: boole
     const router = useRouter();
     const pathname = usePathname();
     const { startNavigation } = useGlobalLoader();
-    const { tabs, activeTabId, openTab, closeTab, clearTabsKeepCurrent, setActive } = useWorkspaceTabs();
+    const { tabs, activeTabId, openTab, closeTab, clearTabsKeepCurrent, setActive, isHrefAlreadyOpened } =
+        useWorkspaceTabs();
     const scrollPositions = useRef<Map<string, number>>(new Map());
 
     useEffect(() => {
@@ -87,7 +88,8 @@ export function WorkspaceTabsBar({ sidebarCollapsed }: { sidebarCollapsed: boole
     const handleTabClick = (tabId: string, href: string) => {
         scrollPositions.current.set(pathname, window.scrollY);
         setActive(tabId);
-        startNavigation(href);
+        if (normalizePlatformHref(pathname) === normalizePlatformHref(href)) return;
+        // La pestaña ya fue abierta: no mostrar loader global al volver.
         router.push(href);
     };
 
@@ -95,13 +97,15 @@ export function WorkspaceTabsBar({ sidebarCollapsed }: { sidebarCollapsed: boole
         e.stopPropagation();
         closeTab(tabId);
         if (activeTabId === tabId) {
-            startNavigation("/platform");
             router.push("/platform");
         }
     };
 
     const handleQuickLink = (href: string) => {
-        startNavigation(href);
+        const isSamePage = normalizePlatformHref(pathname) === normalizePlatformHref(href);
+        if (!isSamePage && !isHrefAlreadyOpened(href)) {
+            startNavigation(href);
+        }
         router.push(href);
     };
 
