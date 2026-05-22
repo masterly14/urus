@@ -18,6 +18,7 @@ export type GlobalDemandOption = {
   nombre: string;
   telefono: string;
   leadStatus: string;
+  createdAt?: string;
 };
 
 type GlobalDemandSelectorProps = {

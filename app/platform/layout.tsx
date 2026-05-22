@@ -7,7 +7,7 @@ export default function PlatformLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <AppShell logoSrc="/image.png">
+    <AppShell>
       <SWRProvider>{children}</SWRProvider>
     </AppShell>
   );

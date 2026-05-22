@@ -1,31 +1,35 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
+  Calendar,
   CalendarCheck,
+  ChevronLeft,
+  ChevronRight,
   CircleHelp,
+  Clock,
   ExternalLink,
+  FileText,
+  Home,
   Loader2,
   MapPin,
   Mic,
   Phone,
   Plus,
-  Square,
-  UserRound,
   Search,
-  ChevronLeft,
-  ChevronRight,
+  Square,
+  User,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { GlobalPropertySelector, type GlobalPropertyOption } from "@/components/properties/global-property-selector";
-import { GlobalDemandSelector, type GlobalDemandOption } from "@/components/demands/global-demand-selector";
+import { CrearVisitaDialog } from "@/app/platform/visitas/crear-visita-dialog";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { VisitPropertyGallery } from "@/app/platform/visitas/visit-property-gallery";
@@ -35,6 +39,9 @@ import { StatusBadge, type StatusBadgeVariant } from "@/components/ui/status-bad
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 
 type VisitStatus =
   | "INCOMPLETE"
@@ -119,23 +126,12 @@ type ApiResponse = {
   legacyFallback?: boolean;
 };
 
-type ManualDemandOption = GlobalDemandOption;
-
-type ManualPropertyOption = GlobalPropertyOption;
-type ComercialOption = {
+type VisitActivityItem = {
   id: string;
-  nombre: string;
-  ciudad: string;
-  inmovillaAgentId: number | null;
-};
-type DemandPropertyTypeOption = {
-  valor: number;
-  nombre: string;
-};
-type LocalidadOption = {
-  key_loca: number;
-  ciudad: string;
-  provincia: string;
+  title: string;
+  subtitle?: string;
+  timestamp?: string | null;
+  highlighted?: boolean;
 };
 
 const statusLabel: Record<VisitStatus, string> = {
@@ -232,6 +228,107 @@ function formatMadridDateTime(iso: string | null | undefined): string | null {
   }).format(date);
 }
 
+function formatMadridTime(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone: "Europe/Madrid",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+}
+
+function formatRelativeAge(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 60_000) return "hace menos de 1 min";
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 60) return `hace ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  const days = Math.floor(hours / 24);
+  return `hace ${days} día${days === 1 ? "" : "s"}`;
+}
+
+/** IDs internos (cuid, etc.) que no deben mostrarse al comercial en la UI. */
+function isOpaqueInternalId(value: string | null | undefined): boolean {
+  const id = value?.trim();
+  if (!id) return false;
+  if (/^c[a-z0-9]{20,}$/i.test(id)) return true;
+  if (id.length >= 16 && /[a-z]/i.test(id) && !/^\d+$/.test(id)) return true;
+  return false;
+}
+
+function visitBuyerDisplayName(
+  item: Pick<VisitWorkItemDto, "buyerName" | "demandId" | "draftDemandId">,
+): string {
+  const name = item.buyerName?.trim();
+  if (name) return name;
+  if (item.draftDemandId) return "Comprador provisional";
+  const ref = item.demandId?.trim();
+  if (ref && !isOpaqueInternalId(ref)) return ref;
+  return "Comprador";
+}
+
+/** Código de demanda legible (p. ej. Inmovilla); null si es un ID interno. */
+function visitDemandReference(
+  item: Pick<VisitWorkItemDto, "demandId" | "draftDemandId">,
+): string | null {
+  if (item.draftDemandId) return null;
+  const ref = item.demandId?.trim();
+  if (!ref || isOpaqueInternalId(ref)) return null;
+  return ref;
+}
+
+function buildVisitActivity(item: VisitWorkItemDto): VisitActivityItem[] {
+  const items: VisitActivityItem[] = [];
+
+  if (item.scheduledSlotStart) {
+    const slotLabel = isMadridToday(item.scheduledSlotStart)
+      ? `Visita agendada para hoy a las ${formatMadridTime(item.scheduledSlotStart) ?? "--:--"}`
+      : `Visita agendada para ${formatMadridDateTime(item.scheduledSlotStart) ?? "sin fecha"}`;
+    items.push({
+      id: "visit_scheduled",
+      title: slotLabel,
+      subtitle: visitBuyerDisplayName(item),
+      timestamp: item.scheduledSlotStart,
+      highlighted: true,
+    });
+  }
+
+  if (item.parteVisita) {
+    const pending = item.parteVisita.state === "PENDING";
+    items.push({
+      id: "parte_visita",
+      title: pending
+        ? "Parte de visita pendiente de envío"
+        : `Parte de visita: ${parteVisitaStatusLabel[item.parteVisita.state]}`,
+      subtitle: pending ? "En espera tras la visita" : "Estado actualizado",
+      timestamp: item.parteVisita.updatedAt,
+    });
+  }
+
+  items.push({
+    id: "contacto_inicial",
+    title: `Contacto inicial con ${contactLabel(item.contactSnapshot).toLowerCase()}`,
+    subtitle: item.contactSnapshot.name ?? "Sin nombre",
+    timestamp: item.createdAt,
+  });
+
+  items.push({
+    id: "demanda_vinculada",
+    title: "Demanda vinculada al comprador",
+    subtitle: visitBuyerDisplayName(item),
+    timestamp: item.createdAt,
+  });
+
+  return items;
+}
+
 function propertyMeta(property: VisitPropertySnapshot): string {
   return [
     property.rooms !== null ? `${property.rooms} hab.` : null,
@@ -247,18 +344,6 @@ function contactLabel(contact: VisitContactSnapshot): string {
   return "Contacto";
 }
 
-function normalizePhoneForInmovillaClientUpdate(phone: string): { telefono1: number; prefijotel1?: number } | null {
-  const digits = phone.replace(/\D/g, "");
-  if (!digits) return null;
-  if (digits.length === 11 && digits.startsWith("34")) {
-    return { telefono1: Number(digits.slice(2)), prefijotel1: 34 };
-  }
-  if (digits.length === 9) {
-    return { telefono1: Number(digits), prefijotel1: 34 };
-  }
-  return { telefono1: Number(digits) };
-}
-
 function statusVariant(status: VisitStatus): StatusBadgeVariant {
   if (status === "INCOMPLETE" || status === "DECIDED_RED") return "danger";
   if (status === "PENDING_SCHEDULE") return "warning";
@@ -269,22 +354,128 @@ function statusVariant(status: VisitStatus): StatusBadgeVariant {
   return "neutral";
 }
 
-function InlineHelp({ text }: { text: string }) {
+function VisitListItem({
+  item,
+  isSelected,
+  onClick,
+}: {
+  item: VisitWorkItemDto;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
-          aria-label="Más información"
-        >
-          <CircleHelp className="h-4 w-4" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" sideOffset={8} className="max-w-sm text-left leading-relaxed">
-        {text}
-      </TooltipContent>
-    </Tooltip>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "group relative w-full rounded-xl border p-5 text-left transition-all duration-200",
+        isSelected
+          ? "border-primary/40 bg-primary/[0.04] shadow-md ring-1 ring-primary/20"
+          : "border-border/40 bg-card hover:border-primary/30 hover:bg-accent/40 hover:shadow-sm",
+      )}
+    >
+      <div className="space-y-2">
+        <p className="font-medium leading-snug text-foreground">
+          {visitBuyerDisplayName(item)}
+        </p>
+        <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+          {item.propertySnapshot.title}
+        </p>
+        <StatusBadge variant={statusVariant(item.status)} className="w-fit">
+          {statusLabel[item.status]}
+        </StatusBadge>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        <span>{propertyMeta(item.propertySnapshot)}</span>
+      </div>
+      {item.scheduledSlotStart ? (
+        <div className="mt-2 flex items-center gap-1.5 text-xs">
+          <Clock className="size-3 text-muted-foreground" />
+          <span className="text-muted-foreground">{formatMadridDateTime(item.scheduledSlotStart)}</span>
+        </div>
+      ) : null}
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {item.source === "legacy_interest" ? (
+          <Badge variant="outline" className="text-[10px]">
+            Legacy
+          </Badge>
+        ) : null}
+        {item.draftDemandId ? (
+          <Badge variant="outline" className="text-[10px]">
+            Demanda provisional
+          </Badge>
+        ) : null}
+        {item.draftPropertyId ? (
+          <Badge variant="outline" className="text-[10px]">
+            Propiedad provisional
+          </Badge>
+        ) : null}
+        {item.parteVisita ? (
+          <Badge variant="secondary" className="text-[10px]">
+            {parteVisitaStatusLabel[item.parteVisita.state]}
+          </Badge>
+        ) : null}
+      </div>
+      {item.missingContactPhone ? (
+        <div className="mt-2 flex items-center gap-1.5 text-xs text-destructive">
+          <AlertTriangle className="size-3" />
+          <span>Falta teléfono de contacto</span>
+        </div>
+      ) : null}
+    </button>
+  );
+}
+
+function VisitDetailSection({
+  title,
+  icon: Icon,
+  children,
+  className,
+}: {
+  title: string;
+  icon: React.ElementType;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("space-y-3", className)}>
+      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <Icon className="size-4" />
+        <span>{title}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ActivityTimeline({ items }: { items: VisitActivityItem[] }) {
+  return (
+    <div className="space-y-4">
+      {items.map((activity, index) => (
+        <div key={activity.id} className="relative pl-6">
+          {index !== items.length - 1 ? (
+            <span className="absolute left-[7px] top-4 h-[calc(100%+0.5rem)] w-px bg-border" />
+          ) : null}
+          <span
+            className={cn(
+              "absolute left-0 top-1.5 size-3.5 rounded-full border-2",
+              activity.highlighted
+                ? "border-primary bg-primary"
+                : "border-muted-foreground/40 bg-background",
+            )}
+          />
+          <div>
+            <p className="text-sm font-medium">{activity.title}</p>
+            {activity.subtitle ? <p className="text-sm text-muted-foreground">{activity.subtitle}</p> : null}
+            {activity.timestamp ? (
+              <p className="mt-0.5 text-xs text-muted-foreground/70">
+                {formatRelativeAge(activity.timestamp)} · {formatMadridDateTime(activity.timestamp)}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -399,9 +590,6 @@ export function VisitasClient() {
   const [fecha, setFecha] = useState(tomorrow());
   const [horaInicio, setHoraInicio] = useState("10:00");
   const [horaFin, setHoraFin] = useState("11:00");
-  const [manualFecha, setManualFecha] = useState(tomorrow());
-  const [manualHoraInicio, setManualHoraInicio] = useState("10:00");
-  const [manualHoraFin, setManualHoraFin] = useState("11:00");
   const [notas, setNotas] = useState("");
   const [postVisitContext, setPostVisitContext] = useState("");
   const [showYellowContext, setShowYellowContext] = useState(false);
@@ -412,30 +600,7 @@ export function VisitasClient() {
   const [rescheduling, setRescheduling] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [deciding, setDeciding] = useState<VisitDecision | null>(null);
-  const [showManualCreate, setShowManualCreate] = useState(false);
-  const [manualLoading, setManualLoading] = useState(false);
-  const [manualDemands, setManualDemands] = useState<ManualDemandOption[]>([]);
-  const [manualProperties, setManualProperties] = useState<ManualPropertyOption[]>([]);
-  const [manualComerciales, setManualComerciales] = useState<ComercialOption[]>([]);
-  const [manualDemandPropertyTypes, setManualDemandPropertyTypes] = useState<DemandPropertyTypeOption[]>([]);
-  const [manualLocalidades, setManualLocalidades] = useState<LocalidadOption[]>([]);
-  const [manualDemandMode, setManualDemandMode] = useState<"existing" | "draft">("existing");
-  const [manualPropertyMode, setManualPropertyMode] = useState<"existing" | "draft">("existing");
-  const [manualDemandAdvancedOpen, setManualDemandAdvancedOpen] = useState(false);
-  const [manualPropertyAdvancedOpen, setManualPropertyAdvancedOpen] = useState(false);
-  const [manualComercialId, setManualComercialId] = useState("");
-  const [manualDemandId, setManualDemandId] = useState("");
-  const [manualPropertyId, setManualPropertyId] = useState("");
-  const [manualBuyerPhone, setManualBuyerPhone] = useState("");
-  const [manualDraftBuyerName, setManualDraftBuyerName] = useState("");
-  const [manualDraftBuyerPhone, setManualDraftBuyerPhone] = useState("");
-  const [manualDraftDemandPropertyType, setManualDraftDemandPropertyType] = useState("");
-  const [manualDraftDemandBudgetMax, setManualDraftDemandBudgetMax] = useState("9999999");
-  const [manualDraftOwnerPhone, setManualDraftOwnerPhone] = useState("");
-  const [manualDraftCadastralRef, setManualDraftCadastralRef] = useState("");
-  const [manualDraftPropertyKeyTipo, setManualDraftPropertyKeyTipo] = useState("");
-  const [manualDraftPropertyKeyLoca, setManualDraftPropertyKeyLoca] = useState("");
-  const [manualDraftPropertyOperationType, setManualDraftPropertyOperationType] = useState<"VENTA" | "ALQUILER">("VENTA");
+  const [manualCreateOpen, setManualCreateOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -445,6 +610,10 @@ export function VisitasClient() {
   const selected = useMemo(
     () => items.find((item) => item.id === selectedId) ?? null,
     [items, selectedId],
+  );
+  const selectedActivity = useMemo(
+    () => (selected ? buildVisitActivity(selected) : []),
+    [selected],
   );
   const filteredItems = useMemo(
     () => (showCancelled ? items : items.filter((item) => item.status !== "CANCELLED")),
@@ -527,17 +696,6 @@ export function VisitasClient() {
     return visibleItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [visibleItems, currentPage]);
 
-  const selectedManualDemand = useMemo(
-    () => manualDemands.find((demand) => demand.codigo === manualDemandId) ?? null,
-    [manualDemands, manualDemandId],
-  );
-  const selectedManualDemandNeedsPhone = Boolean(
-    showManualCreate &&
-      manualDemandMode === "existing" &&
-      selectedManualDemand &&
-      !selectedManualDemand.telefono?.trim(),
-  );
-
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -600,7 +758,7 @@ export function VisitasClient() {
   }, [activeTab, searchQuery]);
 
   // Sincroniza los inputs del detalle (fecha/horaInicio/horaFin) con la visita seleccionada.
-  // Antes, estos inputs conservaban los valores por defecto (tomorrow() y 10:00–11:00) aunque
+  // Antes, estos inputs conservaban los valores por defecto (tomorrow() y 10:00�11:00) aunque
   // la visita ya estuviera agendada para otra fecha/hora, lo que daba la sensación de que el
   // sistema "movía" la visita al guardar. Ahora, al cambiar de visita seleccionada, el detalle
   // muestra siempre el slot real de la visita en Europe/Madrid.
@@ -624,194 +782,11 @@ export function VisitasClient() {
     }
   }, [selected]);
 
-  const loadManualOptions = async () => {
-    setManualLoading(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/visitas/manual-options?limit=50", { cache: "no-store" });
-      const data = (await response.json()) as {
-        ok?: boolean;
-        demands?: ManualDemandOption[];
-        properties?: ManualPropertyOption[];
-        comerciales?: ComercialOption[];
-        demandPropertyTypes?: DemandPropertyTypeOption[];
-        localidades?: LocalidadOption[];
-        currentComercialId?: string | null;
-        error?: string;
-      };
-      if (!response.ok || !data.ok) throw new Error(data.error ?? "No se pudieron cargar demandas/propiedades");
-      setManualDemands(data.demands ?? []);
-      setManualProperties(data.properties ?? []);
-      setManualComerciales(data.comerciales ?? []);
-      setManualDemandPropertyTypes(data.demandPropertyTypes ?? []);
-      setManualLocalidades(data.localidades ?? []);
-      setManualComercialId((current) =>
-        current ||
-        data.currentComercialId ||
-        data.comerciales?.[0]?.id ||
-        "",
-      );
-      setManualDraftDemandPropertyType((current) =>
-        current || String(data.demandPropertyTypes?.[0]?.valor ?? "2799"),
-      );
-      setManualDraftPropertyKeyTipo((current) =>
-        current || String(data.demandPropertyTypes?.[0]?.valor ?? ""),
-      );
-      setManualDraftPropertyKeyLoca((current) =>
-        current || String(data.localidades?.[0]?.key_loca ?? ""),
-      );
-      setManualDemandId((current) =>
-        current && data.demands?.some((demand) => demand.codigo === current) ? current : "",
-      );
-      setManualBuyerPhone((current) => {
-        const selectedDemand = data.demands?.find((demand) => demand.codigo === manualDemandId);
-        return selectedDemand?.telefono ?? current;
-      });
-      setManualPropertyId((current) =>
-        current && data.properties?.some((property) => property.codigo === current) ? current : "",
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error cargando opciones manuales");
-    } finally {
-      setManualLoading(false);
-    }
-  };
-
-  const searchManualProperties = async (query: string) => {
-    if (useMock) return;
-    try {
-      const params = new URLSearchParams({ limit: "50" });
-      if (query) params.set("q", query);
-      const response = await fetch(`/api/visitas/manual-options?${params.toString()}`, { cache: "no-store" });
-      const data = (await response.json()) as {
-        ok?: boolean;
-        properties?: ManualPropertyOption[];
-      };
-      if (response.ok && data.ok) {
-        setManualProperties(data.properties ?? []);
-        setManualPropertyId((current) => {
-          if (current && data.properties?.some((property) => property.codigo === current)) return current;
-          return "";
-        });
-      }
-    } catch {
-      /* keep previous options while the user keeps typing */
-    }
-  };
-
-  const searchManualDemands = async (query: string) => {
-    if (useMock) return;
-    try {
-      const params = new URLSearchParams({ limit: "50" });
-      if (query) params.set("q", query);
-      const response = await fetch(`/api/visitas/manual-options?${params.toString()}`, { cache: "no-store" });
-      const data = (await response.json()) as {
-        ok?: boolean;
-        demands?: ManualDemandOption[];
-      };
-      if (response.ok && data.ok) {
-        setManualDemands(data.demands ?? []);
-        setManualDemandId((current) => {
-          if (current && data.demands?.some((demand) => demand.codigo === current)) return current;
-          return "";
-        });
-      }
-    } catch {
-      /* keep previous options while the user keeps typing */
-    }
-  };
-
-  const openManualCreate = () => {
-    setShowManualCreate((current) => !current);
-    if (!showManualCreate && manualDemands.length === 0 && !useMock) {
-      void loadManualOptions();
-    }
-    if (!showManualCreate && useMock) {
-      setManualDemands([
-        { codigo: "DEM-MOCK-MANUAL", nombre: "Comprador manual", telefono: "34600123456", leadStatus: "NUEVO" },
-      ]);
-      setManualProperties([
-        {
-          codigo: "PROP-MOCK-MANUAL",
-          ref: "URUS-MANUAL",
-          refCatastral: "MOCK-CATASTRAL",
-          titulo: "Piso manual mock",
-          ciudad: "Cordoba",
-          zona: "Centro",
-          precio: 220000,
-          habitaciones: 3,
-          metrosConstruidos: 88,
-          mainPhotoUrl: null,
-          portalUrl: null,
-          propietarioNombre: "Propietaria Mock",
-          propietarioPhone: "34666777888",
-        },
-      ]);
-      setManualComerciales([{ id: "com-mock", nombre: "Comercial Mock", ciudad: "Cordoba", inmovillaAgentId: 1 }]);
-      setManualDemandPropertyTypes([{ valor: 2799, nombre: "Piso" }]);
-      setManualLocalidades([{ key_loca: 1, ciudad: "Cordoba", provincia: "Cordoba" }]);
-      setManualDemandId("");
-      setManualBuyerPhone("");
-      setManualPropertyId("");
-      setManualDemandMode("existing");
-      setManualPropertyMode("existing");
-      setManualDemandAdvancedOpen(false);
-      setManualPropertyAdvancedOpen(false);
-      setManualComercialId("com-mock");
-      setManualDraftBuyerName("");
-      setManualDraftBuyerPhone("");
-      setManualDraftDemandPropertyType("2799");
-      setManualDraftDemandBudgetMax("9999999");
-      setManualDraftOwnerPhone("");
-      setManualDraftCadastralRef("");
-      setManualDraftPropertyKeyTipo("2799");
-      setManualDraftPropertyKeyLoca("1");
-      setManualDraftPropertyOperationType("VENTA");
-    }
-  };
-
-  function isValidManualPhone(phone: string): boolean {
-    const digits = phone.replace(/\D/g, "");
-    return digits.length >= 9 && digits.length <= 15;
-  }
-
   function hasVisitEnded(item: VisitWorkItemDto): boolean {
     if (item.status === "COMPLETED") return true;
     if (!item.scheduledSlotEnd) return false;
     const endMs = Date.parse(item.scheduledSlotEnd);
     return Number.isFinite(endMs) && endMs <= now;
-  }
-
-  async function ensureManualDemandPhone(): Promise<void> {
-    if (manualDemandMode !== "existing") return;
-    if (!selectedManualDemandNeedsPhone) return;
-    if (!isValidManualPhone(manualBuyerPhone)) {
-      throw new Error("Introduce un teléfono válido para el comprador antes de crear la visita.");
-    }
-    const phonePatch = normalizePhoneForInmovillaClientUpdate(manualBuyerPhone);
-    if (!phonePatch) {
-      throw new Error("Introduce un teléfono válido para el comprador antes de crear la visita.");
-    }
-    const response = await fetch(`/api/demands/${encodeURIComponent(manualDemandId)}/update-client`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(phonePatch),
-    });
-    const data = (await response.json()) as {
-      ok?: boolean;
-      error?: string;
-      message?: string;
-    };
-    if (!response.ok || !data.ok) {
-      throw new Error(data.message ?? data.error ?? "No se pudo actualizar el teléfono del comprador");
-    }
-    setManualDemands((prev) =>
-      prev.map((demand) =>
-        demand.codigo === manualDemandId
-          ? { ...demand, telefono: `34${phonePatch.telefono1}` }
-          : demand,
-      ),
-    );
   }
 
   const submit = async (event: React.FormEvent) => {
@@ -942,98 +917,6 @@ export function VisitasClient() {
       setError(err instanceof Error ? err.message : "Error cancelando visita");
     } finally {
       setCancelling(false);
-    }
-  };
-
-  const createManualAndSchedule = async () => {
-    const isExistingDemand = manualDemandMode === "existing";
-    const isExistingProperty = manualPropertyMode === "existing";
-    const hasDemandSelection = isExistingDemand
-      ? Boolean(manualDemandId)
-      : isValidManualPhone(manualDraftBuyerPhone);
-    const hasPropertySelection = isExistingProperty
-      ? Boolean(manualPropertyId)
-      : isValidManualPhone(manualDraftOwnerPhone) && Boolean(manualDraftCadastralRef.trim());
-    if (!hasDemandSelection || !hasPropertySelection || !manualComercialId) {
-      setError("Completa demanda y propiedad (existentes o provisionales) para crear la visita manual.");
-      return;
-    }
-    if (manualDemandMode === "draft" && !manualDraftDemandPropertyType) {
-      setError("Selecciona tipo de propiedad para la demanda provisional.");
-      return;
-    }
-    if (manualPropertyMode === "draft" && (!manualDraftPropertyKeyTipo || !manualDraftPropertyKeyLoca)) {
-      setError("Selecciona tipo y localidad para la propiedad provisional.");
-      return;
-    }
-    if (manualHoraInicio >= manualHoraFin) {
-      setError("La hora de fin debe ser posterior a la hora de inicio.");
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      await ensureManualDemandPhone();
-      const createResponse = await fetch("/api/visitas/manual", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          demandMode: manualDemandMode,
-          propertyMode: manualPropertyMode,
-          comercialId: manualComercialId,
-          demandId: isExistingDemand ? manualDemandId : undefined,
-          propertyId: isExistingProperty ? manualPropertyId : undefined,
-          buyerName: isExistingDemand ? undefined : manualDraftBuyerName,
-          buyerPhone: isExistingDemand ? undefined : manualDraftBuyerPhone,
-          demandPropertyType: isExistingDemand ? undefined : manualDraftDemandPropertyType,
-          demandBudgetMax: isExistingDemand ? undefined : Number(manualDraftDemandBudgetMax || "0"),
-          ownerPhone: isExistingProperty ? undefined : manualDraftOwnerPhone,
-          cadastralRef: isExistingProperty ? undefined : manualDraftCadastralRef,
-          draftPropertyKeyTipo: isExistingProperty ? undefined : Number(manualDraftPropertyKeyTipo),
-          draftPropertyKeyLoca: isExistingProperty ? undefined : Number(manualDraftPropertyKeyLoca),
-          draftPropertyOperationType: isExistingProperty ? undefined : manualDraftPropertyOperationType,
-          nluSummary: notas || "Visita inicial creada manualmente sin contexto previo del comprador.",
-        }),
-      });
-      const createData = (await createResponse.json()) as {
-        ok?: boolean;
-        error?: string;
-        workItem?: VisitWorkItemDto;
-      };
-      if (!createResponse.ok || !createData.ok || !createData.workItem) {
-        throw new Error(createData.error ?? "No se pudo crear la visita manual");
-      }
-
-      const scheduleResponse = await fetch("/api/visitas/schedule", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          visitId: createData.workItem.id,
-          demandId: createData.workItem.demandId || undefined,
-          propertyId: createData.workItem.propertyId || undefined,
-          fecha: manualFecha,
-          horaInicio: manualHoraInicio,
-          horaFin: manualHoraFin,
-          notas,
-        }),
-      });
-      const scheduleData = (await scheduleResponse.json()) as {
-        ok?: boolean;
-        error?: string;
-      };
-      if (!scheduleResponse.ok || !scheduleData.ok) {
-        throw new Error(scheduleData.error ?? "Visita creada, pero no se pudo agendar");
-      }
-
-      setSuccess("Visita manual creada y agendada correctamente.");
-      setShowManualCreate(false);
-      setSelectedId(createData.workItem.id);
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error creando visita manual");
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -1185,879 +1068,636 @@ export function VisitasClient() {
     selected?.status === "SCHEDULED" && !selectedVisitHasEnded,
   );
 
+  const handleSelectVisit = (item: VisitWorkItemDto) => {
+    setSelectedId(item.id);
+    setError(null);
+    setSuccess(null);
+    stopPostVisitRecording();
+    setPostVisitVoicePhase("idle");
+    setPostVisitVoiceError(null);
+    setPostVisitContext("");
+    setShowYellowContext(false);
+  };
+
   return (
-    <div className="space-y-6 p-6">
-      <PageHeader
-        title="Visitas"
-        description="Gestiona visitas por programar y registra el horario ya coordinado con propietario o agencia."
-        breadcrumbs={[
-          { label: "Inicio", href: "/platform" },
-          { label: "Visitas" },
-        ]}
-        actions={
-          <Button onClick={openManualCreate} disabled={submitting || manualLoading}>
-            <Plus className="mr-2 h-4 w-4" />
-            Crear visita manual
-          </Button>
-        }
-      />
-
-      {error ? (
-        <div className="rounded-lg border border-urus-danger/30 bg-urus-danger/10 p-3 text-sm text-urus-danger">
-          {error}
+    <TooltipProvider>
+      <div className="min-h-screen bg-background">
+        <div className="border-b border-border/60 bg-gradient-to-b from-card to-background">
+          <div className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
+            <PageHeader
+              title="Visitas"
+              description="Gestiona visitas por programar y registra el horario ya coordinado con propietario o agencia."
+              breadcrumbs={[{ label: "Inicio", href: "/platform" }, { label: "Visitas" }]}
+              actions={
+                <Button onClick={() => setManualCreateOpen(true)} disabled={submitting}>
+                  <Plus className="mr-2 size-4" />
+                  Crear visita manual
+                </Button>
+              }
+            />
+          </div>
         </div>
-      ) : null}
-      {success ? (
-        <div className="rounded-lg border border-urus-success/30 bg-urus-success/10 p-3 text-sm text-urus-success">
-          {success}
-        </div>
-      ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          label="Para hoy"
-          value={todaysVisits.length}
-          icon={<CalendarCheck />}
-        />
-        <KpiCard
-          label="Pendientes de agenda"
-          value={pendingScheduleVisits.length}
-          icon={<AlertTriangle />}
-          state={pendingScheduleVisits.length > 0 ? "warning" : "default"}
-        />
-        <KpiCard
-          label="Realizadas / decididas"
-          value={completedVisits.length}
-          icon={<CircleHelp />}
-        />
-        <KpiCard
-          label="Con documentación"
-          value={documentedVisits.length}
-          icon={<ExternalLink />}
-        />
-      </div>
+        <div className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
+          {error ? (
+            <div className="mb-6 flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+              <AlertTriangle className="size-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          ) : null}
+          {success ? (
+            <div className="mb-6 flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-600 dark:text-emerald-400">
+              <CalendarCheck className="size-4 shrink-0" />
+              <span>{success}</span>
+            </div>
+          ) : null}
 
-      {showManualCreate ? (
-        <Card className="border-border/25 bg-card/90 shadow-sm">
-          <CardHeader>
-            <CardTitle>Crear visita manualmente</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <TooltipProvider>
-              <div className="rounded-lg border border-border/50 bg-muted/5 p-4 space-y-2">
-                <Label htmlFor="manualComercial">Comercial asignado</Label>
-                <select
-                  id="manualComercial"
-                  className="h-9 w-full max-w-sm rounded-md border border-input bg-background px-3 text-sm"
-                  value={manualComercialId}
-                  onChange={(event) => setManualComercialId(event.target.value)}
-                  disabled={manualLoading}
-                >
-                  <option value="">Selecciona comercial</option>
-                  {manualComerciales.map((comercial) => (
-                    <option key={comercial.id} value={comercial.id}>
-                      {comercial.nombre} ({comercial.ciudad})
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground">
-                  Se usará este comercial para asignación y promoción en Inmovilla.
-                </p>
-              </div>
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]">
-              <div className="space-y-4 rounded-xl bg-muted/10 p-4 shadow-inner shadow-background/20">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Label>Modo demanda</Label>
-                    <InlineHelp text="Existente: usa una demanda ya creada en Inmovilla. Provisional: arranca la visita solo con teléfono y completa la demanda al enviar firma del Parte de Visita." />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={manualDemandMode === "existing" ? "default" : "outline"}
-                      onClick={() => {
-                        setManualDemandMode("existing");
-                        setManualDemandAdvancedOpen(false);
-                      }}
-                    >
-                      Existente
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={manualDemandMode === "draft" ? "default" : "outline"}
-                      onClick={() => {
-                        setManualDemandMode("draft");
-                        setManualDemandAdvancedOpen(true);
-                      }}
-                    >
-                      Provisional
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Elige si trabajas con una demanda ya existente o una demanda provisional.
-                  </p>
+          <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <KpiCard label="Para hoy" value={todaysVisits.length} icon={<Calendar className="size-5" />} />
+            <KpiCard
+              label="Pendientes de agenda"
+              value={pendingScheduleVisits.length}
+              icon={<Clock className="size-5" />}
+              state={pendingScheduleVisits.length > 0 ? "warning" : "default"}
+            />
+            <KpiCard
+              label="Realizadas / decididas"
+              value={completedVisits.length}
+              icon={<CalendarCheck className="size-5" />}
+            />
+            <KpiCard
+              label="Con documentación"
+              value={documentedVisits.length}
+              icon={<FileText className="size-5" />}
+              state="default"
+            />
+          </div>
+
+          <CrearVisitaDialog
+            open={manualCreateOpen}
+            onOpenChange={setManualCreateOpen}
+            useMock={useMock}
+            onSuccess={(visitId) => {
+              setSuccess("Visita manual creada y agendada correctamente.");
+              setSelectedId(visitId);
+              void load();
+            }}
+          />
+
+
+          <div className="grid gap-6 lg:grid-cols-[minmax(32rem,42%)_minmax(0,1fr)] xl:grid-cols-[minmax(36rem,44%)_minmax(0,1fr)]">
+            <Card className="flex min-w-0 flex-col lg:sticky lg:top-6 lg:max-h-[calc(100vh-7rem)]">
+              <CardHeader className="shrink-0 space-y-5 px-5 pb-4 pt-5 sm:px-6">
+                <div className="flex items-center justify-between gap-4">
+                  <CardTitle className="flex items-center gap-2">
+                    <CalendarCheck className="size-5" />
+                    Visitas
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowCancelled((c) => !c)}
+                    className="text-xs"
+                  >
+                    {showCancelled ? "Ocultar canceladas" : "Ver canceladas"}
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <Label>Demanda</Label>
-                  {manualDemandMode === "existing" ? (
-                    <GlobalDemandSelector
-                      demands={manualDemands}
-                      value={manualDemandId}
-                      onChange={(demandId) => {
-                        const demand = manualDemands.find((item) => item.codigo === demandId);
-                        setManualDemandId(demandId);
-                        setManualBuyerPhone(demand?.telefono ?? "");
-                      }}
-                      onSearch={searchManualDemands}
-                      disabled={manualLoading}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    placeholder="Buscar por nombre, teléfono o referencia..."
+                    className="pl-9"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as VisitTab)} className="w-full">
+                  <TabsList className="inline-flex h-8 w-full flex-nowrap gap-0.5 p-0.5">
+                    <TabsTrigger
+                      value="ALL"
+                      className="h-7 min-w-0 flex-1 gap-0.5 px-1 py-1 text-[11px] leading-none"
+                    >
+                      <span className="truncate">Todas</span>
+                      <Badge
+                        variant="secondary"
+                        className="h-4 min-w-4 shrink-0 px-1 text-[9px] font-semibold leading-none bg-primary/10 text-primary"
+                      >
+                        {filteredItems.length}
+                      </Badge>
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="TODAY"
+                      className="h-7 min-w-0 flex-1 gap-0.5 px-1 py-1 text-[11px] leading-none"
+                    >
+                      <span className="truncate">Hoy</span>
+                      <Badge
+                        variant="secondary"
+                        className="h-4 min-w-4 shrink-0 px-1 text-[9px] font-semibold leading-none bg-primary/10 text-primary"
+                      >
+                        {todaysVisits.length}
+                      </Badge>
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="SCHEDULED"
+                      className="h-7 min-w-0 flex-1 gap-0.5 px-1 py-1 text-[11px] leading-none"
+                    >
+                      <span className="truncate">Agend.</span>
+                      <Badge
+                        variant="secondary"
+                        className="h-4 min-w-4 shrink-0 px-1 text-[9px] font-semibold leading-none bg-primary/10 text-primary"
+                      >
+                        {scheduledVisits.length}
+                      </Badge>
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="DONE"
+                      className="h-7 min-w-0 flex-1 gap-0.5 px-1 py-1 text-[11px] leading-none"
+                    >
+                      <span className="truncate">Hechas</span>
+                      <Badge
+                        variant="secondary"
+                        className="h-4 min-w-4 shrink-0 px-1 text-[9px] font-semibold leading-none bg-primary/10 text-primary"
+                      >
+                        {completedVisits.length}
+                      </Badge>
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="DOCUMENTED"
+                      className="h-7 min-w-0 flex-1 gap-0.5 px-1 py-1 text-[11px] leading-none"
+                    >
+                      <span className="truncate">Docs</span>
+                      <Badge
+                        variant="secondary"
+                        className="h-4 min-w-4 shrink-0 px-1 text-[9px] font-semibold leading-none bg-primary/10 text-primary"
+                      >
+                        {documentedVisits.length}
+                      </Badge>
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </CardHeader>
+              <CardContent className="flex-1 overflow-hidden p-0">
+                <ScrollArea className="h-full px-5 pb-5 sm:px-6">
+                  {loading ? (
+                    <div className="space-y-4 pt-2">
+                      <Skeleton className="h-32 w-full rounded-xl" />
+                      <Skeleton className="h-32 w-full rounded-xl" />
+                      <Skeleton className="h-32 w-full rounded-xl" />
+                    </div>
+                  ) : paginatedItems.length === 0 ? (
+                    <EmptyState
+                      icon={CalendarCheck}
+                      title="Sin visitas"
+                      description="No hay visitas para los filtros seleccionados."
+                      className="py-12"
                     />
                   ) : (
-                    <div className="space-y-2">
-                      <Input
-                        value={manualDraftBuyerPhone}
-                        onChange={(event) => setManualDraftBuyerPhone(event.target.value)}
-                        placeholder="Teléfono comprador (obligatorio)"
-                      />
-                      <Input
-                        value={manualDraftBuyerName}
-                        onChange={(event) => setManualDraftBuyerName(event.target.value)}
-                        placeholder="Nombre comprador (opcional)"
-                      />
-                      <details
-                        className="rounded-md border border-border/50 bg-background"
-                        open={manualDemandAdvancedOpen}
-                        onToggle={(event) =>
-                          setManualDemandAdvancedOpen((event.currentTarget as HTMLDetailsElement).open)
-                        }
-                      >
-                        <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
-                          Configuración avanzada de demanda
-                        </summary>
-                        <div className="space-y-2 border-t border-border/40 p-3">
-                          <select
-                            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                            value={manualDraftDemandPropertyType}
-                            onChange={(event) => setManualDraftDemandPropertyType(event.target.value)}
-                          >
-                            <option value="">Tipo de inmueble buscado (obligatorio)</option>
-                            {manualDemandPropertyTypes.map((tipo) => (
-                              <option key={tipo.valor} value={String(tipo.valor)}>
-                                {tipo.nombre}
-                              </option>
-                            ))}
-                          </select>
-                          <p className="text-xs text-muted-foreground">
-                            Tipo de inmueble que busca el comprador para crear la demanda en Inmovilla.
-                          </p>
-                          <Input
-                            type="number"
-                            value={manualDraftDemandBudgetMax}
-                            onChange={(event) => setManualDraftDemandBudgetMax(event.target.value)}
-                            placeholder="Presupuesto máximo comprador (EUR)"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Presupuesto máximo de la demanda provisional. Ejemplo: 250000.
-                          </p>
-                        </div>
-                      </details>
+                    <div className="space-y-4 pt-2">
+                      {paginatedItems.map((item) => (
+                        <VisitListItem
+                          key={item.id}
+                          item={item}
+                          isSelected={selectedId === item.id}
+                          onClick={() => handleSelectVisit(item)}
+                        />
+                      ))}
                     </div>
                   )}
-                </div>
-                {selectedManualDemandNeedsPhone ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="manualBuyerPhone">Teléfono comprador</Label>
-                    <Input
-                      id="manualBuyerPhone"
-                      value={manualBuyerPhone}
-                      onChange={(event) => setManualBuyerPhone(event.target.value)}
-                      placeholder="Ej: 600111222"
-                    />
-                    <p className="text-xs text-urus-warning">
-                      Esta demanda no tiene teléfono. Se actualizará en Inmovilla y en Urus antes de crear la visita.
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="space-y-4 rounded-xl bg-muted/10 p-4 shadow-inner shadow-background/20">
-                <div className="flex items-center gap-2">
-                  <Label>Modo propiedad</Label>
-                  <InlineHelp text="Existente: selecciona una propiedad ya cargada. Provisional: crea una propiedad prospecto con referencia catastral y se promociona automáticamente en FIRMA_ENVIADA de Nota de Encargo." />
-                </div>
-                <div className="flex gap-2 pb-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={manualPropertyMode === "existing" ? "default" : "outline"}
-                    onClick={() => {
-                      setManualPropertyMode("existing");
-                      setManualPropertyAdvancedOpen(false);
-                    }}
-                  >
-                    Existente
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={manualPropertyMode === "draft" ? "default" : "outline"}
-                    onClick={() => {
-                      setManualPropertyMode("draft");
-                      setManualPropertyAdvancedOpen(true);
-                    }}
-                  >
-                    Provisional
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Elige si la propiedad ya existe o se registrará como prospecto provisional.
-                </p>
-                {manualPropertyMode === "existing" ? (
-                  <GlobalPropertySelector
-                    properties={manualProperties}
-                    value={manualPropertyId}
-                    onChange={setManualPropertyId}
-                    onSearch={searchManualProperties}
-                    disabled={manualLoading}
-                  />
-                ) : (
-                  <div className="space-y-2">
-                    <Input
-                      value={manualDraftOwnerPhone}
-                      onChange={(event) => setManualDraftOwnerPhone(event.target.value)}
-                      placeholder="Teléfono propietario (obligatorio)"
-                    />
-                    <Input
-                      value={manualDraftCadastralRef}
-                      onChange={(event) => setManualDraftCadastralRef(event.target.value)}
-                      placeholder="Referencia catastral (obligatoria)"
-                    />
-                    <details
-                      className="rounded-md border border-border/50 bg-background"
-                      open={manualPropertyAdvancedOpen}
-                      onToggle={(event) =>
-                        setManualPropertyAdvancedOpen((event.currentTarget as HTMLDetailsElement).open)
-                      }
-                    >
-                      <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
-                        Configuración avanzada de propiedad
-                      </summary>
-                      <div className="space-y-2 border-t border-border/40 p-3">
-                        <select
-                          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                          value={manualDraftPropertyOperationType}
-                          onChange={(event) => setManualDraftPropertyOperationType(event.target.value as "VENTA" | "ALQUILER")}
-                        >
-                          <option value="VENTA">Venta</option>
-                          <option value="ALQUILER">Alquiler</option>
-                        </select>
-                        <p className="text-xs text-muted-foreground">
-                          Operación del prospecto a crear: venta o alquiler.
-                        </p>
-                        <select
-                          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                          value={manualDraftPropertyKeyTipo}
-                          onChange={(event) => setManualDraftPropertyKeyTipo(event.target.value)}
-                        >
-                          <option value="">Tipo de inmueble del prospecto (obligatorio)</option>
-                          {manualDemandPropertyTypes.map((tipo) => (
-                            <option key={tipo.valor} value={String(tipo.valor)}>
-                              {tipo.nombre}
-                            </option>
-                          ))}
-                        </select>
-                        <p className="text-xs text-muted-foreground">
-                          Tipo inmobiliario en catálogo Inmovilla (`key_tipo`).
-                        </p>
-                        <select
-                          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                          value={manualDraftPropertyKeyLoca}
-                          onChange={(event) => setManualDraftPropertyKeyLoca(event.target.value)}
-                        >
-                          <option value="">Localidad del prospecto (obligatoria)</option>
-                          {manualLocalidades.map((localidad) => (
-                            <option key={localidad.key_loca} value={String(localidad.key_loca)}>
-                              {localidad.ciudad} ({localidad.provincia})
-                            </option>
-                          ))}
-                        </select>
-                        <p className="text-xs text-muted-foreground">
-                          Ciudad/localidad de publicación en Inmovilla (`key_loca`).
-                        </p>
-                      </div>
-                    </details>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-[160px_130px_130px_minmax(0,1fr)_auto]">
-              <div className="space-y-2">
-                <Label htmlFor="manualFecha">Dia</Label>
-                <Input id="manualFecha" type="date" value={manualFecha} onChange={(e) => setManualFecha(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="manualInicio">Inicio</Label>
-                <Input id="manualInicio" type="time" value={manualHoraInicio} onChange={(e) => setManualHoraInicio(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="manualFin">Fin</Label>
-                <Input id="manualFin" type="time" value={manualHoraFin} onChange={(e) => setManualHoraFin(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="manualNotas">Notas</Label>
-                <Input id="manualNotas" value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Contexto interno de la visita" />
-              </div>
-              <div className="flex items-end">
-                <Button
-                  type="button"
-                  onClick={() => void createManualAndSchedule()}
-                  disabled={
-                    submitting ||
-                    manualLoading ||
-                    !manualComercialId ||
-                    (manualDemandMode === "existing" && !manualDemandId) ||
-                    (manualDemandMode === "draft" && !isValidManualPhone(manualDraftBuyerPhone)) ||
-                    (manualDemandMode === "draft" && !manualDraftDemandPropertyType) ||
-                    (manualDemandMode === "draft" && Number(manualDraftDemandBudgetMax || "0") <= 0) ||
-                    (manualPropertyMode === "existing" && !manualPropertyId) ||
-                    (manualPropertyMode === "draft" &&
-                      (!isValidManualPhone(manualDraftOwnerPhone) ||
-                        !manualDraftCadastralRef.trim() ||
-                        !manualDraftPropertyKeyTipo ||
-                        !manualDraftPropertyKeyLoca)) ||
-                    (selectedManualDemandNeedsPhone && !isValidManualPhone(manualBuyerPhone))
-                  }
-                >
-                  {submitting || manualLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Crear y agendar
-                </Button>
-              </div>
-            </div>
-            </TooltipProvider>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <div className="grid items-start gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
-        <Card className="flex flex-col border-border/25 bg-card/90 xl:sticky xl:top-6 xl:max-h-[calc(100vh-4rem)]">
-          <CardHeader>
-            <CardTitle className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2">
-                <CalendarCheck className="h-5 w-5" />
-                Visitas organizadas
-              </div>
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Buscar por nombre, tel o ref..."
-                  className="pl-8 h-9 text-sm"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 space-y-3 overflow-y-auto">
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant={activeTab === "ALL" ? "default" : "outline"}
-                onClick={() => setActiveTab("ALL")}
-              >
-                Todas ({filteredItems.length})
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={activeTab === "TODAY" ? "default" : "outline"}
-                onClick={() => setActiveTab("TODAY")}
-              >
-                Hoy ({todaysVisits.length})
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={activeTab === "SCHEDULED" ? "default" : "outline"}
-                onClick={() => setActiveTab("SCHEDULED")}
-              >
-                Programadas ({scheduledVisits.length})
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={activeTab === "DONE" ? "default" : "outline"}
-                onClick={() => setActiveTab("DONE")}
-              >
-                Hechas ({completedVisits.length})
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={activeTab === "DOCUMENTED" ? "default" : "outline"}
-                onClick={() => setActiveTab("DOCUMENTED")}
-              >
-                Documentadas ({documentedVisits.length})
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={showCancelled ? "secondary" : "outline"}
-                onClick={() => setShowCancelled((current) => !current)}
-              >
-                {showCancelled ? "Ocultar canceladas" : "Mostrar canceladas"}
-              </Button>
-            </div>
-            {loading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-[120px] w-full rounded-lg" />
-                <Skeleton className="h-[120px] w-full rounded-lg" />
-                <Skeleton className="h-[120px] w-full rounded-lg" />
-              </div>
-            ) : paginatedItems.length === 0 ? (
-              <EmptyState
-                icon={CalendarCheck}
-                title="No hay visitas"
-                description="No hay visitas por programar para los filtros actuales."
-                className="py-12"
-              />
-            ) : (
-              paginatedItems.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedId(item.id);
-                    setError(null);
-                    setSuccess(null);
-                    stopPostVisitRecording();
-                    setPostVisitVoicePhase("idle");
-                    setPostVisitVoiceError(null);
-                    setPostVisitContext("");
-                    setShowYellowContext(false);
-                  }}
-                  className={cn(
-                    "w-full rounded-lg border p-4 text-left transition-colors",
-                    selectedId === item.id
-                      ? "border-primary/35 bg-primary/5"
-                      : "border-transparent hover:bg-muted/30",
-                  )}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{item.buyerName || item.demandId || item.draftDemandId}</span>
-                    <StatusBadge variant={statusVariant(item.status)}>{statusLabel[item.status]}</StatusBadge>
-                    {item.source === "legacy_interest" ? <StatusBadge variant="neutral">Legacy</StatusBadge> : null}
-                    {item.draftDemandId ? <StatusBadge variant="neutral">Demanda provisional</StatusBadge> : null}
-                    {item.draftPropertyId ? <StatusBadge variant="neutral">Propiedad provisional</StatusBadge> : null}
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {item.propertySnapshot.title}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {propertyMeta(item.propertySnapshot)}
-                  </p>
-                  {item.scheduledSlotStart ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Agenda: {formatMadridDateTime(item.scheduledSlotStart) ?? "sin fecha"}
-                    </p>
-                  ) : null}
-                  {item.parteVisita ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Parte de visita: {parteVisitaStatusLabel[item.parteVisita.state]}
-                    </p>
-                  ) : null}
-                  {item.parteVisita?.signedDocumentUrl ? (
-                    <p className="mt-1 text-xs text-urus-success">Documento firmado enviado</p>
-                  ) : null}
-                  {item.missingContactPhone ? (
-                    <p className="mt-2 flex items-center gap-1 text-xs text-urus-danger">
-                      <AlertTriangle className="h-3.5 w-3.5" />
-                      Falta telefono de propietario/agencia.
-                    </p>
-                  ) : null}
-                </button>
-              ))
-            )}
-
-            {totalPages > 1 && (
-              <div className="mt-4 flex items-center justify-between border-t border-border/40 pt-4 text-sm text-muted-foreground">
-                <p>
-                  Mostrando {(currentPage - 1) * ITEMS_PER_PAGE + 1} a {Math.min(currentPage * ITEMS_PER_PAGE, visibleItems.length)} de {visibleItems.length}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/25 bg-card/90">
-          <CardHeader>
-            <CardTitle>Detalle de visita</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {selected ? (
-              <form className="space-y-5" onSubmit={submit}>
-                {selectedCanSchedule || selectedCanReschedule || selectedCanCancel || selectedCanDecide ? (
-                  <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex flex-col gap-3 rounded-b-xl border-b border-border/40 bg-card/95 p-4 shadow-sm backdrop-blur sm:flex-row sm:flex-wrap sm:items-center">
-                    {selectedCanSchedule ? (
-                      <Button type="submit" disabled={submitting}>
-                        {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Agendar y activar Flow
-                      </Button>
-                    ) : null}
-                    {selectedCanReschedule ? (
+                </ScrollArea>
+                {totalPages > 1 ? (
+                  <div className="flex items-center justify-between border-t px-5 py-4 text-sm sm:px-6">
+                    <span className="text-muted-foreground">
+                      {(currentPage - 1) * ITEMS_PER_PAGE + 1}�
+                      {Math.min(currentPage * ITEMS_PER_PAGE, visibleItems.length)} de {visibleItems.length}
+                    </span>
+                    <div className="flex gap-1">
                       <Button
-                        type="button"
                         variant="outline"
-                        disabled={rescheduling || cancelling || submitting}
-                        onClick={() => void reschedule()}
+                        size="icon"
+                        className="size-8"
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                       >
-                        {rescheduling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Reprogramar
+                        <ChevronLeft className="size-4" />
                       </Button>
-                    ) : null}
-                    {selectedCanCancel ? (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            disabled={cancelling || rescheduling || submitting}
-                          >
-                            {cancelling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Cancelar
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>¿Cancelar visita programada?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              ¿Seguro que quieres cancelar esta visita? Esta acción cancela la sesión actual y no se puede deshacer.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Volver</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => void cancelVisit()}>Sí, cancelar</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    ) : null}
-                    {selectedCanDecide ? (
-                      <>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          disabled={Boolean(deciding)}
-                          onClick={() => void decide("green")}
-                        >
-                          {deciding === "green" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          Comprará
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          disabled={Boolean(deciding)}
-                          onClick={() => {
-                            setShowYellowContext(true);
-                            setError(null);
-                            setSuccess(null);
-                            setPostVisitVoiceError(null);
-                          }}
-                        >
-                          {deciding === "yellow" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          Busca diferente
-                        </Button>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                type="button"
-                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/50 bg-background text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                aria-label="Qué pasará con la demanda si marcas Busca algo diferente"
-                              >
-                                <CircleHelp className="h-4 w-4" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-xs text-sm leading-relaxed">
-                              La demanda seguirá activa. El sistema contactará al comprador para entender qué no encajó y qué busca ahora. Con esa información, ajustará la búsqueda y preparará nuevas opciones para revisar.
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          disabled={Boolean(deciding)}
-                          onClick={() => void decide("red")}
-                        >
-                          {deciding === "red" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          Baja
-                        </Button>
-                      </>
-                    ) : null}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="size-8"
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      >
+                        <ChevronRight className="size-4" />
+                      </Button>
+                    </div>
                   </div>
                 ) : null}
+              </CardContent>
+            </Card>
 
-                {selectedCanDecide && showYellowContext ? (
-                  <div className="space-y-3 rounded-lg border border-border/40 bg-muted/15 p-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <Label htmlFor="postVisitContext">
-                          Contexto para reactivar la busqueda
-                        </Label>
-                        {!isRecordingPostVisitContext ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Detalle de visita</CardTitle>
+                {selected ? (
+                  <CardDescription>
+                    {visitBuyerDisplayName(selected)} · {selected.propertySnapshot.title}
+                  </CardDescription>
+                ) : null}
+              </CardHeader>
+              <CardContent>
+                {selected ? (
+                  <form className="space-y-6" onSubmit={submit}>
+                    {selectedCanSchedule || selectedCanReschedule || selectedCanCancel || selectedCanDecide ? (
+                      <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-3">
+                        {selectedCanSchedule ? (
+                          <Button type="submit" disabled={submitting}>
+                            {submitting ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                            Agendar y activar Flow
+                          </Button>
+                        ) : null}
+                        {selectedCanReschedule ? (
                           <Button
                             type="button"
                             variant="outline"
-                            size="sm"
-                            onClick={() => void startPostVisitRecording()}
-                            disabled={Boolean(deciding) || isTranscribingPostVisitContext}
+                            disabled={rescheduling || cancelling || submitting}
+                            onClick={() => void reschedule()}
                           >
-                            {isTranscribingPostVisitContext ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                              <Mic className="mr-2 h-4 w-4" />
-                            )}
-                            {isTranscribingPostVisitContext ? "Transcribiendo..." : "Dictar"}
+                            {rescheduling ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                            Reprogramar
                           </Button>
-                        ) : (
+                        ) : null}
+                        {selectedCanCancel ? (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                disabled={cancelling || rescheduling || submitting}
+                              >
+                                {cancelling ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                                Cancelar visita
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>¿Cancelar visita programada?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  ¿Seguro que quieres cancelar esta visita? Esta acción cancela la sesión actual y no se
+                                  puede deshacer.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Volver</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => void cancelVisit()}>Sí, cancelar</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        ) : null}
+                        {selectedCanDecide ? (
+                          <>
+                            <Separator orientation="vertical" className="h-8" />
+                            <span className="text-sm text-muted-foreground">Decisión:</span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={Boolean(deciding)}
+                              onClick={() => void decide("green")}
+                              className="border-emerald-500/50 text-emerald-600 hover:bg-emerald-500/10"
+                            >
+                              {deciding === "green" ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                              Comprará
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={Boolean(deciding)}
+                              onClick={() => {
+                                setShowYellowContext(true);
+                                setError(null);
+                                setSuccess(null);
+                                setPostVisitVoiceError(null);
+                              }}
+                              className="border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+                            >
+                              {deciding === "yellow" ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                              Busca diferente
+                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="inline-flex size-8 items-center justify-center rounded-md border text-muted-foreground hover:bg-muted"
+                                  aria-label="Qué pasará con la demanda si marcas Busca algo diferente"
+                                >
+                                  <CircleHelp className="size-4" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                La demanda seguirá activa. El sistema contactará al comprador para entender qué no encajó
+                                y qué busca ahora. Con esa información, ajustará la búsqueda y preparará nuevas opciones
+                                para revisar.
+                              </TooltipContent>
+                            </Tooltip>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={Boolean(deciding)}
+                              onClick={() => void decide("red")}
+                              className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                            >
+                              {deciding === "red" ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                              Baja
+                            </Button>
+                          </>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {selectedCanDecide && showYellowContext ? (
+                      <div className="space-y-4 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="postVisitContext">Contexto para reactivar la búsqueda</Label>
+                          {!isRecordingPostVisitContext ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void startPostVisitRecording()}
+                              disabled={Boolean(deciding) || isTranscribingPostVisitContext}
+                            >
+                              {isTranscribingPostVisitContext ? (
+                                <Loader2 className="mr-2 size-4 animate-spin" />
+                              ) : (
+                                <Mic className="mr-2 size-4" />
+                              )}
+                              {isTranscribingPostVisitContext ? "Transcribiendo..." : "Dictar"}
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={stopPostVisitRecording}
+                              disabled={Boolean(deciding)}
+                            >
+                              <Square className="mr-2 size-4" />
+                              Detener
+                            </Button>
+                          )}
+                        </div>
+                        <Textarea
+                          id="postVisitContext"
+                          value={postVisitContext}
+                          onChange={(e) => setPostVisitContext(e.target.value)}
+                          placeholder={
+                            isRecordingPostVisitContext
+                              ? "Grabando... pulsa Detener para transcribir"
+                              : isTranscribingPostVisitContext
+                                ? "Transcribiendo audio..."
+                                : "Ej: Quiere 3 habitaciones, más luz natural y evitar planta baja."
+                          }
+                          rows={4}
+                          maxLength={2000}
+                          disabled={isTranscribingPostVisitContext || Boolean(deciding)}
+                        />
+                        {postVisitVoiceError ? (
+                          <p className="text-sm text-destructive">{postVisitVoiceError}</p>
+                        ) : null}
+                        <p className="text-xs text-muted-foreground">
+                          Usa el micrófono para dictar por voz. El texto se usará como contexto para ajustar la búsqueda
+                          del comprador.
+                        </p>
+                        <div className="flex gap-2">
                           <Button
                             type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={stopPostVisitRecording}
+                            variant="outline"
                             disabled={Boolean(deciding)}
+                            onClick={() => void decide("yellow")}
                           >
-                            <Square className="mr-2 h-4 w-4" />
-                            Detener
+                            {deciding === "yellow" ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                            Confirmar y enviar contexto
                           </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            disabled={Boolean(deciding)}
+                            onClick={() => {
+                              stopPostVisitRecording();
+                              setPostVisitVoicePhase("idle");
+                              setPostVisitVoiceError(null);
+                              setShowYellowContext(false);
+                              setPostVisitContext("");
+                            }}
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {selectedIsScheduledButOpen ? (
+                      <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+                        Las acciones post-visita aparecerán cuando termine el horario agendado.
+                      </div>
+                    ) : null}
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <VisitDetailSection title="Comprador" icon={User}>
+                        <div className="rounded-lg border bg-card p-4">
+                          <p className="font-medium">{visitBuyerDisplayName(selected)}</p>
+                          {selected.draftDemandId ? (
+                            <p className="text-xs text-muted-foreground">Demanda provisional</p>
+                          ) : null}
+                          <p className="mt-1 text-sm text-muted-foreground">{selected.buyerPhone || "Sin teléfono"}</p>
+                          {(() => {
+                            const demandRef = visitDemandReference(selected);
+                            return demandRef ? (
+                              <Badge variant="outline" className="mt-2">
+                                Demanda: {demandRef}
+                              </Badge>
+                            ) : null;
+                          })()}
+                        </div>
+                      </VisitDetailSection>
+
+                      <VisitDetailSection title={contactLabel(selected.contactSnapshot)} icon={Phone}>
+                        <div className="rounded-lg border bg-card p-4">
+                          <p className="font-medium">{selected.contactSnapshot.name || "Nombre no disponible"}</p>
+                          <p
+                            className={cn(
+                              "mt-1 text-sm",
+                              selected.missingContactPhone ? "text-destructive" : "text-muted-foreground",
+                            )}
+                          >
+                            {selected.contactSnapshot.phones.join(", ") || "Teléfono no disponible"}
+                          </p>
+                        </div>
+                      </VisitDetailSection>
+                    </div>
+
+                    <VisitDetailSection title="Propiedad" icon={Home}>
+                      <div className="rounded-lg border bg-card p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="font-medium">{selected.propertySnapshot.title}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              Ref: {selected.propertySnapshot.reference}
+                              {selected.propertySnapshot.cadastralReference
+                                ? ` · Catastral: ${selected.propertySnapshot.cadastralReference}`
+                                : null}
+                            </p>
+                          </div>
+                          <Badge variant={selected.propertySnapshot.source === "internal" ? "default" : "secondary"}>
+                            {selected.propertySnapshot.source === "internal" ? "Cartera interna" : "Cartera externa"}
+                          </Badge>
+                        </div>
+                        {selected.draftPropertyId ? (
+                          <p className="mt-1 text-xs text-muted-foreground">Provisional: {selected.draftPropertyId}</p>
+                        ) : null}
+                        <div className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground">
+                          <MapPin className="size-4" />
+                          <span>{selected.propertySnapshot.address}</span>
+                        </div>
+                        <p className="mt-2 text-sm font-medium">{propertyMeta(selected.propertySnapshot)}</p>
+                        {selected.propertySnapshot.portalUrl ? (
+                          <a
+                            href={selected.propertySnapshot.portalUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-3 inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                          >
+                            Ver anuncio
+                            <ExternalLink className="size-3.5" />
+                          </a>
+                        ) : null}
+                      </div>
+                    </VisitDetailSection>
+
+                    {!selected.draftPropertyId ? (
+                      <VisitPropertyGallery
+                        propertyId={selected.propertyId}
+                        propertySource={selected.propertySnapshot.source}
+                        selectionId={selected.selectionId}
+                        className="rounded-lg border bg-card p-4"
+                      />
+                    ) : null}
+
+                    <VisitDetailSection title="Motivo de interés" icon={CircleHelp}>
+                      <div className="rounded-lg border bg-card p-4">
+                        <p className="text-sm text-muted-foreground">
+                          {selected.nluSummary || "Sin resumen registrado para esta visita."}
+                        </p>
+                      </div>
+                    </VisitDetailSection>
+
+                    <VisitDetailSection title="Actividad" icon={Clock}>
+                      <div className="rounded-lg border bg-card p-4">
+                        <ActivityTimeline items={selectedActivity} />
+                      </div>
+                    </VisitDetailSection>
+
+                    <VisitDetailSection title="Trazabilidad documental" icon={FileText}>
+                      <div className="rounded-lg border bg-card p-4">
+                        {selected.parteVisita ? (
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground">Estado:</span>
+                              <Badge variant="outline">{parteVisitaStatusLabel[selected.parteVisita.state]}</Badge>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground">�altima actualización:</span>
+                              <span>{formatMadridDateTime(selected.parteVisita.updatedAt) ?? "�"}</span>
+                            </div>
+                            <div className="flex gap-2 pt-2">
+                              {selected.parteVisita.documentUrl ? (
+                                <a
+                                  href={selected.parteVisita.documentUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                                >
+                                  Ver documento
+                                  <ExternalLink className="size-3.5" />
+                                </a>
+                              ) : null}
+                              {selected.parteVisita.signedDocumentUrl ? (
+                                <a
+                                  href={selected.parteVisita.signedDocumentUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                                >
+                                  Ver firmado
+                                  <ExternalLink className="size-3.5" />
+                                </a>
+                              ) : null}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Todavía no hay sesión documental asociada a esta visita.
+                          </p>
                         )}
                       </div>
-                      <Textarea
-                        id="postVisitContext"
-                        value={postVisitContext}
-                        onChange={(e) => setPostVisitContext(e.target.value)}
-                        placeholder={
-                          isRecordingPostVisitContext
-                            ? "Grabando... pulsa Detener para transcribir"
-                            : isTranscribingPostVisitContext
-                              ? "Transcribiendo audio..."
-                              : "Ej: Quiere 3 habitaciones, mas luz natural y evitar planta baja."
-                        }
-                        rows={4}
-                        maxLength={2000}
-                        disabled={isTranscribingPostVisitContext || Boolean(deciding)}
-                      />
-                      {postVisitVoiceError ? (
-                        <p className="text-xs text-urus-danger">{postVisitVoiceError}</p>
-                      ) : null}
-                      <p className="text-xs text-muted-foreground">
-                        Usa el micrófono para dictar por voz. El texto se usará como contexto para ajustar la búsqueda del comprador.
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={Boolean(deciding)}
-                        onClick={() => void decide("yellow")}
-                      >
-                        {deciding === "yellow" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Confirmar y enviar contexto
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        disabled={Boolean(deciding)}
-                        onClick={() => {
-                          stopPostVisitRecording();
-                          setPostVisitVoicePhase("idle");
-                          setPostVisitVoiceError(null);
-                          setShowYellowContext(false);
-                          setPostVisitContext("");
-                        }}
-                      >
-                        Cancelar
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
+                    </VisitDetailSection>
 
-                {selectedIsScheduledButOpen ? (
-                  <p className="rounded-lg bg-muted/15 p-3 text-sm text-muted-foreground">
-                    Las acciones post-visita aparecerán aquí cuando termine el horario agendado.
-                  </p>
-                ) : null}
+                    <Separator />
 
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="rounded-lg bg-muted/20 p-4">
-                    <div className="mb-2 flex items-center gap-2 font-medium">
-                      <UserRound className="h-4 w-4" />
-                      Comprador
+                    <div className="space-y-4">
+                      <h3 className="font-semibold">Programación</h3>
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="fecha">Fecha</Label>
+                          <DatePicker
+                            id="fecha"
+                            value={fecha}
+                            onChange={setFecha}
+                            placeholder="Elegir fecha"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="horaInicio">Hora inicio</Label>
+                          <Input
+                            id="horaInicio"
+                            type="time"
+                            value={horaInicio}
+                            onChange={(e) => setHoraInicio(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="horaFin">Hora fin</Label>
+                          <Input id="horaFin" type="time" value={horaFin} onChange={(e) => setHoraFin(e.target.value)} />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="notas">Notas internas</Label>
+                        <Textarea
+                          id="notas"
+                          value={notas}
+                          onChange={(e) => setNotas(e.target.value)}
+                          placeholder="Ej: propietario confirma llaves, agencia externa abre portal..."
+                          rows={3}
+                        />
+                      </div>
                     </div>
-                    <p>{selected.buyerName || selected.demandId}</p>
-                    {selected.draftDemandId ? (
-                      <p className="mt-1 text-xs text-muted-foreground">Demanda provisional: {selected.draftDemandId}</p>
-                    ) : null}
-                    <p className="mt-1 text-sm text-muted-foreground">{selected.buyerPhone || "Sin telefono"}</p>
-                    {selected.demandId ? (
-                      <p className="mt-1 text-xs text-muted-foreground">Demanda: {selected.demandId}</p>
-                    ) : null}
-                  </div>
-
-                  <div className="rounded-lg bg-muted/20 p-4">
-                    <div className="mb-2 flex items-center gap-2 font-medium">
-                      <Phone className="h-4 w-4" />
-                      {contactLabel(selected.contactSnapshot)}
-                    </div>
-                    <p>{selected.contactSnapshot.name || "Nombre no disponible"}</p>
-                    <p className={cn("mt-1 text-sm", selected.missingContactPhone && "text-urus-danger")}>
-                      {selected.contactSnapshot.phones.join(", ") || "Telefono no disponible"}
+                  </form>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <CalendarCheck className="size-12 text-muted-foreground/30" />
+                    <p className="mt-4 text-sm text-muted-foreground">
+                      Selecciona una visita de la lista para ver los detalles.
                     </p>
                   </div>
-                </div>
-
-                <div className="rounded-lg bg-muted/20 p-4 text-sm">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium">{selected.propertySnapshot.title}</p>
-                    <Badge variant={selected.propertySnapshot.source === "internal" ? "default" : "secondary"}>
-                      {selected.propertySnapshot.source === "internal" ? "Cartera interna" : "Cartera externa"}
-                    </Badge>
-                  </div>
-                  <p className="mt-1 text-muted-foreground">
-                    Ref: {selected.propertySnapshot.reference} · Ref. catastral: {selected.propertySnapshot.cadastralReference ?? "no disponible"}
-                  </p>
-                  {selected.draftPropertyId ? (
-                    <p className="mt-1 text-xs text-muted-foreground">Propiedad provisional: {selected.draftPropertyId}</p>
-                  ) : null}
-                  <p className="mt-1 flex items-center gap-1 text-muted-foreground">
-                    <MapPin className="h-3.5 w-3.5" />
-                    {selected.propertySnapshot.address}
-                  </p>
-                  <p className="mt-1 text-muted-foreground">{propertyMeta(selected.propertySnapshot)}</p>
-                  {selected.propertySnapshot.portalUrl ? (
-                    <a
-                      href={selected.propertySnapshot.portalUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-2 inline-flex items-center gap-1 text-primary underline"
-                    >
-                      Ver anuncio <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  ) : null}
-                </div>
-
-                {!selected.draftPropertyId ? (
-                  <VisitPropertyGallery
-                    propertyId={selected.propertyId}
-                    propertySource={selected.propertySnapshot.source}
-                    selectionId={selected.selectionId}
-                    className="rounded-lg bg-muted/15 p-4"
-                  />
-                ) : null}
-
-                <div className="rounded-lg bg-muted/15 p-4">
-                  <p className="font-medium">Motivo de interés</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {selected.nluSummary || "Sin resumen registrado para esta visita."}
-                  </p>
-                </div>
-
-                <div className="rounded-lg bg-muted/15 p-4 text-sm">
-                  <p className="font-medium">Trazabilidad documental</p>
-                  {selected.parteVisita ? (
-                    <div className="mt-2 space-y-1 text-muted-foreground">
-                      <p>
-                        Estado parte de visita:{" "}
-                        {parteVisitaStatusLabel[selected.parteVisita.state]}
-                      </p>
-                      <p>
-                        Última actualización:{" "}
-                        {formatMadridDateTime(selected.parteVisita.updatedAt) ?? "sin dato"}
-                      </p>
-                      {selected.parteVisita.documentUrl ? (
-                        <a
-                          href={selected.parteVisita.documentUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-primary underline"
-                        >
-                          Ver documento generado <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                      ) : null}
-                      {selected.parteVisita.signedDocumentUrl ? (
-                        <a
-                          href={selected.parteVisita.signedDocumentUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-primary underline"
-                        >
-                          Ver documento firmado <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-muted-foreground">
-                      Todavía no hay sesión documental asociada a esta visita.
-                    </p>
-                  )}
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="fecha">Dia</Label>
-                    <Input id="fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="horaInicio">Inicio</Label>
-                    <Input id="horaInicio" type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="horaFin">Fin</Label>
-                    <Input id="horaFin" type="time" value={horaFin} onChange={(e) => setHoraFin(e.target.value)} />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="notas">Notas internas</Label>
-                  <Textarea
-                    id="notas"
-                    value={notas}
-                    onChange={(e) => setNotas(e.target.value)}
-                    placeholder="Ej: propietario confirma llaves, agencia externa abre portal..."
-                    rows={4}
-                  />
-                </div>
-              </form>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Selecciona una visita por programar para ver comprador, propiedad, contacto y acciones.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 }

@@ -62,9 +62,9 @@ type ViewState =
   | { kind: "success"; data: PricingAnalysisResult };
 
 const accionLabels: Record<string, { label: string; color: string; icon: typeof ArrowDown }> = {
-  mantener: { label: "Mantener estrategia", color: "var(--urus-success)", icon: Check },
-  ajustar_precio: { label: "Ajustar precio", color: "var(--urus-danger)", icon: ArrowDown },
-  reposicionar: { label: "Reposicionar", color: "var(--urus-warning)", icon: RotateCcw },
+  mantener: { label: "Mantener estrategia", color: "var(--status-success)", icon: Check },
+  ajustar_precio: { label: "Ajustar precio", color: "var(--status-danger)", icon: ArrowDown },
+  reposicionar: { label: "Reposicionar", color: "var(--status-warning)", icon: RotateCcw },
 };
 
 function formatEur(n: number): string {
@@ -152,21 +152,21 @@ function ApplyPriceCard({
 
   if (result === "success") {
     return (
-      <Card className="border-[var(--urus-success)]/30 bg-[var(--urus-success)]/5">
+      <Card className="border-status-success/30 bg-status-success-bg">
         <CardContent className="p-4 space-y-2">
           <div className="flex items-center gap-3">
-            <Check className="h-5 w-5 text-[var(--urus-success)] shrink-0" />
+            <Check className="h-5 w-5 text-status-success shrink-0" />
             <div>
-              <p className="text-sm font-medium">Precio actualizado a {formatEur(selectedPrice)} €</p>
+              <p className="text-sm font-medium text-foreground">Precio actualizado a {formatEur(selectedPrice)} €</p>
               <p className="text-[10px] text-muted-foreground">
                 El cambio puede tardar entre 10 y 15 minutos en reflejarse en Inmovilla y los portales
                 debido a las restricciones de su API. El sistema no volverá a re-analizar este cambio de precio.
               </p>
             </div>
           </div>
-          <div className="flex items-start gap-2 rounded-lg bg-accent/10 px-3 py-2">
-            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground/60" />
-            <p className="text-[10px] text-muted-foreground leading-relaxed">
+          <div className="flex items-start gap-2 rounded-lg bg-slate-50 border border-slate-200/60 px-3 py-2">
+            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-slate-400" />
+            <p className="text-[10px] text-slate-500 leading-relaxed">
               Inmovilla establece límites de procesamiento en su API — los cambios de precio
               se propagan a portales (Idealista, Fotocasa, etc.) según los ciclos de sincronización de cada portal.
             </p>
@@ -177,34 +177,34 @@ function ApplyPriceCard({
   }
 
   return (
-    <Card className="border-[var(--urus-danger)]/20 bg-[var(--urus-danger)]/3">
+    <Card className="border-status-warning/20 bg-status-warning-bg/30">
       <CardContent className="p-4 space-y-3">
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Rango de precio sugerido</p>
+        <p className="text-[10px] text-slate-500 uppercase tracking-wider font-medium">Rango de precio sugerido</p>
         <div className="flex items-center gap-4">
           <div className="text-center flex-1">
-            <p className="text-xs text-muted-foreground">Mínimo</p>
-            <p className="text-lg font-bold font-mono text-[var(--urus-success)]">
+            <p className="text-xs text-slate-500">Mínimo</p>
+            <p className="text-lg font-bold font-mono text-status-success">
               {formatEur(suggestedMin)} €
             </p>
           </div>
-          <div className="h-8 w-px bg-border/30" />
+          <div className="h-8 w-px bg-slate-200" />
           <div className="text-center flex-1">
-            <p className="text-xs text-muted-foreground">Máximo</p>
-            <p className="text-lg font-bold font-mono text-[var(--urus-warning)]">
+            <p className="text-xs text-slate-500">Máximo</p>
+            <p className="text-lg font-bold font-mono text-status-warning">
               {formatEur(suggestedMax)} €
             </p>
           </div>
-          <div className="h-8 w-px bg-border/30" />
+          <div className="h-8 w-px bg-slate-200" />
           <div className="text-center flex-1">
-            <p className="text-xs text-muted-foreground">Actual</p>
-            <p className="text-lg font-bold font-mono text-[var(--urus-danger)]">
+            <p className="text-xs text-slate-500">Actual</p>
+            <p className="text-lg font-bold font-mono text-status-danger">
               {formatEur(currentPrice)} €
             </p>
           </div>
         </div>
 
-        <div className="pt-2 border-t border-border/20 space-y-2">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+        <div className="pt-3 border-t border-slate-200 space-y-2">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider font-medium">
             Aplicar nuevo precio en Inmovilla
           </p>
           <div className="flex items-center gap-2">
@@ -215,8 +215,8 @@ function ApplyPriceCard({
                 onClick={() => { setSelectedPrice(p.value); setStep("idle"); setResult(null); }}
                 className={`flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition-all disabled:opacity-40 ${
                   selectedPrice === p.value
-                    ? "border-secondary bg-secondary/10 text-secondary"
-                    : "border-border/40 text-muted-foreground hover:border-border/60"
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
                 }`}
               >
                 <span className="block text-[9px] opacity-70">{p.label}</span>
@@ -226,13 +226,13 @@ function ApplyPriceCard({
           </div>
 
           {result === "error" && (
-            <div className="rounded-lg bg-[var(--urus-danger)]/10 px-3 py-2 space-y-1">
-              <div className="flex items-center gap-2 text-xs text-[var(--urus-danger)]">
+            <div className="rounded-lg bg-status-danger-bg border border-status-danger/20 px-3 py-2 space-y-1">
+              <div className="flex items-center gap-2 text-xs text-status-danger">
                 <XCircle className="h-3.5 w-3.5 shrink-0" />
                 {errorMsg}
               </div>
               {isBlocked && (
-                <p className="text-[10px] text-muted-foreground pl-5.5">
+                <p className="text-[10px] text-slate-500 pl-5.5">
                   Inmovilla establece límites de peticiones por minuto.
                   Podrás reintentar en <span className="font-mono font-medium text-foreground">{Math.ceil(cooldownSec / 60)} min {cooldownSec % 60}s</span>.
                 </p>
@@ -244,7 +244,7 @@ function ApplyPriceCard({
             <button
               onClick={() => setStep("confirming")}
               disabled={submitting || isBlocked}
-              className="w-full rounded-lg bg-secondary/15 text-secondary hover:bg-secondary/25 px-4 py-2 text-xs font-medium transition-colors disabled:opacity-50"
+              className="w-full rounded-lg bg-primary/10 text-primary hover:bg-primary/15 px-4 py-2 text-xs font-medium transition-colors disabled:opacity-50"
             >
               {isBlocked
                 ? `Disponible en ${Math.ceil(cooldownSec / 60)} min ${cooldownSec % 60}s`
@@ -255,7 +255,7 @@ function ApplyPriceCard({
               <button
                 onClick={handleApply}
                 disabled={submitting || isBlocked}
-                className="flex-1 rounded-lg bg-secondary text-white px-4 py-2 text-xs font-medium transition-colors hover:bg-secondary/90 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-xs font-medium transition-colors hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {submitting ? (
                   <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Actualizando...</>
@@ -266,14 +266,14 @@ function ApplyPriceCard({
               <button
                 onClick={() => setStep("idle")}
                 disabled={submitting}
-                className="rounded-lg border border-border/40 px-4 py-2 text-xs text-muted-foreground hover:bg-accent/20 transition-colors disabled:opacity-50"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-xs text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
               >
                 Cancelar
               </button>
             </div>
           )}
 
-          <p className="text-[9px] text-muted-foreground/60 leading-relaxed">
+          <p className="text-[9px] text-slate-400 leading-relaxed">
             Inmovilla establece límites en su API (máx. 10 peticiones/min). El cambio de precio puede
             tardar entre 10–15 min en reflejarse en los portales.
           </p>
@@ -320,21 +320,21 @@ function InformeError({
     <div className="space-y-6">
       <Link
         href="/platform/pricing"
-        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors"
       >
         <ArrowLeft className="h-3 w-3" /> Volver a Cartera interna
       </Link>
-      <Card className="border-[var(--urus-danger)]/30">
+      <Card className="border-status-danger/30 bg-status-danger-bg/30">
         <CardContent className="p-8 text-center space-y-4">
-          <AlertTriangle className="h-12 w-12 text-[var(--urus-danger)] mx-auto" />
-          <h2 className="text-lg font-semibold">
+          <AlertTriangle className="h-12 w-12 text-status-danger mx-auto" />
+          <h2 className="text-lg font-semibold text-foreground">
             {title ?? (status === 422 ? "Datos incompletos para pricing" : "Error al generar informe")}
           </h2>
-          <p className="text-sm text-muted-foreground max-w-md mx-auto">{message}</p>
+          <p className="text-sm text-slate-500 max-w-md mx-auto">{message}</p>
           {missingFields && missingFields.length > 0 && (
             <div className="flex flex-wrap gap-2 justify-center">
               {missingFields.map((f) => (
-                <Badge key={f} variant="outline" className="text-[var(--urus-danger)] border-[var(--urus-danger)]/30">
+                <Badge key={f} variant="outline" className="text-status-danger border-status-danger/30 bg-white">
                   {f}
                 </Badge>
               ))}
@@ -342,7 +342,7 @@ function InformeError({
           )}
           <button
             onClick={onRetry}
-            className="mt-4 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium hover:bg-secondary/90 transition-colors"
+            className="mt-4 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
           >
             {actionLabel}
           </button>
@@ -359,7 +359,7 @@ function SectionHeader({ data }: { data: PricingAnalysisResult }) {
   const semConfig = semaforoConfig[stats.semaforo];
 
   return (
-    <Card className="border border-border overflow-hidden">
+    <Card className="border border-slate-200 overflow-hidden bg-white shadow-sm">
       <div className="h-1.5" style={{ backgroundColor: semConfig.color }} />
       <CardContent className="p-6">
         <div className="flex items-start justify-between flex-wrap gap-4">
@@ -367,19 +367,19 @@ function SectionHeader({ data }: { data: PricingAnalysisResult }) {
             <div className="flex items-center gap-3">
               <SemaforoIndicator status={stats.semaforo} size="xl" />
               <div>
-                <h1 className="text-xl font-bold">
+                <h1 className="text-xl font-bold text-foreground">
                   {input.propertyCode}
                 </h1>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="outline" className="text-xs bg-white border-slate-200 text-slate-600">
                     <MapPin className="h-3 w-3 mr-0.5" /> {input.ciudad} — {input.zona || "Sin zona"}
                   </Badge>
                   {input.tipologiaNombre && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs bg-white border-slate-200 text-slate-600">
                       {input.tipologiaNombre}
                     </Badge>
                   )}
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="outline" className="text-xs bg-white border-slate-200 text-slate-600">
                     {input.estado}
                   </Badge>
                 </div>
@@ -393,7 +393,7 @@ function SectionHeader({ data }: { data: PricingAnalysisResult }) {
             <KpiBox
               label="Diferencia"
               value={`${stats.gapPorcentaje > 0 ? "+" : ""}${stats.gapPorcentaje}%`}
-              valueColor={stats.gapPorcentaje > 5 ? "var(--urus-danger)" : stats.gapPorcentaje > 0 ? "var(--urus-warning)" : "var(--urus-success)"}
+              valueColor={stats.gapPorcentaje > 5 ? "var(--status-danger)" : stats.gapPorcentaje > 0 ? "var(--status-warning)" : "var(--status-success)"}
               sub="vs media de mercado"
             />
             <KpiBox label="Comparables" value={String(stats.totalComparables)} sub={`de ${data.queryMeta.totalResultsFromAPI} totales`} />
@@ -416,12 +416,12 @@ function KpiBox({
   valueColor?: string;
 }) {
   return (
-    <div className="text-center px-4 py-2 rounded-lg bg-accent/10 border border-border/20">
-      <p className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</p>
-      <p className="text-lg font-bold font-mono" style={valueColor ? { color: valueColor } : undefined}>
+    <div className="text-center px-4 py-2 rounded-lg bg-slate-50 border border-slate-200/60">
+      <p className="text-[9px] text-slate-500 uppercase tracking-wider font-medium">{label}</p>
+      <p className="text-lg font-bold font-mono text-foreground" style={valueColor ? { color: valueColor } : undefined}>
         {value}
       </p>
-      <p className="text-[10px] text-muted-foreground">{sub}</p>
+      <p className="text-[10px] text-slate-500">{sub}</p>
     </div>
   );
 }
@@ -434,16 +434,16 @@ function SectionTemporalTrend({
   if (!trend) return null;
 
   return (
-    <Card className="border border-border">
+    <Card className="border border-slate-200 bg-white shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
-          <TrendingDown className="h-4 w-4 text-secondary" />
-          <CardTitle className="text-sm font-semibold">Tendencia Temporal</CardTitle>
+          <TrendingDown className="h-4 w-4 text-primary" />
+          <CardTitle className="text-sm font-semibold text-foreground">Tendencia Temporal</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="pt-0 space-y-4">
-        <div className="rounded-lg p-4 bg-accent/10 border border-border/20">
-          <p className="text-xs text-muted-foreground leading-relaxed">{trend.summary}</p>
+        <div className="rounded-lg p-4 bg-slate-50 border border-slate-200/60">
+          <p className="text-xs text-slate-600 leading-relaxed">{trend.summary}</p>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -481,16 +481,16 @@ function SectionDiagnostico({
 
   if (recommendationError || !recommendation) {
     return (
-      <Card className="border border-border">
+      <Card className="border border-slate-200 bg-white shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
-            <BrainCircuit className="h-4 w-4 text-secondary" />
-            <CardTitle className="text-sm font-semibold">Diagnóstico</CardTitle>
+            <BrainCircuit className="h-4 w-4 text-primary" />
+            <CardTitle className="text-sm font-semibold text-foreground">Diagnóstico</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="rounded-lg p-4 bg-accent/10 border border-border/20">
-            <p className="text-xs text-muted-foreground leading-relaxed">
+          <div className="rounded-lg p-4 bg-slate-50 border border-slate-200/60">
+            <p className="text-xs text-slate-600 leading-relaxed">
               No se pudo generar la recomendación IA. Diagnóstico estadístico: diferencia de{" "}
               <span className="font-bold text-foreground">
                 {stats.gapPorcentaje > 0 ? "+" : ""}
@@ -500,7 +500,7 @@ function SectionDiagnostico({
               {formatEur(stats.precioMedioM2)} €/m²).
             </p>
             {recommendationError && (
-              <p className="text-[10px] text-muted-foreground/60 mt-2">Error: {recommendationError}</p>
+              <p className="text-[10px] text-slate-400 mt-2">Error: {recommendationError}</p>
             )}
           </div>
         </CardContent>
@@ -513,17 +513,17 @@ function SectionDiagnostico({
 
   return (
     <Card
-      className="border border-border overflow-hidden"
-      style={{ borderColor: `color-mix(in oklch, ${accion.color} 25%, var(--color-border))` }}
+      className="border border-slate-200 overflow-hidden bg-white shadow-sm"
+      style={{ borderColor: `color-mix(in oklch, ${accion.color} 25%, #e2e8f0)` }}
     >
       <div className="h-1" style={{ backgroundColor: accion.color }} />
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
-          <BrainCircuit className="h-4 w-4 text-secondary" />
-          <CardTitle className="text-sm font-semibold">Recomendación IA</CardTitle>
+          <BrainCircuit className="h-4 w-4 text-primary" />
+          <CardTitle className="text-sm font-semibold text-foreground">Recomendación IA</CardTitle>
           <Badge
             variant="outline"
-            className="ml-auto text-[10px]"
+            className="ml-auto text-[10px] bg-white"
             style={{ color: accion.color, borderColor: `color-mix(in oklch, ${accion.color} 40%, transparent)` }}
           >
             Confianza: {(recommendation.confidence * 100).toFixed(0)}%
@@ -543,10 +543,10 @@ function SectionDiagnostico({
           {accion.label}
         </Badge>
 
-        <div className="rounded-lg p-4 bg-accent/10 border border-border/20">
+        <div className="rounded-lg p-4 bg-slate-50 border border-slate-200/60">
           <div className="flex items-start gap-2">
-            <Sparkles className="h-4 w-4 text-[var(--urus-gold)] shrink-0 mt-0.5" />
-            <p className="text-xs text-muted-foreground leading-relaxed">{recommendation.diagnostico}</p>
+            <Sparkles className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-slate-600 leading-relaxed">{recommendation.diagnostico}</p>
           </div>
         </div>
       </CardContent>
@@ -558,21 +558,21 @@ function SectionDiagnostico({
 
 function SectionRecomendaciones({ recommendation, input }: { recommendation: PricingRecommendation; input: PricingAnalysisResult["input"] }) {
   return (
-    <Card className="border border-border">
+    <Card className="border border-slate-200 bg-white shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 text-secondary" />
-          <CardTitle className="text-sm font-semibold">Qué hacer ahora</CardTitle>
+          <CheckCircle2 className="h-4 w-4 text-status-success" />
+          <CardTitle className="text-sm font-semibold text-foreground">Qué hacer ahora</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="pt-0 space-y-4">
         <div className="space-y-2">
           {recommendation.recomendaciones.map((r, i) => (
-            <div key={i} className="flex items-start gap-3 rounded-lg p-3 bg-accent/5 border border-border/10 hover:bg-accent/10 transition-colors">
-              <span className="h-6 w-6 rounded-full bg-secondary/10 flex items-center justify-center shrink-0 text-[10px] font-bold text-secondary">
+            <div key={i} className="flex items-start gap-3 rounded-lg p-3 bg-slate-50 border border-slate-200/60 hover:bg-slate-100/60 transition-colors">
+              <span className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-[10px] font-bold text-primary">
                 {i + 1}
               </span>
-              <p className="text-xs text-muted-foreground leading-relaxed pt-0.5">{r}</p>
+              <p className="text-xs text-slate-600 leading-relaxed pt-0.5">{r}</p>
             </div>
           ))}
         </div>
@@ -602,17 +602,17 @@ function SectionArgumentosRiesgos({ recommendation }: { recommendation: PricingR
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {hasArgs && (
-        <Card className="border border-border">
+        <Card className="border border-slate-200 bg-white shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-[var(--urus-success)]" />
-              <CardTitle className="text-sm font-semibold">Argumentos Comerciales</CardTitle>
+              <Shield className="h-4 w-4 text-status-success" />
+              <CardTitle className="text-sm font-semibold text-foreground">Argumentos Comerciales</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="pt-0 space-y-2">
             {recommendation.argumentosComerciales.map((a, i) => (
-              <div key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                <Check className="h-3.5 w-3.5 text-[var(--urus-success)] shrink-0 mt-0.5" />
+              <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
+                <Check className="h-3.5 w-3.5 text-status-success shrink-0 mt-0.5" />
                 <span>{a}</span>
               </div>
             ))}
@@ -621,17 +621,17 @@ function SectionArgumentosRiesgos({ recommendation }: { recommendation: PricingR
       )}
 
       {hasRisks && (
-        <Card className="border border-border">
+        <Card className="border border-slate-200 bg-white shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-[var(--urus-danger)]" />
-              <CardTitle className="text-sm font-semibold">Riesgos</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-status-danger" />
+              <CardTitle className="text-sm font-semibold text-foreground">Riesgos</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="pt-0 space-y-2">
             {recommendation.riesgos.map((r, i) => (
-              <div key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                <XCircle className="h-3.5 w-3.5 text-[var(--urus-danger)] shrink-0 mt-0.5" />
+              <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
+                <XCircle className="h-3.5 w-3.5 text-status-danger shrink-0 mt-0.5" />
                 <span>{r}</span>
               </div>
             ))}
@@ -649,34 +649,34 @@ function SectionComparacionPrecios({ data }: { data: PricingAnalysisResult }) {
   const maxScale = Math.max(input.precioM2, stats.precioMedioM2, stats.precioMaxM2) * 1.15;
 
   return (
-    <Card className="border border-border">
+    <Card className="border border-slate-200 bg-white shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
-          <BarChart3 className="h-4 w-4 text-secondary" />
-          <CardTitle className="text-sm font-semibold">Tu precio vs el mercado (€/m²)</CardTitle>
+          <BarChart3 className="h-4 w-4 text-primary" />
+          <CardTitle className="text-sm font-semibold text-foreground">Tu precio vs el mercado (€/m²)</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="pt-0 space-y-4">
         <div className="space-y-3">
-          <PriceBar label="Tu inmueble" value={input.precioM2} maxScale={maxScale} color={stats.gapPorcentaje > 5 ? "var(--urus-danger)" : stats.gapPorcentaje > 0 ? "var(--urus-warning)" : "var(--urus-success)"} />
-          <PriceBar label="Media de mercado" value={stats.precioMedioM2} maxScale={maxScale} color="var(--color-secondary)" />
-          <PriceBar label="Mediana de mercado" value={stats.precioMedianaM2} maxScale={maxScale} color="var(--color-secondary)" opacity={0.6} />
+          <PriceBar label="Tu inmueble" value={input.precioM2} maxScale={maxScale} color={stats.gapPorcentaje > 5 ? "var(--status-danger)" : stats.gapPorcentaje > 0 ? "var(--status-warning)" : "var(--status-success)"} />
+          <PriceBar label="Media de mercado" value={stats.precioMedioM2} maxScale={maxScale} color="var(--primary)" />
+          <PriceBar label="Mediana de mercado" value={stats.precioMedianaM2} maxScale={maxScale} color="var(--primary)" opacity={0.6} />
           {stats.precioMedioM2Particular != null && (
-            <PriceBar label="Media particular" value={stats.precioMedioM2Particular} maxScale={maxScale} color="#a78bfa" />
+            <PriceBar label="Media particular" value={stats.precioMedioM2Particular} maxScale={maxScale} color="#64748b" />
           )}
           {stats.precioMedioM2Profesional != null && (
-            <PriceBar label="Media profesional" value={stats.precioMedioM2Profesional} maxScale={maxScale} color="#f472b6" />
+            <PriceBar label="Media profesional" value={stats.precioMedioM2Profesional} maxScale={maxScale} color="#0f766e" />
           )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-border/20">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-200">
           <MiniStat label="Min €/m²" value={`${formatEur(stats.precioMinM2)} €`} />
           <MiniStat label="Max €/m²" value={`${formatEur(stats.precioMaxM2)} €`} />
           <MiniStat label="Desviación" value={`${stats.desviacionEstandar}`} />
           <MiniStat
             label="Diferencia"
             value={`${stats.gapPorcentaje > 0 ? "+" : ""}${stats.gapPorcentaje}%`}
-            valueColor={stats.gapPorcentaje > 5 ? "var(--urus-danger)" : stats.gapPorcentaje > 0 ? "var(--urus-warning)" : "var(--urus-success)"}
+            valueColor={stats.gapPorcentaje > 5 ? "var(--status-danger)" : stats.gapPorcentaje > 0 ? "var(--status-warning)" : "var(--status-success)"}
           />
         </div>
       </CardContent>
@@ -700,10 +700,10 @@ function PriceBar({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-xs">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-mono font-bold">{formatEur(value)} €/m²</span>
+        <span className="text-slate-500">{label}</span>
+        <span className="font-mono font-bold text-foreground">{formatEur(value)} €/m²</span>
       </div>
-      <div className="h-4 rounded-full bg-accent/20 overflow-hidden">
+      <div className="h-4 rounded-full bg-slate-100 overflow-hidden">
         <div
           className="h-full rounded-full transition-all"
           style={{
@@ -719,9 +719,9 @@ function PriceBar({
 
 function MiniStat({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
   return (
-    <div className="text-center rounded-lg p-3 bg-accent/10 border border-border/20">
-      <p className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</p>
-      <p className="text-lg font-bold font-mono" style={valueColor ? { color: valueColor } : undefined}>
+    <div className="text-center rounded-lg p-3 bg-slate-50 border border-slate-200/60">
+      <p className="text-[9px] text-slate-500 uppercase tracking-wider font-medium">{label}</p>
+      <p className="text-lg font-bold font-mono text-foreground" style={valueColor ? { color: valueColor } : undefined}>
         {value}
       </p>
     </div>
@@ -767,13 +767,13 @@ function ComparablePhotoCarousel({
 
   if (visibleFotos.length === 0) {
     return (
-      <div className="w-full h-44 bg-accent/10 rounded-lg flex flex-col items-center justify-center gap-2">
+      <div className="w-full h-44 bg-slate-100 rounded-lg flex flex-col items-center justify-center gap-2">
         {isProcessing ? (
-          <Loader2 className="h-6 w-6 text-muted-foreground/60 animate-spin" />
+          <Loader2 className="h-6 w-6 text-slate-400 animate-spin" />
         ) : (
-          <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
+          <ImageIcon className="h-8 w-8 text-slate-300" />
         )}
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-[10px] text-slate-500">
           {isProcessing
             ? "Recuperando fotos del portal..."
             : fotos.length > 0
@@ -843,10 +843,10 @@ function ComparableDetailCard({
   const isLower = c.precioM2 < input.precioM2;
 
   return (
-    <div className="border border-border/30 rounded-lg bg-card overflow-hidden">
+    <div className="border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr]">
         {/* Left: photo */}
-        <div className="lg:border-r border-border/20">
+        <div className="lg:border-r border-slate-200">
           <ComparablePhotoCarousel
             fotos={c.fotos ?? []}
             liveCachedUrls={liveCachedUrls}
@@ -859,17 +859,17 @@ function ComparableDetailCard({
         <div className="p-4 space-y-3">
           {/* Metrics bar */}
           <div className="grid grid-cols-3 gap-2">
-            <div className="text-center p-2 rounded bg-accent/5 border border-border/10">
-              <p className="text-[9px] text-muted-foreground uppercase">Precio</p>
-              <p className="text-xs font-mono font-bold">{formatEur(c.precio)} €</p>
+            <div className="text-center p-2 rounded bg-slate-50 border border-slate-200/60">
+              <p className="text-[9px] text-slate-500 uppercase font-medium">Precio</p>
+              <p className="text-xs font-mono font-bold text-foreground">{formatEur(c.precio)} €</p>
             </div>
-            <div className="text-center p-2 rounded bg-accent/5 border border-border/10">
-              <p className="text-[9px] text-muted-foreground uppercase">€/m²</p>
-              <p className="text-xs font-mono font-bold">{formatEur(c.precioM2)}</p>
+            <div className="text-center p-2 rounded bg-slate-50 border border-slate-200/60">
+              <p className="text-[9px] text-slate-500 uppercase font-medium">€/m²</p>
+              <p className="text-xs font-mono font-bold text-foreground">{formatEur(c.precioM2)}</p>
             </div>
-            <div className="text-center p-2 rounded bg-accent/5 border border-border/10">
-              <p className="text-[9px] text-muted-foreground uppercase">vs URUS</p>
-              <p className={`text-xs font-mono font-bold ${isLower ? "text-[var(--urus-success)]" : "text-[var(--urus-danger)]"}`}>
+            <div className="text-center p-2 rounded bg-slate-50 border border-slate-200/60">
+              <p className="text-[9px] text-slate-500 uppercase font-medium">vs URUS</p>
+              <p className={`text-xs font-mono font-bold ${isLower ? "text-status-success" : "text-status-danger"}`}>
                 {diff}
               </p>
             </div>
@@ -877,13 +877,13 @@ function ComparableDetailCard({
 
           {/* Description */}
           {c.descripcion && (
-            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+            <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
               {c.descripcion}
             </p>
           )}
 
           {/* Property details */}
-          <div className="flex flex-wrap gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
+          <div className="flex flex-wrap gap-x-2 gap-y-1 text-[10px] text-slate-500">
             <span>{c.metrosConstruidos} m²</span>
             <span>·</span>
             <span>{c.habitaciones} hab</span>
@@ -897,20 +897,20 @@ function ComparableDetailCard({
           {/* Address */}
           {c.direccion && (
             <div className="flex items-start gap-1.5">
-              <MapPin className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
-              <span className="text-[10px] text-muted-foreground">{c.direccion}</span>
+              <MapPin className="h-3 w-3 text-slate-400 mt-0.5 shrink-0" />
+              <span className="text-[10px] text-slate-500">{c.direccion}</span>
             </div>
           )}
 
           {/* Advertiser / Agency + phones */}
-          <div className="flex items-center justify-between pt-2 border-t border-border/20 flex-wrap gap-2">
+          <div className="flex items-center justify-between pt-2 border-t border-slate-200 flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <Building2 className="h-3.5 w-3.5 text-slate-400 shrink-0" />
               <div>
-                <p className="text-[10px] font-medium">
+                <p className="text-[10px] font-medium text-foreground">
                   {c.anunciante?.nombre ?? (c.advertiserType === "private" ? "Particular" : "Profesional")}
                 </p>
-                <Badge variant="outline" className="text-[8px] mt-0.5">
+                <Badge variant="outline" className="text-[8px] mt-0.5 bg-white border-slate-200">
                   {c.advertiserType === "private" ? "Particular" : c.advertiserType === "professional" ? "Profesional" : "—"}
                 </Badge>
               </div>
@@ -920,7 +920,7 @@ function ComparableDetailCard({
                 <a
                   key={tel}
                   href={`tel:${tel}`}
-                  className="flex items-center gap-1 text-[10px] text-secondary hover:text-secondary/80 transition-colors"
+                  className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Phone className="h-3 w-3" />
@@ -933,14 +933,14 @@ function ComparableDetailCard({
           {/* External link + reference */}
           <div className="flex items-center justify-between text-[10px]">
             {c.referencia && (
-              <span className="text-muted-foreground font-mono">Ref: {c.referencia}</span>
+              <span className="text-slate-500 font-mono">Ref: {c.referencia}</span>
             )}
             {c.link && (
               <a
                 href={c.link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-secondary hover:text-secondary/80 transition-colors font-medium"
+                className="flex items-center gap-1 text-primary hover:text-primary/80 transition-colors font-medium"
                 onClick={(e) => e.stopPropagation()}
               >
                 Ver anuncio <ExternalLink className="h-3 w-3" />
@@ -977,27 +977,27 @@ function ComparableRow({
   return (
     <>
       <tr
-        className={`hover:bg-accent/10 transition-colors cursor-pointer ${isExpanded ? "bg-accent/5" : ""}`}
+        className={`hover:bg-slate-50 transition-colors cursor-pointer ${isExpanded ? "bg-slate-50" : ""}`}
         onClick={onToggle}
       >
-        <td className="px-4 py-2.5 text-xs">
+        <td className="px-4 py-2.5 text-xs text-foreground">
           <div className="flex items-center gap-1">
-            {isExpanded ? <ChevronUp className="h-3 w-3 text-secondary" /> : <ChevronDown className="h-3 w-3 text-muted-foreground" />}
+            {isExpanded ? <ChevronUp className="h-3 w-3 text-primary" /> : <ChevronDown className="h-3 w-3 text-slate-400" />}
             {c.zona || c.ciudad}
           </div>
         </td>
-        <td className="px-4 py-2.5 text-right text-xs font-mono">{formatEur(c.precio)} €</td>
-        <td className="px-4 py-2.5 text-right text-xs font-mono">{formatEur(c.precioM2)} €</td>
-        <td className="px-4 py-2.5 text-center text-xs font-mono">{c.metrosConstruidos}</td>
-        <td className="px-4 py-2.5 text-center text-xs font-mono">{c.habitaciones}</td>
+        <td className="px-4 py-2.5 text-right text-xs font-mono text-foreground">{formatEur(c.precio)} €</td>
+        <td className="px-4 py-2.5 text-right text-xs font-mono text-foreground">{formatEur(c.precioM2)} €</td>
+        <td className="px-4 py-2.5 text-center text-xs font-mono text-slate-600">{c.metrosConstruidos}</td>
+        <td className="px-4 py-2.5 text-center text-xs font-mono text-slate-600">{c.habitaciones}</td>
         <td className="px-4 py-2.5 text-center">
-          <Badge variant="outline" className="text-[8px]">
+          <Badge variant="outline" className="text-[8px] bg-white border-slate-200">
             {c.advertiserType === "private" ? "Particular" : c.advertiserType === "professional" ? "Profesional" : "—"}
           </Badge>
         </td>
-        <td className="px-4 py-2.5 text-center text-xs font-mono">{c.diasPublicado != null ? `${c.diasPublicado}d` : "—"}</td>
+        <td className="px-4 py-2.5 text-center text-xs font-mono text-slate-600">{c.diasPublicado != null ? `${c.diasPublicado}d` : "—"}</td>
         <td className="px-4 py-2.5 text-center">
-          <span className={`text-xs font-mono font-bold ${isLower ? "text-[var(--urus-success)]" : "text-[var(--urus-danger)]"}`}>
+          <span className={`text-xs font-mono font-bold ${isLower ? "text-status-success" : "text-status-danger"}`}>
             {diff}
           </span>
         </td>
@@ -1007,20 +1007,20 @@ function ComparableRow({
               href={c.link}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-secondary hover:text-secondary/80 transition-colors"
+              className="text-primary hover:text-primary/80 transition-colors"
               onClick={(e) => e.stopPropagation()}
             >
               <ExternalLink className="h-3.5 w-3.5 mx-auto" />
             </a>
           ) : (
-            <span className="text-muted-foreground/30">—</span>
+            <span className="text-slate-300">—</span>
           )}
         </td>
       </tr>
       {isExpanded && (
         <tr>
           <td colSpan={9} className="p-0">
-            <div className="p-4 bg-accent/5 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="p-4 bg-slate-50/50 animate-in fade-in slide-in-from-top-2 duration-200">
               <ComparableDetailCard
                 c={c}
                 input={input}
@@ -1051,49 +1051,49 @@ function SectionComparables({ data }: { data: PricingAnalysisResult }) {
   });
 
   return (
-    <Card className="border border-border">
+    <Card className="border border-slate-200 bg-white shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Home className="h-4 w-4 text-secondary" />
-            <CardTitle className="text-sm font-semibold">Comparables de Mercado</CardTitle>
+            <Home className="h-4 w-4 text-primary" />
+            <CardTitle className="text-sm font-semibold text-foreground">Comparables de Mercado</CardTitle>
           </div>
-          <p className="text-[10px] text-muted-foreground">{comparables.length} propiedades similares · Click para expandir ficha</p>
+          <p className="text-[10px] text-slate-500">{comparables.length} propiedades similares · Click para expandir ficha</p>
         </div>
       </CardHeader>
       <CardContent className="pt-0">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-border/30">
-                <th className="text-left px-4 py-2.5 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Zona</th>
-                <th className="text-right px-4 py-2.5 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Precio</th>
-                <th className="text-right px-4 py-2.5 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">€/m²</th>
-                <th className="text-center px-4 py-2.5 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">m²</th>
-                <th className="text-center px-4 py-2.5 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Hab</th>
-                <th className="text-center px-4 py-2.5 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Tipo</th>
-                <th className="text-center px-4 py-2.5 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Días publ.</th>
-                <th className="text-center px-4 py-2.5 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">vs URUS</th>
-                <th className="text-center px-4 py-2.5 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Link</th>
+              <tr className="border-b border-slate-200">
+                <th className="text-left px-4 py-2.5 text-[10px] text-slate-500 uppercase tracking-wider font-medium">Zona</th>
+                <th className="text-right px-4 py-2.5 text-[10px] text-slate-500 uppercase tracking-wider font-medium">Precio</th>
+                <th className="text-right px-4 py-2.5 text-[10px] text-slate-500 uppercase tracking-wider font-medium">€/m²</th>
+                <th className="text-center px-4 py-2.5 text-[10px] text-slate-500 uppercase tracking-wider font-medium">m²</th>
+                <th className="text-center px-4 py-2.5 text-[10px] text-slate-500 uppercase tracking-wider font-medium">Hab</th>
+                <th className="text-center px-4 py-2.5 text-[10px] text-slate-500 uppercase tracking-wider font-medium">Tipo</th>
+                <th className="text-center px-4 py-2.5 text-[10px] text-slate-500 uppercase tracking-wider font-medium">Días publ.</th>
+                <th className="text-center px-4 py-2.5 text-[10px] text-slate-500 uppercase tracking-wider font-medium">vs URUS</th>
+                <th className="text-center px-4 py-2.5 text-[10px] text-slate-500 uppercase tracking-wider font-medium">Link</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/15">
+            <tbody className="divide-y divide-slate-100">
               {/* URUS row */}
-              <tr className="bg-secondary/5 border-l-2 border-secondary">
+              <tr className="bg-primary/5 border-l-2 border-primary">
                 <td className="px-4 py-2.5">
-                  <span className="text-xs font-semibold text-secondary">▸ {input.zona || input.ciudad}</span>
-                  <Badge className="ml-2 text-[8px] px-1.5 bg-secondary/15 text-secondary border-secondary/30">
+                  <span className="text-xs font-semibold text-primary">▸ {input.zona || input.ciudad}</span>
+                  <Badge className="ml-2 text-[8px] px-1.5 bg-primary/10 text-primary border-primary/30">
                     URUS
                   </Badge>
                 </td>
-                <td className="px-4 py-2.5 text-right text-xs font-mono font-bold">{formatEur(input.precio)} €</td>
-                <td className="px-4 py-2.5 text-right text-xs font-mono">{formatEur(input.precioM2)} €</td>
-                <td className="px-4 py-2.5 text-center text-xs font-mono">{input.metrosConstruidos}</td>
-                <td className="px-4 py-2.5 text-center text-xs font-mono">{input.habitaciones}</td>
-                <td className="px-4 py-2.5 text-center text-xs font-mono">—</td>
-                <td className="px-4 py-2.5 text-center text-xs font-mono">—</td>
-                <td className="px-4 py-2.5 text-center text-xs font-mono">—</td>
-                <td className="px-4 py-2.5 text-center text-xs font-mono">—</td>
+                <td className="px-4 py-2.5 text-right text-xs font-mono font-bold text-foreground">{formatEur(input.precio)} €</td>
+                <td className="px-4 py-2.5 text-right text-xs font-mono text-foreground">{formatEur(input.precioM2)} €</td>
+                <td className="px-4 py-2.5 text-center text-xs font-mono text-slate-600">{input.metrosConstruidos}</td>
+                <td className="px-4 py-2.5 text-center text-xs font-mono text-slate-600">{input.habitaciones}</td>
+                <td className="px-4 py-2.5 text-center text-xs font-mono text-slate-400">—</td>
+                <td className="px-4 py-2.5 text-center text-xs font-mono text-slate-400">—</td>
+                <td className="px-4 py-2.5 text-center text-xs font-mono text-slate-400">—</td>
+                <td className="px-4 py-2.5 text-center text-xs font-mono text-slate-400">—</td>
               </tr>
               {comparables.map((c) => {
                 const diff = pctDiff(c.precioM2, input.precioM2);
@@ -1166,10 +1166,10 @@ function SectionMapaComparables({ data }: { data: PricingAnalysisResult }) {
 
   if (!apiKey) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-8 text-muted-foreground rounded-lg border border-dashed border-border/40">
-        <MapPin className="h-8 w-8 text-muted-foreground/40" />
-        <span className="text-sm font-medium">{input.zona || input.ciudad}</span>
-        <span className="text-[10px] text-muted-foreground/60">
+      <div className="flex flex-col items-center justify-center gap-3 py-8 text-slate-500 rounded-lg border border-dashed border-slate-300 bg-slate-50">
+        <MapPin className="h-8 w-8 text-slate-300" />
+        <span className="text-sm font-medium text-foreground">{input.zona || input.ciudad}</span>
+        <span className="text-[10px] text-slate-400">
           Configura NEXT_PUBLIC_GOOGLE_MAPS_KEY para ver el mapa
         </span>
       </div>
@@ -1177,7 +1177,7 @@ function SectionMapaComparables({ data }: { data: PricingAnalysisResult }) {
   }
 
   return (
-    <div className="relative rounded-lg overflow-hidden">
+    <div className="relative rounded-lg overflow-hidden border border-slate-200">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
@@ -1187,7 +1187,7 @@ function SectionMapaComparables({ data }: { data: PricingAnalysisResult }) {
       />
       <div className="absolute bottom-2 left-2 flex items-center gap-3 bg-black/70 rounded-md px-2.5 py-1.5 text-[10px] text-white">
         <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-urus-danger" /> Tu inmueble
+          <span className="w-2 h-2 rounded-full bg-red-500" /> Tu inmueble
         </span>
         <span className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-blue-500" /> Comparables ({geoComparables.length})
@@ -1214,44 +1214,44 @@ function SectionExtras({ data }: { data: PricingAnalysisResult }) {
   if (top5.length === 0) return null;
 
   return (
-    <Card className="border border-border">
+    <Card className="border border-slate-200 bg-white shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
-          <Check className="h-4 w-4 text-[var(--urus-success)]" />
-          <CardTitle className="text-sm font-semibold">Comparación de Extras</CardTitle>
+          <Check className="h-4 w-4 text-status-success" />
+          <CardTitle className="text-sm font-semibold text-foreground">Comparación de Extras</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="pt-0">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-border/30">
-                <th className="text-left px-3 py-2 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Extra</th>
-                <th className="text-center px-3 py-2 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">URUS</th>
+              <tr className="border-b border-slate-200">
+                <th className="text-left px-3 py-2 text-[10px] text-slate-500 uppercase tracking-wider font-medium">Extra</th>
+                <th className="text-center px-3 py-2 text-[10px] text-slate-500 uppercase tracking-wider font-medium">URUS</th>
                 {top5.map((c, i) => (
-                  <th key={c.statefoxId} className="text-center px-3 py-2 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                  <th key={c.statefoxId} className="text-center px-3 py-2 text-[10px] text-slate-500 uppercase tracking-wider font-medium">
                     #{i + 1}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/15">
+            <tbody className="divide-y divide-slate-100">
               {EXTRAS_KEYS.map(({ key, label }) => (
-                <tr key={key} className="hover:bg-accent/10 transition-colors">
-                  <td className="px-3 py-2 text-xs font-medium">{label}</td>
+                <tr key={key} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-3 py-2 text-xs font-medium text-foreground">{label}</td>
                   <td className="px-3 py-2 text-center">
                     {(input.extras as unknown as Record<string, unknown>)[key] ? (
-                      <Check className="h-4 w-4 text-[var(--urus-success)] mx-auto" />
+                      <Check className="h-4 w-4 text-status-success mx-auto" />
                     ) : (
-                      <X className="h-4 w-4 text-[var(--urus-danger)]/50 mx-auto" />
+                      <X className="h-4 w-4 text-slate-300 mx-auto" />
                     )}
                   </td>
                   {top5.map((c) => (
                     <td key={c.statefoxId} className="px-3 py-2 text-center">
                       {(c.extras as unknown as Record<string, unknown>)?.[key] ? (
-                        <Check className="h-3.5 w-3.5 text-[var(--urus-success)]/60 mx-auto" />
+                        <Check className="h-3.5 w-3.5 text-status-success/60 mx-auto" />
                       ) : (
-                        <X className="h-3.5 w-3.5 text-muted-foreground/30 mx-auto" />
+                        <X className="h-3.5 w-3.5 text-slate-300 mx-auto" />
                       )}
                     </td>
                   ))}
@@ -1262,7 +1262,7 @@ function SectionExtras({ data }: { data: PricingAnalysisResult }) {
         </div>
 
         {/* Extras string: calefaccion, año, certificado */}
-        <div className="mt-3 pt-3 border-t border-border/20 flex flex-wrap gap-3 text-[10px] text-muted-foreground">
+        <div className="mt-3 pt-3 border-t border-slate-200 flex flex-wrap gap-3 text-[10px] text-slate-500">
           {input.extras.calefaccion && <span>Calefacción: <strong className="text-foreground">{input.extras.calefaccion}</strong></span>}
           {input.extras.anoConstruccion && <span>Año: <strong className="text-foreground">{input.extras.anoConstruccion}</strong></span>}
           {input.extras.certificadoEnergetico && <span>Cert. energético: <strong className="text-foreground">{input.extras.certificadoEnergetico}</strong></span>}
@@ -1280,11 +1280,11 @@ function SectionOptimalPricing({ data }: { data: PricingAnalysisResult }) {
     ownPrice >= optimal.baremoBajoPrice && ownPrice <= optimal.baremoAltoPrice;
 
   return (
-    <Card className="border border-border">
+    <Card className="border border-slate-200 bg-white shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
-          <Target className="h-4 w-4 text-secondary" />
-          <CardTitle className="text-sm font-semibold">Precio óptimo (baremos)</CardTitle>
+          <Target className="h-4 w-4 text-primary" />
+          <CardTitle className="text-sm font-semibold text-foreground">Precio óptimo (baremos)</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="pt-0 space-y-4">
@@ -1295,21 +1295,21 @@ function SectionOptimalPricing({ data }: { data: PricingAnalysisResult }) {
           <MiniStat label="P75 (alto)" value={`${formatEur(optimal.p75Price)} €`} />
           <MiniStat label="Máximo" value={`${formatEur(optimal.maxPrice)} €`} />
         </div>
-        <div className="rounded-lg border border-border/20 p-3 bg-accent/10">
-          <p className="text-xs text-muted-foreground">
+        <div className="rounded-lg border border-slate-200/60 p-3 bg-slate-50">
+          <p className="text-xs text-slate-600">
             Rango recomendado:{" "}
             <span className="font-mono font-semibold text-foreground">
               {formatEur(optimal.recommendedMinPrice)} € - {formatEur(optimal.recommendedMaxPrice)} €
             </span>
           </p>
-          <p className="text-[11px] mt-1 text-muted-foreground">
+          <p className="text-[11px] mt-1 text-slate-500">
             Posición actual:{" "}
-            <span className={ownInside ? "text-[var(--urus-success)] font-medium" : "text-[var(--urus-danger)] font-medium"}>
+            <span className={ownInside ? "text-status-success font-medium" : "text-status-danger font-medium"}>
               {ownInside ? "dentro de baremo" : "fuera de baremo"}
             </span>{" "}
             ({optimal.pricingPosition})
           </p>
-          <p className="text-[10px] text-muted-foreground/70 mt-1">
+          <p className="text-[10px] text-slate-400 mt-1">
             Base estadística: {optimal.comparablesUsed} comparables filtrados por comparabilidad de zona/tipología.
           </p>
         </div>
@@ -1322,11 +1322,11 @@ function SectionZoneStudy({ data }: { data: PricingAnalysisResult }) {
   if (!data.zoneStudy) return null;
   const study = data.zoneStudy;
   return (
-    <Card className="border border-border">
+    <Card className="border border-slate-200 bg-white shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
-          <MapPin className="h-4 w-4 text-secondary" />
-          <CardTitle className="text-sm font-semibold">Estudio de zona</CardTitle>
+          <MapPin className="h-4 w-4 text-primary" />
+          <CardTitle className="text-sm font-semibold text-foreground">Estudio de zona</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="pt-0 space-y-4">
@@ -1350,24 +1350,24 @@ function SectionZoneStudy({ data }: { data: PricingAnalysisResult }) {
           />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="rounded-lg border border-border/20 p-3 bg-accent/5">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Demora estilo Google Maps (P50)</p>
+          <div className="rounded-lg border border-slate-200/60 p-3 bg-slate-50">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider font-medium">Demora estilo Google Maps (P50)</p>
             <div className="mt-2 space-y-1.5">
               {study.travelTimeSummary.byMode.map((mode) => (
                 <div key={mode.mode} className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">{mode.mode}</span>
-                  <span className="font-mono font-medium">
+                  <span className="text-slate-500">{mode.mode}</span>
+                  <span className="font-mono font-medium text-foreground">
                     {mode.minutesP50 != null ? `${mode.minutesP50.toFixed(1)} min` : "N/D"}
                   </span>
                 </div>
               ))}
             </div>
           </div>
-          <div className="rounded-lg border border-border/20 p-3 bg-accent/5">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Entorno colegios (top)</p>
+          <div className="rounded-lg border border-slate-200/60 p-3 bg-slate-50">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider font-medium">Entorno colegios (top)</p>
             <div className="mt-2 space-y-1">
               {study.schoolsSummary.topSchools.slice(0, 3).map((school) => (
-                <div key={`${school.name}-${school.lat}-${school.lng}`} className="text-xs text-muted-foreground">
+                <div key={`${school.name}-${school.lat}-${school.lng}`} className="text-xs text-slate-500">
                   {school.name}
                   {typeof school.rating === "number" && (
                     <span className="font-mono text-foreground"> · {school.rating.toFixed(1)}</span>
@@ -1375,7 +1375,7 @@ function SectionZoneStudy({ data }: { data: PricingAnalysisResult }) {
                 </div>
               ))}
               {study.schoolsSummary.topSchools.length === 0 && (
-                <p className="text-xs text-muted-foreground">Sin colegios indexados para la zona.</p>
+                <p className="text-xs text-slate-500">Sin colegios indexados para la zona.</p>
               )}
             </div>
           </div>
@@ -1392,16 +1392,16 @@ function SectionMetadata({ data }: { data: PricingAnalysisResult }) {
   const { queryMeta, analyzedAt } = data;
 
   return (
-    <Card className="border border-border">
+    <Card className="border border-slate-200 bg-white shadow-sm">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-6 py-3 text-left hover:bg-accent/10 transition-colors"
+        className="w-full flex items-center justify-between px-6 py-3 text-left hover:bg-slate-50 transition-colors rounded-lg"
       >
         <div className="flex items-center gap-2">
-          <Info className="h-4 w-4 text-muted-foreground" />
-          <span className="text-xs font-medium text-muted-foreground">Metadata del análisis</span>
+          <Info className="h-4 w-4 text-slate-400" />
+          <span className="text-xs font-medium text-slate-500">Metadata del análisis</span>
         </div>
-        {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        {open ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
       </button>
       {open && (
         <CardContent className="pt-0 pb-4 px-6">
@@ -1425,9 +1425,9 @@ function SectionMetadata({ data }: { data: PricingAnalysisResult }) {
 
 function MetaItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg p-2 bg-accent/5 border border-border/10">
-      <p className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</p>
-      <p className="text-xs font-mono font-medium mt-0.5">{value}</p>
+    <div className="rounded-lg p-2 bg-slate-50 border border-slate-200/60">
+      <p className="text-[9px] text-slate-500 uppercase tracking-wider font-medium">{label}</p>
+      <p className="text-xs font-mono font-medium text-foreground mt-0.5">{value}</p>
     </div>
   );
 }
@@ -1623,12 +1623,12 @@ export default function InformePricingPage({
   if (state.kind === "loading") {
     return (
       <div className="space-y-6">
-        <Link href="/platform/pricing" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+        <Link href="/platform/pricing" className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors">
           <ArrowLeft className="h-3 w-3" /> Volver a Cartera interna
         </Link>
         <div className="flex items-center gap-3 mb-2">
-          <Loader2 className="h-5 w-5 animate-spin text-secondary" />
-          <p className="text-sm text-muted-foreground">Analizando inmueble <span className="font-mono font-bold text-foreground">{code}</span> contra el mercado...</p>
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <p className="text-sm text-slate-500">Analizando inmueble <span className="font-mono font-bold text-foreground">{code}</span> contra el mercado...</p>
         </div>
         <InformeSkeleton />
       </div>
@@ -1641,7 +1641,7 @@ export default function InformePricingPage({
         <div className="absolute left-8 top-8 z-20">
           <Link
             href="/platform/pricing"
-            className="inline-flex items-center gap-1 text-xs text-[#9ea8ca] hover:text-[#f4efe6] transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors"
           >
             <ArrowLeft className="h-3 w-3" /> Volver a Cartera interna
           </Link>
@@ -1649,7 +1649,7 @@ export default function InformePricingPage({
         <AnalysisProcessingCard propertyCode={state.propertyCode} />
         {state.message && (
           <div className="absolute bottom-8 left-0 right-0 z-20 text-center">
-            <p className="text-sm text-[#8c95b3]">{state.message}</p>
+            <p className="text-sm text-slate-500">{state.message}</p>
           </div>
         )}
       </div>
@@ -1695,12 +1695,12 @@ function InformeContent({ data, onRefresh }: { data: PricingAnalysisResult; onRe
     <div className="space-y-5">
       {/* Nav bar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <Link href="/platform/pricing" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+        <Link href="/platform/pricing" className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors">
           <ArrowLeft className="h-3 w-3" /> Volver a Cartera interna
         </Link>
         <button
           onClick={onRefresh}
-          className="px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-xs font-medium hover:bg-secondary/90 transition-colors"
+          className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
         >
           Actualizar análisis
         </button>
@@ -1710,7 +1710,7 @@ function InformeContent({ data, onRefresh }: { data: PricingAnalysisResult; onRe
       <SectionHeader data={data} />
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-lg bg-accent/10 border border-border/20">
+      <div className="flex gap-1 p-1 rounded-lg bg-slate-100 border border-slate-200/60">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -1718,10 +1718,10 @@ function InformeContent({ data, onRefresh }: { data: PricingAnalysisResult; onRe
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-medium transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-xs font-medium transition-all ${
                 isActive
-                  ? "bg-card shadow-sm text-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent/10"
+                  ? "bg-white shadow-sm text-foreground border border-slate-200/60"
+                  : "text-slate-500 hover:text-foreground hover:bg-slate-50"
               }`}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -1778,11 +1778,11 @@ function TabMercado({ data }: { data: PricingAnalysisResult }) {
     <div className="space-y-5">
       {/* Map + table side by side on large screens */}
       {hasGeo && (
-        <Card className="border border-border">
+        <Card className="border border-slate-200 bg-white shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-secondary" />
-              <CardTitle className="text-sm font-semibold">Mapa de Comparables</CardTitle>
+              <MapPin className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm font-semibold text-foreground">Mapa de Comparables</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="pt-0">

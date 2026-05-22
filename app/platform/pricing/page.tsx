@@ -498,7 +498,7 @@ export default function PricingPage() {
                           {isEligibleForSmartPricing(p) ? (
                             <Link
                               href={`/platform/pricing/informe/${p.codigo}`}
-                              className="text-sm font-medium transition-colors hover:text-secondary"
+                              className="text-sm font-medium transition-colors hover:text-primary"
                             >
                               {p.titulo || p.ref || p.codigo}
                             </Link>

@@ -429,7 +429,7 @@ export default function ColaboradorDetallePage({
                   {detail.contactoTelefono && (
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-1">Teléfono</p>
-                      <a href={`tel:${detail.contactoTelefono}`} className="text-sm text-foreground hover:text-secondary transition-colors">
+                      <a href={`tel:${detail.contactoTelefono}`} className="text-sm text-foreground hover:text-primary transition-colors">
                         {detail.contactoTelefono}
                       </a>
                     </div>

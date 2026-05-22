@@ -254,7 +254,7 @@ export default function RankingPage() {
                                         {i + 1}
                                     </span>
                                     <div className="w-[180px] shrink-0 truncate">
-                                        <Link href={`/colaboradores/${c.id}`} className="text-sm font-medium hover:text-secondary transition-colors truncate">
+                                        <Link href={`/colaboradores/${c.id}`} className="text-sm font-medium hover:text-primary transition-colors truncate">
                                             {c.nombre}
                                         </Link>
                                     </div>
@@ -337,7 +337,7 @@ export default function RankingPage() {
                                                 )}
                                             </td>
                                             <td className="px-3 py-3">
-                                                <Link href={`/colaboradores/${c.id}`} className="flex items-center gap-2 hover:text-secondary transition-colors">
+                                                <Link href={`/colaboradores/${c.id}`} className="flex items-center gap-2 hover:text-primary transition-colors">
                                                     <div className="h-7 w-7 rounded-lg bg-accent/40 flex items-center justify-center text-[9px] font-bold text-secondary shrink-0">
                                                         {c.nombre.split(" ")[0].slice(0, 2).toUpperCase()}
                                                     </div>

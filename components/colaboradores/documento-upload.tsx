@@ -79,7 +79,7 @@ export function DocumentoUpload({
             >
               <FileText className="h-3.5 w-3.5 text-secondary shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium truncate group-hover:text-secondary transition-colors">
+                <p className="text-xs font-medium truncate group-hover:text-primary transition-colors">
                   {doc.nombre}
                 </p>
                 <p className="text-[9px] text-muted-foreground">

@@ -14,7 +14,7 @@ const getHandler = async (request: Request) => {
 
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
-  const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit") ?? 25)));
+  const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? 100)));
   const comercialId = isCeoOrAdmin(session.role)
     ? url.searchParams.get("comercialId") || undefined
     : session.comercialId || undefined;
@@ -36,6 +36,7 @@ const getHandler = async (request: Request) => {
         nombre: true,
         telefono: true,
         leadStatus: true,
+        createdAt: true,
       },
       orderBy: { updatedAt: "desc" },
       take: limit,

@@ -9,13 +9,7 @@ import { WorkspaceTabsProvider } from "@/lib/stores/workspace-tabs";
 import { cn } from "@/lib/utils";
 import { GlobalLoaderProvider } from "@/components/loading/global-loader-provider";
 
-export function AppShell({
-    children,
-    logoSrc,
-}: {
-    children: React.ReactNode;
-    logoSrc?: string;
-}) {
+export function AppShell({ children }: { children: React.ReactNode }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     return (
@@ -23,7 +17,7 @@ export function AppShell({
             <TooltipProvider delayDuration={200}>
                 <GlobalLoaderProvider>
                     <div className="min-h-screen bg-background text-foreground">
-                        <TopBar logoSrc={logoSrc} />
+                        <TopBar />
                         <WorkspaceTabsBar sidebarCollapsed={sidebarCollapsed} />
                         <Sidebar
                             collapsed={sidebarCollapsed}
@@ -32,7 +26,7 @@ export function AppShell({
                         <main
                             className={cn(
                                 "pt-20 transition-all duration-300",
-                                sidebarCollapsed ? "pl-16" : "pl-64"
+                                sidebarCollapsed ? "pl-16" : "pl-60"
                             )}
                         >
                             <div className="p-6">{children}</div>

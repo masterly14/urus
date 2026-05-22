@@ -58,7 +58,7 @@ function getPortalOverlayClass(portalName?: string | null): string {
     return "absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-white/35 bg-zinc-950 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-zinc-900 hover:border-white/50";
   if (n.includes("fotocasa"))
     return "absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-[#0065EB]/60 bg-[#0065EB]/15 px-2.5 py-1 text-xs font-semibold text-[#0065EB] backdrop-blur transition-colors hover:bg-[#0065EB]/25";
-  return "absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground backdrop-blur transition-colors hover:bg-secondary/20 hover:text-secondary";
+  return "absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground backdrop-blur transition-colors hover:bg-primary/10 hover:text-primary";
 }
 
 function PropertyImage({ property }: { property: PropertyListItem }) {

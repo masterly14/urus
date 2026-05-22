@@ -642,7 +642,7 @@ export default function MercadoPage() {
                                             <td className="px-4 py-2.5">
                                                 <Link
                                                     href={`/platform/pricing/analisis/${comp.propertyCode}`}
-                                                    className="text-xs font-medium hover:text-secondary transition-colors"
+                                                    className="text-xs font-medium hover:text-primary transition-colors"
                                                 >
                                                     {comp.titulo}
                                                 </Link>

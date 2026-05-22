@@ -21,6 +21,7 @@
 
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
+import { PageHeader } from "@/components/layout/page-header";
 import { OportunidadesView } from "./oportunidades-view";
 
 export const dynamic = "force-dynamic";
@@ -41,13 +42,8 @@ export default async function OportunidadesPage({ searchParams }: PageProps) {
   }
 
   return (
-    <div className="flex h-full flex-col gap-3 p-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-neutral-800 dark:text-neutral-100">
-          Inmuebles
-        </h1>
-        <p className="text-sm text-muted-foreground">Listado de Inmuebles</p>
-      </div>
+    <div className="flex h-full flex-col gap-4">
+      <PageHeader title="Inmuebles" description="Listado de inmuebles" />
       <OportunidadesView mock={isMock} />
     </div>
   );

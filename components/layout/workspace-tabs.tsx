@@ -113,7 +113,7 @@ export function WorkspaceTabsBar({ sidebarCollapsed }: { sidebarCollapsed: boole
         <div
             className={cn(
                 "fixed top-12 right-0 z-45 flex h-8 items-center border-y border-l border-border bg-white dark:bg-card transition-all duration-300 rounded-tl-2xl",
-                sidebarCollapsed ? "left-16" : "left-64"
+                sidebarCollapsed ? "left-16" : "left-60"
             )}
         >
             <div className="flex h-full flex-1 items-center overflow-x-auto px-1.5">

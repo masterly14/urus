@@ -308,11 +308,11 @@ export default function ColaboradoresPage() {
                   <TableRow key={c.id} className="group">
                     <TableCell>
                       <Link href={`/platform/colaboradores/${c.id}`} className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-secondary/10 flex items-center justify-center text-xs font-semibold text-secondary shrink-0 border border-secondary/20">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0 border border-primary/20">
                           {c.nombre.split(" ")[0].slice(0, 2).toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-medium text-foreground truncate max-w-[220px] group-hover:text-secondary transition-colors">
+                          <p className="font-medium text-foreground truncate max-w-[220px] group-hover:text-primary transition-colors">
                             {c.nombre}
                           </p>
                           <p className="text-xs text-muted-foreground truncate max-w-[220px]">

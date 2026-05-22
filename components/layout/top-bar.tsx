@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Bell, ChevronLeft, ChevronRight, ExternalLink, LogOut, Settings, User } from "lucide-react";
 import { useSession } from "@/lib/hooks/use-session";
@@ -27,6 +26,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useGlobalLoader } from "@/lib/hooks/use-global-loader";
+import { TopBarBranding } from "@/components/layout/top-bar-branding";
 
 const severityColors: Record<string, string> = {
     critical: "bg-[var(--urus-danger)]",
@@ -133,7 +133,7 @@ function getNotificationHref(notification: AppNotification): string | null {
     return sourceFallbackMap[notification.source] ?? null;
 }
 
-export function TopBar({ logoSrc }: { logoSrc?: string }) {
+export function TopBar() {
     const router = useRouter();
     const { startNavigation } = useGlobalLoader();
     const { session, isCeoOrAdmin } = useSession();
@@ -168,28 +168,7 @@ export function TopBar({ logoSrc }: { logoSrc?: string }) {
 
     return (
         <header className="fixed top-0 left-0 right-0 z-50 flex h-12 items-center justify-between border-b border-border bg-white dark:bg-card px-4">
-            {/* Logo */}
-            <div className="flex min-w-0 shrink-0 items-center gap-3">
-                {logoSrc ? (
-                    <Image
-                        src={logoSrc}
-                        alt="Urus Capital Group"
-                        width={140}
-                        height={48}
-                        priority
-                        className="h-11 w-auto max-w-[min(40vw,180px)] object-contain object-left"
-                    />
-                ) : (
-                    <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--urus-gold)] to-[var(--urus-gold)]/70">
-                            <span className="text-sm font-bold text-background">U</span>
-                        </div>
-                        <span className="text-lg font-semibold tracking-tight">
-                            URUS <span className="text-[var(--urus-gold)]">Capital</span>
-                        </span>
-                    </div>
-                )}
-            </div>
+            <TopBarBranding />
 
             {/* Right section */}
             <div className="flex items-center gap-3">

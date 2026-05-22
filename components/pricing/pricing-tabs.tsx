@@ -42,7 +42,7 @@ export function PricingTabs() {
             className={cn(
               "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
               active
-                ? "bg-card text-secondary shadow-sm"
+                ? "bg-card text-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
             )}
           >

@@ -1,9 +1,142 @@
-@import "tailwindcss";
-@import "leaflet/dist/leaflet.css";
+@import 'tailwindcss';
 
-@custom-variant dark (&:is(.dark *));
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GLOBALS.CSS - Tema Claro Tradicional para Inmobiliaria B2B
+   ═══════════════════════════════════════════════════════════════════════════
+   
+   Paleta "tradicional inmobiliaria":
+   - Fondo: blanco sólido con superficies crema muy sutiles
+   - Primary: Azul marino profesional (confianza, seriedad bancaria)
+   - Accent: Teal moderado para hovers (frescura sin ser "tech")
+   - Textos: Grises cálidos y navy ink para jerarquía clásica
+   - Sin gradientes llamativos, sin colores chillones
+   
+   NO hay soporte para dark mode - tema único claro/tradicional
+   Motivo: Los negocios inmobiliarios tradicionales B2B prefieren
+   interfaces claras que transmiten transparencia y profesionalismo.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --radius: 0.5rem;
+
+  /* ─── Fondos ─────────────────────────────────────────────────────────────
+     Fondo blanco sólido - sin gradientes para evitar look "startup tech".
+     El blanco puro transmite limpieza y profesionalismo tradicional. */
+  --background: #fafbfc;
+  --foreground: #1f2937;
+  
+  /* ─── Surfaces (Cards, Popovers) ─────────────────────────────────────────
+     Blanco puro para cards con bordes grises suaves.
+     Contraste sutil contra el fondo para "flotar" sin dramatismo. */
+  --card: #ffffff;
+  --card-foreground: #1f2937;
+  
+  --popover: #ffffff;
+  --popover-foreground: #1f2937;
+
+  /* ─── Primary: Azul marino profesional ───────────────────────────────────
+     Clásico en banca, seguros e inmobiliarias tradicionales.
+     Transmite: confianza, seriedad, estabilidad. */
+  --primary: #1e3a5f;
+  --primary-foreground: #ffffff;
+
+  /* ─── Secondary: Gris cálido neutro ──────────────────────────────────────
+     Para botones secundarios y elementos de soporte.
+     No compite con el primary, mantiene jerarquía clara. */
+  --secondary: #f1f5f9;
+  --secondary-foreground: #334155;
+
+  /* ─── Muted: Textos secundarios y fondos sutiles ─────────────────────── */
+  --muted: #f8fafc;
+  --muted-foreground: #64748b;
+
+  /* ─── Accent: Teal suave para hovers y selecciones ───────────────────────
+     Frescura moderada sin parecer "fintech" o "crypto".
+     Solo visible en interacciones, no domina la UI. */
+  --accent: #f0f7fa;
+  --accent-foreground: #0f4c5c;
+
+  /* ─── Destructive: Rojo sobrio ───────────────────────────────────────── */
+  --destructive: #b91c1c;
+  --destructive-foreground: #ffffff;
+
+  /* ─── Bordes: Grises suaves, no agresivos ────────────────────────────────
+     Bordes visibles pero sutiles para delimitar sin crear "cajas duras". */
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  
+  /* ─── Ring: Focus sutil con color primary ────────────────────────────────
+     Anillo de enfoque visible para accesibilidad pero no llamativo. */
+  --ring: #1e3a5f;
+
+  /* ─── Semantic Status Colors ─────────────────────────────────────────────
+     Tonos moderados y profesionales, no colores "neón". */
+  --status-success: #15803d;
+  --status-success-bg: #f0fdf4;
+  --status-success-border: #bbf7d0;
+  
+  --status-warning: #b45309;
+  --status-warning-bg: #fffbeb;
+  --status-warning-border: #fde68a;
+  
+  --status-danger: #b91c1c;
+  --status-danger-bg: #fef2f2;
+  --status-danger-border: #fecaca;
+  
+  --status-info: #1d4ed8;
+  --status-info-bg: #eff6ff;
+  --status-info-border: #bfdbfe;
+
+  /* ─── URUS semantic tokens (iconos, badges, estados) ───────────────────── */
+  --urus-success: var(--status-success);
+  --urus-success-bg: var(--status-success-bg);
+  --urus-warning: var(--status-warning);
+  --urus-warning-bg: var(--status-warning-bg);
+  --urus-danger: var(--status-danger);
+  --urus-danger-bg: var(--status-danger-bg);
+  --urus-info: var(--status-info);
+  --urus-info-bg: var(--status-info-bg);
+  --urus-gold: #c9a84c;
+  --urus-gold-bg: #faf6eb;
+  --urus-ai: #5b21b6;
+  --urus-ai-bg: #f5f3ff;
+
+  /* ─── Shadows: Muy sutiles ───────────────────────────────────────────────
+     Sombras mínimas para evitar el look "floating cards" de SaaS moderno.
+     Solo lo necesario para dar profundidad sin dramatismo. */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.06), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
+
+  /* ─── Chart colors: Paleta sobria ────────────────────────────────────── */
+  --chart-1: #1e3a5f;
+  --chart-2: #0f766e;
+  --chart-3: #1d4ed8;
+  --chart-4: #7c3aed;
+  --chart-5: #b45309;
+
+  /* ─── Sidebar: Consistente con tema claro ────────────────────────────── */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1f2937;
+  --sidebar-primary: #1e3a5f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f0f7fa;
+  --sidebar-accent-foreground: #0f4c5c;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #1e3a5f;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TAILWIND THEME MAPPING
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 @theme inline {
+  --font-sans: var(--font-geist-sans), 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-geist-mono), 'SF Mono', 'Consolas', monospace;
+  
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -23,15 +156,37 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --shadow-card: var(--shadow-card);
-  --shadow-elevated: var(--shadow-elevated);
-  --color-urus-gold: var(--urus-gold);
+  
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  
+  /* Status color tokens */
+  --color-status-success: var(--status-success);
+  --color-status-success-bg: var(--status-success-bg);
+  --color-status-warning: var(--status-warning);
+  --color-status-warning-bg: var(--status-warning-bg);
+  --color-status-danger: var(--status-danger);
+  --color-status-danger-bg: var(--status-danger-bg);
+  --color-status-info: var(--status-info);
+  --color-status-info-bg: var(--status-info-bg);
+
   --color-urus-success: var(--urus-success);
   --color-urus-success-bg: var(--urus-success-bg);
   --color-urus-warning: var(--urus-warning);
@@ -40,100 +195,252 @@
   --color-urus-danger-bg: var(--urus-danger-bg);
   --color-urus-info: var(--urus-info);
   --color-urus-info-bg: var(--urus-info-bg);
+  --color-urus-gold: var(--urus-gold);
+  --color-urus-gold-bg: var(--urus-gold-bg);
   --color-urus-ai: var(--urus-ai);
   --color-urus-ai-bg: var(--urus-ai-bg);
+  
+  --shadow-card: var(--shadow-card);
 }
 
-:root {
-  --radius: 0.5rem;
+/* ═══════════════════════════════════════════════════════════════════════════
+   BASE STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-  --background: #f4f5f7;
-  --foreground: #1a1a2e;
-  --card: #ffffff;
-  --card-foreground: #1a1a2e;
-  --popover: #ffffff;
-  --popover-foreground: #1a1a2e;
-  --primary: #1a365d;
-  --primary-foreground: #ffffff;
-  --secondary: #edf0f4;
-  --secondary-foreground: #1a1a2e;
-  --muted: #f1f3f6;
-  --muted-foreground: #6b7280;
-  --accent: #edf0f4;
-  --accent-foreground: #1a1a2e;
-  --destructive: #dc2626;
-  --destructive-foreground: #ffffff;
-  --border: #e5e7eb;
-  --input: #e5e7eb;
-  --ring: #1a365d;
+@layer base {
+  *,
+  *::before,
+  *::after {
+    @apply border-border;
+  }
 
-  --urus-gold: #c9a84c;
-  --urus-success: #16a34a;
-  --urus-success-bg: #f0fdf4;
-  --urus-warning: #f59e0b;
-  --urus-warning-bg: #fffbeb;
-  --urus-danger: #dc2626;
-  --urus-danger-bg: #fef2f2;
-  --urus-info: #2563eb;
-  --urus-info-bg: #eff6ff;
-  --urus-ai: #7c3aed;
-  --urus-ai-bg: #f5f3ff;
+  /* ─── HTML: Fondo sólido, esquema de color fijo ──────────────────────────
+     color-scheme: light fuerza el tema claro en todos los elementos nativos
+     (scrollbars, inputs de fecha, etc.) */
+  html {
+    @apply scroll-smooth;
+    color-scheme: light;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 4px rgba(0, 0, 0, 0.02);
-  --shadow-elevated: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+  /* ─── Body: Fondo blanco sólido ──────────────────────────────────────────
+     Sin gradientes ni patrones - máxima claridad y profesionalismo.
+     Los negocios tradicionales prefieren fondos limpios y directos. */
+  body {
+    @apply bg-background text-foreground min-h-screen;
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* ─── Headings: Jerarquía clásica ────────────────────────────────────────
+     Navy oscuro para autoridad, pesos moderados (no ultra-bold "startup"). */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+    color: #111827;
+  }
+
+  h1 { @apply text-2xl sm:text-3xl; }
+  h2 { @apply text-xl sm:text-2xl; }
+  h3 { @apply text-lg sm:text-xl; }
+  h4 { @apply text-base sm:text-lg; }
+  h5 { @apply text-sm sm:text-base; }
+  h6 { @apply text-xs sm:text-sm; }
+
+  /* ─── Links: Azul profesional, subrayado sutil ───────────────────────── */
+  a:not([class]) {
+    @apply text-primary underline-offset-4 transition-colors;
+  }
+  a:not([class]):hover {
+    @apply underline opacity-80;
+  }
+
+  /* ─── Focus visible: Anillo sutil pero accesible ─────────────────────────
+     Ring con color primary, offset para separación visual.
+     Visible para accesibilidad, no llamativo para la estética. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring/40 ring-offset-2 ring-offset-background;
+  }
+
+  /* ─── Selection: Azul suave ──────────────────────────────────────────── */
+  ::selection {
+    background-color: rgba(30, 58, 95, 0.15);
+    color: inherit;
+  }
+
+  /* Lucide: heredan color del contenedor y trazo legible */
+  svg.lucide {
+    stroke: currentColor;
+    stroke-width: 2;
+    flex-shrink: 0;
+  }
 }
 
-.dark {
-  --background: #0f1117;
-  --foreground: #f0f0f2;
-  --card: #1a1d23;
-  --card-foreground: #f0f0f2;
-  --popover: #1a1d23;
-  --popover-foreground: #f0f0f2;
-  --primary: #c9a84c;
-  --primary-foreground: #0f1117;
-  --secondary: #c9a84c;
-  --secondary-foreground: #0f1117;
-  --muted: #262a33;
-  --muted-foreground: #9ca3af;
-  --accent: #262a33;
-  --accent-foreground: #f0f0f2;
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
-  --border: #2d3139;
-  --input: #2d3139;
-  --ring: #c9a84c;
+/* ═══════════════════════════════════════════════════════════════════════════
+   FORM ELEMENTS
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-  --urus-gold: #c9a84c;
-  --urus-success: #22c55e;
-  --urus-success-bg: #052e16;
-  --urus-warning: #fbbf24;
-  --urus-warning-bg: #422006;
-  --urus-danger: #f87171;
-  --urus-danger-bg: #450a0a;
-  --urus-info: #60a5fa;
-  --urus-info-bg: #172554;
-  --urus-ai: #a78bfa;
-  --urus-ai-bg: #2e1065;
+@layer base {
+  /* ─── Inputs, selects, textareas ─────────────────────────────────────────
+     Bordes grises suaves, radius moderado (no muy "pill-like").
+     Focus con borde primary y ring muy sutil. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([class*="peer"]),
+  textarea:not([class*="peer"]),
+  select:not([class*="peer"]) {
+    @apply rounded-md border border-input bg-white px-3 py-2 text-sm;
+    @apply transition-all duration-150;
+    @apply placeholder:text-muted-foreground/60;
+  }
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 1px 4px rgba(0, 0, 0, 0.1);
-  --shadow-elevated: 0 4px 12px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.15);
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([class*="peer"]):hover,
+  textarea:not([class*="peer"]):hover,
+  select:not([class*="peer"]):hover {
+    @apply border-slate-300;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([class*="peer"]):focus,
+  textarea:not([class*="peer"]):focus,
+  select:not([class*="peer"]):focus {
+    @apply border-primary/50 ring-2 ring-primary/10 outline-none;
+  }
+
+  /* ─── Disabled state ─────────────────────────────────────────────────── */
+  input:disabled,
+  textarea:disabled,
+  select:disabled,
+  button:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+
+  /* ─── Placeholder: Gris medio, no muy oscuro ─────────────────────────── */
+  ::placeholder {
+    @apply text-slate-400;
+  }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCROLLBAR STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer base {
+  /* ─── Webkit scrollbars: Grises sutiles ──────────────────────────────── */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-slate-100;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-slate-300;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400;
+  }
+
+  /* ─── Firefox scrollbars ─────────────────────────────────────────────── */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f1f5f9;
+  }
 }
 
-/* ── Interactive rows (tables, lists, clickable items) ─────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMPONENT UTILITIES
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-.interactive-row {
-  @apply transition-colors duration-150 cursor-pointer;
-  @apply hover:bg-muted/40;
+@layer components {
+  /* ─── Surface cards: Blancos con sombras mínimas ─────────────────────────
+     Sombras muy sutiles para evitar el look "floating cards" moderno.
+     Bordes definidos dan un aspecto más tradicional/formal. */
+  .surface-card {
+    @apply bg-card rounded-lg border border-border;
+    box-shadow: var(--shadow-card);
+  }
+
+  .surface-card-elevated {
+    @apply bg-card rounded-lg border border-border;
+    box-shadow: var(--shadow-md);
+  }
+
+  /* ─── Interactive row: Para tablas y listas ──────────────────────────── */
+  .interactive-row {
+    @apply transition-colors duration-150 cursor-pointer;
+    @apply hover:bg-slate-50;
+  }
 }
 
-/* ── Smart Closing: contract preview (mammoth output) ─────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   UTILITY CLASSES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer utilities {
+  /*
+   * text-secondary en Tailwind apunta al token de superficie (#f1f5f9), no al texto.
+   * En la UI se usa como color de iconos/énfasis → foreground legible.
+   */
+  .text-secondary {
+    color: var(--secondary-foreground);
+  }
+
+  /* ─── Text utilities ─────────────────────────────────────────────────── */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* ─── Status indicator dots ──────────────────────────────────────────── */
+  .status-dot {
+    @apply size-2 rounded-full;
+  }
+
+  .status-dot-success { background-color: var(--status-success); }
+  .status-dot-warning { background-color: var(--status-warning); }
+  .status-dot-danger { background-color: var(--status-danger); }
+  .status-dot-info { background-color: var(--status-info); }
+  .status-dot-muted { @apply bg-slate-400; }
+}
+
+/*  ═══════════════════════════════════════════════════════════════════════════
+   ANIMATIONS - Sutiles, no distractoras
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    from { 
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to { 
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONTRACT & TEMPLATE EDITOR STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Contract Preview & Paper Container ─────────────────────────────────── */
 
 .contract-preview-word-canvas {
   background: #ffffff;
@@ -169,15 +476,7 @@ body {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
 }
 
-.dark .contract-paper {
-  --contract-text: #e2e8f0;
-  --contract-heading: #c9a84c;
-  --contract-muted: #94a3b8;
-  --contract-border: #334155;
-  --contract-bg: #1a1d23;
-}
-
-/* Por encima de .dark .contract-paper: documento siempre claro en lienzo tipo Word */
+/* Documento siempre claro en lienzo tipo Word */
 .contract-preview-word-canvas .contract-paper {
   --contract-text: #1e293b;
   --contract-heading: #1a365d;
@@ -186,6 +485,8 @@ body {
   --contract-bg: #ffffff;
   background: #ffffff;
 }
+
+/* ─── Mammoth/Word document rendering ────────────────────────────────────── */
 
 .contract-mammoth-preview {
   color: var(--contract-text);
@@ -294,7 +595,8 @@ body {
   margin-bottom: 0;
 }
 
-/* Variables inline editables dentro del contrato (document-first) */
+/* ─── Inline editable fields dentro del contrato ──────────────────────────── */
+
 .contract-mammoth-preview .urus-inline-field-value {
   display: inline;
   cursor: text;
@@ -329,14 +631,10 @@ body {
     0 0 0 2px rgba(63, 110, 168, 0.28);
 }
 
-/* ── Template Editor ────────────────────────────────────────────────── */
+/* ─── Template Editor Container ──────────────────────────────────────────── */
 
 .template-editor-scroll {
-  background: linear-gradient(to bottom, #f1f5f9 0%, #e8ecf1 100%);
-}
-
-.dark .template-editor-scroll {
-  background: linear-gradient(to bottom, #0a0c10 0%, #0f1117 100%);
+  background: #f8fafc;
 }
 
 .template-editor-content {
@@ -394,7 +692,7 @@ body {
   margin-bottom: 0.25em;
 }
 
-/* ── Variable chips (inline) ── */
+/* ─── Contract Variable Chips (inline) ────────────────────────────────────── */
 
 .template-editor-content .contract-variable-chip {
   display: inline;
@@ -418,7 +716,7 @@ body {
   border-color: #b0b0b0;
 }
 
-/* ── Logo header block ── */
+/* ─── Logo header block ──────────────────────────────────────────────────── */
 
 .template-editor-content .logo-header-block {
   display: flex;
@@ -442,7 +740,7 @@ body {
   font-size: 18px;
 }
 
-/* ── Shared clause block ── */
+/* ─── Shared Clause Block ────────────────────────────────────────────────── */
 
 .template-editor-content .shared-clause-block {
   display: block;
@@ -472,7 +770,7 @@ body {
   content: "📄 Clausula (desactivada): ";
 }
 
-/* ── Conditional block ── */
+/* ─── Conditional Block ──────────────────────────────────────────────────── */
 
 .template-editor-content .conditional-block {
   display: block;
@@ -491,7 +789,7 @@ body {
   font-weight: 600;
 }
 
-/* ── Signature block ── */
+/* ─── Signature Block ────────────────────────────────────────────────────── */
 
 .template-editor-content .signature-block {
   display: flex;
@@ -515,10 +813,10 @@ body {
   font-size: 18px;
 }
 
-/* ── ProseMirror selection ── */
+/* ─── ProseMirror Selection ──────────────────────────────────────────────── */
 
 .template-editor-content .ProseMirror-selectednode {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid #1e3a5f;
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -529,4 +827,19 @@ body {
   color: #94a3b8;
   pointer-events: none;
   height: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRINT STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
 }

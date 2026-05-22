@@ -128,13 +128,13 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { proxiedStatefoxImageUrl } from "@/lib/statefox/image-url";
-import { MOCK_LISTINGS } from "./mock";
 import type {
   ClusterPortalEntry,
   LngLat,
   ListingOpportunity,
   ListingsApiResponse,
 } from "./types";
+import { MOCK_LISTINGS } from "./mock";
 
 /**
  * Shape devuelto por `GET/POST /api/market/properties/search`.
@@ -267,7 +267,7 @@ type PortalFilter =
 type OperationFilter = "all" | "sale" | "rent";
 
 const toolbarBtnClass =
-  "inline-flex h-9 shrink-0 items-center gap-2 rounded border border-neutral-300 bg-[#f4f4f4] px-3 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-neutral-200/90 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700";
+  "inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-1";
 
 const POLLING_INTERVAL_MS = 90_000;
 const DESCRIPTION_COLLAPSE_CHARS = 900;
@@ -1776,9 +1776,9 @@ export function OportunidadesView({
   return (
     <div className="space-y-3">
       {mock && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
           <strong>Modo mock:</strong> datos estaticos (no se llama a la API).
-          Quita <code>?mock=1</code> de la URL para datos reales.
+          Quita <code className="rounded bg-amber-100 px-1">?mock=1</code> de la URL para datos reales.
         </div>
       )}
 
@@ -1869,7 +1869,7 @@ export function OportunidadesView({
           </label>
           {activeFilterCount > 0 ? (
             <span
-              className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-orange-500 px-1 text-[11px] font-semibold tabular-nums text-white"
+              className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-white"
               aria-label={`${activeFilterCount} filtros activos`}
             >
               {activeFilterCount > 99 ? "99+" : activeFilterCount}
@@ -1878,15 +1878,15 @@ export function OportunidadesView({
         </div>
 
         {isProspectView && prospectScope.canChooseActor ? (
-          <div className="inline-flex h-9 items-center gap-2 rounded border border-neutral-300 bg-[#f4f4f4] px-2 dark:border-neutral-600 dark:bg-neutral-800">
-            <span className="text-xs text-muted-foreground">Comercial:</span>
+          <div className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 shadow-sm">
+            <span className="text-xs text-slate-500">Comercial:</span>
             <Select
               value={prospectActorUserId ?? "all"}
               onValueChange={(value) =>
                 setProspectActorUserId(value === "all" ? null : value)
               }
             >
-              <SelectTrigger className="h-7 w-[180px] border-neutral-300 bg-white text-xs dark:border-neutral-600 dark:bg-neutral-900">
+              <SelectTrigger className="h-7 w-[180px] border-slate-200 bg-white text-xs">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
@@ -1958,14 +1958,14 @@ export function OportunidadesView({
       )}
 
       {filterPanelOpen && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-2 shadow-sm">
-          <div className="flex flex-1 items-center gap-2 rounded-md border bg-background px-3 h-9 min-w-[200px] max-w-[300px]">
-            <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+        <div className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="flex flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/50 px-3 h-9 min-w-[200px] max-w-[300px] focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+            <Search className="h-4 w-4 text-slate-400 shrink-0" />
             <input
               value={city}
               onChange={(e) => setCity(e.target.value)}
               placeholder="Buscar por ciudad..."
-              className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
             />
           </div>
 
@@ -1973,7 +1973,7 @@ export function OportunidadesView({
             value={portalFilter}
             onValueChange={(v) => setPortalFilter(v as PortalFilter)}
           >
-            <SelectTrigger className="h-9 w-[160px] bg-background">
+            <SelectTrigger className="h-9 w-[160px] bg-white border-slate-200 hover:border-slate-300">
               <SelectValue placeholder="Todos los portales" />
             </SelectTrigger>
             <SelectContent>
@@ -1990,7 +1990,7 @@ export function OportunidadesView({
             value={operationFilter}
             onValueChange={(v) => setOperationFilter(v as OperationFilter)}
           >
-            <SelectTrigger className="h-9 w-[120px] bg-background">
+            <SelectTrigger className="h-9 w-[120px] bg-white border-slate-200 hover:border-slate-300">
               <SelectValue placeholder="Operación" />
             </SelectTrigger>
             <SelectContent>
@@ -2125,8 +2125,8 @@ export function OportunidadesView({
         </div>
       )}
 
-      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-neutral-300 shadow-sm dark:border-neutral-700">
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 border-b bg-muted/20 pb-3 dark:bg-muted/10">
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200 rounded-xl shadow-sm bg-white">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/50 pb-3">
           <CardTitle className="text-sm font-semibold">
             Listado{" "}
             {meta && (
@@ -2145,22 +2145,22 @@ export function OportunidadesView({
           ) : null}
         </CardHeader>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-neutral-100/80 px-3 py-2 dark:bg-neutral-900/50">
-          <div className="flex flex-wrap items-center gap-1 text-sm tabular-nums text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/30 px-4 py-2.5">
+          <div className="flex flex-wrap items-center gap-1.5 text-sm tabular-nums text-slate-500">
             <button
               type="button"
               onClick={goToPrevPage}
               disabled={currentPage <= 1 || loading}
-              className="inline-flex items-center justify-center rounded border border-neutral-300 bg-white px-2 py-0.5 text-xs hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-neutral-600 dark:bg-neutral-950 dark:hover:bg-neutral-900"
+              className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
               aria-label="Página anterior"
               title="Página anterior"
             >
-              <ChevronLeft className="h-3 w-3" />
+              <ChevronLeft className="h-3.5 w-3.5" />
             </button>
-            <span className="rounded border border-neutral-300 bg-neutral-200 px-2 py-0.5 text-xs font-medium text-foreground dark:border-neutral-600 dark:bg-neutral-800">
+            <span className="rounded-md border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
               {currentPage}
             </span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-slate-500">
               {items.length > 0
                 ? `· ${items.length} filas${
                     meta?.totalEstimated
@@ -2173,15 +2173,15 @@ export function OportunidadesView({
               type="button"
               onClick={goToNextPage}
               disabled={!cursor || loading}
-              className="inline-flex items-center justify-center rounded border border-neutral-300 bg-white px-2 py-0.5 text-xs hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-neutral-600 dark:bg-neutral-950 dark:hover:bg-neutral-900"
+              className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
               aria-label="Página siguiente"
               title="Página siguiente"
             >
-              <ChevronRight className="h-3 w-3" />
+              <ChevronRight className="h-3.5 w-3.5" />
             </button>
           </div>
           <DropdownMenu>
-            <DropdownMenuTrigger className="inline-flex items-center gap-1 text-sm font-medium text-foreground underline-offset-4 hover:underline">
+            <DropdownMenuTrigger className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
               Columnas
               <ChevronDown className="h-4 w-4 opacity-60" />
             </DropdownMenuTrigger>
@@ -2208,12 +2208,12 @@ export function OportunidadesView({
 
         <CardContent className="min-h-0 flex-1 overflow-auto p-0">
           {error && (
-            <div className="m-3 rounded border border-red-300 bg-red-50 p-2 text-xs text-red-800">
+            <div className="m-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
               {error}
             </div>
           )}
           {comercialesError && (
-            <div className="mx-3 mt-3 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+            <div className="mx-4 mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
               No se pudo cargar la lista de comerciales: {comercialesError}
             </div>
           )}
@@ -2300,9 +2300,9 @@ export function OportunidadesView({
                     <TableRow
                       key={row.id}
                       onClick={() => openDetailModal(row)}
-                      className={`cursor-pointer group hover:bg-muted/40 ${
+                      className={`cursor-pointer group hover:bg-slate-50/80 transition-colors ${
                         highlightId === row.id
-                          ? "bg-emerald-50 transition-colors dark:bg-emerald-950/30"
+                          ? "bg-primary/5 ring-1 ring-inset ring-primary/20"
                           : ""
                       }`}
                     >
@@ -2317,7 +2317,7 @@ export function OportunidadesView({
                                   : [row.mainImageUrl!];
                               openLightbox(imgs, 0);
                             }}
-                            className="group/img relative block h-24 w-36 overflow-hidden rounded border border-neutral-200 bg-muted shadow-sm transition-all hover:border-emerald-400 hover:shadow-md dark:border-neutral-700"
+                            className="group/img relative block h-24 w-36 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-sm transition-all hover:border-primary/50 hover:shadow-md"
                             title="Ver foto a tamaño grande"
                           >
                             <img
@@ -2337,7 +2337,7 @@ export function OportunidadesView({
                             ) : null}
                           </button>
                         ) : (
-                          <div className="flex h-24 w-36 items-center justify-center rounded border border-dashed border-neutral-300 bg-muted text-[10px] text-muted-foreground dark:border-neutral-700">
+                          <div className="flex h-24 w-36 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-[10px] text-slate-400">
                             sin foto
                           </div>
                         )}
@@ -2347,7 +2347,7 @@ export function OportunidadesView({
                           <span className="truncate font-medium">
                             {displayLocation(row)}
                           </span>
-                          <div className="flex items-center gap-2.5 text-[11px] text-muted-foreground">
+                          <div className="flex items-center gap-2.5 text-[11px] text-slate-500">
                             <span className="flex items-center gap-1">
                               <Ruler className="h-3 w-3" />
                               {row.builtArea ?? "—"} m²
@@ -2378,7 +2378,7 @@ export function OportunidadesView({
                             ))}
                             {row.portals.length > 1 && row.priceSpreadPct != null
                               ? (
-                                  <span className="text-[9px] font-medium text-amber-700 dark:text-amber-300">
+                                  <span className="text-[9px] font-medium text-amber-600">
                                     Δ {(row.priceSpreadPct * 100).toFixed(1)}%
                                   </span>
                                 )
@@ -2397,16 +2397,16 @@ export function OportunidadesView({
                     <TableCell className="text-right text-xs font-medium">
                       <div className="flex flex-col items-end gap-0.5">
                         <span>{formatPrice(row.price)}</span>
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="text-[10px] text-slate-500">
                           {formatPpm(row.pricePerMeter)}
                         </span>
                       </div>
                     </TableCell>
                     <TableCell className="text-xs">
                       <div className="flex flex-col">
-                        <span>{row.advertiserDisplayName ?? "—"}</span>
+                        <span className="font-medium text-slate-700">{row.advertiserDisplayName ?? "—"}</span>
                         {row.advertiserType && (
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-[10px] text-slate-500">
                             {row.advertiserType === "particular"
                               ? "Particular"
                               : "Agencia"}
@@ -2430,7 +2430,7 @@ export function OportunidadesView({
                           void assignComercial(row, val === "unassigned" ? null : val)
                         }
                       >
-                        <SelectTrigger className="h-7 w-[120px] bg-transparent px-2 text-xs">
+                        <SelectTrigger className="h-7 w-[120px] bg-white border-slate-200 px-2 text-xs hover:border-slate-300">
                           <SelectValue placeholder="Sin asignar" />
                         </SelectTrigger>
                         <SelectContent>
@@ -2443,7 +2443,7 @@ export function OportunidadesView({
                         </SelectContent>
                       </Select>
                       {(assignmentFeedback[row.id]) && (
-                        <p className="mt-1 max-w-[120px] truncate text-[9px] text-muted-foreground" title={assignmentFeedback[row.id]}>
+                        <p className="mt-1 max-w-[120px] truncate text-[9px] text-slate-500" title={assignmentFeedback[row.id]}>
                           {assignmentFeedback[row.id]}
                         </p>
                       )}
@@ -2463,17 +2463,17 @@ export function OportunidadesView({
                           {captacionStageLabel(row.captacionStage)}
                         </Badge>
                         {row.inmovillaProspectRef ? (
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-[10px] text-slate-500">
                             Ref: {row.inmovillaProspectRef}
                           </span>
                         ) : null}
                         {row.inmovillaPropertyCodOfer != null ? (
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-[10px] text-slate-500">
                             Cod: {row.inmovillaPropertyCodOfer}
                           </span>
                         ) : null}
                         {(captacionFeedback[row.id] ?? row.captacionLastError) ? (
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-[10px] text-slate-500">
                             {captacionFeedback[row.id] ?? row.captacionLastError}
                           </span>
                         ) : null}
@@ -2491,7 +2491,7 @@ export function OportunidadesView({
                             )
                           }
                         >
-                          <SelectTrigger className="h-7 w-[130px] bg-transparent px-2 text-xs">
+                          <SelectTrigger className="h-7 w-[130px] bg-white border-slate-200 px-2 text-xs hover:border-slate-300">
                             <SelectValue placeholder="Sin etiqueta" />
                           </SelectTrigger>
                           <SelectContent>
@@ -2520,7 +2520,7 @@ export function OportunidadesView({
                         ) : null}
                         {tagFeedback[row.id] ? (
                           <p
-                            className="max-w-[130px] truncate text-[9px] text-muted-foreground"
+                            className="max-w-[130px] truncate text-[9px] text-slate-500"
                             title={tagFeedback[row.id]}
                           >
                             {tagFeedback[row.id]}
@@ -2528,7 +2528,7 @@ export function OportunidadesView({
                         ) : null}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right text-xs text-muted-foreground">
+                    <TableCell className="text-right text-xs text-slate-500">
                       {relativeTime(row.lastSeenAt)}
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
@@ -2565,8 +2565,8 @@ export function OportunidadesView({
             </TableBody>
           </Table>
           {(items.length > 0 || currentPage > 1) && (
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-neutral-50/80 px-3 py-2 dark:bg-neutral-900/40">
-              <span className="text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/50 px-4 py-3">
+              <span className="text-xs text-slate-500">
                 Mostrando {items.length > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0}
                 {items.length > 0
                   ? `–${(currentPage - 1) * PAGE_SIZE + items.length}`
@@ -2579,11 +2579,12 @@ export function OportunidadesView({
                   variant="outline"
                   onClick={goToPrevPage}
                   disabled={currentPage <= 1 || loading}
+                  className="border-slate-200 hover:bg-slate-50 hover:border-slate-300"
                 >
                   <ChevronLeft className="mr-1 h-3 w-3" />
                   Anterior
                 </Button>
-                <span className="text-xs tabular-nums text-muted-foreground">
+                <span className="text-xs tabular-nums text-slate-600 font-medium">
                   Página {currentPage}
                 </span>
                 <Button
@@ -2591,6 +2592,7 @@ export function OportunidadesView({
                   variant="outline"
                   onClick={goToNextPage}
                   disabled={!cursor || loading}
+                  className="border-slate-200 hover:bg-slate-50 hover:border-slate-300"
                 >
                   Siguiente
                   <ChevronRight className="ml-1 h-3 w-3" />
@@ -2602,12 +2604,12 @@ export function OportunidadesView({
       </Card>
 
       <Sheet open={detailModalOpen} onOpenChange={setDetailModalOpen}>
-        <SheetContent side="right" className="flex w-full flex-col overflow-x-hidden overflow-y-auto p-6 sm:max-w-md md:max-w-2xl !border-l-0 shadow-2xl">
+        <SheetContent side="right" className="flex w-full flex-col overflow-x-hidden overflow-y-auto p-6 sm:max-w-md md:max-w-2xl border-l border-slate-200 shadow-xl bg-white">
           <SheetHeader className="mb-4">
             <div className="flex items-center justify-between">
-              <SheetTitle className="text-lg">Gestión de oportunidad</SheetTitle>
+              <SheetTitle className="text-lg font-semibold text-slate-900">Gestión de oportunidad</SheetTitle>
               {selectedListing && (
-                <Button asChild variant="ghost" size="sm" className="h-8 gap-1 px-2 text-muted-foreground hover:text-foreground">
+                <Button asChild variant="ghost" size="sm" className="h-8 gap-1 px-2 text-slate-500 hover:text-slate-700">
                   <Link href={`/platform/market/properties/${encodeURIComponent(selectedListing.propertyId)}`}>
                     <ExternalLink className="h-3 w-3" />
                     Ficha completa
@@ -2615,7 +2617,7 @@ export function OportunidadesView({
                 </Button>
               )}
             </div>
-            <SheetDescription>
+            <SheetDescription className="text-slate-500">
               Asigna comercial y ejecuta acciones de CRM sin perder el listado.
             </SheetDescription>
           </SheetHeader>
@@ -2627,27 +2629,27 @@ export function OportunidadesView({
                   <img
                     src={proxiedStatefoxImageUrl(selectedListing.mainImageUrl)}
                     alt={`Anuncio ${selectedListing.id}`}
-                    className="h-48 w-full rounded-md object-cover border border-border/20 shadow-sm"
+                    className="h-48 w-full rounded-xl object-cover border border-slate-200 shadow-sm"
                     loading="lazy"
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <div className="flex h-48 w-full items-center justify-center rounded-md bg-muted text-xs text-muted-foreground border border-border/20">
+                  <div className="flex h-48 w-full items-center justify-center rounded-xl bg-slate-50 text-xs text-slate-400 border border-slate-200">
                     sin foto
                   </div>
                 )}
                 
-                <div className="min-w-0 space-y-1.5 text-sm p-4 bg-muted/10 rounded-md border border-border/20">
-                  <p className="font-semibold text-base mb-1">{displayLocation(selectedListing)}</p>
-                  <p className="text-muted-foreground">
+                <div className="min-w-0 space-y-1.5 text-sm p-4 bg-slate-50/50 rounded-xl border border-slate-200">
+                  <p className="font-semibold text-base mb-1 text-slate-900">{displayLocation(selectedListing)}</p>
+                  <p className="text-slate-500">
                     {selectedListing.city} · {selectedListing.zone ?? "Sin zona"}
                   </p>
-                  <p className="text-muted-foreground">
+                  <p className="text-slate-500">
                     {selectedListing.builtArea ?? "—"} m² ·{" "}
                     {selectedListing.rooms ?? "—"} hab ·{" "}
                     {selectedListing.bathrooms ?? "—"} baños
                   </p>
-                  <p className="font-medium text-base mt-2">
+                  <p className="font-semibold text-base mt-2 text-slate-800">
                     {formatPrice(selectedListing.price)} ·{" "}
                     {formatPpm(selectedListing.pricePerMeter)}
                   </p>
@@ -2656,7 +2658,7 @@ export function OportunidadesView({
               
               <div className="min-w-0 space-y-6">
                 <div>
-                  <Label className="mb-2 block text-xs uppercase text-muted-foreground">Estado e Identificadores</Label>
+                  <Label className="mb-2 block text-xs uppercase tracking-wide text-slate-500">Estado e Identificadores</Label>
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                       <Badge
                         variant={
@@ -2671,12 +2673,12 @@ export function OportunidadesView({
                       </Badge>
                       <Badge variant="outline">{SOURCE_LABEL[selectedListing.source] ?? selectedListing.source}</Badge>
                       {selectedListing.listingReference ? (
-                        <Badge variant="secondary" className="bg-muted/50">
+                        <Badge variant="secondary" className="bg-slate-100 text-slate-700">
                           Ref: {selectedListing.listingReference}
                         </Badge>
                       ) : null}
                       {selectedListing.inmovillaPropertyCodOfer != null ? (
-                        <Badge variant="secondary" className="bg-muted/50">
+                        <Badge variant="secondary" className="bg-slate-100 text-slate-700">
                           Cod: {selectedListing.inmovillaPropertyCodOfer}
                         </Badge>
                       ) : null}
@@ -2684,7 +2686,7 @@ export function OportunidadesView({
                   </div>
 
                 <div className="space-y-2">
-                  <Label className="block text-xs uppercase text-muted-foreground">
+                  <Label className="block text-xs uppercase tracking-wide text-slate-500">
                     Etiquetas
                   </Label>
                   <div className="flex flex-wrap items-center gap-2">
@@ -2700,7 +2702,7 @@ export function OportunidadesView({
                         )
                       }
                     >
-                      <SelectTrigger className="h-9 w-[220px]">
+                    <SelectTrigger className="h-9 w-[220px] bg-white border-slate-200 hover:border-slate-300">
                         <SelectValue placeholder="Sin etiqueta" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2728,7 +2730,7 @@ export function OportunidadesView({
                       <CaptacionTagBadge tag={selectedListing.captacionTag} />
                     ) : null}
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-slate-500">
                     {tagFeedback[selectedListing.id] || "Marca el estado comercial del contacto para priorizar el seguimiento."}
                   </p>
                 </div>
@@ -2736,10 +2738,10 @@ export function OportunidadesView({
               {/* Galeria de fotos del inmueble (URLs originales del portal). */}
               {selectedListing.imageUrls && selectedListing.imageUrls.length > 1 ? (
                 <div>
-                  <Label className="mb-2 block text-xs uppercase text-muted-foreground">
+                  <Label className="mb-2 block text-xs uppercase tracking-wide text-slate-500">
                     Galeria ({selectedListing.imageUrls.length} fotos)
                   </Label>
-                  <div className="flex gap-2 overflow-x-auto rounded-md bg-muted/20 border border-border/50 p-2.5">
+                  <div className="flex gap-2 overflow-x-auto rounded-xl bg-slate-50/50 border border-slate-200 p-2.5">
                     {selectedListing.imageUrls.slice(0, 24).map((url, idx) => (
                       <button
                         key={`${url}-${idx}`}
@@ -2747,7 +2749,7 @@ export function OportunidadesView({
                         onClick={() =>
                           openLightbox(selectedListing.imageUrls!, idx)
                         }
-                        className="group relative block h-20 w-28 flex-shrink-0 overflow-hidden rounded border border-transparent transition-all hover:border-emerald-400 hover:shadow-md"
+                        className="group relative block h-20 w-28 flex-shrink-0 overflow-hidden rounded-lg border border-transparent transition-all hover:border-primary/50 hover:shadow-md"
                         title="Ver foto a tamaño grande"
                       >
                         <img
@@ -2767,8 +2769,8 @@ export function OportunidadesView({
               ) : null}
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-1.5 p-4 bg-muted/20 rounded-md border border-border/50">
-                  <Label className="text-xs uppercase text-muted-foreground">Comercial responsable</Label>
+                <div className="space-y-1.5 p-4 bg-slate-50/50 rounded-xl border border-slate-200">
+                  <Label className="text-xs uppercase tracking-wide text-slate-500">Comercial responsable</Label>
                   <select
                     value={selectedListing.assignedComercialId ?? ""}
                     disabled={loadingComerciales || assigningId === selectedListing.id}
@@ -2778,7 +2780,7 @@ export function OportunidadesView({
                         e.target.value ? e.target.value : null,
                       )
                     }
-                    className="h-9 w-full rounded-md border border-border/80 bg-background px-3 text-sm shadow-sm hover:border-border transition-colors"
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm shadow-sm hover:border-slate-300 transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   >
                     <option value="">Sin asignar</option>
                     {comerciales.map((comercial) => (
@@ -2789,30 +2791,30 @@ export function OportunidadesView({
                   </select>
                   {(assignmentFeedback[selectedListing.id] ??
                     selectedListing.assignedComercialNombre) && (
-                    <p className="text-xs text-muted-foreground mt-1 truncate">
+                    <p className="text-xs text-slate-500 mt-1 truncate">
                       {assignmentFeedback[selectedListing.id] ??
                         selectedListing.assignedComercialNombre}
                     </p>
                   )}
                 </div>
 
-                <div className="space-y-1.5 p-4 bg-muted/20 rounded-md border border-border/50">
-                  <Label className="text-xs uppercase text-muted-foreground">Contacto publicante</Label>
-                  <div className="flex h-9 items-center rounded-md border border-border/80 bg-background px-3 text-sm shadow-sm">
+                <div className="space-y-1.5 p-4 bg-slate-50/50 rounded-xl border border-slate-200">
+                  <Label className="text-xs uppercase tracking-wide text-slate-500">Contacto publicante</Label>
+                  <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm shadow-sm">
                     {selectedListing.phoneCanonical ? (
                       <a
                         href={`tel:${selectedListing.phoneCanonical}`}
-                        className="inline-flex items-center gap-2 hover:underline font-medium"
+                        className="inline-flex items-center gap-2 hover:underline font-medium text-slate-700"
                       >
-                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                        <Phone className="h-3.5 w-3.5 text-slate-400" />
                         {formatPhone(selectedListing.phoneCanonical)}
                       </a>
                     ) : (
-                      <span className="text-muted-foreground">Sin teléfono</span>
+                      <span className="text-slate-400">Sin teléfono</span>
                     )}
                   </div>
                   <div className="flex items-center justify-between mt-1">
-                    <p className="text-xs text-muted-foreground truncate max-w-[140px]">
+                    <p className="text-xs text-slate-500 truncate max-w-[140px]">
                       {selectedListing.advertiserDisplayName ?? "No identificado"}
                     </p>
                     {selectedListing.advertiserType && (
@@ -2827,15 +2829,15 @@ export function OportunidadesView({
               {/* Descripcion completa de la ficha (extraida via fetch-detail). */}
               {selectedListing.description ? (
                 <div>
-                  <Label className="mb-2 block text-xs uppercase text-muted-foreground">
+                  <Label className="mb-2 block text-xs uppercase tracking-wide text-slate-500">
                     Descripcion original
                   </Label>
                   <div className="relative">
-                    <p className="whitespace-pre-line rounded-md border border-border/50 bg-muted/20 p-4 text-sm leading-relaxed break-words [overflow-wrap:anywhere] text-muted-foreground">
+                    <p className="whitespace-pre-line rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-sm leading-relaxed break-words [overflow-wrap:anywhere] text-slate-600">
                       {visibleDescription}
                     </p>
                     {hasLongDescription && !descriptionExpanded && (
-                      <div className="absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t from-muted/20 to-transparent pointer-events-none rounded-b-md" />
+                      <div className="absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t from-slate-50/50 to-transparent pointer-events-none rounded-b-xl" />
                     )}
                   </div>
                   {hasLongDescription ? (
@@ -2857,17 +2859,17 @@ export function OportunidadesView({
                   ) : null}
                 </div>
               ) : selectedListing.detailFetchedAt ? (
-                <p className="text-xs text-muted-foreground p-3 bg-muted/20 rounded-md border border-border/50">
+                <p className="text-xs text-slate-500 p-3 bg-slate-50/50 rounded-xl border border-slate-200">
                   La ficha en el portal no contenía descripción.
                 </p>
               ) : (
-                <p className="text-xs text-muted-foreground p-3 bg-muted/20 rounded-md border border-border/50">
+                <p className="text-xs text-slate-500 p-3 bg-slate-50/50 rounded-xl border border-slate-200">
                   Cargando descripción detallada en los próximos minutos...
                 </p>
               )}
             </div>
 
-              <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-border">
+              <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-slate-200">
                 {!isProspectView &&
                 (selectedListing.captacionStage === "NEW" ||
                   selectedListing.captacionStage === "FAILED") ? (
@@ -2950,7 +2952,7 @@ export function OportunidadesView({
               {(pushFeedback[selectedListing.id] ??
                 captacionFeedback[selectedListing.id] ??
                 selectedListing.captacionLastError) && (
-                <div className="rounded border bg-muted/40 p-2 text-xs text-muted-foreground mt-4">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 mt-4">
                   {pushFeedback[selectedListing.id] ??
                     captacionFeedback[selectedListing.id] ??
                     selectedListing.captacionLastError}
@@ -2958,58 +2960,58 @@ export function OportunidadesView({
               )}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Selecciona una propiedad.</p>
+            <p className="text-sm text-slate-500">Selecciona una propiedad.</p>
           )}
         </SheetContent>
       </Sheet>
 
       <Dialog open={captacionModalOpen} onOpenChange={setCaptacionModalOpen}>
-        <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-2xl">
+        <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-2xl bg-white border-slate-200">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-slate-900">
               {captacionModalMode === "prospecto"
                 ? "Crear prospecto en Inmovilla"
                 : "Dar de alta propiedad en Inmovilla"}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-slate-500">
               Inmovilla recibe los datos ya capturados del portal. Ajusta solo lo
               que quieras sobrescribir antes de enviar.
             </DialogDescription>
           </DialogHeader>
 
           {captacionTarget && (
-            <div className="mb-2 rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
-              <div className="mb-1 font-medium text-foreground">
+            <div className="mb-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+              <div className="mb-2 font-medium text-slate-800">
                 Datos detectados automáticamente
               </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
                 <div>
-                  <span className="text-muted-foreground">Ciudad: </span>
-                  <span className="font-medium text-foreground">
+                  <span className="text-slate-500">Ciudad: </span>
+                  <span className="font-medium text-slate-800">
                     {captacionTarget.city || "—"}
                   </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Tipología: </span>
-                  <span className="font-medium text-foreground">
+                  <span className="text-slate-500">Tipología: </span>
+                  <span className="font-medium text-slate-800">
                     {captacionTarget.housingType || "—"}
                   </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Operación: </span>
-                  <span className="font-medium text-foreground">
+                  <span className="text-slate-500">Operación: </span>
+                  <span className="font-medium text-slate-800">
                     {captacionTarget.operation || "—"}
                   </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Zona detectada: </span>
-                  <span className="font-medium text-foreground">
+                  <span className="text-slate-500">Zona detectada: </span>
+                  <span className="font-medium text-slate-800">
                     {captacionTarget.zone || "—"}
                   </span>
                 </div>
                 <div className="sm:col-span-2">
-                  <span className="text-muted-foreground">Fotos del portal: </span>
-                  <span className="font-medium text-foreground">
+                  <span className="text-slate-500">Fotos del portal: </span>
+                  <span className="font-medium text-slate-800">
                     {captacionTarget.imageUrls?.length
                       ? `${captacionTarget.imageUrls.length} se enviarán automáticamente`
                       : "sin fotos en el portal"}
@@ -3019,9 +3021,9 @@ export function OportunidadesView({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1 sm:col-span-2">
-              <Label>Zona</Label>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <Label className="text-slate-700">Zona</Label>
               <Select
                 value={captacionForm.keyZona || "__auto__"}
                 onValueChange={(v) =>
@@ -3032,7 +3034,7 @@ export function OportunidadesView({
                 }
                 disabled={zonasLoading}
               >
-                <SelectTrigger className="h-9">
+                <SelectTrigger className="h-9 bg-white border-slate-200 hover:border-slate-300">
                   <SelectValue
                     placeholder={
                       zonasLoading
@@ -3053,9 +3055,9 @@ export function OportunidadesView({
                 </SelectContent>
               </Select>
               {zonasError ? (
-                <p className="text-xs text-destructive">{zonasError}</p>
+                <p className="text-xs text-red-600">{zonasError}</p>
               ) : (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-slate-500">
                   {zonasLoading
                     ? "Consultando catálogo Inmovilla..."
                     : zonasCatalog.length === 0
@@ -3064,8 +3066,8 @@ export function OportunidadesView({
                 </p>
               )}
             </div>
-            <div className="space-y-1">
-              <Label>Precio inmobiliaria</Label>
+            <div className="space-y-2">
+              <Label className="text-slate-700">Precio inmobiliaria</Label>
               <Input
                 value={captacionForm.precioInmo}
                 onChange={(e) =>
@@ -3076,8 +3078,8 @@ export function OportunidadesView({
                 }
               />
             </div>
-            <div className="space-y-1">
-              <Label>Habitaciones</Label>
+            <div className="space-y-2">
+              <Label className="text-slate-700">Habitaciones</Label>
               <Input
                 value={captacionForm.habitaciones}
                 onChange={(e) =>
@@ -3088,8 +3090,8 @@ export function OportunidadesView({
                 }
               />
             </div>
-            <div className="space-y-1">
-              <Label>Baños</Label>
+            <div className="space-y-2">
+              <Label className="text-slate-700">Baños</Label>
               <Input
                 value={captacionForm.banyos}
                 onChange={(e) =>
@@ -3097,8 +3099,8 @@ export function OportunidadesView({
                 }
               />
             </div>
-            <div className="space-y-1 sm:col-span-2">
-              <Label>Calle</Label>
+            <div className="space-y-2 sm:col-span-2">
+              <Label className="text-slate-700">Calle</Label>
               <Input
                 value={captacionForm.calle}
                 onChange={(e) =>
@@ -3106,14 +3108,14 @@ export function OportunidadesView({
                 }
               />
               {geocode.status === "loading" ? (
-                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                <p className="flex items-center gap-2 text-xs text-slate-500">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   Detectando dirección desde la ubicación del mapa…
                 </p>
               ) : geocode.status === "ready" && geocode.formattedAddress ? (
-                <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <MapPin className="h-3 w-3 text-emerald-600" />
-                  <span className="font-medium text-foreground">
+                <p className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <MapPin className="h-3 w-3 text-primary" />
+                  <span className="font-medium text-slate-700">
                     Dirección detectada:
                   </span>
                   <span>{geocode.formattedAddress}</span>
@@ -3135,24 +3137,24 @@ export function OportunidadesView({
                 </p>
               ) : geocode.status === "unavailable" &&
                 geocode.reason === "NO_API_KEY" ? (
-                <p className="text-xs text-muted-foreground">
-                  Geocoding no configurado. Define <code>GOOGLE_MAPS_API_KEY</code>
+                <p className="text-xs text-slate-500">
+                  Geocoding no configurado. Define <code className="rounded bg-slate-100 px-1">GOOGLE_MAPS_API_KEY</code>
                   {" "}para autocompletar desde el mapa.
                 </p>
               ) : geocode.status === "unavailable" &&
                 geocode.reason === "NO_COORDS" ? (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-slate-500">
                   Este listing no tiene coordenadas en el portal; introduce la
                   calle manualmente.
                 </p>
               ) : geocode.status === "error" ? (
-                <p className="text-xs text-destructive">
+                <p className="text-xs text-red-600">
                   No se pudo detectar la dirección ({geocode.message}).
                 </p>
               ) : null}
             </div>
-            <div className="space-y-1">
-              <Label>Número</Label>
+            <div className="space-y-2">
+              <Label className="text-slate-700">Número</Label>
               <Input
                 value={captacionForm.numero}
                 onChange={(e) =>
@@ -3160,13 +3162,13 @@ export function OportunidadesView({
                 }
               />
               {geocode.status === "ready" && geocode.postalCode ? (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-slate-500">
                   CP detectado: {geocode.postalCode}
                 </p>
               ) : null}
             </div>
-            <div className="space-y-1">
-              <Label>Planta</Label>
+            <div className="space-y-2">
+              <Label className="text-slate-700">Planta</Label>
               <Input
                 value={captacionForm.planta}
                 onChange={(e) =>
@@ -3176,8 +3178,8 @@ export function OportunidadesView({
             </div>
             {captacionModalMode === "promocion" && (
               <>
-                <div className="space-y-1 sm:col-span-2">
-                  <Label>Título (opcional)</Label>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label className="text-slate-700">Título (opcional)</Label>
                   <Input
                     value={captacionForm.tituloes}
                     onChange={(e) =>
@@ -3188,8 +3190,8 @@ export function OportunidadesView({
                     }
                   />
                 </div>
-                <div className="space-y-1 sm:col-span-2">
-                  <Label>Descripción (opcional)</Label>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label className="text-slate-700">Descripción (opcional)</Label>
                   <Textarea
                     value={captacionForm.descripciones}
                     onChange={(e) =>
@@ -3205,11 +3207,12 @@ export function OportunidadesView({
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button
               variant="outline"
               onClick={() => setCaptacionModalOpen(false)}
               disabled={captacionSubmitting}
+              className="border-slate-200 hover:bg-slate-50 hover:border-slate-300"
             >
               Cancelar
             </Button>

@@ -410,7 +410,7 @@ export default function ColaboradoresPage() {
                                             className="hover:bg-accent/20 transition-colors group"
                                         >
                                             <td className="px-4 py-3">
-                                                <Link href={`/colaboradores/${c.id}`} className="flex items-center gap-2.5 group-hover:text-secondary transition-colors">
+                                                <Link href={`/colaboradores/${c.id}`} className="flex items-center gap-2.5 group-hover:text-primary transition-colors">
                                                     <div className="h-8 w-8 rounded-lg bg-accent/40 flex items-center justify-center text-[10px] font-bold text-secondary shrink-0">
                                                         {c.nombre.split(" ")[0].slice(0, 2).toUpperCase()}
                                                     </div>

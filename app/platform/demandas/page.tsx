@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useDemands, type DemandsFilters, type DemandRow } from "@/lib/hooks/use-demands";
-import type { LeadStatus } from "@prisma/client";
+import { LeadStatus } from "@prisma/client";
 import { DeactivateConfirmDialog } from "./deactivate-confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 
@@ -1119,6 +1119,7 @@ export default function DemandasPage() {
   const router = useRouter();
   const { isCeoOrAdmin } = useSession();
 
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedStatuses, setSelectedStatuses] = useState<LeadStatus[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -1294,9 +1295,9 @@ export default function DemandasPage() {
   }, []);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-10">
+    <div className="mx-auto flex h-[calc(100dvh-8rem)] max-h-[calc(100dvh-8rem)] max-w-[1600px] flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="mb-4 flex shrink-0 flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Demandas</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -1318,40 +1319,140 @@ export default function DemandasPage() {
       </div>
 
       {/* Stats bar */}
-      <StatsBar
-        stats={stats}
-        onGroupClick={toggleGroupStatuses}
-        activeStatuses={selectedStatuses}
-      />
-
-      {/* Toolbar (Filters & Search) */}
-      <div className="flex flex-col gap-4 bg-card border border-border/60 rounded-lg p-3 shadow-sm">
-        <div className="relative w-full sm:max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Buscar por nombre, código, zona o teléfono..."
-            className="w-full bg-transparent border-none focus:ring-0 text-sm pl-9 pr-4 py-1.5 placeholder:text-muted-foreground"
-          />
-        </div>
-
-        <div className="pt-3 border-t border-border/40">
-          <FilterChips
-            activeStatuses={selectedStatuses}
-            onToggle={toggleStatus}
-            onClearAll={clearFilters}
-            stats={stats}
-          />
-        </div>
+      <div className="mb-4 shrink-0">
+        <StatsBar
+          stats={stats}
+          onGroupClick={toggleGroupStatuses}
+          activeStatuses={selectedStatuses}
+        />
       </div>
 
+      {/* Main layout: filtros fijos + tabla con scroll */}
+      <div className="flex min-h-0 flex-1 gap-5">
+
+        {/* Filter Sidebar */}
+        <div
+          className={cn(
+            "shrink-0 self-stretch transition-all duration-200",
+            sidebarOpen ? "w-72" : "w-0 overflow-hidden"
+          )}
+        >
+          <div className="flex h-full w-72 flex-col rounded-lg border border-border/60 bg-card shadow-sm">
+            {/* Sidebar header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border/40">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                Filtros
+              </div>
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(false)}
+                className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Ocultar Filtros
+              </button>
+            </div>
+
+            {/* Search input */}
+            <div className="px-4 pt-4 pb-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  placeholder="Buscar por nombre, código, zona o teléfono..."
+                  className="w-full rounded-md border border-border bg-background pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary/50 transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Status filter chips */}
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 pb-4 pt-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Estado pipeline</p>
+              <div className="flex flex-col gap-1">
+                {ALL_STATUSES.map((status) => {
+                  const meta = STATUS_META[status];
+                  const active = selectedStatuses.includes(status);
+                  const count = stats[status] ?? 0;
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => toggleStatus(status)}
+                      className={cn(
+                        "flex items-center justify-between w-full rounded-md px-3 py-1.5 text-xs font-medium transition-all border",
+                        active
+                          ? "bg-primary/5 border-primary/30 text-foreground"
+                          : "bg-transparent border-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                        count === 0 && !active && "opacity-40"
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="h-1.5 w-1.5 rounded-full shrink-0"
+                          style={{ backgroundColor: meta.color }}
+                        />
+                        {meta.label}
+                      </div>
+                      <span className={cn(
+                        "text-[10px] tabular-nums font-normal",
+                        active ? "text-foreground" : "text-muted-foreground"
+                      )}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedStatuses.length > 0 && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mt-1"
+                >
+                  <X className="h-3 w-3" />
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
+
+            {/* Apply filters footer */}
+            <div className="px-4 py-3 border-t border-border/40">
+              <Button
+                size="sm"
+                className="w-full gap-2"
+                onClick={() => refetch()}
+                disabled={isLoading}
+              >
+                <Search className="h-3.5 w-3.5" />
+                Aplicar filtros
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main content column */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+          {/* Show filters toggle (when sidebar is hidden) */}
+          {!sidebarOpen && (
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="flex shrink-0 items-center gap-1.5 self-start text-xs font-medium text-primary transition-colors hover:text-primary/80"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+              Mostrar Filtros
+            </button>
+          )}
+
       {/* Table */}
-      <Card className="shadow-sm border-border/60 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-accent/40 border-b border-border/60">
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-border/60 shadow-sm">
+        <div className="min-h-0 flex-1 overflow-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="sticky top-0 z-10 border-b border-border/60 bg-accent/95 backdrop-blur-sm">
               <tr>
                 <th className="px-5 py-3 font-medium text-muted-foreground">Comprador</th>
                 <th className="px-5 py-3 font-medium text-muted-foreground">Zonas / Tipos</th>
@@ -1414,7 +1515,7 @@ export default function DemandasPage() {
 
         {/* Pagination */}
         {!isLoading && total > 0 && (
-          <div className="flex items-center justify-between border-t border-border/40 px-5 py-3 bg-accent/10">
+          <div className="flex shrink-0 items-center justify-between border-t border-border/40 bg-accent/10 px-5 py-3">
             <span className="text-sm text-muted-foreground">
               {total} demanda{total !== 1 ? "s" : ""}
               {selectedStatuses.length > 0 || debouncedQuery
@@ -1445,7 +1546,9 @@ export default function DemandasPage() {
             </div>
           </div>
         )}
-      </Card>
+        </Card>
+        </div>{/* end main content column */}
+      </div>{/* end sidebar + content flex */}
     </div>
   );
 }

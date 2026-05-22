@@ -608,7 +608,7 @@ export default function DashboardColaboradoresPage() {
                           <div className="h-8 w-8 rounded-full bg-secondary/10 flex items-center justify-center text-xs font-semibold text-secondary shrink-0 border border-secondary/20">
                             {c.nombre.split(" ")[0].slice(0, 2).toUpperCase()}
                           </div>
-                          <span className="font-medium text-foreground truncate max-w-[200px] group-hover:text-secondary transition-colors">
+                          <span className="font-medium text-foreground truncate max-w-[200px] group-hover:text-primary transition-colors">
                             {c.nombre}
                           </span>
                         </div>
