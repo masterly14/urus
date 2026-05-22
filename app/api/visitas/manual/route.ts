@@ -66,7 +66,22 @@ const postHandler = async (request: Request) => {
     return NextResponse.json({ ok: false, error: "Demanda no encontrada" }, { status: 404 });
   }
 
-  const comercialId = parsed.data.comercialId ?? demand?.comercialId ?? session.comercialId;
+  if (
+    parsed.data.demandMode === "existing" &&
+    demand &&
+    !isCeoOrAdmin(session.role) &&
+    demand.comercialId !== session.comercialId
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "No puedes crear visitas para otra demanda" },
+      { status: 403 },
+    );
+  }
+
+  const comercialId =
+    parsed.data.demandMode === "existing"
+      ? demand?.comercialId ?? (isCeoOrAdmin(session.role) ? parsed.data.comercialId : undefined)
+      : parsed.data.comercialId ?? session.comercialId;
   if (!comercialId) {
     return NextResponse.json({ ok: false, error: "Sin comercial asociado" }, { status: 400 });
   }

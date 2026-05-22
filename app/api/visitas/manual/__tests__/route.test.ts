@@ -80,10 +80,24 @@ describe("POST /api/visitas/manual", () => {
   });
 
   it("bloquea demanda de otro comercial", async () => {
-    mockDemandFindUnique.mockResolvedValue({ comercialId: "com-2" });
+    mockDemandFindUnique.mockResolvedValue({ comercialId: "com-2", telefono: "34600999888" });
 
     const { POST } = await import("../route");
     const res = await POST(request({ demandId: "DEM-1", propertyId: "PROP-1" }));
+
+    expect(res.status).toBe(403);
+    expect(mockCreateManualVisitWorkItem).not.toHaveBeenCalled();
+  });
+
+  it("bloquea demanda de otro comercial aunque el body incluya el comercial propio", async () => {
+    mockDemandFindUnique.mockResolvedValue({ comercialId: "com-2", telefono: "34600999888" });
+
+    const { POST } = await import("../route");
+    const res = await POST(request({
+      comercialId: "com-1",
+      demandId: "DEM-1",
+      propertyId: "PROP-1",
+    }));
 
     expect(res.status).toBe(403);
     expect(mockCreateManualVisitWorkItem).not.toHaveBeenCalled();
