@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockFindUnique = vi.fn();
 const mockUpdateMany = vi.fn();
 const mockPropertyFindUnique = vi.fn();
+const mockVisitSchedulingFindUnique = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -12,6 +13,9 @@ vi.mock("@/lib/prisma", () => ({
     },
     propertyCurrent: {
       findUnique: (...args: unknown[]) => mockPropertyFindUnique(...args),
+    },
+    visitSchedulingSession: {
+      findUnique: (...args: unknown[]) => mockVisitSchedulingFindUnique(...args),
     },
   },
 }));
@@ -44,6 +48,7 @@ import { sendParteVisitaForSession } from "../send";
 function makeSession(overrides: Partial<{ state: string }> = {}) {
   return {
     id: "parte-1",
+    visitSessionId: "visit-1",
     state: overrides.state ?? "PENDING",
     comercialId: "com-1",
     buyerPhone: "34600000000",
@@ -71,6 +76,7 @@ beforeEach(() => {
     titulo: "Piso 3 hab",
     portalUrl: "https://idealista.com/x",
   });
+  mockVisitSchedulingFindUnique.mockResolvedValue({ state: "VISIT_CONFIRMED" });
   mockSendContexto.mockResolvedValue({});
   mockSendFlow.mockResolvedValue({});
 });
@@ -145,6 +151,56 @@ describe("sendParteVisitaForSession — race condition fix", () => {
     });
     expect(mockUpdateMany).not.toHaveBeenCalled();
     expect(mockSendFlow).not.toHaveBeenCalled();
+  });
+
+  it("si la visita ya fue cancelada, cancela el parte y no envía WhatsApp", async () => {
+    mockFindUnique.mockResolvedValueOnce(makeSession());
+    mockVisitSchedulingFindUnique.mockResolvedValueOnce({ state: "VISIT_CANCELLED" });
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 });
+
+    const result = await sendParteVisitaForSession("parte-1");
+
+    expect(result).toEqual({
+      ok: true,
+      status: "not_pending",
+      sessionState: "CANCELADA",
+    });
+    expect(mockUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: "parte-1",
+        state: { in: ["PENDING", "FORMULARIO_ENVIADO"] },
+      },
+      data: { state: "CANCELADA" },
+    });
+    expect(mockSendContexto).not.toHaveBeenCalled();
+    expect(mockSendFlow).not.toHaveBeenCalled();
+  });
+
+  it("si la visita se cancela tras el claim, no envía el Flow", async () => {
+    mockFindUnique.mockResolvedValueOnce(makeSession());
+    mockVisitSchedulingFindUnique
+      .mockResolvedValueOnce({ state: "VISIT_CONFIRMED" })
+      .mockResolvedValueOnce({ state: "VISIT_CANCELLED" });
+    mockUpdateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 1 });
+
+    const result = await sendParteVisitaForSession("parte-1");
+
+    expect(result).toEqual({
+      ok: true,
+      status: "not_pending",
+      sessionState: "CANCELADA",
+    });
+    expect(mockSendContexto).toHaveBeenCalledOnce();
+    expect(mockSendFlow).not.toHaveBeenCalled();
+    expect(mockUpdateMany).toHaveBeenNthCalledWith(2, {
+      where: {
+        id: "parte-1",
+        state: { in: ["PENDING", "FORMULARIO_ENVIADO"] },
+      },
+      data: { state: "CANCELADA" },
+    });
   });
 
   it("si la sesión ya no está en PENDING al leerla, devuelve already_sent sin enviar", async () => {
