@@ -38,6 +38,32 @@ export type SendParteVisitaResult =
   | { ok: true; status: "sent" | "already_sent" | "not_pending"; sessionState?: string }
   | { ok: false; permanent: boolean; error: string };
 
+const INACTIVE_VISIT_STATES = new Set(["VISIT_CANCELLED", "VISIT_RESCHEDULED"]);
+
+async function abortIfVisitNoLongerActive(session: {
+  id: string;
+  visitSessionId: string;
+}): Promise<SendParteVisitaResult | null> {
+  const visitSession = await prisma.visitSchedulingSession.findUnique({
+    where: { id: session.visitSessionId },
+    select: { state: true },
+  });
+
+  if (!visitSession || !INACTIVE_VISIT_STATES.has(visitSession.state)) {
+    return null;
+  }
+
+  await prisma.parteVisitaSession.updateMany({
+    where: { id: session.id, state: { in: ["PENDING", "FORMULARIO_ENVIADO"] } },
+    data: { state: "CANCELADA" },
+  });
+
+  console.log(
+    `[parte-visita] Visit session ${session.visitSessionId} is ${visitSession.state}; cancelling parte session ${session.id} before send`,
+  );
+  return { ok: true, status: "not_pending", sessionState: "CANCELADA" };
+}
+
 export async function sendParteVisitaForSession(
   sessionId: string,
 ): Promise<SendParteVisitaResult> {
@@ -67,6 +93,9 @@ export async function sendParteVisitaForSession(
       sessionState: session.state,
     };
   }
+
+  const inactiveVisitResult = await abortIfVisitNoLongerActive(session);
+  if (inactiveVisitResult) return inactiveVisitResult;
 
   const comercial = await resolveComercial({
     comercialId: session.comercialId,
@@ -149,6 +178,9 @@ export async function sendParteVisitaForSession(
       sessionState: fresh?.state,
     };
   }
+
+  const inactiveVisitAfterClaim = await abortIfVisitNoLongerActive(session);
+  if (inactiveVisitAfterClaim) return inactiveVisitAfterClaim;
 
   try {
     await sendParteVisitaFlow(comercialPhone, {

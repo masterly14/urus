@@ -464,12 +464,12 @@ export async function cancelManualVisit(
     throw new Error("La sesión de visita agendada no existe");
   }
 
+  const qstashMessageDeleted = await cancelParteVisitaSessionForVisit(session.id);
   await cancelVisitAtomically(session.id);
   const calendarCancelled = await cancelCalendarForSession({
     comercialId: input.comercialId,
     calendarEventId: session.calendarEventId,
   });
-  const qstashMessageDeleted = await cancelParteVisitaSessionForVisit(session.id);
 
   await prisma.visitWorkItem.update({
     where: { id: workItem.id },
@@ -541,12 +541,12 @@ export async function rescheduleManualVisit(
     throw new Error("La sesión previa de visita no existe");
   }
 
+  const qstashMessageDeleted = await cancelParteVisitaSessionForVisit(previousSession.id);
   await cancelVisitAtomically(previousSession.id);
   const calendarCancelled = await cancelCalendarForSession({
     comercialId: input.comercialId,
     calendarEventId: previousSession.calendarEventId,
   });
-  const qstashMessageDeleted = await cancelParteVisitaSessionForVisit(previousSession.id);
 
   const aggregate = buildVisitAggregate({
     demandId: workItem.demandId,
