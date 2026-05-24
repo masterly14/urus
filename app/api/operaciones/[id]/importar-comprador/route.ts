@@ -7,6 +7,7 @@ import { appendEvent } from "@/lib/event-store";
 import type { JsonValue } from "@/lib/event-store/types";
 import { createInmovillaRestClient } from "@/lib/inmovilla/rest/client";
 import { getClient } from "@/lib/inmovilla/rest/clients";
+import { canAccessOperacion, OPERACION_FORBIDDEN_ERROR } from "@/lib/operacion/access";
 import { isTerminal } from "@/lib/operacion/stages";
 
 type Params = { params: Promise<{ id: string }> };
@@ -37,11 +38,15 @@ const postHandler = async (request: Request, { params }: Params) => {
 
   const operacion = await prisma.operacion.findUnique({
     where: { id: operacionId },
-    select: { id: true, codigo: true, propertyCode: true, estado: true },
+    select: { id: true, codigo: true, propertyCode: true, estado: true, comercialId: true },
   });
 
   if (!operacion) {
     return NextResponse.json({ error: "Operación no encontrada" }, { status: 404 });
+  }
+
+  if (!canAccessOperacion(session, operacion)) {
+    return NextResponse.json({ error: OPERACION_FORBIDDEN_ERROR }, { status: 403 });
   }
 
   if (isTerminal(operacion.estado)) {

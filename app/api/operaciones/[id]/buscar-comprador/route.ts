@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
+import type { AppSession } from "@/lib/auth/session";
+import { canAccessOperacion, OPERACION_FORBIDDEN_ERROR } from "@/lib/operacion/access";
 import { resolveDemandIdForProperty } from "@/lib/operacion/resolve-demand";
 import { createInmovillaRestClient } from "@/lib/inmovilla/rest/client";
 import { searchClient } from "@/lib/inmovilla/rest/clients";
@@ -25,6 +27,10 @@ const getHandler = async (request: Request, { params }: Params) => {
     return NextResponse.json({ error: "Operación no encontrada" }, { status: 404 });
   }
 
+  if (!canAccessOperacion(session, operacion)) {
+    return NextResponse.json({ error: OPERACION_FORBIDDEN_ERROR }, { status: 403 });
+  }
+
   const url = new URL(request.url);
   const source = url.searchParams.get("source") || "local";
 
@@ -32,15 +38,19 @@ const getHandler = async (request: Request, { params }: Params) => {
     return handleInmovillaSearch(url);
   }
 
-  return handleLocalSearch(url, operacion);
+  return handleLocalSearch(url, operacion, session);
 };
 
 async function handleLocalSearch(
   url: URL,
   operacion: { id: string; propertyCode: string; comercialId: string | null },
+  session: AppSession,
 ) {
   const search = url.searchParams.get("search") || undefined;
-  const comercialId = url.searchParams.get("comercialId") || operacion.comercialId || undefined;
+  const comercialId =
+    session.role === "ceo" || session.role === "admin"
+      ? url.searchParams.get("comercialId") || operacion.comercialId || undefined
+      : session.comercialId || undefined;
   const limit = Math.min(Number(url.searchParams.get("limit")) || 20, 100);
   const offset = Math.max(Number(url.searchParams.get("offset")) || 0, 0);
 
@@ -86,6 +96,14 @@ async function handleLocalSearch(
         comercialId: true,
       },
     });
+    if (
+      suggestedDemand &&
+      session.role !== "ceo" &&
+      session.role !== "admin" &&
+      suggestedDemand.comercialId !== session.comercialId
+    ) {
+      suggestedDemand = null;
+    }
   }
 
   return NextResponse.json({ demands, total, suggestedDemand });

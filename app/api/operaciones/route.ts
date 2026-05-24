@@ -5,6 +5,11 @@ import { withObservedRoute } from "@/lib/observability";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { appendEvent } from "@/lib/event-store";
 import type { JsonValue } from "@/lib/event-store/types";
+import {
+  canAccessOperacion,
+  operacionAccessWhere,
+  OPERACION_FORBIDDEN_ERROR,
+} from "@/lib/operacion/access";
 import { generarCodigoOperacion } from "@/lib/operacion/codigo";
 import { isTerminal } from "@/lib/operacion/stages";
 import type { OperacionEstado, Prisma } from "@prisma/client";
@@ -29,9 +34,13 @@ const getHandler = async (request: Request) => {
   const orderBy = url.searchParams.get("orderBy") || "createdAt";
   const orderDir = url.searchParams.get("orderDir") === "asc" ? "asc" : "desc";
 
-  const where: Prisma.OperacionWhereInput = {};
+  const where: Prisma.OperacionWhereInput = {
+    ...operacionAccessWhere(session),
+  };
   if (estado) where.estado = estado as OperacionEstado;
-  if (comercialId) where.comercialId = comercialId;
+  if ((session.role === "ceo" || session.role === "admin") && comercialId) {
+    where.comercialId = comercialId;
+  }
   if (ciudad) where.ciudad = { contains: ciudad, mode: "insensitive" };
   if (closedAfter || closedBefore) {
     where.closedAt = {};
@@ -122,9 +131,18 @@ const postHandler = async (request: Request) => {
   const { propertyCode, demandId, buyerClientId, sellerClientId, ciudad } = parsed.data;
   const comercialId = parsed.data.comercialId ?? session.comercialId ?? undefined;
 
-  if (session.role === "ceo" && !comercialId) {
+  if (
+    session.role !== "ceo" &&
+    session.role !== "admin" &&
+    parsed.data.comercialId &&
+    parsed.data.comercialId !== session.comercialId
+  ) {
+    return NextResponse.json({ error: OPERACION_FORBIDDEN_ERROR }, { status: 403 });
+  }
+
+  if ((session.role === "ceo" || session.role === "admin") && !comercialId) {
     return NextResponse.json(
-      { error: "Para crear una operación como CEO debes seleccionar un comercial responsable" },
+      { error: "Para crear una operación como CEO/admin debes seleccionar un comercial responsable" },
       { status: 400 },
     );
   }
@@ -140,6 +158,10 @@ const postHandler = async (request: Request) => {
     if (!comercial.activo) {
       return NextResponse.json({ error: "El comercial seleccionado no está activo" }, { status: 400 });
     }
+  }
+
+  if (!canAccessOperacion(session, { comercialId: comercialId ?? null })) {
+    return NextResponse.json({ error: OPERACION_FORBIDDEN_ERROR }, { status: 403 });
   }
 
   const existingActive = await prisma.operacion.findFirst({

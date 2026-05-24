@@ -33,7 +33,10 @@ const getHandler = async (request: Request) => {
     ];
   }
 
-  if (!isCeoOrAdmin(session.role) && session.comercialId) {
+  if (!isCeoOrAdmin(session.role)) {
+    if (!session.comercialId) {
+      return NextResponse.json({ error: "Sin comercial asociado" }, { status: 403 });
+    }
     where.comercialId = session.comercialId;
   }
 
