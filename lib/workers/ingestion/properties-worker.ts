@@ -21,7 +21,7 @@ import { loadPreviousSnapshot, saveCurrentSnapshot, removeFromSnapshot } from ".
 import type { SnapshotMap } from "./snapshot-repo";
 import { computePropertyDiff } from "./properties-diff";
 import { publishEventsForDiff } from "./event-publisher";
-import type { IngestionCycleResult, PropertySnapshotData } from "./types";
+import type { IngestionCycleResult, PropertyDiffResult, PropertySnapshotData } from "./types";
 import { propertiesLogger } from "./logger";
 import { classifyError, isRateLimitError } from "./errors";
 import { alertGeneric } from "@/lib/alerts";
@@ -39,20 +39,71 @@ import {
 // ---------------------------------------------------------------------------
 const CHECKPOINT_KEY = "ingestion:properties:fetchIndex";
 
-async function loadCheckpoint(): Promise<{ pendingCodes: string[] } | null> {
+export type PropertiesFetchCheckpoint = {
+  pendingCodes: string[];
+  completedProperties: InmovillaProperty[];
+};
+
+function emptyPropertyDiff(): PropertyDiffResult {
+  return {
+    created: [],
+    modified: [],
+    statusChanged: [],
+    removed: [],
+    unchanged: 0,
+  };
+}
+
+async function loadCheckpoint(): Promise<PropertiesFetchCheckpoint | null> {
   const rows = await prisma.$queryRaw<
     Array<{ value: string }>
   >`SELECT "value" FROM "kv_store" WHERE "key" = ${CHECKPOINT_KEY} LIMIT 1`;
   if (rows.length === 0) return null;
   try {
-    return JSON.parse(rows[0].value) as { pendingCodes: string[] };
+    const parsed = JSON.parse(rows[0].value) as Partial<PropertiesFetchCheckpoint>;
+    return {
+      pendingCodes: Array.isArray(parsed.pendingCodes)
+        ? parsed.pendingCodes.filter((code): code is string => typeof code === "string")
+        : [],
+      completedProperties: Array.isArray(parsed.completedProperties)
+        ? (parsed.completedProperties as InmovillaProperty[])
+        : [],
+    };
   } catch {
     return null;
   }
 }
 
-async function saveCheckpoint(pendingCodes: string[]): Promise<void> {
-  const value = JSON.stringify({ pendingCodes });
+export function resolveCheckpointResume(
+  allToFetch: string[],
+  checkpoint: PropertiesFetchCheckpoint | null,
+): {
+  toFetch: string[];
+  completedProperties: InmovillaProperty[];
+} {
+  if (!checkpoint || checkpoint.pendingCodes.length === 0) {
+    return { toFetch: allToFetch, completedProperties: [] };
+  }
+
+  const pending = new Set(checkpoint.pendingCodes);
+  const toFetch = allToFetch.filter((code) => pending.has(code));
+  if (toFetch.length === 0) {
+    return { toFetch: allToFetch, completedProperties: [] };
+  }
+
+  const currentChangedCodes = new Set(allToFetch);
+  const completedProperties = checkpoint.completedProperties.filter(
+    (property) => currentChangedCodes.has(property.codigo) && !pending.has(property.codigo),
+  );
+
+  return { toFetch, completedProperties };
+}
+
+async function saveCheckpoint(
+  pendingCodes: string[],
+  completedProperties: InmovillaProperty[],
+): Promise<void> {
+  const value = JSON.stringify({ pendingCodes, completedProperties });
   await prisma.$executeRaw`
     INSERT INTO "kv_store" ("key", "value", "updatedAt")
     VALUES (${CHECKPOINT_KEY}, ${value}::text, NOW())
@@ -265,16 +316,13 @@ async function fetchPropertiesViaRest(
   // no terminó, continuamos desde los códigos pendientes en vez de empezar
   // de cero. Esto evita que un catálogo grande quede en bucle sin avance.
   const checkpoint = await loadCheckpoint();
-  let toFetch: string[];
-  if (checkpoint && checkpoint.pendingCodes.length > 0) {
-    const pending = new Set(checkpoint.pendingCodes);
-    toFetch = allToFetch.filter((c) => pending.has(c));
+  const { toFetch, completedProperties } = resolveCheckpointResume(allToFetch, checkpoint);
+  if (checkpoint && checkpoint.pendingCodes.length > 0 && toFetch.length !== allToFetch.length) {
     log.info("Reanudando desde checkpoint", {
       totalToFetch: allToFetch.length,
       pendingFromCheckpoint: toFetch.length,
+      completedFromCheckpoint: completedProperties.length,
     });
-  } else {
-    toFetch = allToFetch;
   }
 
   log.info("Análisis de cambios", {
@@ -293,11 +341,12 @@ async function fetchPropertiesViaRest(
     });
   }
 
-  const currentProperties: InmovillaProperty[] = [];
+  const currentProperties: InmovillaProperty[] = [...completedProperties];
   let fetched = 0;
   let failed = 0;
   let totalRetries = 0;
   let fetchComplete = true;
+  const failedCodes: string[] = [];
   const runStart = cycleStartedAt ?? new Date();
 
   // H6: el loop se acota por MAX_PROPERTIES_PER_RUN y por time-budget.
@@ -342,6 +391,7 @@ async function fetchPropertiesViaRest(
         log.debug(`[${i + 1}/${toFetch.length}] OK`, { codigo, retries });
       } else {
         failed++;
+        failedCodes.push(codigo);
       }
       lastProcessedIndex = i;
     } catch (err) {
@@ -365,6 +415,7 @@ async function fetchPropertiesViaRest(
         break;
       }
       failed++;
+      failedCodes.push(codigo);
       lastProcessedIndex = i;
     }
 
@@ -374,10 +425,15 @@ async function fetchPropertiesViaRest(
   }
 
   // H6: persistir o limpiar checkpoint según si quedaron fichas pendientes.
-  const remainingCodes = toFetch.slice(lastProcessedIndex + 1);
+  const remainingCodes = [
+    ...new Set([
+      ...failedCodes,
+      ...toFetch.slice(lastProcessedIndex + 1),
+    ]),
+  ];
   if (remainingCodes.length > 0) {
     fetchComplete = false;
-    await saveCheckpoint(remainingCodes);
+    await saveCheckpoint(remainingCodes, currentProperties);
     log.info("Checkpoint guardado", { remaining: remainingCodes.length });
   } else {
     await clearCheckpoint();
@@ -485,8 +541,14 @@ export async function runPropertiesIngestionCycle(): Promise<IngestionCycleResul
 
         // ── Fase 3: calcular diff ─────────────────────────────────────────────
         t = new PhaseTimer();
-        log.info("Calculando diff...");
-        const diff = computePropertyDiff(properties, previousSnapshot);
+        let diff: PropertyDiffResult;
+        if (fetchComplete) {
+          log.info("Calculando diff...");
+          diff = computePropertyDiff(properties, previousSnapshot);
+        } else {
+          log.warn("Diff omitido: fetch incompleto — no se publican eventos ni eliminaciones");
+          diff = emptyPropertyDiff();
+        }
         phases.computeDiff = t.end();
         log.phase("computeDiff", phases.computeDiff, {
           created: diff.created.length,
@@ -518,8 +580,14 @@ export async function runPropertiesIngestionCycle(): Promise<IngestionCycleResul
 
         // ── Fase 5: publicar eventos ──────────────────────────────────────────
         t = new PhaseTimer();
-        log.info("Publicando eventos...");
-        const publication = await publishEventsForDiff(diff, cycleId);
+        if (fetchComplete) {
+          log.info("Publicando eventos...");
+        } else {
+          log.info("Publicación omitida por fetch incompleto");
+        }
+        const publication = fetchComplete
+          ? await publishEventsForDiff(diff, cycleId)
+          : { emitted: 0 };
         const eventsEmitted = publication.emitted;
         phases.publishEvents = t.end();
         log.phase("publishEvents", phases.publishEvents, { eventsEmitted });
