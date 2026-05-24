@@ -5,6 +5,7 @@ import { withObservedRoute } from "@/lib/observability";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { enqueueJob } from "@/lib/job-queue";
 import type { JsonValue } from "@/lib/job-queue/types";
+import { canAccessOperacion, OPERACION_FORBIDDEN_ERROR } from "@/lib/operacion/access";
 import { documentKindForStage } from "@/lib/operacion/stages";
 
 type Params = { params: Promise<{ id: string }> };
@@ -37,11 +38,22 @@ const postHandler = async (request: Request, { params }: Params) => {
 
   const operacion = await prisma.operacion.findUnique({
     where: { id: operacionId },
-    select: { id: true, codigo: true, propertyCode: true, demandId: true, estado: true },
+    select: {
+      id: true,
+      codigo: true,
+      propertyCode: true,
+      demandId: true,
+      estado: true,
+      comercialId: true,
+    },
   });
 
   if (!operacion) {
     return NextResponse.json({ error: "Operación no encontrada" }, { status: 404 });
+  }
+
+  if (!canAccessOperacion(session, operacion)) {
+    return NextResponse.json({ error: OPERACION_FORBIDDEN_ERROR }, { status: 403 });
   }
 
   const expectedKind = documentKindForStage(operacion.estado);

@@ -5,6 +5,7 @@ import { withObservedRoute } from "@/lib/observability";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { enqueueJob } from "@/lib/job-queue";
 import type { JsonValue } from "@/lib/job-queue/types";
+import { canAccessOperacion, OPERACION_FORBIDDEN_ERROR } from "@/lib/operacion/access";
 import { advanceOperacion } from "@/lib/operacion/advance";
 import type { OperacionEstado } from "@prisma/client";
 
@@ -32,6 +33,16 @@ const patchHandler = async (request: Request, { params }: Params) => {
   }
 
   const comercialId = session.comercialId ?? session.userId;
+  const operacion = await prisma.operacion.findUnique({
+    where: { id: operacionId },
+    select: { comercialId: true },
+  });
+  if (!operacion) {
+    return NextResponse.json({ error: "Operación no encontrada" }, { status: 404 });
+  }
+  if (!canAccessOperacion(session, operacion)) {
+    return NextResponse.json({ error: OPERACION_FORBIDDEN_ERROR }, { status: 403 });
+  }
 
   const result = await advanceOperacion({
     operacionId,

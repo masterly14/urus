@@ -69,6 +69,7 @@ describe("DELETE /api/operaciones/[id]", () => {
       codigo: "OP-2026-0001",
       propertyCode: "PROP-001",
       estado: "EN_CURSO",
+      comercialId: "com-1",
     });
     mockLegalDocumentCount.mockResolvedValue(0);
     mockSignatureRequestCount.mockResolvedValue(0);
@@ -114,6 +115,7 @@ describe("DELETE /api/operaciones/[id]", () => {
       codigo: "OP-2026-0002",
       propertyCode: "PROP-002",
       estado: "CERRADA_VENTA",
+      comercialId: "com-1",
     });
 
     const res = await DELETE(new Request("http://localhost/api/operaciones/op-2", { method: "DELETE" }), {
@@ -121,6 +123,31 @@ describe("DELETE /api/operaciones/[id]", () => {
     });
 
     expect(res.status).toBe(409);
+    expect(mockOperacionDelete).not.toHaveBeenCalled();
+  });
+
+  it("devuelve 403 si un comercial intenta eliminar una operación ajena", async () => {
+    mockGetSessionFromRequest.mockResolvedValueOnce({
+      userId: "user-comercial",
+      role: "comercial",
+      comercialId: "com-1",
+      nombre: "Comercial Test",
+      email: "comercial@example.com",
+    });
+    mockOperacionFindUnique.mockResolvedValueOnce({
+      id: "op-3",
+      codigo: "OP-2026-0003",
+      propertyCode: "PROP-003",
+      estado: "EN_CURSO",
+      comercialId: "com-2",
+    });
+
+    const res = await DELETE(new Request("http://localhost/api/operaciones/op-3", { method: "DELETE" }), {
+      params: Promise.resolve({ id: "op-3" }),
+    });
+
+    expect(res.status).toBe(403);
+    expect(mockLegalDocumentCount).not.toHaveBeenCalled();
     expect(mockOperacionDelete).not.toHaveBeenCalled();
   });
 
@@ -135,7 +162,7 @@ describe("DELETE /api/operaciones/[id]", () => {
     expect(mockOperacionDelete).not.toHaveBeenCalled();
   });
 
-  it("elimina la operación y registra OPERACION_ELIMINADA", async () => {
+  it("elimina la operación y registra el evento de trazabilidad", async () => {
     const res = await DELETE(new Request("http://localhost/api/operaciones/op-1", { method: "DELETE" }), {
       params: Promise.resolve({ id: "op-1" }),
     });
@@ -149,7 +176,7 @@ describe("DELETE /api/operaciones/[id]", () => {
     expect(mockOperacionDelete).toHaveBeenCalledWith({ where: { id: "op-1" } });
     expect(mockAppendEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "OPERACION_ELIMINADA",
+        type: "OPERACION_CERRADA",
         aggregateType: "OPERACION",
         aggregateId: "PROP-001",
       }),

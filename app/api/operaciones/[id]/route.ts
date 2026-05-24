@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
 import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
+import { canAccessOperacion, OPERACION_FORBIDDEN_ERROR } from "@/lib/operacion/access";
 import { appendEvent } from "@/lib/event-store";
 import type { JsonValue } from "@/lib/event-store/types";
 import { Prisma } from "@prisma/client";
@@ -40,6 +41,10 @@ const getHandler = async (request: Request, { params }: Params) => {
 
   if (!operacion) {
     return NextResponse.json({ error: "Operación no encontrada" }, { status: 404 });
+  }
+
+  if (!canAccessOperacion(session, operacion)) {
+    return NextResponse.json({ error: OPERACION_FORBIDDEN_ERROR }, { status: 403 });
   }
 
   const [documentos, eventos, property, demand, comercial] = await Promise.all([
@@ -154,11 +159,16 @@ const deleteHandler = async (request: Request, { params }: Params) => {
       codigo: true,
       propertyCode: true,
       estado: true,
+      comercialId: true,
     },
   });
 
   if (!operacion) {
     return NextResponse.json({ error: "Operación no encontrada" }, { status: 404 });
+  }
+
+  if (!canAccessOperacion(session, operacion)) {
+    return NextResponse.json({ error: OPERACION_FORBIDDEN_ERROR }, { status: 403 });
   }
 
   if (operacion.estado.startsWith("CERRADA_")) {
