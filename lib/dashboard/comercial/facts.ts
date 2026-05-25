@@ -279,16 +279,33 @@ export async function upsertCommercialOperationFactFromOperacionCerradaEvent(
       firstSeenAt: true,
     },
   });
+  const propertyCurrent = property
+    ? null
+    : await prisma.propertyCurrent.findUnique({
+        where: { codigo: propertyCode },
+        select: {
+          ref: true,
+          ciudad: true,
+          zona: true,
+          precio: true,
+          agente: true,
+          createdAt: true,
+        },
+      });
 
-  const comercialNombre = (property?.agente ?? "").trim();
+  const comercialNombre = (property?.agente ?? propertyCurrent?.agente ?? "").trim();
   const comercial = await resolveComercialFromAgente(comercialNombre);
   const comercialId = comercial?.id ?? null;
 
-  const firstSeenAt = property?.firstSeenAt ?? null;
+  const firstSeenAt = property?.firstSeenAt ?? propertyCurrent?.createdAt ?? null;
   const daysToClose =
     firstSeenAt
       ? Math.max(0, Math.round((closedAt.getTime() - firstSeenAt.getTime()) / 86_400_000))
       : null;
+  const propertyRef = property?.ref ?? propertyCurrent?.ref ?? "";
+  const ciudad = property?.ciudad ?? propertyCurrent?.ciudad ?? "";
+  const zona = property?.zona ?? propertyCurrent?.zona ?? "";
+  const grossAmountEur = property?.precio ?? propertyCurrent?.precio ?? null;
 
   await prisma.commercialOperationFact.upsert({
     where: { sourceEventId: event.id },
@@ -296,15 +313,15 @@ export async function upsertCommercialOperationFactFromOperacionCerradaEvent(
       sourceEventId: event.id,
       operacionId,
       propertyCode,
-      propertyRef: property?.ref ?? "",
+      propertyRef,
       demandId,
-      ciudad: property?.ciudad ?? "",
-      zona: property?.zona ?? "",
+      ciudad,
+      zona,
       newEstado,
       closedAt,
       firstSeenAt,
       daysToClose,
-      grossAmountEur: property?.precio ?? null,
+      grossAmountEur,
       comercialId,
       comercialNombre: comercial?.nombre ?? comercialNombre,
       createdAt: event.occurredAt ?? new Date(),
@@ -312,15 +329,15 @@ export async function upsertCommercialOperationFactFromOperacionCerradaEvent(
     update: {
       operacionId,
       propertyCode,
-      propertyRef: property?.ref ?? "",
+      propertyRef,
       demandId,
-      ciudad: property?.ciudad ?? "",
-      zona: property?.zona ?? "",
+      ciudad,
+      zona,
       newEstado,
       closedAt,
       firstSeenAt,
       daysToClose,
-      grossAmountEur: property?.precio ?? null,
+      grossAmountEur,
       comercialId,
       comercialNombre: comercial?.nombre ?? comercialNombre,
     },

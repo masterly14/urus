@@ -43,6 +43,7 @@ import {
 } from "./visit-scheduling-event-handlers";
 import { handleNotaEncargoFormularioCompletado } from "./nota-encargo-handlers";
 import { handleNotaEncargoLinkOnPropertyCreated } from "./nota-encargo-link-handler";
+import { handleOperacionCerradaAnalyticsOnly } from "./operacion-cerrada-analytics-handler";
 
 function buildProjectionJob(
   eventId: string,
@@ -379,13 +380,11 @@ registerHandler("INCIDENCIA_POSTVENTA_RESUELTA", auditOnlyHandler("reanudación 
 // NOTA (2026-04-17): La cadencia legacy `post-sale` (lib/post-sale/*) queda
 // deprecada. La cadencia canónica vive en `lib/postventa/*` y se dispara
 // dentro de `handleEstadoCambiado` (smart-closing-handler) encolando
-// `START_POSTVENTA_CADENCE`. Por tanto OPERACION_CERRADA ya no tiene efectos
-// de lado aquí; se trata como trazabilidad. Ver docs/postventa-plantillas-whatsapp.md.
+// `START_POSTVENTA_CADENCE`. Por tanto OPERACION_CERRADA no debe disparar
+// la cadencia legacy aquí. Solo materializa facts analíticos.
 registerHandler(
   "OPERACION_CERRADA",
-  auditOnlyHandler(
-    "Cadencia canónica en lib/postventa (START_POSTVENTA_CADENCE). Legacy post-sale deprecado.",
-  ),
+  handleOperacionCerradaAnalyticsOnly,
 );
 
 // --- Operaciones v2 (M11) ---

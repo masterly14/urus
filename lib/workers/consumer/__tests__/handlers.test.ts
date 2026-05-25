@@ -5,6 +5,9 @@ import type { EventType } from "@prisma/client";
 const { mockApplyDemandProjectionInline } = vi.hoisted(() => ({
   mockApplyDemandProjectionInline: vi.fn(),
 }));
+const { mockUpsertCommercialOperationFact } = vi.hoisted(() => ({
+  mockUpsertCommercialOperationFact: vi.fn(),
+}));
 
 vi.mock("@/lib/projections/projection-worker", async (importOriginal) => {
   const actual = await importOriginal<
@@ -16,6 +19,11 @@ vi.mock("@/lib/projections/projection-worker", async (importOriginal) => {
       mockApplyDemandProjectionInline(...args),
   };
 });
+vi.mock("@/lib/dashboard/comercial/facts", () => ({
+  upsertCommercialOperationFactFromOperacionCerradaEvent: (
+    ...args: unknown[]
+  ) => mockUpsertCommercialOperationFact(...args),
+}));
 
 const { getHandler, getRegisteredTypes } = await import("../handlers");
 
@@ -338,7 +346,12 @@ describe("audit-only handlers", () => {
 });
 
 describe("OPERACION_CERRADA handler", () => {
-  it("es audit-only tras deprecar post-sale legacy (cadencia canónica: START_POSTVENTA_CADENCE desde smart-closing)", async () => {
+  beforeEach(() => {
+    mockUpsertCommercialOperationFact.mockReset();
+    mockUpsertCommercialOperationFact.mockResolvedValue(undefined);
+  });
+
+  it("materializa CommercialOperationFact y no encola jobs", async () => {
     const handler = getHandler("OPERACION_CERRADA")!;
     expect(handler).toBeDefined();
 
@@ -356,11 +369,16 @@ describe("OPERACION_CERRADA handler", () => {
 
     const result = await handler(event);
 
+    expect(mockUpsertCommercialOperationFact).toHaveBeenCalledWith(event);
     expect(result.success).toBe(true);
     expect(result.followUpJobs).toBeUndefined();
   });
 
-  it("retorna success sin jobs si el payload es inválido", async () => {
+  it("retorna success sin jobs y omite upsert si newEstado no representa cierre", async () => {
+    mockUpsertCommercialOperationFact.mockRejectedValueOnce(
+      new Error("db down"),
+    );
+
     const handler = getHandler("OPERACION_CERRADA")!;
     const event = makeEvent("OPERACION_CERRADA", {
       payload: { invalid: true },
@@ -368,31 +386,30 @@ describe("OPERACION_CERRADA handler", () => {
 
     const result = await handler(event);
 
+    expect(mockUpsertCommercialOperationFact).not.toHaveBeenCalled();
     expect(result.success).toBe(true);
     expect(result.followUpJobs).toBeUndefined();
   });
 
-  it.skip("(deprecated) propaga demandId en el payload para actualizar leadStatus", async () => {
+  it("retorna success sin jobs aunque falle el upsert en un cierre válido", async () => {
+    mockUpsertCommercialOperationFact.mockRejectedValueOnce(
+      new Error("db down"),
+    );
+
     const handler = getHandler("OPERACION_CERRADA")!;
     const event = makeEvent("OPERACION_CERRADA", {
-      aggregateType: "OPERACION",
-      aggregateId: "PROP-DEM",
       payload: {
-        propertyCode: "PROP-DEM",
+        propertyCode: "PROP-200",
         newEstado: "Vendida",
         previousEstado: "Reservada",
         closedAt: new Date().toISOString(),
-        operacionId: "cuid-op-123",
-        demandId: "DEM-999",
       },
     });
 
     const result = await handler(event);
 
+    expect(mockUpsertCommercialOperationFact).toHaveBeenCalledWith(event);
     expect(result.success).toBe(true);
-    expect(result.followUpJobs).toHaveLength(5);
-    for (const job of result.followUpJobs!) {
-      expect(job.idempotencyKey).toMatch(/^post_sale:cuid-op-123:/);
-    }
+    expect(result.followUpJobs).toBeUndefined();
   });
 });
