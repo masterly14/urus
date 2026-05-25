@@ -114,7 +114,7 @@ describe("runConsumerCycle", () => {
   it("debe procesar un job PROCESS_EVENT exitosamente y encolar follow-up", async () => {
     const job = makeJob();
     const event = makeEvent();
-    const { registerHandler } = await import("../handlers");
+    const { registerHandler } = await import("../registry");
 
     dequeueJobMock.mockResolvedValue({ job });
     findUniqueMock.mockResolvedValue(event);
@@ -238,7 +238,7 @@ describe("runConsumerCycle", () => {
     findUniqueMock.mockResolvedValue(event);
     markFailedMock.mockResolvedValue({});
 
-    const { registerHandler } = await import("../handlers");
+    const { registerHandler } = await import("../registry");
     registerHandler("PROPIEDAD_CREADA", async () => {
       throw new Error("handler explosion");
     });
