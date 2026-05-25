@@ -221,6 +221,18 @@ describe("handleMarketFetchDetail (politica nueva: agencias incluidas + ficha co
     );
   });
 
+  it("falla si el Market Worker no esta configurado para evitar completar el job sin enriquecer", async () => {
+    delete process.env.MARKET_WORKER_BASE_URL;
+    findUniqueMock.mockResolvedValue(makeListing());
+
+    const result = await handleMarketFetchDetail(makeJob({ listingId: "listing-1" }));
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("MARKET_WORKER_BASE_URL");
+    expect(runCrawlDetailMock).not.toHaveBeenCalled();
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
   it("actualiza intento incluso cuando worker devuelve blocked", async () => {
     findUniqueMock.mockResolvedValue(makeListing());
     runCrawlDetailMock.mockResolvedValue({

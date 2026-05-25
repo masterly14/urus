@@ -147,7 +147,7 @@ Env vars mínimas:
 
 ```bash
 DATABASE_URL=postgresql://...neon.tech/...
-MARKET_WORKER_URL=https://market-worker.up.railway.app
+MARKET_WORKER_BASE_URL=https://market-worker.up.railway.app
 MARKET_WORKER_SHARED_SECRET=...
 # Tunables (opcionales)
 MARKET_CRAWL_DISPATCHER_BATCH_SIZE=5
