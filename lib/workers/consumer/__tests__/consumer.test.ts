@@ -114,7 +114,7 @@ describe("runConsumerCycle", () => {
   it("debe procesar un job PROCESS_EVENT exitosamente y encolar follow-up", async () => {
     const job = makeJob();
     const event = makeEvent();
-    const { registerHandler } = await import("../handlers");
+    const { registerHandler } = await import("../registry");
 
     dequeueJobMock.mockResolvedValue({ job });
     findUniqueMock.mockResolvedValue(event);
@@ -187,6 +187,32 @@ describe("runConsumerCycle", () => {
     expect(markFailedMock).toHaveBeenCalled();
   });
 
+  it("marca FAILED un job directo sin handler aunque tenga sourceEventId", async () => {
+    const job = makeJob({
+      type: "SEND_BUYER_INTEREST_ACK",
+      sourceEventId: "evt-001",
+      payload: { eventId: "evt-001" },
+    });
+    dequeueJobMock.mockResolvedValue({ job });
+    markFailedMock.mockResolvedValue({});
+
+    const result = await runConsumerCycle({
+      workerId: WORKER_ID,
+      types: ["SEND_BUYER_INTEREST_ACK"],
+    });
+
+    expect(result.failed).toBe(1);
+    expect(result.processed).toBe(0);
+    expect(findUniqueMock).not.toHaveBeenCalled();
+    expect(markFailedMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: "job-001",
+        workerId: WORKER_ID,
+        permanent: true,
+      }),
+    );
+  });
+
   it("debe marcar COMPLETED (no-op) si no hay handler para el tipo de evento", async () => {
     const job = makeJob({ sourceEventId: "evt-unknown" });
     const event = makeEvent("NO_EXISTE_TYPE" as EventType, { id: "evt-unknown" });
@@ -212,7 +238,7 @@ describe("runConsumerCycle", () => {
     findUniqueMock.mockResolvedValue(event);
     markFailedMock.mockResolvedValue({});
 
-    const { registerHandler } = await import("../handlers");
+    const { registerHandler } = await import("../registry");
     registerHandler("PROPIEDAD_CREADA", async () => {
       throw new Error("handler explosion");
     });

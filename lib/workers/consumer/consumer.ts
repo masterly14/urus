@@ -139,6 +139,31 @@ export async function runConsumerCycle(
         return processDirectJob(job, directHandler, config.workerId);
       }
 
+      if (job.type !== "PROCESS_EVENT") {
+        const metricStartedAt = new Date();
+        const error = `Sin handler registrado para job directo ${job.type}`;
+        console.error(
+          `[consumer] ${error} — marcando FAILED para evitar procesarlo como PROCESS_EVENT`,
+        );
+        await markFailed({
+          jobId: job.id,
+          error,
+          workerId: config.workerId,
+          permanent: true,
+        });
+        await persistConsumerMetric({
+          workerId: config.workerId,
+          jobId: job.id,
+          jobType: job.type,
+          operation: `consumer:${job.type}`,
+          startedAt: metricStartedAt,
+          success: false,
+          errorMessage: error,
+          context: { missingDirectHandler: true },
+        });
+        return { processed: 0, failed: 1, noWork: false };
+      }
+
       const eventId = job.sourceEventId ?? (job.payload as { eventId?: string })?.eventId;
       const metricStartedAt = new Date();
 

@@ -89,6 +89,25 @@ describe("POST /api/visitas/manual", () => {
     expect(mockCreateManualVisitWorkItem).not.toHaveBeenCalled();
   });
 
+  it("bloquea demanda ajena aunque el payload fuerce el comercial propio", async () => {
+    mockDemandFindUnique.mockResolvedValue({
+      comercialId: "com-2",
+      telefono: "34600111222",
+    });
+
+    const { POST } = await import("../route");
+    const res = await POST(
+      request({
+        demandId: "DEM-1",
+        propertyId: "PROP-1",
+        comercialId: "com-1",
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    expect(mockCreateManualVisitWorkItem).not.toHaveBeenCalled();
+  });
+
   it("rechaza creación manual si la demanda no tiene teléfono", async () => {
     mockDemandFindUnique.mockResolvedValue({ comercialId: "com-1", telefono: "" });
 

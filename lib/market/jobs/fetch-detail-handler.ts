@@ -125,10 +125,10 @@ export async function handleMarketFetchDetail(job: JobRecord): Promise<HandlerRe
 
   const client = readWorkerClient();
   if (!client) {
-    console.warn(
-      "[market:fetch-detail] MARKET_WORKER_BASE_URL/SHARED_SECRET no configurados — skip",
-    );
-    return { success: true };
+    return {
+      success: false,
+      error: "MARKET_WORKER_BASE_URL/SHARED_SECRET no configurados",
+    };
   }
 
   try {
