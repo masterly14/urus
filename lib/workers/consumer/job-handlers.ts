@@ -1,4 +1,4 @@
-import type { JobRecord } from "@/lib/job-queue/types";
+import type { JobRecord, JsonValue } from "@/lib/job-queue/types";
 import type { HandlerResult } from "./types";
 import {
   registerJobHandler,
@@ -14,6 +14,7 @@ import { canExecute, recordSuccess, recordFailure } from "@/lib/circuit-breaker"
 import {
   sendLeadAssignedToCommercial,
   sendFollowUpToCommercial,
+  sendTextMessage,
   sendNoStockAvailableToBuyer,
   sendContractDataIncompleteToCommercial,
   type LeadAssignedParams,
@@ -30,7 +31,10 @@ import {
   type WriteOperation,
   type WriteOperationPayloadMap,
 } from "@/lib/inmovilla/write";
-import { generateMicrositeSelection } from "@/lib/microsite/selection";
+import {
+  generateMicrositeSelection,
+  type GenerateMicrositeSelectionResult,
+} from "@/lib/microsite/selection";
 import { approveMicrositeByAI } from "@/lib/microsite/approve-by-ai";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
 import { normalizeWhatsAppDigits, resolveBuyerPhoneForDemand } from "@/lib/microsite/buyer-phone";
@@ -38,6 +42,7 @@ import { sendMicrositeToBuyerHot } from "@/lib/microsite/send-microsite-buyer-ho
 import { enqueueJob } from "@/lib/job-queue";
 import type { DemandFilterInput } from "@/lib/statefox";
 import { EXTERNAL_PORTFOLIO_DISABLED_REASON } from "@/lib/statefox/external-search";
+import { alertGeneric } from "@/lib/alerts/alert-service";
 import { handleGenerateContractDraft } from "./contract-draft-handler";
 import {
   handleSendPostSaleMessage,
@@ -45,6 +50,149 @@ import {
   handleSendReviewReminder,
   handleSendReferralRequest,
 } from "./post-sale-job-handler";
+
+type MicrositeGenerationFailureReason = Extract<
+  GenerateMicrositeSelectionResult,
+  { ok: false }
+>["reason"];
+
+const MICROSITE_INFRA_FAILURE_REASONS = new Set<MicrositeGenerationFailureReason>([
+  "EXTERNAL_SEARCH_DISABLED",
+  "STATEFOX_TOKEN_MISSING",
+  "STATEFOX_ERROR",
+]);
+
+function getPayloadString(payload: Record<string, unknown>, key: string): string | null {
+  const value = payload[key];
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+async function appendMicrositeGenerationResultEvent(args: {
+  job: JobRecord;
+  demandId: string;
+  source: string | null;
+  sourceEventId: string | undefined;
+  notifyOnEmpty: boolean;
+  status: "created" | "skipped";
+  reason?: MicrositeGenerationFailureReason;
+  selectionId?: string;
+  selectionToken?: string;
+  propertiesCount?: number;
+  stockCount?: number;
+  buyerWaId?: string | null;
+}): Promise<void> {
+  const existing = await prisma.event.findFirst({
+    where: {
+      type: "MICROSITE_GENERACION_RESULTADO",
+      aggregateType: "DEMAND",
+      aggregateId: args.demandId,
+      payload: { path: ["jobId"], equals: args.job.id },
+    },
+    select: { id: true },
+  });
+  if (existing) return;
+
+  await appendEvent({
+    type: "MICROSITE_GENERACION_RESULTADO",
+    aggregateType: "DEMAND",
+    aggregateId: args.demandId,
+    payload: {
+      jobId: args.job.id,
+      jobType: args.job.type,
+      status: args.status,
+      reason: args.reason ?? null,
+      source: args.source,
+      sourceEventId: args.sourceEventId ?? null,
+      notifyOnEmpty: args.notifyOnEmpty,
+      buyerWaId: args.buyerWaId ?? null,
+      selectionId: args.selectionId ?? null,
+      selectionToken: args.selectionToken ?? null,
+      propertiesCount: args.propertiesCount ?? null,
+      stockCount: args.stockCount ?? null,
+      attempts: args.job.attempts,
+    } as JsonValue,
+    causationId: args.sourceEventId ?? args.job.sourceEventId ?? undefined,
+  });
+}
+
+async function alertMicrositeGenerationFailure(args: {
+  job: JobRecord;
+  demandId: string;
+  reason: MicrositeGenerationFailureReason;
+  source: string | null;
+  sourceEventId: string | undefined;
+}): Promise<void> {
+  if (!MICROSITE_INFRA_FAILURE_REASONS.has(args.reason)) return;
+
+  await alertGeneric("Generación de microsite omitida", "warning", {
+    jobId: args.job.id,
+    jobType: args.job.type,
+    demandId: args.demandId,
+    reason: args.reason,
+    source: args.source,
+    sourceEventId: args.sourceEventId ?? null,
+  });
+}
+
+async function notifyBuyerMicrositeGenerationDelayed(args: {
+  job: JobRecord;
+  demandId: string;
+  demandNombre: string;
+  reason: MicrositeGenerationFailureReason;
+  sourceEventId: string | undefined;
+}): Promise<string | null> {
+  const buyerPhone = await resolveBuyerPhoneForDemand(args.demandId);
+  if (!buyerPhone) {
+    console.warn(
+      `[consumer] GENERATE_MICROSITE job ${args.job.id} — ${args.reason} pero no hay teléfono para demandId=${args.demandId}; no se avisa al comprador`,
+    );
+    return null;
+  }
+
+  const alreadySent = await prisma.event.findFirst({
+    where: {
+      type: "WHATSAPP_ENVIADO",
+      aggregateType: "WHATSAPP_CONVERSATION",
+      aggregateId: buyerPhone,
+      AND: [
+        { payload: { path: ["kind"], equals: "microsite_generation_delayed" } },
+        { payload: { path: ["jobId"], equals: args.job.id } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (alreadySent) return buyerPhone;
+
+  const firstName = args.demandNombre.trim().split(/\s+/)[0];
+  const greeting = `Hola${firstName ? ` ${firstName}` : ""},`;
+  const body = [
+    greeting,
+    "",
+    "Estoy afinando tu búsqueda, pero ahora mismo no he podido generar una selección fiable automáticamente.",
+    "No quiero pasarte opciones que no encajen; lo dejo marcado para revisión y te avisamos en cuanto esté listo.",
+  ].join("\n");
+
+  await sendTextMessage(buyerPhone, body, {
+    trace: {
+      source: "consumer",
+      kind: "microsite_generation_delayed",
+      aggregateId: buyerPhone,
+      causationId: args.job.sourceEventId ?? null,
+      payload: {
+        demandId: args.demandId,
+        sourceEventId: args.sourceEventId ?? null,
+        jobId: args.job.id,
+        reason: args.reason,
+      },
+    },
+  });
+
+  console.log(
+    `[consumer] GENERATE_MICROSITE job ${args.job.id} — aviso de demora enviado a ${buyerPhone} reason=${args.reason}`,
+  );
+
+  return buyerPhone;
+}
 
 async function handleNotifyLeadWhatsApp(job: JobRecord): Promise<HandlerResult> {
   const payload = (job.payload ?? {}) as Record<string, unknown>;
@@ -283,6 +431,8 @@ async function handleGenerateMicrosite(job: JobRecord): Promise<HandlerResult> {
   };
 
   const demandNombre = demandCurrent?.nombre ?? "";
+  const source = getPayloadString(payload, "source");
+  const notifyOnEmpty = payload.notifyOnEmpty !== false;
 
   const result = await generateMicrositeSelection({
     demandId,
@@ -290,24 +440,34 @@ async function handleGenerateMicrosite(job: JobRecord): Promise<HandlerResult> {
     comercialId,
     demand,
     sourceEventId,
-    source: typeof payload.source === "string" ? payload.source : undefined,
+    source: source ?? undefined,
+    selectionFeedbackContext:
+      payload.selectionFeedbackContext && typeof payload.selectionFeedbackContext === "object"
+        ? payload.selectionFeedbackContext as Parameters<typeof generateMicrositeSelection>[0]["selectionFeedbackContext"]
+        : undefined,
   });
 
   if (!result.ok) {
+    let buyerWaId: string | null = null;
+
     if (result.reason === "EXTERNAL_SEARCH_DISABLED") {
       console.warn(
         `[consumer] GENERATE_MICROSITE job ${job.id} demandId=${demandId} — omitido: ${EXTERNAL_PORTFOLIO_DISABLED_REASON}`,
       );
-      return { success: true };
+    } else {
+      console.warn(
+        `[consumer] GENERATE_MICROSITE job ${job.id} demandId=${demandId} — omitido: ${result.reason}`,
+      );
     }
 
-    console.warn(
-      `[consumer] GENERATE_MICROSITE job ${job.id} demandId=${demandId} — omitido: ${result.reason}`,
-    );
+    await alertMicrositeGenerationFailure({
+      job,
+      demandId,
+      reason: result.reason,
+      source,
+      sourceEventId,
+    });
 
-    // Sólo se avisa al comprador cuando el motivo es "no hay stock que encaje"
-    // y el caller no desactivó la notificación (coverage_scan no notifica).
-    const notifyOnEmpty = payload.notifyOnEmpty !== false;
     if (result.reason === "NO_MATCHING_PROPERTIES" && notifyOnEmpty) {
       await notifyBuyerNoStockAvailable({
         job,
@@ -315,6 +475,39 @@ async function handleGenerateMicrosite(job: JobRecord): Promise<HandlerResult> {
         demandNombre,
         sourceEventId,
       });
+    } else if (
+      notifyOnEmpty &&
+      source !== "coverage_scan" &&
+      MICROSITE_INFRA_FAILURE_REASONS.has(result.reason)
+    ) {
+      try {
+        buyerWaId = await notifyBuyerMicrositeGenerationDelayed({
+          job,
+          demandId,
+          demandNombre,
+          reason: result.reason,
+          sourceEventId,
+        });
+      } catch (err) {
+        console.error(
+          `[consumer] GENERATE_MICROSITE job ${job.id} — error avisando demora al comprador: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    await appendMicrositeGenerationResultEvent({
+      job,
+      demandId,
+      source,
+      sourceEventId,
+      notifyOnEmpty,
+      status: "skipped",
+      reason: result.reason,
+      buyerWaId,
+    });
+
+    if (result.reason === "EXTERNAL_SEARCH_DISABLED") {
+      return { success: true };
     }
 
     return { success: true };
@@ -335,6 +528,19 @@ async function handleGenerateMicrosite(job: JobRecord): Promise<HandlerResult> {
   console.log(
     `[consumer] GENERATE_MICROSITE job ${job.id} — auto-validado y encolado SEND_MICROSITE_TO_BUYER selectionId=${result.selectionId}`,
   );
+
+  await appendMicrositeGenerationResultEvent({
+    job,
+    demandId,
+    source,
+    sourceEventId,
+    notifyOnEmpty,
+    status: "created",
+    selectionId: result.selectionId,
+    selectionToken: result.token,
+    propertiesCount: result.propertiesCount,
+    stockCount: result.stockCount,
+  });
 
   return { success: true };
 }

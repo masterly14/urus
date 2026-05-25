@@ -192,7 +192,8 @@ export async function handleMatchDemandAgainstInternal(
   console.log(
     `[match-internal] job ${job.id} demandId=${demandId} source=${source} — ` +
       `${emitted} emitidos, ${skipped} saltados (Δ<${SCORE_DELTA_THRESHOLD}), ` +
-      `bestScore=${bestScore}, ${result.filteredOut} filtrados de ${result.totalProperties} propiedades (${result.executionMs}ms)`,
+      `bestScore=${bestScore}, ${result.filteredOut} filtrados, ` +
+      `${result.geographicallyRejected} geo rechazadas de ${result.totalProperties} propiedades (${result.executionMs}ms)`,
   );
 
   followUpJobs.push({

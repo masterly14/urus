@@ -166,8 +166,38 @@ function sourceLooksAgent(message: ConversationMessage): boolean {
   );
 }
 
-function dedupeConversationMessages(messages: ConversationMessage[]): ConversationMessage[] {
-  return messages;
+export function dedupeConversationMessages(messages: ConversationMessage[]): ConversationMessage[] {
+  const keptByDedupeKey = new Map<string, ConversationMessage>();
+  const passthrough: ConversationMessage[] = [];
+
+  for (const message of messages) {
+    const source = message.source ?? "";
+    const shouldDedupeCandidate = message.direction === "outbound" &&
+      (source === "whatsapp_send" || source === "conversational_agent");
+
+    if (!shouldDedupeCandidate || !message.messageId) {
+      passthrough.push(message);
+      continue;
+    }
+
+    const dedupeKey = `${message.waId}::${message.messageId}`;
+    const existing = keptByDedupeKey.get(dedupeKey);
+    if (!existing) {
+      keptByDedupeKey.set(dedupeKey, message);
+      continue;
+    }
+
+    // Preferimos conservar el evento con más contexto del agente conversacional.
+    const existingIsAgent = (existing.source ?? "") === "conversational_agent";
+    const currentIsAgent = source === "conversational_agent";
+    if (!existingIsAgent && currentIsAgent) {
+      keptByDedupeKey.set(dedupeKey, message);
+    }
+  }
+
+  const deduped = [...passthrough, ...keptByDedupeKey.values()];
+  deduped.sort((a, b) => Number(BigInt(a.position) - BigInt(b.position)));
+  return deduped;
 }
 
 function lastNine(value: string): string {

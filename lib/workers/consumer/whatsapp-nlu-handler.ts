@@ -961,6 +961,12 @@ export async function handleWhatsAppRecibido(event: Event): Promise<HandlerResul
         demandId: ctx.demandId,
         comercialId: "system",
         sourceEventId: event.id,
+        rankerIntent: "more_options",
+        selectionFeedbackContext: {
+          intent: "more_options",
+          rejectedPropertyIds: nlu.propertyFeedback.map((fb) => fb.propertyId),
+          notes: nlu.reasoning ? [nlu.reasoning] : [],
+        },
       },
       idempotencyKey: `generate_microsite:wants_more:${event.id}`,
       sourceEventId: event.id,

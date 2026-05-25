@@ -209,7 +209,7 @@ export async function handleRebuildMatchesForDemand(
 
   console.log(
     `[rematch] Demanda ${demandId}: ${emitted} emitidos, ${skipped} saltados (Δ<${SCORE_DELTA_THRESHOLD}), ` +
-    `${result.filteredOut} filtrados de ${result.totalProperties} propiedades (${result.executionMs}ms)`,
+    `${result.filteredOut} filtrados, ${result.geographicallyRejected} geo rechazadas de ${result.totalProperties} propiedades (${result.executionMs}ms)`,
   );
 
   await incrementRunCounters(runId, 1, emitted, skipped);

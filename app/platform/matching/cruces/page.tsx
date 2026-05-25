@@ -17,9 +17,22 @@ import { MATCHING_PAUSED, MATCHING_PAUSED_REASON } from "@/lib/matching/pause";
 const POLL_INTERVAL_MS = 10_000;
 const ITEMS_PER_PAGE = 10;
 
+function matchesDemandSearch(match: CruceMatch, query: string): boolean {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+
+    const { comprador } = match;
+    const haystack = [comprador.nombre, comprador.id, comprador.ref]
+        .filter(Boolean)
+        .map((value) => value.toLowerCase());
+
+    return haystack.some((value) => value.includes(q));
+}
+
 interface ApiResponse {
     cruces: CruceMatch[];
     total: number;
+    invalidatedHidden?: number;
     hasMore: boolean;
     nextCursor: string | null;
     zonas: string[];
@@ -100,6 +113,11 @@ function MatchDetailView({ match }: { match: CruceMatch }) {
                             <div>
                                 <p className="text-muted-foreground text-xs mb-0.5">Comprador</p>
                                 <p className="font-medium">{match.comprador.nombre}</p>
+                                {(match.comprador.ref || match.comprador.id) && (
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        {match.comprador.ref || match.comprador.id}
+                                    </p>
+                                )}
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -162,10 +180,73 @@ function MatchDetailView({ match }: { match: CruceMatch }) {
 
                 {/* Actions */}
                 <div className="pt-6 border-t border-border/50">
-                    <div className="p-4 rounded-md bg-accent/30 border border-border/30 text-center">
-                        <p className="text-sm text-muted-foreground">
-                            El micrositio se valida y envía automáticamente con IA.
-                        </p>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                        Trazabilidad
+                    </h3>
+                    <div className="space-y-3">
+                        <div className="p-4 rounded-md bg-accent/30 border border-border/30">
+                            <p className="text-sm font-medium">
+                                Micrositio{" "}
+                                {match.trazabilidad?.micrositio.enviado ? "enviado" : "pendiente de envío"}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {match.trazabilidad?.micrositio.enviadoAt
+                                    ? `Enviado el ${new Date(match.trazabilidad.micrositio.enviadoAt).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" })}`
+                                    : "Sin evento de envío de micrositio para esta demanda"}
+                            </p>
+                            {match.trazabilidad?.micrositio.url && (
+                                <a
+                                    href={match.trazabilidad.micrositio.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
+                                >
+                                    Abrir micrositio enviado
+                                </a>
+                            )}
+                            <div className="mt-3">
+                                <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
+                                    Propiedades enviadas
+                                </p>
+                                {match.trazabilidad?.micrositio.propiedadesEnviadas?.length ? (
+                                    <ul className="space-y-1.5">
+                                        {match.trazabilidad.micrositio.propiedadesEnviadas.slice(0, 8).map((property) => (
+                                            <li key={property.propertyId} className="text-xs text-foreground/90">
+                                                {property.title}{" "}
+                                                <span className="text-muted-foreground">
+                                                    ({property.price ? `${property.price.toLocaleString("es-ES")} €` : "s/p"})
+                                                    {property.zone ? ` · ${property.zone}` : ""}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="text-xs text-muted-foreground">No hay propiedades registradas en el envío.</p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="p-4 rounded-md bg-accent/30 border border-border/30">
+                            <p className="text-sm font-medium">
+                                WhatsApp {match.trazabilidad?.whatsapp.contactado ? "contactado" : "sin contacto"}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Entrantes: {match.trazabilidad?.whatsapp.inboundCount ?? 0} · Salientes: {match.trazabilidad?.whatsapp.outboundCount ?? 0}
+                            </p>
+                            {match.trazabilidad?.whatsapp.lastMessageAt && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Último mensaje: {new Date(match.trazabilidad.whatsapp.lastMessageAt).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" })}
+                                </p>
+                            )}
+                            {match.trazabilidad?.whatsapp.conversationUrl && (
+                                <a
+                                    href={match.trazabilidad.whatsapp.conversationUrl}
+                                    className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
+                                >
+                                    Abrir conversación
+                                </a>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -181,6 +262,7 @@ function CrucesPageContent() {
     const [selectedMatch, setSelectedMatch] = useState<CruceMatch | null>(null);
     const [filterZona, setFilterZona] = useState<string>("all");
     const [filterMinScore, setFilterMinScore] = useState<number>(0);
+    const [searchDemanda, setSearchDemanda] = useState<string>("");
     const [isLiveActive, setIsLiveActive] = useState(true);
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -189,6 +271,8 @@ function CrucesPageContent() {
     const [hasMore, setHasMore] = useState(false);
     const [nextCursor, setNextCursor] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
+    const [totalGeneratedMatches, setTotalGeneratedMatches] = useState<number | null>(null);
+    const [invalidatedHidden, setInvalidatedHidden] = useState(0);
 
     const latestPosition = useRef<string | null>(null);
     const knownIds = useRef<Set<string>>(new Set());
@@ -223,6 +307,8 @@ function CrucesPageContent() {
             }
 
             const data: ApiResponse = await res.json();
+            setTotalGeneratedMatches(data.total);
+            setInvalidatedHidden(data.invalidatedHidden ?? 0);
 
             if (isPolling) {
                 const newOnes = data.cruces.filter((c) => !knownIds.current.has(c.id));
@@ -291,6 +377,8 @@ function CrucesPageContent() {
 
             setAllMatches((prev) => [...prev, ...newOnes]);
             newOnes.forEach((c) => knownIds.current.add(c.id));
+            setTotalGeneratedMatches(data.total);
+            setInvalidatedHidden(data.invalidatedHidden ?? 0);
             setHasMore(data.hasMore);
             setNextCursor(data.nextCursor);
 
@@ -317,6 +405,8 @@ function CrucesPageContent() {
             cachedInitial.cruces.forEach((c) => knownIds.current.add(c.id));
             setHasMore(cachedInitial.hasMore);
             setNextCursor(cachedInitial.nextCursor);
+            setTotalGeneratedMatches(cachedInitial.total);
+            setInvalidatedHidden(cachedInitial.invalidatedHidden ?? 0);
             if (cachedInitial.zonas.length > 0) setZonas(cachedInitial.zonas.sort());
             if (cachedInitial.cruces[0]) latestPosition.current = cachedInitial.cruces[0].position;
             setLoading(false);
@@ -338,9 +428,10 @@ function CrucesPageContent() {
         return allMatches.filter((m) => {
             if (filterZona !== "all" && m.propiedad.zona !== filterZona) return false;
             if (m.porcentajeMatch < filterMinScore) return false;
+            if (!matchesDemandSearch(m, searchDemanda)) return false;
             return true;
         });
-    }, [allMatches, filterZona, filterMinScore]);
+    }, [allMatches, filterZona, filterMinScore, searchDemanda]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
     const paginatedMatches = useMemo(() => {
@@ -368,7 +459,7 @@ function CrucesPageContent() {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [filterZona, filterMinScore]);
+    }, [filterZona, filterMinScore, searchDemanda]);
 
     useEffect(() => {
         if (currentPage > totalPages) {
@@ -388,9 +479,10 @@ function CrucesPageContent() {
         focusedMatchIdRef.current = targetMatchId;
     }, [allMatches, targetMatchId]);
 
-    const totalMatches = allMatches.length;
-    const avgMatch = totalMatches > 0
-        ? Math.round(allMatches.reduce((s, m) => s + m.porcentajeMatch, 0) / totalMatches)
+    const loadedMatchesCount = allMatches.length;
+    const totalMatches = totalGeneratedMatches ?? loadedMatchesCount;
+    const avgMatch = loadedMatchesCount > 0
+        ? Math.round(allMatches.reduce((s, m) => s + m.porcentajeMatch, 0) / loadedMatchesCount)
         : 0;
     const highScoreCount = allMatches.filter((m) => m.porcentajeMatch >= 80).length;
     const recentCount = allMatches.filter((m) => {
@@ -459,6 +551,12 @@ function CrucesPageContent() {
                 <div className="flex flex-col gap-1">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Total Cruces</p>
                     <p className="text-2xl font-semibold leading-none text-foreground">{totalMatches}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                        {loadedMatchesCount.toLocaleString("es-ES")} cargados en la vista
+                        {invalidatedHidden > 0
+                            ? ` · ${invalidatedHidden.toLocaleString("es-ES")} invalidados ocultos`
+                            : ""}
+                    </p>
                 </div>
                 <div className="flex flex-col gap-1">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Compatibilidad Media</p>
@@ -479,29 +577,42 @@ function CrucesPageContent() {
                 {/* Left Panel: Feed */}
                 <div className="w-full md:w-[380px] lg:w-[420px] shrink-0 flex flex-col bg-transparent">
                     {/* Filters Bar */}
-                    <div className="flex-none pb-3 flex items-center gap-2">
-                        <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
-                        <select
-                            value={filterZona}
-                            onChange={(e) => setFilterZona(e.target.value)}
-                            className="flex-1 min-w-0 bg-transparent border border-border/50 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                        >
-                            <option value="all">Todas las zonas</option>
-                            {zonas.map((z) => (
-                                <option key={z} value={z}>{z}</option>
-                            ))}
-                        </select>
-                        <select
-                            value={filterMinScore}
-                            onChange={(e) => setFilterMinScore(Number(e.target.value))}
-                            className="w-24 shrink-0 bg-transparent border border-border/50 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                        >
-                            <option value={0}>Todos %</option>
-                            <option value={50}>≥50%</option>
-                            <option value={60}>≥60%</option>
-                            <option value={75}>≥75%</option>
-                            <option value={90}>≥90%</option>
-                        </select>
+                    <div className="flex-none pb-3 space-y-2">
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                            <input
+                                type="text"
+                                value={searchDemanda}
+                                onChange={(e) => setSearchDemanda(e.target.value)}
+                                placeholder="Buscar por demanda (nombre o número)..."
+                                aria-label="Buscar por demanda"
+                                className="w-full bg-transparent border border-border/50 rounded-md pl-8 pr-3 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
+                            <select
+                                value={filterZona}
+                                onChange={(e) => setFilterZona(e.target.value)}
+                                className="flex-1 min-w-0 bg-transparent border border-border/50 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                            >
+                                <option value="all">Todas las zonas</option>
+                                {zonas.map((z) => (
+                                    <option key={z} value={z}>{z}</option>
+                                ))}
+                            </select>
+                            <select
+                                value={filterMinScore}
+                                onChange={(e) => setFilterMinScore(Number(e.target.value))}
+                                className="w-24 shrink-0 bg-transparent border border-border/50 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                            >
+                                <option value={0}>Todos %</option>
+                                <option value={50}>≥50%</option>
+                                <option value={60}>≥60%</option>
+                                <option value={75}>≥75%</option>
+                                <option value={90}>≥90%</option>
+                            </select>
+                        </div>
                     </div>
 
                     {/* Feed List */}
@@ -510,7 +621,7 @@ function CrucesPageContent() {
                             <div className="flex flex-col items-center justify-center h-full text-center p-4">
                                 <Search className="h-8 w-8 text-muted-foreground/30 mb-2" />
                                 <p className="text-sm font-medium text-muted-foreground">Sin resultados</p>
-                                <p className="text-xs text-muted-foreground/60 mt-1">Ajusta los filtros o espera nuevos cruces.</p>
+                                <p className="text-xs text-muted-foreground/60 mt-1">Ajusta los filtros, busca por demanda o espera nuevos cruces.</p>
                             </div>
                         ) : (
                             paginatedMatches.map((m) => (
@@ -537,6 +648,9 @@ function CrucesPageContent() {
                             </button>
                             <span className="text-xs text-muted-foreground font-medium">
                                 {currentPage} / {totalPages}
+                                {totalMatches > loadedMatchesCount
+                                    ? ` · ${loadedMatchesCount.toLocaleString("es-ES")} de ${totalMatches.toLocaleString("es-ES")}`
+                                    : ""}
                             </span>
                             <button
                                 onClick={goToNextPage}

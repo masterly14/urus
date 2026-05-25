@@ -12,6 +12,8 @@ export { matchDemandsToProperty, matchDemandsToPropertyById, passesHardFilters, 
 export { matchPropertiesToDemand } from "./match-properties";
 export type { MatchPropertiesResult } from "./match-properties";
 export { computeMatchScore, operationMatches, DEFAULT_CONFIG } from "./scoring";
+export { evaluateLocationMatch, demandHasConcreteZones } from "./location";
+export type { LocationMatchDecision, LocationMatchStatus, LocationMatchMethod } from "./location";
 export { evaluateDemandCoverage, COVERAGE_MIN_SCORE } from "./coverage";
 export type {
   MatchResult,
@@ -19,6 +21,7 @@ export type {
   MatchDemandsResult,
   MatchConfig,
   MatchWeights,
+  LocationMatchContext,
   CriterionScore,
   PropertyForMatching,
   DemandForMatching,

@@ -82,6 +82,10 @@
     "test:transfer:property:live": "tsx scripts/test-transfer-property-live.ts",
     "test:transfer:demand:live": "tsx scripts/test-transfer-demand-live.ts",
     "audit:sync-tasks": "tsx scripts/audit-manual-sync-tasks.ts",
+    "audit:geographic-matches": "tsx scripts/audit-geographic-matches.ts",
+    "test:matching-geographic:live": "tsx scripts/test-geographic-matching-live.ts",
+    "test:ai-ranker-live": "tsx scripts/test-ai-ranker-live.ts",
+    "microsite:debug-delivery": "tsx scripts/debug-microsite-delivery.ts",
     "raw:nonempty": "tsx scripts/analyze-nonempty-raw.ts",
     "microsite:from-db": "tsx scripts/create-microsite-from-db-property.ts",
     "visit:test": "echo Abre http://localhost:3000/platform/test-visit en el navegador",
@@ -150,7 +154,8 @@
     "recharts": "^3.8.0",
     "resend": "^6.10.0",
     "swr": "^2.4.1",
-    "tailwind-merge": "^3.5.0"
+    "tailwind-merge": "^3.5.0",
+    "zod": "^4.4.3"
   },
   "overrides": {
     "zod": "^4.0.0"

@@ -154,13 +154,13 @@ describe("scoreZone", () => {
     expect(r.score).toBe(0.7);
   });
 
-  it("match parcial por ciudad (demanda dice 'Córdoba Centro', propiedad en Córdoba)", () => {
+  it("no sustituye barrio concreto por coincidencia de ciudad", () => {
     const r = scoreZone(
       makeProperty({ zona: "Norte", ciudad: "Córdoba" }),
-      makeDemand({ zonas: "Córdoba Centro" }),
+      makeDemand({ zonas: "Centro - Córdoba" }),
     );
-    expect(r.matched).toBe(true);
-    expect(r.score).toBe(0.6);
+    expect(r.matched).toBe(false);
+    expect(r.score).toBe(0);
   });
 
   it("no match si zonas distintas", () => {
@@ -211,6 +211,15 @@ describe("scoreZone", () => {
     );
     expect(r.matched).toBe(true);
     expect(r.score).toBe(1.0);
+  });
+
+  it("rechaza zona genérica Andalucia cuando la demanda pide barrios concretos", () => {
+    const r = scoreZone(
+      makeProperty({ zona: "Andalucia", ciudad: "Córdoba" }),
+      makeDemand({ zonas: "Fuensanta, Arcángel, Santuario - Cordoba" }),
+    );
+    expect(r.matched).toBe(false);
+    expect(r.score).toBe(0);
   });
 });
 
@@ -626,6 +635,125 @@ describe("computeMatchScore", () => {
     expect(matchScore.type).toHaveProperty("matched");
     expect(matchScore.size).toHaveProperty("matched");
     expect(matchScore.rooms).toHaveProperty("matched");
+  });
+
+  it("bloquea el caso Luis contra Sevilla aunque precio y habitaciones encajen", () => {
+    const { totalScore, isMatch, matchScore, blockedByLocation } = computeMatchScore(
+      makeProperty({
+        codigo: "25961477",
+        ref: "URUSV07SF",
+        titulo: "Casa adosada en venta en Calle Río Espartero",
+        tipoOfer: "Adosado",
+        precio: 120_000,
+        metrosConstruidos: 150,
+        habitaciones: 2,
+        ciudad: "Sevilla",
+        zona: "Moron de la Frontera",
+      }),
+      makeDemand({
+        codigo: "40116955",
+        ref: "1251",
+        nombre: "Luis",
+        presupuestoMin: 105_000,
+        presupuestoMax: 140_000,
+        habitacionesMin: 2,
+        tipos: "",
+        zonas: "Fuensanta, Arcángel, Santuario",
+      }),
+    );
+
+    expect(totalScore).toBeGreaterThanOrEqual(50);
+    expect(matchScore.zone.matched).toBe(false);
+    expect(blockedByLocation).toBe(true);
+    expect(isMatch).toBe(false);
+  });
+
+  it("bloquea el caso Luis contra Andalucia aunque esté en Córdoba", () => {
+    const { totalScore, isMatch, matchScore, blockedByLocation } = computeMatchScore(
+      makeProperty({
+        codigo: "27902283",
+        ref: "URUS01VFEDE",
+        titulo: "ESPECTACULAR CASA EN LA VICTORIA",
+        tipoOfer: "Adosado",
+        precio: 130_000,
+        metrosConstruidos: 126,
+        habitaciones: 3,
+        ciudad: "Córdoba",
+        zona: "Andalucia",
+      }),
+      makeDemand({
+        codigo: "40116955",
+        ref: "1251",
+        nombre: "Luis",
+        presupuestoMin: 105_000,
+        presupuestoMax: 140_000,
+        habitacionesMin: 2,
+        tipos: "",
+        zonas: "Fuensanta, Arcángel, Santuario",
+      }),
+    );
+
+    expect(totalScore).toBeGreaterThanOrEqual(50);
+    expect(matchScore.zone.matched).toBe(false);
+    expect(blockedByLocation).toBe(true);
+    expect(isMatch).toBe(false);
+  });
+
+  it("permite ciudad genérica cuando la demanda no especifica barrios", () => {
+    const { isMatch, matchScore, blockedByLocation } = computeMatchScore(
+      makeProperty({ zona: "Norte", ciudad: "Córdoba" }),
+      makeDemand({ zonas: "Córdoba" }),
+    );
+
+    expect(matchScore.zone.matched).toBe(true);
+    expect(blockedByLocation).toBe(false);
+    expect(isMatch).toBe(true);
+  });
+
+  it("mantiene demanda sin zonas como parcial sin bloqueo geografico", () => {
+    const { isMatch, matchScore, blockedByLocation } = computeMatchScore(
+      makeProperty({ zona: "Norte", ciudad: "Córdoba" }),
+      makeDemand({ zonas: "", presupuestoMin: 200_000, presupuestoMax: 300_000 }),
+    );
+
+    expect(matchScore.zone.score).toBe(0.5);
+    expect(blockedByLocation).toBe(false);
+    expect(isMatch).toBe(true);
+  });
+
+  it("permite zonas cercanas por contexto de catalogo", () => {
+    const { isMatch, matchScore, blockedByLocation } = computeMatchScore(
+      makeProperty({
+        zona: "Campo de la Verdad Zona Baja",
+        ciudad: "Córdoba",
+        precio: 120_000,
+        habitaciones: 3,
+      }),
+      makeDemand({
+        presupuestoMin: 105_000,
+        presupuestoMax: 140_000,
+        habitacionesMin: 2,
+        tipos: "",
+        zonas: "Fuensanta, Arcángel, Santuario",
+      }),
+      {
+        weights: { zone: 0.30, price: 0.30, type: 0.20, size: 0.10, rooms: 0.10 },
+        minScoreThreshold: 50,
+        priceTolerancePercent: 10,
+        sizeFallbackRangePercent: 20,
+        location: {
+          demandCity: "Córdoba",
+          exactZones: ["fuensanta - arcangel - santuario"],
+          nearbyZones: ["campo de la verdad zona baja"],
+          excludedZones: [],
+        },
+      },
+    );
+
+    expect(matchScore.zone.matched).toBe(true);
+    expect(matchScore.zone.score).toBeGreaterThanOrEqual(0.7);
+    expect(blockedByLocation).toBe(false);
+    expect(isMatch).toBe(true);
   });
 
   // ── Escenarios realistas ─────────────────────────────────────────────────

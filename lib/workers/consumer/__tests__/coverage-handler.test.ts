@@ -26,10 +26,22 @@ vi.mock("@/lib/routing/resolve-comercial", () => ({
   resolveComercialByDemand: vi.fn(),
 }));
 
+vi.mock("@/lib/statefox/external-search", () => ({
+  EXTERNAL_PORTFOLIO_DISABLED_REASON:
+    "Búsqueda en cartera externa desactivada por configuración (ENABLE_EXTERNAL_PORTFOLIO_SEARCH).",
+  isExternalPortfolioSearchEnabled: vi.fn(() => true),
+}));
+
+vi.mock("@/lib/event-store", () => ({
+  appendEvent: vi.fn(),
+}));
+
 import { handleEvaluateDemandCoverage } from "../coverage-handler";
 import { evaluateDemandCoverage } from "@/lib/matching";
 import { hasRecentCoverageSelection } from "@/lib/microsite/coverage-dedup";
 import { resolveComercialByDemand } from "@/lib/routing/resolve-comercial";
+import { isExternalPortfolioSearchEnabled } from "@/lib/statefox/external-search";
+import { appendEvent } from "@/lib/event-store";
 
 function makeJob(overrides: Partial<JobRecord> = {}): JobRecord {
   return {
@@ -69,6 +81,21 @@ function makeCoverageResult(overrides: Partial<DemandCoverageResult> = {}): Dema
 describe("handleEvaluateDemandCoverage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(isExternalPortfolioSearchEnabled).mockReturnValue(true);
+    vi.mocked(appendEvent).mockResolvedValue({
+      id: "evt-cov",
+      position: BigInt(1),
+      type: "COBERTURA_DEMANDA_EVALUADA",
+      aggregateType: "DEMAND",
+      aggregateId: "DEM-001",
+      version: null,
+      payload: {},
+      metadata: null,
+      correlationId: null,
+      causationId: null,
+      occurredAt: new Date(),
+      createdAt: new Date(),
+    });
   });
 
   it("falla permanente si no hay demandId en payload", async () => {
@@ -83,6 +110,12 @@ describe("handleEvaluateDemandCoverage", () => {
     const result = await handleEvaluateDemandCoverage(makeJob());
     expect(result.success).toBe(true);
     expect(result.followUpJobs).toBeUndefined();
+    expect(appendEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "COBERTURA_DEMANDA_EVALUADA",
+        payload: expect.objectContaining({ decision: "demand_not_found" }),
+      }),
+    );
   });
 
   it("no-op si bestScore >= COVERAGE_MIN_SCORE (60)", async () => {
@@ -92,6 +125,15 @@ describe("handleEvaluateDemandCoverage", () => {
     const result = await handleEvaluateDemandCoverage(makeJob());
     expect(result.success).toBe(true);
     expect(result.followUpJobs).toBeUndefined();
+    expect(appendEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "COBERTURA_DEMANDA_EVALUADA",
+        payload: expect.objectContaining({
+          decision: "covered",
+          bestScore: 75,
+        }),
+      }),
+    );
   });
 
   it("skip si hay selección de coverage reciente (dedup)", async () => {
@@ -103,6 +145,15 @@ describe("handleEvaluateDemandCoverage", () => {
     const result = await handleEvaluateDemandCoverage(makeJob());
     expect(result.success).toBe(true);
     expect(result.followUpJobs).toBeUndefined();
+    expect(appendEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "COBERTURA_DEMANDA_EVALUADA",
+        payload: expect.objectContaining({
+          decision: "dedup_skip",
+          bestScore: 40,
+        }),
+      }),
+    );
   });
 
   it("encola GENERATE_MICROSITE con source=coverage_scan cuando bestScore < 60 y sin dedup", async () => {
@@ -137,6 +188,16 @@ describe("handleEvaluateDemandCoverage", () => {
     expect(p.source).toBe("coverage_scan");
     expect(p.notifyOnEmpty).toBe(false);
     expect(p.coverageReason).toBe("low_score");
+    expect(appendEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "COBERTURA_DEMANDA_EVALUADA",
+        payload: expect.objectContaining({
+          decision: "enqueued_microsite",
+          bestScore: 45,
+          followUpJobType: "GENERATE_MICROSITE",
+        }),
+      }),
+    );
   });
 
   it("reason es zero_matches cuando bestScore es 0", async () => {
@@ -160,5 +221,25 @@ describe("handleEvaluateDemandCoverage", () => {
     const result = await handleEvaluateDemandCoverage(makeJob());
     expect(result.success).toBe(true);
     expect(result.followUpJobs).toBeUndefined();
+  });
+
+  it("deja evento auditable si cartera externa está desactivada", async () => {
+    vi.mocked(isExternalPortfolioSearchEnabled).mockReturnValue(false);
+
+    const result = await handleEvaluateDemandCoverage(makeJob());
+
+    expect(result.success).toBe(true);
+    expect(result.followUpJobs).toBeUndefined();
+    expect(evaluateDemandCoverage).not.toHaveBeenCalled();
+    expect(appendEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "COBERTURA_DEMANDA_EVALUADA",
+        aggregateType: "DEMAND",
+        aggregateId: "DEM-001",
+        payload: expect.objectContaining({
+          decision: "external_search_disabled",
+        }),
+      }),
+    );
   });
 });

@@ -4,14 +4,12 @@
  * Integra el grafo conversacional en el pipeline de mensajes:
  * 1. Carga contexto (propiedades, historial, sesión).
  * 2. Invoca el agente conversacional.
- * 3. Envía responseText al comprador.
- * 4. Registra WHATSAPP_ENVIADO en Event Store.
- * 5. Actualiza WhatsAppBuyerSession.
- * 6. Retorna jobs derivados de tool calls.
+ * 3. Envía responseText al comprador (send.ts registra WHATSAPP_ENVIADO).
+ * 4. Actualiza WhatsAppBuyerSession.
+ * 5. Retorna jobs derivados de tool calls.
  */
 
 import { prisma } from "@/lib/prisma";
-import { appendEvent } from "@/lib/event-store/event-store";
 import { sendChatEscalationToCommercial, sendTextMessage } from "@/lib/whatsapp/send";
 import { runConversationalAgent } from "@/lib/agents/conversational-graph";
 import { enqueueJob } from "@/lib/job-queue";
@@ -21,7 +19,6 @@ import type {
   ToolCallResult,
 } from "@/lib/agents/conversational-agent-types";
 import type { PropertySummaryForNLU, ConversationTurn } from "@/lib/agents/types";
-import type { JsonValue } from "@/lib/event-store/types";
 import type { EnqueueJobInput } from "@/lib/job-queue/types";
 import type { Event } from "@/types/domain";
 import type {
@@ -299,36 +296,32 @@ export async function handleConversationalFlow(
     });
   }
 
-  // 5. Enviar respuesta al comprador
-  let messageId: string | null = null;
+  // 5. Enviar respuesta al comprador (sendTextMessage ya persiste WHATSAPP_ENVIADO)
   try {
-    const sendResult = await sendTextMessage(waId, output.responseText);
-    messageId = sendResult.messages?.[0]?.id ?? null;
+    await sendTextMessage(waId, output.responseText, {
+      trace: {
+        source: "conversational_agent",
+        kind: "conversational_response",
+        aggregateId: waId,
+        causationId: event.id,
+        correlationId: event.correlationId ?? undefined,
+        payload: {
+          demandId: ctx.demandId,
+          selectionId: selectionId ?? null,
+          toolsUsed: output.toolResults.map((t) => t.toolName),
+          phase: output.nextPhase,
+          elapsedMs,
+          body: output.responseText,
+        },
+      },
+    });
   } catch (err) {
     console.error(
       `[conversational-handler] sendTextMessage failed waId=${waId}: ${err instanceof Error ? err.message : err}`,
     );
   }
 
-  // 6. Registrar WHATSAPP_ENVIADO
-  await appendEvent({
-    type: "WHATSAPP_ENVIADO",
-    aggregateType: "WHATSAPP_CONVERSATION",
-    aggregateId: waId,
-    payload: {
-      messageId,
-      body: output.responseText,
-      source: "conversational_agent",
-      demandId: ctx.demandId,
-      toolsUsed: output.toolResults.map((t) => t.toolName),
-      phase: output.nextPhase,
-      elapsedMs,
-    } as unknown as JsonValue,
-    correlationId: event.correlationId ?? undefined,
-    causationId: event.id,
-  });
-
-  // 7. Actualizar sesión
+  // 6. Actualizar sesión
   await prisma.whatsAppBuyerSession.upsert({
     where: { waId },
     create: {

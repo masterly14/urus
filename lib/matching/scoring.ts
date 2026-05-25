@@ -20,6 +20,12 @@ import type {
   PropertyForMatching,
   DemandForMatching,
 } from "./types";
+import {
+  demandHasConcreteZones,
+  evaluateLocationMatch,
+  normalizeLocation,
+  parseLocationList,
+} from "./location";
 
 export const DEFAULT_CONFIG: MatchConfig = {
   weights: {
@@ -37,114 +43,23 @@ export const DEFAULT_CONFIG: MatchConfig = {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 export function parseList(raw: string): string[] {
-  if (!raw?.trim()) return [];
-  return raw
-    .split(/[,|;]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  return parseLocationList(raw);
 }
 
 export function normalize(s: string): string {
-  return s
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+  return normalizeLocation(s);
 }
 
 // ── Criterio: Zona ───────────────────────────────────────────────────────────
-// Estrategia: match exacto > segmentos compartidos > substring > ciudad > sin datos.
-
-/**
- * Splits a zone string into meaningful segments for comparison.
- * "Sector sur - Santa Cruz"  → ["sector sur", "santa cruz"]
- * "Campo de la Verdad Zona Baja" → ["campo de la verdad zona baja"]
- */
-function tokenizeZone(raw: string): string[] {
-  return raw
-    .split(/[-–—/|,;]+/)
-    .map((s) => normalize(s.trim()))
-    .filter((s) => s.length > 1);
-}
-
-/**
- * Fraction of demand zone segments found in the property zone string.
- * "Sector sur - Santa Cruz" vs "Sector Sur Zona Baja":
- *   segments = ["sector sur", "santa cruz"]
- *   "sector sur" found inside "sector sur zona baja" → 1/2 = 0.5
- */
-function segmentOverlap(propZoneNorm: string, demandZoneRaw: string): number {
-  const segments = tokenizeZone(demandZoneRaw);
-  if (segments.length === 0) return 0;
-  const hits = segments.filter((seg) => propZoneNorm.includes(seg)).length;
-  return hits / segments.length;
-}
+// Estrategia: decisión geográfica explícita. Si la demanda trae barrios/zonas
+// concretas, una coincidencia solo por ciudad no es suficiente.
 
 export function scoreZone(
   property: PropertyForMatching,
   demand: DemandForMatching,
+  context: MatchConfig["location"] = {},
 ): CriterionScore {
-  const demandZones = parseList(demand.zonas).map(normalize);
-  if (demandZones.length === 0) {
-    return { matched: true, score: 0.5, reason: "Demanda sin zonas definidas — match parcial" };
-  }
-
-  const propZone = normalize(property.zona);
-  const propCity = normalize(property.ciudad);
-
-  if (!propZone && !propCity) {
-    return { matched: false, score: 0, reason: "Propiedad sin zona ni ciudad" };
-  }
-
-  // 1. Match exacto zona ↔ zona
-  if (propZone && demandZones.some((z) => z === propZone)) {
-    return { matched: true, score: 1.0, reason: `Zona exacta: ${property.zona}` };
-  }
-
-  // 2. Match exacto ciudad ↔ zona (comprador dice "Córdoba", propiedad en Córdoba)
-  if (propCity && demandZones.some((z) => z === propCity)) {
-    return { matched: true, score: 0.85, reason: `Ciudad exacta: ${property.ciudad}` };
-  }
-
-  // 3. Match parcial (substring bidireccional: "Centro Histórico" contiene "Centro")
-  if (propZone) {
-    const partialZone = demandZones.some(
-      (z) => propZone.includes(z) || z.includes(propZone),
-    );
-    if (partialZone) {
-      return { matched: true, score: 0.7, reason: `Zona parcial: ${property.zona} ~ ${demand.zonas}` };
-    }
-  }
-
-  // 4. Segment overlap: "Sector Sur Zona Baja" vs "Sector sur - Santa Cruz"
-  //    shares the "sector sur" segment → partial match
-  if (propZone) {
-    let bestOverlap = 0;
-    for (const rawZone of parseList(demand.zonas)) {
-      const overlap = segmentOverlap(propZone, rawZone);
-      if (overlap > bestOverlap) bestOverlap = overlap;
-    }
-    if (bestOverlap >= 0.5) {
-      const score = 0.5 + bestOverlap * 0.2;
-      return {
-        matched: true,
-        score: Math.min(0.65, score),
-        reason: `Zona segmento compartido (${Math.round(bestOverlap * 100)}%): ${property.zona} ~ ${demand.zonas}`,
-      };
-    }
-  }
-
-  // 5. Match parcial por ciudad (demanda dice "Córdoba Centro", propiedad en Córdoba)
-  if (propCity) {
-    const partialCity = demandZones.some(
-      (z) => z.includes(propCity) || propCity.includes(z),
-    );
-    if (partialCity) {
-      return { matched: true, score: 0.6, reason: `Ciudad parcial: ${property.ciudad} ~ ${demand.zonas}` };
-    }
-  }
-
-  return { matched: false, score: 0, reason: `Sin coincidencia: ${property.zona} (${property.ciudad}) vs ${demand.zonas}` };
+  return evaluateLocationMatch(property, demand, context);
 }
 
 // ── Criterio: Precio ─────────────────────────────────────────────────────────
@@ -373,9 +288,9 @@ export function computeMatchScore(
   property: PropertyForMatching,
   demand: DemandForMatching,
   config: MatchConfig = DEFAULT_CONFIG,
-): { totalScore: number; matchScore: MatchScore; isMatch: boolean } {
+): { totalScore: number; matchScore: MatchScore; isMatch: boolean; blockedByLocation: boolean } {
   const matchScore: MatchScore = {
-    zone: scoreZone(property, demand),
+    zone: scoreZone(property, demand, config.location),
     price: scorePrice(property, demand, config.priceTolerancePercent),
     type: scoreType(property, demand),
     size: scoreSize(property, demand, config.sizeFallbackRangePercent),
@@ -391,10 +306,12 @@ export function computeMatchScore(
       matchScore.rooms.score * weights.rooms) *
       100,
   );
+  const blockedByLocation = demandHasConcreteZones(demand.zonas) && !matchScore.zone.matched;
 
   return {
     totalScore,
     matchScore,
-    isMatch: totalScore >= config.minScoreThreshold,
+    isMatch: totalScore >= config.minScoreThreshold && !blockedByLocation,
+    blockedByLocation,
   };
 }

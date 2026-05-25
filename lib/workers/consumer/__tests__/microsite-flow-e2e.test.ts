@@ -56,6 +56,10 @@ vi.mock("@/lib/visitas/notify-commercial", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/alerts/alert-service", () => ({
+  alertGeneric: vi.fn(),
+}));
+
 vi.mock("@/lib/statefox", () => ({
   searchSnapshotForDemand: vi.fn().mockResolvedValue({
     properties: Array.from({ length: 8 }, (_, i) => ({
@@ -150,6 +154,14 @@ async function cleanup() {
   await prisma.event.deleteMany({
     where: { correlationId: { startsWith: TEST_RUN } },
   });
+  await prisma.event.deleteMany({
+    where: {
+      OR: [
+        { aggregateType: "DEMAND", aggregateId: DEMAND_ID },
+        { aggregateType: "WHATSAPP_CONVERSATION", aggregateId: WA_ID },
+      ],
+    },
+  });
 
   await prisma.demandCurrent.deleteMany({ where: { codigo: DEMAND_ID } });
   await prisma.demandSnapshot.deleteMany({ where: { codigo: DEMAND_ID } });
@@ -235,6 +247,43 @@ afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 describe("Escenario 1: GENERATE_MICROSITE → auto-validación IA + envío", () => {
+  it("registra resultado skipped cuando la cartera externa está desactivada", async () => {
+    process.env.ENABLE_EXTERNAL_PORTFOLIO_SEARCH = "false";
+    try {
+      const job = await enqueueJob({
+        type: "GENERATE_MICROSITE",
+        payload: {
+          demandId: DEMAND_ID,
+          comercialId: COMERCIAL_ID,
+          source: "conversational_agent",
+        },
+        idempotencyKey: `generate_microsite:disabled-test:${TEST_RUN}`,
+      });
+
+      const result = await drainConsumer(8);
+      expect(result.failed).toBe(0);
+
+      const event = await prisma.event.findFirst({
+        where: {
+          type: "MICROSITE_GENERACION_RESULTADO",
+          aggregateType: "DEMAND",
+          aggregateId: DEMAND_ID,
+          payload: { path: ["jobId"], equals: job.id },
+        },
+        select: { payload: true },
+      });
+
+      expect(event).not.toBeNull();
+      expect(event?.payload).toMatchObject({
+        status: "skipped",
+        reason: "EXTERNAL_SEARCH_DISABLED",
+        jobId: job.id,
+      });
+    } finally {
+      process.env.ENABLE_EXTERNAL_PORTFOLIO_SEARCH = "true";
+    }
+  });
+
   it("crea MicrositeSelection APPROVED y encola envío al comprador", async () => {
     const selection = await prisma.micrositeSelection.create({
       data: {
@@ -595,6 +644,14 @@ describe("Escenario 6: wantsMoreOptions → GENERATE_MICROSITE directo (sin DEMA
       return key.includes("wants_more");
     });
     expect(hasWantsMore).toBe(true);
+    const wantsMoreJob = micrositeJobs.find((j) => (j.idempotencyKey ?? "").includes("wants_more"));
+    expect(wantsMoreJob?.payload).toMatchObject({
+      rankerIntent: "more_options",
+      selectionFeedbackContext: {
+        intent: "more_options",
+        rejectedPropertyIds: [],
+      },
+    });
   }, 60_000);
 });
 

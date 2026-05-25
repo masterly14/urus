@@ -10,6 +10,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { computeMatchScore, operationMatches, normalizeType, DEFAULT_CONFIG } from "./scoring";
+import { buildDemandLocationContext } from "./location-context";
 import type {
   MatchConfig,
   MatchResult,
@@ -130,9 +131,15 @@ export async function matchDemandsToProperty(
   const start = performance.now();
 
   const demands = await loadActiveDemands(property);
+  const locationContexts = new Map(
+    await Promise.all(
+      demands.map(async (demand) => [demand.codigo, await buildDemandLocationContext(demand)] as const),
+    ),
+  );
 
   const matches: MatchResult[] = [];
   let filteredOut = 0;
+  let geographicallyRejected = 0;
 
   for (const demand of demands) {
     if (!passesHardFilters(property, demand)) {
@@ -140,11 +147,15 @@ export async function matchDemandsToProperty(
       continue;
     }
 
-    const { totalScore, matchScore, isMatch } = computeMatchScore(
+    const { totalScore, matchScore, isMatch, blockedByLocation } = computeMatchScore(
       property,
       demand,
-      config,
+      { ...config, location: locationContexts.get(demand.codigo) },
     );
+
+    if (blockedByLocation) {
+      geographicallyRejected++;
+    }
 
     if (isMatch) {
       matches.push({
@@ -166,13 +177,14 @@ export async function matchDemandsToProperty(
 
   console.log(
     `[matching] ${property.ref} (${property.zona}, ${property.precio}€) → ` +
-    `${matches.length} matches / ${demands.length} demandas (${filteredOut} filtradas, ${executionMs}ms)`,
+    `${matches.length} matches / ${demands.length} demandas (${filteredOut} filtradas, ${geographicallyRejected} geo rechazadas, ${executionMs}ms)`,
   );
 
   return {
     property,
     totalDemands: demands.length,
     filteredOut,
+    geographicallyRejected,
     matches,
     executionMs,
   };

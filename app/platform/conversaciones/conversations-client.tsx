@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState, useRef, useEffect, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   PanelLeftClose,
   PanelLeftOpen,
@@ -176,10 +177,13 @@ function audioSourcesFromPayload(payload: unknown): AudioSource[] | null {
 }
 
 export function ConversationsClient() {
-  const [q, setQ] = useState("");
+  const searchParams = useSearchParams();
+  const waIdParam = searchParams.get("waId")?.trim() ?? null;
+  const initialQuery = searchParams.get("q")?.trim() ?? waIdParam ?? "";
+  const [q, setQ] = useState(initialQuery);
   const [direction, setDirection] = useState<Direction>("all");
   const [agentOnly, setAgentOnly] = useState(false);
-  const [selectedWaId, setSelectedWaId] = useState<string | null>(null);
+  const [selectedWaId, setSelectedWaId] = useState<string | null>(waIdParam);
   const [listCollapsed, setListCollapsed] = useState(false);
   const [contextOpen, setContextOpen] = useState(false); // Default closed for cleaner chat view
 
@@ -199,6 +203,12 @@ export function ConversationsClient() {
     error: listError,
     refetch,
   } = useConversations(filters);
+
+  useEffect(() => {
+    if (!waIdParam) return;
+    setSelectedWaId((current) => current ?? waIdParam);
+    setQ((current) => current || waIdParam);
+  }, [waIdParam]);
 
   const activeWaId = conversations.some((conversation) => conversation.waId === selectedWaId)
     ? selectedWaId

@@ -12,11 +12,51 @@ import { evaluateDemandCoverage, COVERAGE_MIN_SCORE } from "@/lib/matching";
 import { hasRecentCoverageSelection } from "@/lib/microsite/coverage-dedup";
 import { resolveComercialByDemand } from "@/lib/routing/resolve-comercial";
 import type { JsonValue } from "@/lib/job-queue/types";
+import { appendEvent } from "@/lib/event-store";
 import { isMatchingPaused, MATCHING_PAUSED_REASON } from "@/lib/matching/pause";
 import {
   EXTERNAL_PORTFOLIO_DISABLED_REASON,
   isExternalPortfolioSearchEnabled,
 } from "@/lib/statefox/external-search";
+
+type CoverageDecision =
+  | "matching_paused"
+  | "external_search_disabled"
+  | "demand_not_found"
+  | "covered"
+  | "dedup_skip"
+  | "enqueued_microsite";
+
+async function appendCoverageDecisionEvent(args: {
+  job: JobRecord;
+  demandId: string;
+  sourceEventId: string | undefined;
+  decision: CoverageDecision;
+  reason?: string;
+  bestScore?: number;
+  threshold?: number;
+  comercialId?: string;
+  followUpJobType?: string;
+}): Promise<void> {
+  await appendEvent({
+    type: "COBERTURA_DEMANDA_EVALUADA",
+    aggregateType: "DEMAND",
+    aggregateId: args.demandId,
+    payload: {
+      jobId: args.job.id,
+      jobType: args.job.type,
+      decision: args.decision,
+      reason: args.reason ?? null,
+      sourceEventId: args.sourceEventId ?? null,
+      bestScore: args.bestScore ?? null,
+      threshold: args.threshold ?? COVERAGE_MIN_SCORE,
+      comercialId: args.comercialId ?? null,
+      followUpJobType: args.followUpJobType ?? null,
+      attempts: args.job.attempts,
+    } as JsonValue,
+    causationId: args.sourceEventId ?? args.job.sourceEventId ?? undefined,
+  });
+}
 
 export async function handleEvaluateDemandCoverage(
   job: JobRecord,
@@ -41,6 +81,13 @@ export async function handleEvaluateDemandCoverage(
     console.warn(
       `[coverage] job ${job.id} demandId=${demandId} — cobertura/Statefox pausado: ${MATCHING_PAUSED_REASON}`,
     );
+    await appendCoverageDecisionEvent({
+      job,
+      demandId,
+      sourceEventId,
+      decision: "matching_paused",
+      reason: MATCHING_PAUSED_REASON,
+    });
     return { success: true };
   }
 
@@ -48,6 +95,13 @@ export async function handleEvaluateDemandCoverage(
     console.warn(
       `[coverage] job ${job.id} demandId=${demandId} — omitiendo cartera externa: ${EXTERNAL_PORTFOLIO_DISABLED_REASON}`,
     );
+    await appendCoverageDecisionEvent({
+      job,
+      demandId,
+      sourceEventId,
+      decision: "external_search_disabled",
+      reason: EXTERNAL_PORTFOLIO_DISABLED_REASON,
+    });
     return { success: true };
   }
 
@@ -73,6 +127,12 @@ export async function handleEvaluateDemandCoverage(
       console.log(
         `[coverage] job ${job.id} demandId=${demandId} — demanda no encontrada, skip`,
       );
+      await appendCoverageDecisionEvent({
+        job,
+        demandId,
+        sourceEventId,
+        decision: "demand_not_found",
+      });
       return { success: true };
     }
     bestScore = result.bestScore;
@@ -82,6 +142,14 @@ export async function handleEvaluateDemandCoverage(
     console.log(
       `[coverage] job ${job.id} demandId=${demandId} — decision=covered bestScore=${bestScore} (>= ${COVERAGE_MIN_SCORE})`,
     );
+    await appendCoverageDecisionEvent({
+      job,
+      demandId,
+      sourceEventId,
+      decision: "covered",
+      bestScore,
+      threshold: COVERAGE_MIN_SCORE,
+    });
     return { success: true };
   }
 
@@ -90,6 +158,15 @@ export async function handleEvaluateDemandCoverage(
     console.log(
       `[coverage] job ${job.id} demandId=${demandId} — decision=dedup_skip bestScore=${bestScore} (selección de coverage reciente existe)`,
     );
+    await appendCoverageDecisionEvent({
+      job,
+      demandId,
+      sourceEventId,
+      decision: "dedup_skip",
+      reason: "recent_coverage_selection",
+      bestScore,
+      threshold: COVERAGE_MIN_SCORE,
+    });
     return { success: true };
   }
 
@@ -101,6 +178,17 @@ export async function handleEvaluateDemandCoverage(
   console.log(
     `[coverage] job ${job.id} demandId=${demandId} — decision=enqueued_microsite bestScore=${bestScore} reason=${reason} comercialId=${comercialId}`,
   );
+  await appendCoverageDecisionEvent({
+    job,
+    demandId,
+    sourceEventId,
+    decision: "enqueued_microsite",
+    reason,
+    bestScore,
+    threshold: COVERAGE_MIN_SCORE,
+    comercialId,
+    followUpJobType: "GENERATE_MICROSITE",
+  });
 
   return {
     success: true,

@@ -5,6 +5,8 @@ vi.mock("@/lib/whatsapp/send", () => ({
   sendFollowUpToCommercial: vi.fn(),
   sendTextMessage: vi.fn(),
   sendTemplateMessage: vi.fn(),
+  sendNoStockAvailableToBuyer: vi.fn(),
+  sendContractDataIncompleteToCommercial: vi.fn(),
 }));
 
 vi.mock("@/lib/leads/follow-up-checker", () => ({
@@ -14,16 +16,59 @@ vi.mock("@/lib/leads/follow-up-checker", () => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     comercial: { findUnique: vi.fn() },
+    demandCurrent: { findUnique: vi.fn() },
+    event: { findFirst: vi.fn() },
   },
 }));
 
+vi.mock("@/lib/event-store", () => ({
+  appendEvent: vi.fn(),
+}));
+
+vi.mock("@/lib/microsite/selection", () => ({
+  generateMicrositeSelection: vi.fn(),
+}));
+
+vi.mock("@/lib/microsite/approve-by-ai", () => ({
+  approveMicrositeByAI: vi.fn(),
+}));
+
+vi.mock("@/lib/microsite/buyer-phone", () => ({
+  normalizeWhatsAppDigits: vi.fn((value: string | null | undefined) =>
+    typeof value === "string" ? value.replace(/\D/g, "") : null,
+  ),
+  resolveBuyerPhoneForDemand: vi.fn(),
+}));
+
+vi.mock("@/lib/alerts/alert-service", () => ({
+  alertGeneric: vi.fn(),
+}));
+
 import { getJobHandler, handleFollowUpLead } from "../job-handlers";
-import { sendLeadAssignedToCommercial, sendFollowUpToCommercial } from "@/lib/whatsapp/send";
+import {
+  sendLeadAssignedToCommercial,
+  sendFollowUpToCommercial,
+  sendTextMessage,
+  sendNoStockAvailableToBuyer,
+} from "@/lib/whatsapp/send";
 import type { JobRecord } from "@/lib/job-queue/types";
 import type { FollowUpCheckResult } from "@/lib/leads/follow-up-checker";
+import { prisma } from "@/lib/prisma";
+import { appendEvent } from "@/lib/event-store";
+import { generateMicrositeSelection } from "@/lib/microsite/selection";
+import { approveMicrositeByAI } from "@/lib/microsite/approve-by-ai";
+import { resolveBuyerPhoneForDemand } from "@/lib/microsite/buyer-phone";
+import { alertGeneric } from "@/lib/alerts/alert-service";
 
 const mockSend = vi.mocked(sendLeadAssignedToCommercial);
 const mockSendFollowUp = vi.mocked(sendFollowUpToCommercial);
+const mockSendText = vi.mocked(sendTextMessage);
+const mockSendNoStock = vi.mocked(sendNoStockAvailableToBuyer);
+const mockAppendEvent = vi.mocked(appendEvent);
+const mockGenerateMicrositeSelection = vi.mocked(generateMicrositeSelection);
+const mockApproveMicrositeByAI = vi.mocked(approveMicrositeByAI);
+const mockResolveBuyerPhone = vi.mocked(resolveBuyerPhoneForDemand);
+const mockAlertGeneric = vi.mocked(alertGeneric);
 
 function makeJob(payload: Record<string, unknown>, overrides: Partial<JobRecord> = {}): JobRecord {
   return {
@@ -51,6 +96,21 @@ function makeJob(payload: Record<string, unknown>, overrides: Partial<JobRecord>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(prisma.event.findFirst).mockResolvedValue(null);
+  mockAppendEvent.mockResolvedValue({
+    id: "evt-mock",
+    position: BigInt(1),
+    type: "MICROSITE_GENERACION_RESULTADO",
+    aggregateType: "DEMAND",
+    aggregateId: "DEM-MS-001",
+    version: null,
+    payload: {},
+    metadata: null,
+    correlationId: null,
+    causationId: null,
+    occurredAt: new Date(),
+    createdAt: new Date(),
+  });
 });
 
 describe("NOTIFY_LEAD_WHATSAPP job handler", () => {
@@ -341,6 +401,168 @@ describe("FOLLOW_UP_LEAD job handler", () => {
     expect(mockSendFollowUp).toHaveBeenCalledWith(
       "+34600000020",
       expect.objectContaining({ step: "D+7" }),
+    );
+  });
+});
+
+function makeMicrositeJob(
+  payload: Record<string, unknown>,
+  overrides: Partial<JobRecord> = {},
+): JobRecord {
+  return {
+    id: "job-ms-001",
+    type: "GENERATE_MICROSITE",
+    status: "IN_PROGRESS",
+    payload: payload as JobRecord["payload"],
+    priority: 100,
+    attempts: 1,
+    maxAttempts: 5,
+    availableAt: new Date(),
+    lockedAt: new Date(),
+    lockedBy: "test-worker",
+    startedAt: new Date(),
+    completedAt: null,
+    failedAt: null,
+    lastError: null,
+    idempotencyKey: null,
+    sourceEventId: "evt-source-001",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+function mockDemandCurrent(): void {
+  vi.mocked(prisma.demandCurrent.findUnique).mockResolvedValue({
+    nombre: "Luis",
+    tipos: "Piso",
+    zonas: "Fuensanta",
+    presupuestoMin: 105000,
+    presupuestoMax: 140000,
+    habitacionesMin: 2,
+  });
+}
+
+describe("GENERATE_MICROSITE job handler", () => {
+  const handler = getJobHandler("GENERATE_MICROSITE")!;
+
+  it("registra evento, alerta y avisa al comprador si la búsqueda externa está desactivada en flujo conversacional", async () => {
+    mockDemandCurrent();
+    mockGenerateMicrositeSelection.mockResolvedValue({
+      ok: false,
+      reason: "EXTERNAL_SEARCH_DISABLED",
+    });
+    mockResolveBuyerPhone.mockResolvedValue("34677277324");
+    mockSendText.mockResolvedValue({
+      messaging_product: "whatsapp",
+      contacts: [{ input: "34677277324", wa_id: "34677277324" }],
+      messages: [{ id: "wamid.delay" }],
+    });
+
+    const result = await handler(
+      makeMicrositeJob({
+        demandId: "40116955",
+        comercialId: "system",
+        source: "conversational_agent",
+        sourceEventId: "evt-source-001",
+      }),
+    );
+
+    expect(result.success).toBe(true);
+    expect(mockAlertGeneric).toHaveBeenCalledWith(
+      "Generación de microsite omitida",
+      "warning",
+      expect.objectContaining({
+        demandId: "40116955",
+        reason: "EXTERNAL_SEARCH_DISABLED",
+      }),
+    );
+    expect(mockSendText).toHaveBeenCalledWith(
+      "34677277324",
+      expect.stringContaining("no he podido generar una selección fiable"),
+      expect.objectContaining({
+        trace: expect.objectContaining({
+          kind: "microsite_generation_delayed",
+        }),
+      }),
+    );
+    expect(mockAppendEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "MICROSITE_GENERACION_RESULTADO",
+        aggregateType: "DEMAND",
+        aggregateId: "40116955",
+        payload: expect.objectContaining({
+          status: "skipped",
+          reason: "EXTERNAL_SEARCH_DISABLED",
+          jobId: "job-ms-001",
+        }),
+      }),
+    );
+  });
+
+  it("respeta notifyOnEmpty=false y no avisa al comprador cuando no hay propiedades en coverage", async () => {
+    mockDemandCurrent();
+    mockGenerateMicrositeSelection.mockResolvedValue({
+      ok: false,
+      reason: "NO_MATCHING_PROPERTIES",
+    });
+
+    const result = await handler(
+      makeMicrositeJob({
+        demandId: "40116955",
+        comercialId: "system",
+        source: "coverage_scan",
+        notifyOnEmpty: false,
+      }),
+    );
+
+    expect(result.success).toBe(true);
+    expect(mockSendNoStock).not.toHaveBeenCalled();
+    expect(mockSendText).not.toHaveBeenCalled();
+    expect(mockAppendEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "MICROSITE_GENERACION_RESULTADO",
+        payload: expect.objectContaining({
+          status: "skipped",
+          reason: "NO_MATCHING_PROPERTIES",
+          notifyOnEmpty: false,
+        }),
+      }),
+    );
+  });
+
+  it("mantiene el camino ok y registra resultado created tras auto-aprobación", async () => {
+    mockDemandCurrent();
+    mockGenerateMicrositeSelection.mockResolvedValue({
+      ok: true,
+      token: "token-123",
+      selectionId: "sel-123",
+      propertiesCount: 4,
+      stockCount: 12,
+    });
+    mockApproveMicrositeByAI.mockResolvedValue({ ok: true });
+
+    const result = await handler(
+      makeMicrositeJob({
+        demandId: "40116955",
+        comercialId: "system",
+        source: "conversational_agent",
+      }),
+    );
+
+    expect(result.success).toBe(true);
+    expect(mockApproveMicrositeByAI).toHaveBeenCalledWith("sel-123");
+    expect(mockAppendEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "MICROSITE_GENERACION_RESULTADO",
+        payload: expect.objectContaining({
+          status: "created",
+          selectionId: "sel-123",
+          selectionToken: "token-123",
+          propertiesCount: 4,
+          stockCount: 12,
+        }),
+      }),
     );
   });
 });

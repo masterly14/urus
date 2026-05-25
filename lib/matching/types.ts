@@ -49,6 +49,18 @@ export interface MatchConfig {
   minScoreThreshold: number; // 0–100, score mínimo para considerarse match
   priceTolerancePercent: number; // % de tolerancia sobre presupuesto
   sizeFallbackRangePercent: number; // % para rango de metros si la demanda no especifica
+  location?: LocationMatchContext;
+}
+
+export interface LocationMatchContext {
+  /** Ciudad inferida desde catálogo de zonas de la demanda. */
+  demandCity?: string;
+  /** Zonas exactas/canónicas aceptadas para la demanda. Valores ya normalizados. */
+  exactZones?: string[];
+  /** Zonas comparables/cercanas aceptadas. Valores ya normalizados. */
+  nearbyZones?: string[];
+  /** Zonas explícitamente no comparables. Valores ya normalizados. */
+  excludedZones?: string[];
 }
 
 // ── Input para la función principal ──────────────────────────────────────────
@@ -100,6 +112,8 @@ export interface MatchDemandsResult {
   totalDemands: number;
   /** Demandas descartadas por filtros duros antes del scoring. */
   filteredOut: number;
+  /** Candidatos bloqueados porque la demanda declara zonas concretas incompatibles. */
+  geographicallyRejected: number;
   matches: MatchResult[];
   executionMs: number;
 }

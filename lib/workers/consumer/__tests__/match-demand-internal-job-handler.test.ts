@@ -114,6 +114,7 @@ describe("handleMatchDemandAgainstInternal", () => {
       demand: makeDemandRow(),
       totalProperties: 50,
       filteredOut: 10,
+      geographicallyRejected: 0,
       matches: [makeMatch("PROP-1", 85), makeMatch("PROP-2", 72)],
       executionMs: 12,
     });
@@ -246,6 +247,7 @@ describe("handleMatchDemandAgainstInternal", () => {
       demand: makeDemandRow(),
       totalProperties: 50,
       filteredOut: 10,
+      geographicallyRejected: 0,
       matches: [makeMatch("PROP-1", 90)],
       executionMs: 8,
     });
@@ -276,6 +278,7 @@ describe("handleMatchDemandAgainstInternal", () => {
       demand: makeDemandRow(),
       totalProperties: 50,
       filteredOut: 50,
+      geographicallyRejected: 0,
       matches: [],
       executionMs: 5,
     });

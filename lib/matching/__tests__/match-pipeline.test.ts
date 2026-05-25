@@ -342,6 +342,46 @@ describe("Smart Matching Pipeline E2E", { timeout: 60_000 }, () => {
     expect(ourMatch).toBeUndefined();
   });
 
+  it("matchDemandsToProperty bloquea candidatos con zona incompatible aunque el score total sea suficiente", async () => {
+    const demandId = trackId(`DEM-GEO-${Date.now()}`);
+    const propId = trackId(`PROP-GEO-${Date.now()}`);
+
+    await insertDemand(demandId, {
+      presupuestoMin: 105_000,
+      presupuestoMax: 140_000,
+      habitacionesMin: 2,
+      tipos: "",
+      zonas: "Fuensanta, Arcángel, Santuario",
+    });
+
+    await insertProperty(propId, {
+      precio: 130_000,
+      metrosConstruidos: 126,
+      habitaciones: 3,
+      ciudad: "Córdoba",
+      zona: "Andalucia",
+      tipoOfer: "Adosado",
+    });
+
+    const prop: PropertyForMatching = {
+      codigo: propId,
+      ref: `REF-${propId}`,
+      titulo: "Casa test con zona generica",
+      tipoOfer: "Adosado",
+      precio: 130_000,
+      metrosConstruidos: 126,
+      habitaciones: 3,
+      ciudad: "Córdoba",
+      zona: "Andalucia",
+    };
+
+    const result = await matchDemandsToProperty(prop);
+    const ourMatch = result.matches.find((m) => m.demandId === demandId);
+
+    expect(ourMatch).toBeUndefined();
+    expect(result.geographicallyRejected).toBeGreaterThanOrEqual(1);
+  });
+
   it("PROPIEDAD_CREADA → consumer genera evento MATCH_GENERADO en el event store", async () => {
     const demandId = trackId(`DEM-EVT-${Date.now()}`);
     const propId = trackId(`PROP-EVT-${Date.now()}`);

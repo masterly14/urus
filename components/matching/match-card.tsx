@@ -24,6 +24,7 @@ export interface CruceMatch {
     };
     comprador: {
         id: string;
+        ref: string;
         nombre: string;
         presupuestoMin: number;
         presupuestoMax: number;
@@ -45,6 +46,30 @@ export interface CruceMatch {
         rooms?: { score: number; reason: string };
     } | null;
     whatsappEnviado: boolean;
+    trazabilidad?: {
+        micrositio: {
+            enviado: boolean;
+            enviadoAt: string | null;
+            url: string | null;
+            selectionId: string | null;
+            selectionToken: string | null;
+            propiedadesEnviadas: Array<{
+                propertyId: string;
+                title: string;
+                price: number | null;
+                zone: string | null;
+                city: string | null;
+            }>;
+        };
+        whatsapp: {
+            waId: string | null;
+            contactado: boolean;
+            inboundCount: number;
+            outboundCount: number;
+            lastMessageAt: string | null;
+            conversationUrl: string | null;
+        };
+    };
 }
 
 interface MatchCardProps {

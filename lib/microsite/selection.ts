@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { appendEvent } from "@/lib/event-store";
 import { MIN_PREFERRED_PROPERTIES } from "@/lib/microsite/constants";
 import { resolveBuyerPhoneForDemand } from "@/lib/microsite/buyer-phone";
 import { formatStatefoxHousingLabel } from "@/lib/statefox/housing-label";
@@ -20,6 +21,17 @@ import {
   warmImportStatefoxImagesOnFirstSeen,
   type CachedStatefoxImage,
 } from "@/lib/statefox/image-cache";
+import { buildCandidateExpansionSteps } from "@/lib/matching/candidate-expansion";
+import { buildDemandLocationContext } from "@/lib/matching/location-context";
+import { evaluateLocationMatch } from "@/lib/matching/location";
+import {
+  MIN_PREFERRED_RANKER_PROPERTIES,
+  rankPropertiesWithAI,
+  type AIRankerCandidate,
+  type AIRankerFeedbackContext,
+  type AIRankerResult,
+} from "@/lib/matching/ai-ranker";
+import type { DemandForMatching, LocationMatchContext, PropertyForMatching } from "@/lib/matching";
 
 export type MicrositeCuratedProperty = {
   propertyId: string;
@@ -51,6 +63,11 @@ export type MicrositeCuratedProperty = {
   condition: string | null;
   advertiserType: "private" | "professional" | null;
   advertiserName: string | null;
+  aiRank?: number;
+  aiReason?: string;
+  aiRisks?: string[];
+  geoFit?: AIRankerCandidate["geoFit"];
+  deterministicScore?: number;
 };
 
 export type GenerateMicrositeSelectionInput = {
@@ -60,6 +77,7 @@ export type GenerateMicrositeSelectionInput = {
   demand: DemandFilterInput;
   sourceEventId?: string;
   source?: string;
+  selectionFeedbackContext?: AIRankerFeedbackContext;
 };
 
 export type GenerateMicrositeSelectionResult =
@@ -262,6 +280,19 @@ export function coerceMicrositeCuratedProperties(value: unknown): MicrositeCurat
             ? o.advertiserType
             : null,
         advertiserName: coerceNullableString(o.advertiserName),
+        aiRank: coerceNullableNumber(o.aiRank) ?? undefined,
+        aiReason: coerceNullableString(o.aiReason) ?? undefined,
+        aiRisks: Array.isArray(o.aiRisks)
+          ? (o.aiRisks.filter((x) => typeof x === "string") as string[])
+          : undefined,
+        geoFit:
+          o.geoFit === "exact" ||
+          o.geoFit === "nearby" ||
+          o.geoFit === "same_city" ||
+          o.geoFit === "unknown"
+            ? o.geoFit
+            : undefined,
+        deterministicScore: coerceNullableNumber(o.deterministicScore) ?? undefined,
       };
     })
     .filter((x): x is MicrositeCuratedProperty => Boolean(x));
@@ -393,6 +424,94 @@ function scoreForDemand(p: StatefoxSnapshotProperty, demand: DemandFilterInput):
   return score;
 }
 
+function toDemandForMatching(demandId: string, demand: DemandFilterInput): DemandForMatching {
+  return {
+    codigo: demandId,
+    ref: demandId,
+    nombre: "",
+    presupuestoMin: demand.presupuestoMin,
+    presupuestoMax: demand.presupuestoMax,
+    habitacionesMin: demand.habitacionesMin,
+    tipos: demand.tipos,
+    zonas: demand.zonas,
+    metrosMin: demand.metrosMin,
+    metrosMax: demand.metrosMax,
+    tipoOperacion: "venta",
+  };
+}
+
+function toPropertyForMatching(propertyId: string, p: StatefoxSnapshotProperty): PropertyForMatching {
+  return {
+    codigo: propertyId,
+    ref: propertyId,
+    titulo: makeTitle(p),
+    tipoOfer: typeof p.pHousing === "string" ? p.pHousing : "",
+    precio: typeof p.pPrice === "number" ? p.pPrice : 0,
+    metrosConstruidos: typeof p.pMeters?.built === "number" ? p.pMeters.built : 0,
+    habitaciones: typeof p.pRooms === "number" ? p.pRooms : 0,
+    ciudad: typeof p.pCity?.cityName === "string" ? p.pCity.cityName : "",
+    zona: resolveZoneName(p.pZone),
+    tipoOperacion: "venta",
+  };
+}
+
+function inferGeoFit(
+  propertyId: string,
+  property: StatefoxSnapshotProperty,
+  demand: DemandForMatching,
+  location: LocationMatchContext,
+): AIRankerCandidate["geoFit"] | null {
+  const decision = evaluateLocationMatch(
+    toPropertyForMatching(propertyId, property),
+    demand,
+    location,
+  );
+  if (!decision.matched) return null;
+  if (decision.matchedBy === "exact_zone") return "exact";
+  if (decision.matchedBy === "nearby_zone") return "nearby";
+  return decision.matchedBy === "city" ? "same_city" : "unknown";
+}
+
+function toAIRankerCandidate(
+  ranked: { propertyId: string; property: StatefoxSnapshotProperty; score: number },
+  demandForMatching: DemandForMatching,
+  location: LocationMatchContext,
+): AIRankerCandidate | null {
+  const geoFit = inferGeoFit(ranked.propertyId, ranked.property, demandForMatching, location);
+  if (!geoFit) return null;
+
+  return {
+    propertyId: ranked.propertyId,
+    deterministicScore: ranked.score,
+    geoFit,
+    title: makeTitle(ranked.property),
+    city: typeof ranked.property.pCity?.cityName === "string" ? ranked.property.pCity.cityName : null,
+    zone: resolveZoneName(ranked.property.pZone) || null,
+    price: typeof ranked.property.pPrice === "number" ? ranked.property.pPrice : null,
+    rooms: typeof ranked.property.pRooms === "number" ? ranked.property.pRooms : null,
+    metersBuilt:
+      typeof ranked.property.pMeters?.built === "number" ? ranked.property.pMeters.built : null,
+    imagesCount: extractImages(ranked.property).length,
+    advertiserType:
+      typeof ranked.property.pAdvert?.type === "string" ? ranked.property.pAdvert.type : null,
+  };
+}
+
+function applyRankerMetadata(
+  property: MicrositeCuratedProperty,
+  candidate: AIRankerCandidate | undefined,
+  selected: AIRankerResult["selected"][number] | undefined,
+): MicrositeCuratedProperty {
+  return {
+    ...property,
+    aiRank: selected?.rank,
+    aiReason: selected?.reason,
+    aiRisks: selected?.risks,
+    geoFit: candidate?.geoFit,
+    deterministicScore: candidate?.deterministicScore,
+  };
+}
+
 export async function generateMicrositeSelection(
   input: GenerateMicrositeSelectionInput,
 ): Promise<GenerateMicrositeSelectionResult> {
@@ -418,29 +537,10 @@ export async function generateMicrositeSelection(
     }
   }
 
-  const PRICE_EXPANSION_FACTOR = 0.2;
   const searchOpts = { listingType: "sale" as const, maxPages: 10, targetResults: 30 };
-
-  const expansionSteps: Array<{ label: string; demand: DemandFilterInput }> = [
-    { label: "exact", demand: input.demand },
-    {
-      label: "price+20%",
-      demand: {
-        ...input.demand,
-        presupuestoMin: Math.round((input.demand.presupuestoMin ?? 0) * (1 - PRICE_EXPANSION_FACTOR)),
-        presupuestoMax: Math.round((input.demand.presupuestoMax ?? 0) * (1 + PRICE_EXPANSION_FACTOR)),
-      },
-    },
-    {
-      label: "price+20%,no-zone",
-      demand: {
-        ...input.demand,
-        presupuestoMin: Math.round((input.demand.presupuestoMin ?? 0) * (1 - PRICE_EXPANSION_FACTOR)),
-        presupuestoMax: Math.round((input.demand.presupuestoMax ?? 0) * (1 + PRICE_EXPANSION_FACTOR)),
-        zonas: "",
-      },
-    },
-  ];
+  const locationContext = await buildDemandLocationContext({ zonas: input.demand.zonas });
+  const demandForMatching = toDemandForMatching(input.demandId, input.demand);
+  const expansionSteps = buildCandidateExpansionSteps(input.demand, locationContext);
 
   const seen = new Set<string>();
   const allRanked: Array<{ propertyId: string; property: StatefoxSnapshotProperty; score: number }> = [];
@@ -458,7 +558,12 @@ export async function generateMicrositeSelection(
     ? await import("@/lib/market/search")
     : { searchMarketForDemand: null as never };
 
-  for (const step of expansionSteps) {
+  let consumedSteps = 0;
+
+  const runExpansionStep = async (step: (typeof expansionSteps)[number]): Promise<
+    | { ok: true }
+    | { ok: false; reason: "STATEFOX_TOKEN_MISSING" | "STATEFOX_ERROR" }
+  > => {
     let searchResult;
     try {
       if (useMarketListing) {
@@ -499,6 +604,20 @@ export async function generateMicrositeSelection(
     }
 
     const withImages = allRanked.filter((x) => extractImages(x.property).length > 0);
+    console.log(
+      `[microsite:selection] Paso ${step.label}: ${withImages.length} con imágenes`,
+    );
+
+    return { ok: true };
+  };
+
+  while (consumedSteps < expansionSteps.length) {
+    const step = expansionSteps[consumedSteps];
+    consumedSteps += 1;
+    const stepResult = await runExpansionStep(step);
+    if (!stepResult.ok) return stepResult;
+
+    const withImages = allRanked.filter((x) => extractImages(x.property).length > 0);
     if (withImages.length >= MIN_PREFERRED_PROPERTIES) {
       if (step.label !== "exact") {
         console.log(
@@ -521,7 +640,76 @@ export async function generateMicrositeSelection(
     return { ok: false, reason: "NO_MATCHING_PROPERTIES" };
   }
 
-  const curated = rankedWithImages.slice(0, 12).map((x) => curate(x.propertyId, x.property));
+  const buildRankerCandidates = () =>
+    allRanked
+      .filter((x) => extractImages(x.property).length > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((x) => toAIRankerCandidate(x, demandForMatching, locationContext))
+      .filter((x): x is AIRankerCandidate => Boolean(x));
+
+  let rankerCandidates = buildRankerCandidates();
+  if (rankerCandidates.length === 0) {
+    return { ok: false, reason: "NO_MATCHING_PROPERTIES" };
+  }
+
+  let rankerResult = await rankPropertiesWithAI({
+    demandId: input.demandId,
+    demand: input.demand,
+    location: locationContext,
+    candidates: rankerCandidates,
+    feedback: input.selectionFeedbackContext,
+    minPreferredProperties: MIN_PREFERRED_RANKER_PROPERTIES,
+  });
+
+  let aiExpansionRounds = 0;
+  while (
+    rankerResult.needsMoreCandidates &&
+    consumedSteps < expansionSteps.length &&
+    aiExpansionRounds < 2
+  ) {
+    const step = expansionSteps[consumedSteps];
+    consumedSteps += 1;
+    aiExpansionRounds += 1;
+    console.log(
+      `[microsite:selection] Reranker pidió más candidatos: ${rankerResult.expansionRequest?.reason ?? "sin detalle"}. Ejecutando ${step.label}`,
+    );
+    const stepResult = await runExpansionStep(step);
+    if (!stepResult.ok) return stepResult;
+    rankerCandidates = buildRankerCandidates();
+    rankerResult = await rankPropertiesWithAI({
+      demandId: input.demandId,
+      demand: input.demand,
+      location: locationContext,
+      candidates: rankerCandidates,
+      feedback: input.selectionFeedbackContext,
+      minPreferredProperties: MIN_PREFERRED_RANKER_PROPERTIES,
+    });
+  }
+
+  if (rankerResult.selected.length === 0) {
+    return { ok: false, reason: "NO_MATCHING_PROPERTIES" };
+  }
+
+  const propertyById = new Map(allRanked.map((x) => [x.propertyId, x]));
+  const candidateById = new Map(rankerCandidates.map((candidate) => [candidate.propertyId, candidate]));
+  const selectedById = new Map(rankerResult.selected.map((selected) => [selected.propertyId, selected]));
+  const curated = rankerResult.selected
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, 12)
+    .map((selected) => {
+      const ranked = propertyById.get(selected.propertyId);
+      if (!ranked) return null;
+      return applyRankerMetadata(
+        curate(ranked.propertyId, ranked.property),
+        candidateById.get(selected.propertyId),
+        selectedById.get(selected.propertyId),
+      );
+    })
+    .filter((property): property is MicrositeCuratedProperty => Boolean(property));
+
+  if (curated.length === 0) {
+    return { ok: false, reason: "NO_MATCHING_PROPERTIES" };
+  }
 
   await replaceMicrositeImagesWithCloudinaryCache(curated);
 
@@ -533,6 +721,19 @@ export async function generateMicrositeSelection(
     pagesScanned: lastSearchMeta.pagesScanned,
     totalScanned: lastSearchMeta.totalScanned,
     earlyExit: lastSearchMeta.earlyExit,
+    expansionSteps: expansionSteps.slice(0, consumedSteps).map((step) => ({
+      label: step.label,
+      relaxation: step.relaxation,
+    })),
+    aiExpansionRounds,
+    ranker: {
+      model: rankerResult.model,
+      durationMs: rankerResult.durationMs,
+      fallbackApplied: rankerResult.fallbackApplied,
+      fallbackReason: rankerResult.fallbackReason,
+      needsMoreCandidates: rankerResult.needsMoreCandidates,
+      expansionRequest: rankerResult.expansionRequest ?? null,
+    },
   };
 
   const created = await prisma.micrositeSelection.create({
@@ -550,6 +751,36 @@ export async function generateMicrositeSelection(
       source: input.source ?? null,
     },
     select: { id: true },
+  });
+
+  await appendEvent({
+    type: "SELECCION_RANKEADA_IA",
+    aggregateType: "DEMAND",
+    aggregateId: input.demandId,
+    payload: {
+      selectionId: created.id,
+      demandId: input.demandId,
+      model: rankerResult.model,
+      durationMs: rankerResult.durationMs,
+      fallbackApplied: rankerResult.fallbackApplied,
+      fallbackReason: rankerResult.fallbackReason ?? null,
+      candidates: rankerCandidates.map((candidate) => ({
+        propertyId: candidate.propertyId,
+        deterministicScore: candidate.deterministicScore,
+        geoFit: candidate.geoFit,
+      })),
+      selected: rankerResult.selected,
+      rejected: rankerResult.rejected,
+      needsMoreCandidates: rankerResult.needsMoreCandidates,
+      expansionRequest: rankerResult.expansionRequest ?? null,
+      expansionSteps: expansionSteps.slice(0, consumedSteps).map((step) => ({
+        label: step.label,
+        relaxation: step.relaxation,
+      })),
+      aiExpansionRounds,
+    },
+    correlationId: input.sourceEventId,
+    causationId: input.sourceEventId,
   });
 
   return {

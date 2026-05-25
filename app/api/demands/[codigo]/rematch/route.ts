@@ -140,6 +140,7 @@ const postHandler = async (
     demandId: codigo,
     totalProperties: result.totalProperties,
     filteredOut: result.filteredOut,
+    geographicallyRejected: result.geographicallyRejected,
     matchesEmitted: emitted,
     matchesSkipped: skipped,
     firstEmittedMatchId,

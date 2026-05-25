@@ -227,12 +227,13 @@ export function createConversationalTools(ctx: ToolExecutionContext): Structured
         message: MICROSITE_DELIVERY_STANDARD_MESSAGE,
         agentGuidance:
           "NO vuelvas a llamar request_more_options ni update_demand en este turno: la nueva selección " +
-          "ya se está generando automáticamente y llegará al comprador por WhatsApp sin pasos humanos. " +
+          "ya quedó encolada para generación automática. " +
           "En tu respuesta al comprador: (1) reconoce con sus palabras lo que has entendido " +
           "(tope, zona, prioridad…), (2) habla en primera persona como su agente (\"te las busco\", " +
-          "\"te las preparo\"), (3) anúnciale que se las pasas aquí mismo en unos minutos " +
-          `(~${MICROSITE_DELIVERY_ETA_MINUTES} min). ` +
+          "\"te las preparo\"), (3) explícale que vas a intentar prepararle opciones fiables y que, " +
+          `si el sistema encuentra stock que encaje, le llegarán aquí mismo en unos minutos (~${MICROSITE_DELIVERY_ETA_MINUTES} min). ` +
           "PROHIBIDO mencionar que un compañero / persona del equipo / el equipo lo revisa o valida. " +
+          "PROHIBIDO prometer entrega garantizada si aún no existe microsite generado. " +
           (compat.compatibleCount === 0
             ? "Aviso: con los nuevos criterios, ninguna de las opciones actuales encaja — dilo con claridad."
             : ""),
@@ -289,12 +290,13 @@ export function createConversationalTools(ctx: ToolExecutionContext): Structured
         currentSelectionTotal: compat.total,
         message: MICROSITE_DELIVERY_STANDARD_MESSAGE,
         agentGuidance:
-          "La selección se genera, enriquece con IA y envía al comprador por WhatsApp automáticamente; " +
+          "La selección queda encolada para generarse, enriquecerse con IA y enviarse al comprador si hay stock fiable; " +
           "no hay revisión humana intermedia. En tu respuesta al comprador: (1) reconoce lo que ha pedido " +
           "con sus palabras, (2) anuncia en PRIMERA PERSONA que tú vas a buscarle las opciones " +
-          "(\"te las busco\", \"te las preparo\", \"te las paso aquí mismo\"), (3) dale un plazo concreto " +
-          `de unos minutos (~${MICROSITE_DELIVERY_ETA_MINUTES} min) usando lenguaje natural. ` +
+          "(\"te las busco\", \"te las preparo\"), (3) dile que, si el sistema encuentra opciones que encajen, " +
+          `se las pasarás aquí mismo en unos minutos (~${MICROSITE_DELIVERY_ETA_MINUTES} min). ` +
           "PROHIBIDO mencionar que un compañero / persona del equipo / el equipo revisa o valida la selección. " +
+          "PROHIBIDO prometer entrega garantizada si aún no existe microsite generado. " +
           (compat.compatibleCount === 0
             ? "Aviso: con las restricciones indicadas, ninguna de las opciones actuales encaja — dilo explícitamente. "
             : "") +

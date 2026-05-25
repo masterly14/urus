@@ -202,7 +202,7 @@ export async function handlePropertyMatching(event: Event): Promise<HandlerResul
 
     if (result.matches.length === 0) {
       console.log(
-        `[consumer:matching] Propiedad ${propertyId} — 0 matches de ${result.totalDemands} demandas (${result.filteredOut} filtradas)`,
+        `[consumer:matching] Propiedad ${propertyId} — 0 matches de ${result.totalDemands} demandas (${result.filteredOut} filtradas, ${result.geographicallyRejected} geo rechazadas)`,
       );
       return { success: true, followUpJobs };
     }
@@ -216,7 +216,7 @@ export async function handlePropertyMatching(event: Event): Promise<HandlerResul
       );
     } else {
       console.log(
-        `[consumer:matching] Propiedad ${propertyId} — ${totalMatches} matches encontrados (${result.filteredOut} filtradas)`,
+        `[consumer:matching] Propiedad ${propertyId} — ${totalMatches} matches encontrados (${result.filteredOut} filtradas, ${result.geographicallyRejected} geo rechazadas)`,
       );
     }
 

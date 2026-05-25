@@ -125,6 +125,8 @@ encaja" en la ficha del micrositio (cooldown de 12h para evitar spam).
 | Evento | Cuando | Payload clave |
 |--------|--------|--------------|
 | WHATSAPP_ENVIADO | Al enviar el micrositio (kind=`microsite_link`) o el acuse (kind=`buyer_interest_ack`) | messageId (WAMID), demandId, selectionId, kind, propertyId (en acuses) |
+| MICROSITE_GENERACION_RESULTADO | Cada `GENERATE_MICROSITE` termina con selección creada o salida controlada | jobId, status (`created`/`skipped`), reason, source, notifyOnEmpty, selectionId |
+| COBERTURA_DEMANDA_EVALUADA | Cada `EVALUATE_DEMAND_COVERAGE` toma una decisión operativa | jobId, decision, reason, bestScore, threshold, followUpJobType |
 | SELECCION_COMPRADOR | `ME_INTERESA` via boton del micrositio (`source.channel="microsite_card"`) o `NO_ME_ENCAJA` via NLU (`source.channel="whatsapp_feedback"`) | demandId, selectionId, propertyId, decision, source.channel |
 | DEMANDA_ACTUALIZADA | Cuando hay ajuste de demanda (NO_ME_ENCAJA/BUSCO_DIFERENTE con variables) | source.channel, selectionId, variables, nlu |
 
@@ -152,8 +154,27 @@ Orquesta la cadena completa cuando el NLU detecta variables de ajuste:
 ## Regeneracion del microsite
 
 Se dispara en dos caminos:
-1. **DEMANDA_ACTUALIZADA desde feedback WhatsApp**: el handler de escritura detecta `source.channel === "whatsapp_feedback"` o `source.selectionId` y encola GENERATE_MICROSITE tras la egestion a Inmovilla. Las variables de metros se pasan en el payload para que el query a Statefox las use.
+1. **DEMANDA_ACTUALIZADA desde feedback WhatsApp**: el handler de escritura detecta `source.channel === "whatsapp_feedback"` o `source.selectionId` y encola GENERATE_MICROSITE tras la egestion a Inmovilla. Las variables de metros se pasan en el payload para que la búsqueda de cartera externa use los criterios actualizados.
 2. **wantsMoreOptions**: el handler de WhatsApp encola GENERATE_MICROSITE directamente cuando el comprador pide mas opciones.
+
+### Manejo de salidas sin microsite
+
+`GENERATE_MICROSITE` ya no debe terminar como un éxito opaco cuando no crea
+selección. El consumer registra `MICROSITE_GENERACION_RESULTADO` con `status=
+"skipped"` y una `reason` normalizada:
+
+- `NO_MATCHING_PROPERTIES`: no hay propiedades suficientes que encajen. Si
+  `notifyOnEmpty !== false`, se avisa al comprador con `kind=
+  "no_stock_available"`.
+- `EXTERNAL_SEARCH_DISABLED`, `STATEFOX_TOKEN_MISSING`, `STATEFOX_ERROR`:
+  fallos de configuración o dependencia externa. Se emite alerta operativa y,
+  si el job viene de una conversación con comprador y `notifyOnEmpty !== false`,
+  se manda un aviso `kind="microsite_generation_delayed"` para evitar que el
+  comprador quede esperando una entrega que no ocurrirá.
+
+Los scans automáticos de coverage conservan `notifyOnEmpty=false` para no hacer
+spam al comprador, pero dejan `COBERTURA_DEMANDA_EVALUADA` y/o
+`MICROSITE_GENERACION_RESULTADO` para diagnóstico.
 
 ## Canales canonicos
 
@@ -171,6 +192,7 @@ Se dispara en dos caminos:
 
 | Variable | Requerida | Uso |
 |----------|-----------|-----|
+| `ENABLE_EXTERNAL_PORTFOLIO_SEARCH` | Si (produccion) | Kill switch de búsqueda de cartera externa para coverage y microsites |
 | `STATEFOX_BEARER_TOKEN` | Si (produccion) | Consulta de propiedades de mercado |
 | `NEXT_PUBLIC_GOOGLE_MAPS_KEY` | Opcional | Mapa estatico en detalle de propiedad |
 | `DEMO_UI` | Opcional | Activa vistas demo sin Statefox ni DB |
@@ -188,6 +210,8 @@ npm test -- feedback-loop-e2e                # E2E determinista: WA → eventos 
 # Scripts cercanos a produccion
 npx tsx scripts/test-microsite-curate.ts     # Pipeline de curacion Statefox
 npx tsx scripts/test-feedback-loop.ts        # NLU aislado (classifyBuyerFeedback)
+npm run microsite:debug-delivery -- --demandId=DEM-XXXX
+npm run microsite:debug-delivery -- --waId=34600000000 --json
 
 # Live RPA (escritura real a Inmovilla — requiere FEEDBACK_LOOP_LIVE=true)
 FEEDBACK_LOOP_LIVE=true \

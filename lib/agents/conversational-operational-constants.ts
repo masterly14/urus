@@ -5,9 +5,10 @@
  *
  * El microsite opera en modo IA-first (ver
  * `docs/contraste-docs-originales/validacion-comercial.md`): tras `update_demand`
- * o `request_more_options`, el job `GENERATE_MICROSITE` aprueba la selección
- * automáticamente con IA y encola `SEND_MICROSITE_TO_BUYER` sin intervención
- * humana. NO existe revisor humano intermedio.
+ * o `request_more_options`, el job `GENERATE_MICROSITE` intenta generar,
+ * aprobar y enviar la selección automáticamente. Puede terminar sin envío si
+ * no hay stock suficiente o si falla una dependencia externa; esas ramas deben
+ * quedar auditadas por el consumer.
  *
  * Si en el futuro se reintroduce la validación manual, actualizar aquí y se
  * reflejará en todos los canales (respuesta del agente, evals, UI de debug).
@@ -31,9 +32,9 @@ export const MICROSITE_DELIVERY_BUYER_PHRASE = "en unos minutos te llegan aquí 
 
 /**
  * Texto estándar que la tool entrega al agente en el campo `message`. Resume
- * el side-effect operativo SIN inventar pasos humanos: el job ya queda en
- * marcha y la entrega es automática.
+ * el side-effect operativo sin prometer entrega hasta que el worker confirme
+ * que pudo crear y enviar una selección.
  */
 export const MICROSITE_DELIVERY_STANDARD_MESSAGE =
-  `Nueva selección encolada. Se enriquece con IA y se envía al comprador automáticamente; ` +
-  `suele tardar pocos minutos en llegar (estimado ~${MICROSITE_DELIVERY_ETA_MINUTES} min).`;
+  `Nueva selección encolada. El sistema intentará generar y enviar opciones fiables; ` +
+  `si no encuentra stock o falla una dependencia, dejará el resultado trazado y avisará según corresponda.`;
