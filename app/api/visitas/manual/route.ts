@@ -76,6 +76,17 @@ const postHandler = async (request: Request) => {
       { status: 403 },
     );
   }
+  if (
+    parsed.data.demandMode === "existing" &&
+    demand &&
+    !isCeoOrAdmin(session.role) &&
+    demand.comercialId !== session.comercialId
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "No puedes crear visitas para otra demanda" },
+      { status: 403 },
+    );
+  }
   const comercial = await prisma.comercial.findUnique({
     where: { id: comercialId },
     select: { id: true, ciudad: true },
