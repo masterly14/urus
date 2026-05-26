@@ -374,6 +374,29 @@ describe("OPERACION_CERRADA handler", () => {
     expect(result.followUpJobs).toBeUndefined();
   });
 
+  it("materializa CommercialOperationFact para cierres manuales de Operaciones v2", async () => {
+    const handler = getHandler("OPERACION_CERRADA")!;
+    const event = makeEvent("OPERACION_CERRADA", {
+      aggregateType: "OPERACION",
+      aggregateId: "PROP-300",
+      payload: {
+        propertyCode: "PROP-300",
+        newEstado: "CERRADA_VENTA",
+        previousEstado: "ARRAS",
+        closedAt: new Date().toISOString(),
+        operacionId: "op-300",
+        comercialId: "com-300",
+        source: "manual_close",
+      },
+    });
+
+    const result = await handler(event);
+
+    expect(mockUpsertCommercialOperationFact).toHaveBeenCalledWith(event);
+    expect(result.success).toBe(true);
+    expect(result.followUpJobs).toBeUndefined();
+  });
+
   it("retorna success sin jobs y omite upsert si newEstado no representa cierre", async () => {
     mockUpsertCommercialOperationFact.mockRejectedValueOnce(
       new Error("db down"),

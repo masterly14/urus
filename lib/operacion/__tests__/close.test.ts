@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockOperacionFindUnique = vi.fn();
 const mockOperacionUpdate = vi.fn();
 const mockAppendEvent = vi.fn();
+const mockAppendEventAndEnqueueJob = vi.fn();
 const mockEnqueueJob = vi.fn();
 const mockSyncLeadStatus = vi.fn();
 const mockResolveBuyerCode = vi.fn();
@@ -18,6 +19,8 @@ vi.mock("@/lib/prisma", () => ({
 }));
 vi.mock("@/lib/event-store", () => ({
   appendEvent: (...args: unknown[]) => mockAppendEvent(...args),
+  appendEventAndEnqueueJob: (...args: unknown[]) =>
+    mockAppendEventAndEnqueueJob(...args),
 }));
 vi.mock("@/lib/job-queue", () => ({
   enqueueJob: (...args: unknown[]) => mockEnqueueJob(...args),
@@ -54,6 +57,7 @@ beforeEach(() => {
   mockOperacionFindUnique.mockResolvedValue(BASE_OPERACION);
   mockOperacionUpdate.mockResolvedValue({ ...BASE_OPERACION, estado: "CERRADA_VENTA" });
   mockAppendEvent.mockResolvedValue({ id: "evt-001" });
+  mockAppendEventAndEnqueueJob.mockResolvedValue({ id: "evt-001" });
   mockEnqueueJob.mockResolvedValue(undefined);
   mockSyncLeadStatus.mockResolvedValue(undefined);
   mockResolveBuyerCode.mockResolvedValue("12345");
@@ -188,6 +192,31 @@ describe("closeOperacion", () => {
       (c: unknown[]) => (c[0] as { type: string }).type === "START_POSTVENTA_CADENCE",
     );
     expect(postventaCall).toBeDefined();
+  });
+
+  it("emite OPERACION_CERRADA con PROCESS_EVENT para materializar analytics", async () => {
+    await closeOperacion({
+      operacionId: "op-001",
+      tipoCierre: "CERRADA_VENTA",
+      comercialId: "com-001",
+    });
+
+    expect(mockAppendEventAndEnqueueJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: "OPERACION_CERRADA",
+          aggregateType: "OPERACION",
+          aggregateId: "URUS100VMA",
+          payload: expect.objectContaining({
+            operacionId: "op-001",
+            newEstado: "CERRADA_VENTA",
+            comercialId: "com-001",
+            source: "manual_close",
+          }),
+        }),
+        idempotencyKeyPrefix: "manual_close:op-001",
+      }),
+    );
   });
 
   it("enqueues 3 jobs total when demandId exists and demandArgs resolve", async () => {

@@ -73,6 +73,13 @@ const postHandler = async (
   });
 
   if (!result.ok) {
+    if (result.invalidated) {
+      return NextResponse.json(
+        { ok: false, error: result.error ?? "Cruce invalidado" },
+        { status: 409 },
+      );
+    }
+
     console.error(
       `[api:matching] Fallo al enviar WhatsApp event=${eventId} demand=${payload.demandId}: ${result.error}`,
     );

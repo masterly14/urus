@@ -18,6 +18,15 @@ function normalizeSystemId(id: string | null | undefined): string | null {
   return trimmed;
 }
 
+function nonEmptyString(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+  return trimmed ? trimmed : null;
+}
+
+function positiveNumber(value: number | null | undefined): number | null {
+  return typeof value === "number" && value > 0 ? value : null;
+}
+
 export async function upsertCommercialLeadFactFromLeadIngestedEvent(input: {
   event: Event;
   scoredPayload?: {
@@ -268,44 +277,75 @@ export async function upsertCommercialOperationFactFromOperacionCerradaEvent(
     event.occurredAt ??
     new Date();
 
-  const property = await prisma.propertySnapshot.findUnique({
-    where: { codigo: propertyCode },
-    select: {
-      ref: true,
-      ciudad: true,
-      zona: true,
-      precio: true,
-      agente: true,
-      firstSeenAt: true,
-    },
-  });
-  const propertyCurrent = property
-    ? null
-    : await prisma.propertyCurrent.findUnique({
-        where: { codigo: propertyCode },
-        select: {
-          ref: true,
-          ciudad: true,
-          zona: true,
-          precio: true,
-          agente: true,
-          createdAt: true,
-        },
-      });
+  const [property, propertyCurrent, operacion] = await Promise.all([
+    prisma.propertySnapshot.findUnique({
+      where: { codigo: propertyCode },
+      select: {
+        ref: true,
+        ciudad: true,
+        zona: true,
+        precio: true,
+        agente: true,
+        firstSeenAt: true,
+      },
+    }),
+    prisma.propertyCurrent.findUnique({
+      where: { codigo: propertyCode },
+      select: {
+        ref: true,
+        ciudad: true,
+        zona: true,
+        precio: true,
+        agente: true,
+        comercialId: true,
+        createdAt: true,
+      },
+    }),
+    operacionId
+      ? prisma.operacion.findUnique({
+          where: { id: operacionId },
+          select: { comercialId: true },
+        })
+      : Promise.resolve(null),
+  ]);
 
-  const comercialNombre = (property?.agente ?? propertyCurrent?.agente ?? "").trim();
-  const comercial = await resolveComercialFromAgente(comercialNombre);
-  const comercialId = comercial?.id ?? null;
+  const agenteNombre =
+    nonEmptyString(property?.agente) ??
+    nonEmptyString(propertyCurrent?.agente) ??
+    "";
+  const payloadComercialId =
+    typeof payload.comercialId === "string"
+      ? normalizeSystemId(payload.comercialId)
+      : null;
+  const factComercialId =
+    payloadComercialId ??
+    normalizeSystemId(operacion?.comercialId) ??
+    normalizeSystemId(propertyCurrent?.comercialId);
+  const comercialById = factComercialId
+    ? await prisma.comercial.findUnique({
+        where: { id: factComercialId },
+        select: { id: true, nombre: true },
+      })
+    : null;
+  const comercialByAgent = comercialById
+    ? null
+    : await resolveComercialFromAgente(agenteNombre);
+  const comercial = comercialById ?? comercialByAgent;
+  const comercialId = comercial?.id ?? factComercialId;
 
   const firstSeenAt = property?.firstSeenAt ?? propertyCurrent?.createdAt ?? null;
   const daysToClose =
     firstSeenAt
       ? Math.max(0, Math.round((closedAt.getTime() - firstSeenAt.getTime()) / 86_400_000))
       : null;
-  const propertyRef = property?.ref ?? propertyCurrent?.ref ?? "";
-  const ciudad = property?.ciudad ?? propertyCurrent?.ciudad ?? "";
-  const zona = property?.zona ?? propertyCurrent?.zona ?? "";
-  const grossAmountEur = property?.precio ?? propertyCurrent?.precio ?? null;
+  const propertyRef =
+    nonEmptyString(property?.ref) ?? nonEmptyString(propertyCurrent?.ref) ?? "";
+  const ciudad =
+    nonEmptyString(property?.ciudad) ?? nonEmptyString(propertyCurrent?.ciudad) ?? "";
+  const zona =
+    nonEmptyString(property?.zona) ?? nonEmptyString(propertyCurrent?.zona) ?? "";
+  const grossAmountEur =
+    positiveNumber(property?.precio) ?? positiveNumber(propertyCurrent?.precio);
 
   await prisma.commercialOperationFact.upsert({
     where: { sourceEventId: event.id },
@@ -323,7 +363,7 @@ export async function upsertCommercialOperationFactFromOperacionCerradaEvent(
       daysToClose,
       grossAmountEur,
       comercialId,
-      comercialNombre: comercial?.nombre ?? comercialNombre,
+      comercialNombre: comercial?.nombre ?? agenteNombre,
       createdAt: event.occurredAt ?? new Date(),
     },
     update: {
@@ -339,7 +379,7 @@ export async function upsertCommercialOperationFactFromOperacionCerradaEvent(
       daysToClose,
       grossAmountEur,
       comercialId,
-      comercialNombre: comercial?.nombre ?? comercialNombre,
+      comercialNombre: comercial?.nombre ?? agenteNombre,
     },
   });
 }

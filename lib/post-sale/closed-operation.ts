@@ -31,7 +31,21 @@ export const CLOSED_OPERATION_KEYWORDS = [
   "traspaso",
 ] as const;
 
+export const BILLABLE_OPERACION_ESTADOS = [
+  "CERRADA_VENTA",
+  "CERRADA_ALQUILER",
+  "CERRADA_TRASPASO",
+] as const;
+
 export function isClosedOperation(newEstado: string): boolean {
   const normalized = newEstado.toLowerCase();
   return CLOSED_OPERATION_KEYWORDS.some((kw) => normalized.includes(kw));
+}
+
+export function isBillableClosedOperation(newEstado: string): boolean {
+  const normalizedEnum = newEstado.trim().toUpperCase();
+  return (
+    (BILLABLE_OPERACION_ESTADOS as readonly string[]).includes(normalizedEnum) ||
+    isClosedOperation(newEstado)
+  );
 }
