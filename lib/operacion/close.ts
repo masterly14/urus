@@ -1,6 +1,6 @@
 import type { OperacionEstado } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { appendEvent } from "@/lib/event-store";
+import { appendEvent, appendEventAndEnqueueJob } from "@/lib/event-store";
 import { enqueueJob } from "@/lib/job-queue";
 import type { JsonValue } from "@/lib/event-store/types";
 import { isTerminal, type ClosedEstado } from "./stages";
@@ -85,22 +85,25 @@ export async function closeOperacion(
     data: updateData,
   });
 
-  const event = await appendEvent({
-    type: "OPERACION_CERRADA",
-    aggregateType: "OPERACION",
-    aggregateId: operacion.propertyCode,
-    payload: {
-      operacionId: operacion.id,
-      operacionCodigo: operacion.codigo,
-      propertyCode: operacion.propertyCode,
-      previousEstado,
-      newEstado: tipoCierre,
-      closedAt: now.toISOString(),
-      demandId: effectiveDemandId,
-      buyerClientId: effectiveBuyerClientId,
-      comercialId,
-      source: "manual_close",
-    } as unknown as JsonValue,
+  const event = await appendEventAndEnqueueJob({
+    event: {
+      type: "OPERACION_CERRADA",
+      aggregateType: "OPERACION",
+      aggregateId: operacion.propertyCode,
+      payload: {
+        operacionId: operacion.id,
+        operacionCodigo: operacion.codigo,
+        propertyCode: operacion.propertyCode,
+        previousEstado,
+        newEstado: tipoCierre,
+        closedAt: now.toISOString(),
+        demandId: effectiveDemandId,
+        buyerClientId: effectiveBuyerClientId,
+        comercialId,
+        source: "manual_close",
+      } as unknown as JsonValue,
+    },
+    idempotencyKeyPrefix: `manual_close:${operacion.id}`,
   });
 
   await syncLeadStatusFromOperacion(operacion.id, tipoCierre as OperacionEstado);

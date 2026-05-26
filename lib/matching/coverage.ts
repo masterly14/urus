@@ -9,6 +9,7 @@
 import { prisma } from "@/lib/prisma";
 import { computeMatchScore, DEFAULT_CONFIG } from "./scoring";
 import { passesHardFilters } from "./match-demands";
+import { buildDemandLocationContext } from "./location-context";
 import type {
   MatchConfig,
   MatchResult,
@@ -133,6 +134,8 @@ export async function evaluateDemandCoverage(
   };
 
   const properties = await loadActiveProperties(demand);
+  const location = await buildDemandLocationContext(demand);
+  const scoringConfig: MatchConfig = { ...config, location };
 
   let bestScore = 0;
   let topMatch: MatchResult | null = null;
@@ -146,10 +149,10 @@ export async function evaluateDemandCoverage(
     const { totalScore, matchScore, isMatch } = computeMatchScore(
       property,
       demand,
-      config,
+      scoringConfig,
     );
 
-    if (totalScore > bestScore) {
+    if (isMatch && totalScore > bestScore) {
       bestScore = totalScore;
       topMatch = {
         demandId: demand.codigo,

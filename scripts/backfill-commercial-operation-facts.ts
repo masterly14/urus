@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 import { prisma } from "@/lib/prisma";
-import { isClosedOperation } from "@/lib/post-sale/closed-operation";
+import { isBillableClosedOperation } from "@/lib/post-sale/closed-operation";
 import { upsertCommercialOperationFactFromOperacionCerradaEvent } from "@/lib/dashboard/comercial/facts";
 import type { EventRecord } from "@/lib/event-store/types";
 
@@ -107,7 +107,7 @@ async function main(): Promise<void> {
     }
 
     const newEstado = getPayloadNewEstado(event);
-    if (!isClosedOperation(newEstado)) {
+    if (!isBillableClosedOperation(newEstado)) {
       skippedNonClosed++;
       continue;
     }

@@ -611,6 +611,13 @@ export async function generateMicrositeSelection(
     return { ok: true };
   };
 
+  const buildRankerCandidates = () =>
+    allRanked
+      .filter((x) => extractImages(x.property).length > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((x) => toAIRankerCandidate(x, demandForMatching, locationContext))
+      .filter((x): x is AIRankerCandidate => Boolean(x));
+
   while (consumedSteps < expansionSteps.length) {
     const step = expansionSteps[consumedSteps];
     consumedSteps += 1;
@@ -618,17 +625,18 @@ export async function generateMicrositeSelection(
     if (!stepResult.ok) return stepResult;
 
     const withImages = allRanked.filter((x) => extractImages(x.property).length > 0);
-    if (withImages.length >= MIN_PREFERRED_PROPERTIES) {
+    const rankerEligibleCount = buildRankerCandidates().length;
+    if (rankerEligibleCount >= MIN_PREFERRED_PROPERTIES) {
       if (step.label !== "exact") {
         console.log(
-          `[microsite:selection] Búsqueda ampliada (${step.label}) alcanzó ${withImages.length} propiedades con imágenes`,
+          `[microsite:selection] Búsqueda ampliada (${step.label}) alcanzó ${rankerEligibleCount} propiedades geográficamente válidas con imágenes`,
         );
       }
       break;
     }
 
     console.log(
-      `[microsite:selection] Paso ${step.label}: ${withImages.length} con imágenes (< ${MIN_PREFERRED_PROPERTIES}), ampliando...`,
+      `[microsite:selection] Paso ${step.label}: ${withImages.length} con imágenes, ${rankerEligibleCount} válidas para ranking (< ${MIN_PREFERRED_PROPERTIES}), ampliando...`,
     );
   }
 
@@ -639,13 +647,6 @@ export async function generateMicrositeSelection(
   if (rankedWithImages.length === 0) {
     return { ok: false, reason: "NO_MATCHING_PROPERTIES" };
   }
-
-  const buildRankerCandidates = () =>
-    allRanked
-      .filter((x) => extractImages(x.property).length > 0)
-      .sort((a, b) => b.score - a.score)
-      .map((x) => toAIRankerCandidate(x, demandForMatching, locationContext))
-      .filter((x): x is AIRankerCandidate => Boolean(x));
 
   let rankerCandidates = buildRankerCandidates();
   if (rankerCandidates.length === 0) {

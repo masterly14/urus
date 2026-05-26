@@ -1,7 +1,7 @@
 import type { Event } from "@/types/domain";
 import type { HandlerResult } from "./types";
 import { upsertCommercialOperationFactFromOperacionCerradaEvent } from "@/lib/dashboard/comercial/facts";
-import { isClosedOperation } from "@/lib/post-sale/closed-operation";
+import { isBillableClosedOperation } from "@/lib/post-sale/closed-operation";
 
 function getPayloadNewEstado(event: Event): string {
   const payload =
@@ -23,7 +23,7 @@ export async function handleOperacionCerradaAnalyticsOnly(
   event: Event,
 ): Promise<HandlerResult> {
   const newEstado = getPayloadNewEstado(event);
-  if (!isClosedOperation(newEstado)) {
+  if (!isBillableClosedOperation(newEstado)) {
     console.log(
       `[analytics] OPERACION_CERRADA aggregateId=${event.aggregateId} newEstado="${newEstado}" — omitido (no representa cierre con facturación)`,
     );

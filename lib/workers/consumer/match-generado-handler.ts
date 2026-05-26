@@ -150,6 +150,13 @@ export async function handleMatchGenerado(
       });
 
       if (!sendResult.ok) {
+        if (sendResult.invalidated) {
+          console.warn(
+            `[consumer:match] omitido WhatsApp para MATCH_INVALIDADO demanda=${demandId} property=${propertyId} event=${event.id}`,
+          );
+          return { success: true, followUpJobs };
+        }
+
         console.error(
           `[consumer:match] fallo enviando WhatsApp en caliente demanda=${demandId} property=${propertyId} event=${event.id}: ${sendResult.error}`,
         );

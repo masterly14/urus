@@ -31,6 +31,7 @@ export interface SendMatchWhatsAppResult {
   ok: boolean;
   wamid?: string | null;
   alreadySent?: boolean;
+  invalidated?: boolean;
   error?: string;
 }
 
@@ -47,9 +48,28 @@ async function findExistingSend(matchEventId: string) {
   });
 }
 
+async function findMatchInvalidation(matchEventId: string) {
+  return prisma.event.findFirst({
+    where: {
+      type: "MATCH_INVALIDADO",
+      payload: { path: ["matchEventId"], equals: matchEventId },
+    },
+    select: { id: true },
+  });
+}
+
 export async function sendMatchWhatsAppHot(
   args: SendMatchWhatsAppArgs,
 ): Promise<SendMatchWhatsAppResult> {
+  const invalidated = await findMatchInvalidation(args.matchEventId);
+  if (invalidated) {
+    return {
+      ok: false,
+      invalidated: true,
+      error: "Cruce invalidado por incompatibilidad geográfica",
+    };
+  }
+
   const previous = await findExistingSend(args.matchEventId);
   if (previous) {
     const payload = (previous.payload ?? {}) as Record<string, unknown>;

@@ -5,9 +5,36 @@
  * Escenarios: 0 matches, todos <60, hay >=60, demanda inexistente.
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { computeMatchScore, operationMatches, DEFAULT_CONFIG } from "../scoring";
+import { computeMatchScore, DEFAULT_CONFIG } from "../scoring";
 import { passesHardFilters } from "../match-demands";
 import type { PropertyForMatching, DemandForMatching } from "../types";
+
+const {
+  mockDemandFindUnique,
+  mockPropertyFindMany,
+  mockMarketZoneAliasFindMany,
+  mockMarketZoneProfileFindMany,
+  mockMarketZoneRelationFindMany,
+  mockInmovillaEnumCiudadFindUnique,
+} = vi.hoisted(() => ({
+  mockDemandFindUnique: vi.fn(),
+  mockPropertyFindMany: vi.fn(),
+  mockMarketZoneAliasFindMany: vi.fn(),
+  mockMarketZoneProfileFindMany: vi.fn(),
+  mockMarketZoneRelationFindMany: vi.fn(),
+  mockInmovillaEnumCiudadFindUnique: vi.fn(),
+}));
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    demandCurrent: { findUnique: mockDemandFindUnique },
+    propertyCurrent: { findMany: mockPropertyFindMany },
+    marketZoneAlias: { findMany: mockMarketZoneAliasFindMany },
+    marketZoneProfile: { findMany: mockMarketZoneProfileFindMany },
+    marketZoneRelation: { findMany: mockMarketZoneRelationFindMany },
+    inmovillaEnumCiudad: { findUnique: mockInmovillaEnumCiudadFindUnique },
+  },
+}));
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -127,5 +154,52 @@ describe("coverage scoring scenarios", () => {
     });
     const result = computeMatchScore(prop, demand, config);
     expect(typeof result.totalScore).toBe("number");
+  });
+});
+
+describe("evaluateDemandCoverage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockMarketZoneAliasFindMany.mockResolvedValue([]);
+    mockMarketZoneProfileFindMany.mockResolvedValue([]);
+    mockMarketZoneRelationFindMany.mockResolvedValue([]);
+    mockInmovillaEnumCiudadFindUnique.mockResolvedValue(null);
+  });
+
+  it("no considera cubierta una demanda por propiedades bloqueadas geográficamente", async () => {
+    mockDemandFindUnique.mockResolvedValue({
+      codigo: "D-GEO",
+      ref: "REF-D-GEO",
+      nombre: "Comprador Fuensanta",
+      presupuestoMin: 200_000,
+      presupuestoMax: 300_000,
+      habitacionesMin: 2,
+      tipos: "Piso",
+      zonas: "Fuensanta",
+      metrosMin: null,
+      metrosMax: null,
+      tipoOperacion: "venta",
+    });
+    mockPropertyFindMany.mockResolvedValue([
+      {
+        codigo: "P-GEO-BLOCKED",
+        ref: "REF-P-GEO",
+        titulo: "Piso con buen precio fuera de zona",
+        tipoOfer: "Piso",
+        precio: 250_000,
+        metrosConstruidos: 90,
+        habitaciones: 3,
+        ciudad: "Córdoba",
+        zona: "Andalucía",
+      },
+    ]);
+
+    const { evaluateDemandCoverage } = await import("../coverage");
+    const result = await evaluateDemandCoverage("D-GEO");
+
+    expect(result).not.toBeNull();
+    expect(result!.totalCandidates).toBe(1);
+    expect(result!.bestScore).toBe(0);
+    expect(result!.topMatch).toBeNull();
   });
 });
