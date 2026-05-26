@@ -1,4 +1,5 @@
 import type { Event } from "@/types/domain";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { resolveComercialFromAgente } from "@/lib/routing/resolve-comercial";
 
@@ -25,6 +26,10 @@ function nonEmptyString(value: string | null | undefined): string | null {
 
 function positiveNumber(value: number | null | undefined): number | null {
   return typeof value === "number" && value > 0 ? value : null;
+}
+
+function toInputJson(value: unknown): Prisma.InputJsonValue {
+  return (value ?? {}) as Prisma.InputJsonValue;
 }
 
 export async function upsertCommercialLeadFactFromLeadIngestedEvent(input: {
@@ -77,7 +82,7 @@ export async function upsertCommercialLeadFactFromLeadIngestedEvent(input: {
         typeof scoredPayload?.assignedAgentNombre === "string" ? scoredPayload.assignedAgentNombre : null,
       ...aiFields,
       createdAt,
-      raw: event.payload as any,
+      raw: toInputJson(event.payload),
     },
     update: {
       ingestedEventId: event.id,
@@ -92,7 +97,7 @@ export async function upsertCommercialLeadFactFromLeadIngestedEvent(input: {
       assignedComercialNombre:
         typeof scoredPayload?.assignedAgentNombre === "string" ? scoredPayload.assignedAgentNombre : null,
       ...aiFields,
-      raw: event.payload as any,
+      raw: toInputJson(event.payload),
     },
   });
 }
