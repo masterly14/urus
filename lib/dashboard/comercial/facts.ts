@@ -68,7 +68,7 @@ export async function upsertCommercialLeadFactFromLeadIngestedEvent(input: {
         typeof scoredPayload?.assignedAgentNombre === "string" ? scoredPayload.assignedAgentNombre : null,
       ...aiFields,
       createdAt,
-      raw: event.payload as any,
+      raw: event.payload,
     },
     update: {
       ingestedEventId: event.id,
@@ -83,7 +83,7 @@ export async function upsertCommercialLeadFactFromLeadIngestedEvent(input: {
       assignedComercialNombre:
         typeof scoredPayload?.assignedAgentNombre === "string" ? scoredPayload.assignedAgentNombre : null,
       ...aiFields,
-      raw: event.payload as any,
+      raw: event.payload,
     },
   });
 }
@@ -293,9 +293,22 @@ export async function upsertCommercialOperationFactFromOperacionCerradaEvent(
         },
       });
 
-  const comercialNombre = (property?.agente ?? propertyCurrent?.agente ?? "").trim();
-  const comercial = await resolveComercialFromAgente(comercialNombre);
-  const comercialId = comercial?.id ?? null;
+  const payloadComercialId =
+    typeof payload.comercialId === "string" ? normalizeSystemId(payload.comercialId) : null;
+  let comercialId: string | null = payloadComercialId;
+  let comercialNombre = (property?.agente ?? propertyCurrent?.agente ?? "").trim();
+
+  if (payloadComercialId) {
+    const row = await prisma.comercial.findUnique({
+      where: { id: payloadComercialId },
+      select: { nombre: true },
+    });
+    comercialNombre = row?.nombre ?? comercialNombre;
+  } else {
+    const comercial = await resolveComercialFromAgente(comercialNombre);
+    comercialId = comercial?.id ?? null;
+    comercialNombre = comercial?.nombre ?? comercialNombre;
+  }
 
   const firstSeenAt = property?.firstSeenAt ?? propertyCurrent?.createdAt ?? null;
   const daysToClose =
@@ -323,7 +336,7 @@ export async function upsertCommercialOperationFactFromOperacionCerradaEvent(
       daysToClose,
       grossAmountEur,
       comercialId,
-      comercialNombre: comercial?.nombre ?? comercialNombre,
+      comercialNombre,
       createdAt: event.occurredAt ?? new Date(),
     },
     update: {
@@ -339,7 +352,7 @@ export async function upsertCommercialOperationFactFromOperacionCerradaEvent(
       daysToClose,
       grossAmountEur,
       comercialId,
-      comercialNombre: comercial?.nombre ?? comercialNombre,
+      comercialNombre,
     },
   });
 }

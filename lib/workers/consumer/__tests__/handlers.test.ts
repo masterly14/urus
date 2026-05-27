@@ -8,6 +8,10 @@ const { mockApplyDemandProjectionInline } = vi.hoisted(() => ({
 const { mockUpsertCommercialOperationFact } = vi.hoisted(() => ({
   mockUpsertCommercialOperationFact: vi.fn(),
 }));
+const { mockUpdateDemandLeadStatus, mockUpdateLeadStatusByOperationId } = vi.hoisted(() => ({
+  mockUpdateDemandLeadStatus: vi.fn(),
+  mockUpdateLeadStatusByOperationId: vi.fn(),
+}));
 
 vi.mock("@/lib/projections/projection-worker", async (importOriginal) => {
   const actual = await importOriginal<
@@ -23,6 +27,12 @@ vi.mock("@/lib/dashboard/comercial/facts", () => ({
   upsertCommercialOperationFactFromOperacionCerradaEvent: (
     ...args: unknown[]
   ) => mockUpsertCommercialOperationFact(...args),
+}));
+vi.mock("@/lib/projections/update-lead-status", () => ({
+  updateDemandLeadStatus: (...args: unknown[]) =>
+    mockUpdateDemandLeadStatus(...args),
+  updateLeadStatusByOperationId: (...args: unknown[]) =>
+    mockUpdateLeadStatusByOperationId(...args),
 }));
 
 const { getHandler, getRegisteredTypes } = await import("../handlers");
@@ -349,6 +359,10 @@ describe("OPERACION_CERRADA handler", () => {
   beforeEach(() => {
     mockUpsertCommercialOperationFact.mockReset();
     mockUpsertCommercialOperationFact.mockResolvedValue(undefined);
+    mockUpdateDemandLeadStatus.mockReset();
+    mockUpdateDemandLeadStatus.mockResolvedValue(undefined);
+    mockUpdateLeadStatusByOperationId.mockReset();
+    mockUpdateLeadStatusByOperationId.mockResolvedValue(undefined);
   });
 
   it("materializa CommercialOperationFact y no encola jobs", async () => {
@@ -372,6 +386,54 @@ describe("OPERACION_CERRADA handler", () => {
     expect(mockUpsertCommercialOperationFact).toHaveBeenCalledWith(event);
     expect(result.success).toBe(true);
     expect(result.followUpJobs).toBeUndefined();
+  });
+
+  it("materializa CommercialOperationFact para cierres manuales internos", async () => {
+    const handler = getHandler("OPERACION_CERRADA")!;
+    const event = makeEvent("OPERACION_CERRADA", {
+      aggregateType: "OPERACION",
+      aggregateId: "PROP-300",
+      payload: {
+        propertyCode: "PROP-300",
+        operacionId: "op-001",
+        demandId: "DEM-001",
+        newEstado: "CERRADA_VENTA",
+        previousEstado: "ARRAS",
+        closedAt: new Date().toISOString(),
+        source: "manual_close",
+      },
+    });
+
+    const result = await handler(event);
+
+    expect(mockUpsertCommercialOperationFact).toHaveBeenCalledWith(event);
+    expect(mockUpdateDemandLeadStatus).not.toHaveBeenCalled();
+    expect(mockUpdateLeadStatusByOperationId).not.toHaveBeenCalled();
+    expect(result.success).toBe(true);
+    expect(result.followUpJobs).toBeUndefined();
+  });
+
+  it("sincroniza leadStatus a CERRADO para cierres externos con demandId", async () => {
+    const handler = getHandler("OPERACION_CERRADA")!;
+    const event = makeEvent("OPERACION_CERRADA", {
+      aggregateType: "OPERACION",
+      aggregateId: "PROP-400",
+      payload: {
+        propertyCode: "PROP-400",
+        demandId: "DEM-400",
+        newEstado: "Vendida",
+        previousEstado: "Reservada",
+        closedAt: new Date().toISOString(),
+        sourceEstadoCambiadoEventId: "evt-src-400",
+      },
+    });
+
+    const result = await handler(event);
+
+    expect(mockUpsertCommercialOperationFact).toHaveBeenCalledWith(event);
+    expect(mockUpdateDemandLeadStatus).toHaveBeenCalledWith("DEM-400", "CERRADO");
+    expect(mockUpdateLeadStatusByOperationId).not.toHaveBeenCalled();
+    expect(result.success).toBe(true);
   });
 
   it("retorna success sin jobs y omite upsert si newEstado no representa cierre", async () => {
