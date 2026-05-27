@@ -68,7 +68,7 @@ export async function upsertCommercialLeadFactFromLeadIngestedEvent(input: {
         typeof scoredPayload?.assignedAgentNombre === "string" ? scoredPayload.assignedAgentNombre : null,
       ...aiFields,
       createdAt,
-      raw: event.payload as any,
+      raw: event.payload,
     },
     update: {
       ingestedEventId: event.id,
@@ -83,7 +83,7 @@ export async function upsertCommercialLeadFactFromLeadIngestedEvent(input: {
       assignedComercialNombre:
         typeof scoredPayload?.assignedAgentNombre === "string" ? scoredPayload.assignedAgentNombre : null,
       ...aiFields,
-      raw: event.payload as any,
+      raw: event.payload,
     },
   });
 }

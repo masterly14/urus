@@ -5,7 +5,7 @@
  * Escenarios: 0 matches, todos <60, hay >=60, demanda inexistente.
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { computeMatchScore, operationMatches, DEFAULT_CONFIG } from "../scoring";
+import { computeMatchScore, DEFAULT_CONFIG } from "../scoring";
 import { passesHardFilters } from "../match-demands";
 import type { PropertyForMatching, DemandForMatching } from "../types";
 
