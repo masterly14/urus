@@ -9,6 +9,33 @@ import { computeMatchScore, operationMatches, DEFAULT_CONFIG } from "../scoring"
 import { passesHardFilters } from "../match-demands";
 import type { PropertyForMatching, DemandForMatching } from "../types";
 
+const {
+  mockDemandFindUnique,
+  mockPropertyFindMany,
+  mockMarketZoneAliasFindMany,
+  mockMarketZoneProfileFindMany,
+  mockMarketZoneRelationFindMany,
+  mockInmovillaEnumCiudadFindUnique,
+} = vi.hoisted(() => ({
+  mockDemandFindUnique: vi.fn(),
+  mockPropertyFindMany: vi.fn(),
+  mockMarketZoneAliasFindMany: vi.fn(),
+  mockMarketZoneProfileFindMany: vi.fn(),
+  mockMarketZoneRelationFindMany: vi.fn(),
+  mockInmovillaEnumCiudadFindUnique: vi.fn(),
+}));
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    demandCurrent: { findUnique: mockDemandFindUnique },
+    propertyCurrent: { findMany: mockPropertyFindMany },
+    marketZoneAlias: { findMany: mockMarketZoneAliasFindMany },
+    marketZoneProfile: { findMany: mockMarketZoneProfileFindMany },
+    marketZoneRelation: { findMany: mockMarketZoneRelationFindMany },
+    inmovillaEnumCiudad: { findUnique: mockInmovillaEnumCiudadFindUnique },
+  },
+}));
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function makeProperty(overrides: Partial<PropertyForMatching> = {}): PropertyForMatching {
@@ -127,5 +154,83 @@ describe("coverage scoring scenarios", () => {
     });
     const result = computeMatchScore(prop, demand, config);
     expect(typeof result.totalScore).toBe("number");
+  });
+});
+
+describe("evaluateDemandCoverage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockMarketZoneAliasFindMany.mockResolvedValue([]);
+    mockMarketZoneProfileFindMany.mockResolvedValue([]);
+    mockMarketZoneRelationFindMany.mockResolvedValue([]);
+    mockInmovillaEnumCiudadFindUnique.mockResolvedValue(null);
+  });
+
+  function mockDemandRow(overrides: Record<string, unknown> = {}) {
+    mockDemandFindUnique.mockResolvedValue({
+      codigo: "D-001",
+      ref: "REF-D001",
+      nombre: "Familia Martínez",
+      presupuestoMin: 200_000,
+      presupuestoMax: 300_000,
+      habitacionesMin: 2,
+      tipos: "Piso",
+      zonas: "Fuensanta, Arcángel, Santuario - Cordoba",
+      metrosMin: null,
+      metrosMax: null,
+      tipoOperacion: null,
+      ...overrides,
+    });
+  }
+
+  function mockPropertyRows(rows: Array<Record<string, unknown>>) {
+    mockPropertyFindMany.mockResolvedValue(rows);
+  }
+
+  it("no considera cubierta una demanda por candidatos bloqueados geográficamente", async () => {
+    const { evaluateDemandCoverage } = await import("../coverage");
+    mockDemandRow();
+    mockPropertyRows([
+      {
+        codigo: "P-001",
+        ref: "PROP-001",
+        titulo: "Piso fuera de zona",
+        tipoOfer: "Piso",
+        precio: 250_000,
+        metrosConstruidos: 90,
+        habitaciones: 3,
+        ciudad: "Córdoba",
+        zona: "Andalucia",
+      },
+    ]);
+
+    const result = await evaluateDemandCoverage("D-001");
+
+    expect(result?.bestScore).toBe(0);
+    expect(result?.topMatch).toBeNull();
+    expect(result?.totalCandidates).toBe(1);
+  });
+
+  it("mantiene el mejor score cuando la zona sí es compatible", async () => {
+    const { evaluateDemandCoverage } = await import("../coverage");
+    mockDemandRow({ zonas: "Fuensanta" });
+    mockPropertyRows([
+      {
+        codigo: "P-001",
+        ref: "PROP-001",
+        titulo: "Piso en Fuensanta",
+        tipoOfer: "Piso",
+        precio: 250_000,
+        metrosConstruidos: 90,
+        habitaciones: 3,
+        ciudad: "Córdoba",
+        zona: "Fuensanta",
+      },
+    ]);
+
+    const result = await evaluateDemandCoverage("D-001");
+
+    expect(result?.bestScore).toBeGreaterThanOrEqual(60);
+    expect(result?.topMatch?.propertyId).toBe("P-001");
   });
 });
