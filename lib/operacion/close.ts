@@ -103,6 +103,13 @@ export async function closeOperacion(
     } as unknown as JsonValue,
   });
 
+  await enqueueJob({
+    type: "PROCESS_EVENT",
+    payload: { eventId: event.id },
+    idempotencyKey: `process_event:${event.id}`,
+    sourceEventId: event.id,
+  });
+
   await syncLeadStatusFromOperacion(operacion.id, tipoCierre as OperacionEstado);
 
   const estadofichaMap: Record<string, number> = {
@@ -163,7 +170,9 @@ export async function closeOperacion(
       operacionId: operacion.id,
       operacionCodigo: operacion.codigo,
       propertyCode: operacion.propertyCode,
+      newEstado: tipoCierre,
       closedAt: now.toISOString(),
+      sourceEventId: event.id,
       demandId: effectiveDemandId,
       buyerClientId: effectiveBuyerClientId,
       comercialId,

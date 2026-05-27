@@ -188,25 +188,50 @@ describe("closeOperacion", () => {
       (c: unknown[]) => (c[0] as { type: string }).type === "START_POSTVENTA_CADENCE",
     );
     expect(postventaCall).toBeDefined();
+    const payload = (postventaCall![0] as { payload: Record<string, unknown> }).payload;
+    expect(payload.sourceEventId).toBe("evt-001");
+    expect(payload.newEstado).toBe("CERRADA_VENTA");
   });
 
-  it("enqueues 3 jobs total when demandId exists and demandArgs resolve", async () => {
+  it("enqueues PROCESS_EVENT for the OPERACION_CERRADA event", async () => {
     await closeOperacion({
       operacionId: "op-001",
       tipoCierre: "CERRADA_VENTA",
       comercialId: "com-001",
     });
 
-    expect(mockEnqueueJob).toHaveBeenCalledTimes(3);
+    const processEventCall = mockEnqueueJob.mock.calls.find(
+      (c: unknown[]) => (c[0] as { type: string }).type === "PROCESS_EVENT",
+    );
+    expect(processEventCall).toBeDefined();
+    const job = processEventCall![0] as {
+      payload: Record<string, unknown>;
+      sourceEventId?: string;
+      idempotencyKey?: string;
+    };
+    expect(job.payload.eventId).toBe("evt-001");
+    expect(job.sourceEventId).toBe("evt-001");
+    expect(job.idempotencyKey).toBe("process_event:evt-001");
+  });
+
+  it("enqueues 4 jobs total when demandId exists and demandArgs resolve", async () => {
+    await closeOperacion({
+      operacionId: "op-001",
+      tipoCierre: "CERRADA_VENTA",
+      comercialId: "com-001",
+    });
+
+    expect(mockEnqueueJob).toHaveBeenCalledTimes(4);
     const jobTypes = mockEnqueueJob.mock.calls.map(
       (c: unknown[]) => (c[0] as { type: string }).type,
     );
+    expect(jobTypes).toContain("PROCESS_EVENT");
     expect(jobTypes).toContain("UPDATE_PROPERTY_STATUS_INMOVILLA");
     expect(jobTypes).toContain("WRITE_TO_INMOVILLA");
     expect(jobTypes).toContain("START_POSTVENTA_CADENCE");
   });
 
-  it("enqueues 2 jobs when no demandId (no demand deactivation)", async () => {
+  it("enqueues 3 jobs when no demandId (no demand deactivation)", async () => {
     mockOperacionFindUnique.mockResolvedValue({ ...BASE_OPERACION, demandId: null });
 
     await closeOperacion({
@@ -215,7 +240,7 @@ describe("closeOperacion", () => {
       comercialId: "com-001",
     });
 
-    expect(mockEnqueueJob).toHaveBeenCalledTimes(2);
+    expect(mockEnqueueJob).toHaveBeenCalledTimes(3);
   });
 
   it("maps CERRADA_ALQUILER to estadoficha=2", async () => {

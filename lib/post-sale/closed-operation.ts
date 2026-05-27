@@ -15,6 +15,7 @@
  *   "vendid"   → Vendida(3), Vendida por Otros(11), Vendida MLS(14), Vendida Particular(21)
  *   "alquilad" → Alquilada(2), Alquilada por Otros(10), Alquilada MLS(13), Alquilada Particular(22)
  *   "traspaso" → Traspaso(6)
+ *   "cerrada_*" → estados terminales internos de Operaciones v2
  *
  * Estados que NO son cierre (24 de 33):
  *   Libre(1), Señalizada(4), No Libre(5), Reservado(7), En Trámites(8),
@@ -29,6 +30,8 @@ export const CLOSED_OPERATION_KEYWORDS = [
   "vendid",
   "alquilad",
   "traspaso",
+  "cerrada_venta",
+  "cerrada_alquiler",
 ] as const;
 
 export function isClosedOperation(newEstado: string): boolean {

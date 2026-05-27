@@ -5,11 +5,13 @@ import {
 } from "../closed-operation";
 
 describe("CLOSED_OPERATION_KEYWORDS", () => {
-  it("contiene los 3 keywords esperados", () => {
+  it("contiene los keywords esperados", () => {
     expect(CLOSED_OPERATION_KEYWORDS).toContain("vendid");
     expect(CLOSED_OPERATION_KEYWORDS).toContain("alquilad");
     expect(CLOSED_OPERATION_KEYWORDS).toContain("traspaso");
-    expect(CLOSED_OPERATION_KEYWORDS).toHaveLength(3);
+    expect(CLOSED_OPERATION_KEYWORDS).toContain("cerrada_venta");
+    expect(CLOSED_OPERATION_KEYWORDS).toContain("cerrada_alquiler");
+    expect(CLOSED_OPERATION_KEYWORDS).toHaveLength(5);
   });
 });
 
@@ -70,5 +72,19 @@ describe("isClosedOperation — estados reales de Inmovilla (estadoficha)", () =
 
   it("string vacío no es cierre", () => {
     expect(isClosedOperation("")).toBe(false);
+  });
+});
+
+describe("isClosedOperation — estados internos de Operaciones v2", () => {
+  it.each([
+    "CERRADA_VENTA",
+    "CERRADA_ALQUILER",
+    "CERRADA_TRASPASO",
+  ])("detecta '%s' como operación cerrada", (estado) => {
+    expect(isClosedOperation(estado)).toBe(true);
+  });
+
+  it("no detecta cancelaciones manuales como cierre con facturación", () => {
+    expect(isClosedOperation("CANCELADA")).toBe(false);
   });
 });
