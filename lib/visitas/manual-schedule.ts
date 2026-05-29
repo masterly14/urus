@@ -75,8 +75,57 @@ export type ManualVisitRescheduleResult = {
   };
 };
 
+const PLACEHOLDER_ADDRESS = "Direccion pendiente de completar";
+
+type PropertySnapshotFields = {
+  address?: string;
+  price?: number | null;
+  operationType?: string | null;
+};
+
 function toDate(fecha: string, hora: string): Date {
   return fromZonedTime(`${fecha}T${hora}:00`, "Europe/Madrid");
+}
+
+function snapshotFromWorkItem(
+  workItem: NonNullable<Awaited<ReturnType<typeof getVisitWorkItem>>>,
+): PropertySnapshotFields {
+  return (workItem.propertySnapshot ?? {}) as PropertySnapshotFields;
+}
+
+function resolveDraftOperationType(snapshot: PropertySnapshotFields): "VENTA" | "ALQUILER" {
+  return snapshot.operationType?.toUpperCase() === "ALQUILER" ? "ALQUILER" : "VENTA";
+}
+
+function resolveParteVisitaDetails(input: {
+  property: VisitInterestProperty | undefined;
+  effectiveDraftPropertyId: string | null;
+  snapshot: PropertySnapshotFields;
+}): { direccion: string; precio: number; tipoOperacion: "VENTA" | "ALQUILER" } {
+  const address = input.property?.address?.trim() ?? input.snapshot.address?.trim() ?? "";
+  const direccion =
+    address && address !== PLACEHOLDER_ADDRESS ? address : "";
+  const precio = input.property?.price ?? input.snapshot.price ?? 0;
+  const tipoOperacion = resolveDraftOperationType(input.snapshot);
+
+  if (input.effectiveDraftPropertyId) {
+    if (!direccion) {
+      throw new Error(
+        "La propiedad provisional no tiene dirección. Vuelve a crear la visita indicando la dirección del inmueble.",
+      );
+    }
+    if (!(precio > 0)) {
+      throw new Error(
+        "La propiedad provisional no tiene precio. Vuelve a crear la visita indicando el precio del inmueble.",
+      );
+    }
+  }
+
+  return {
+    direccion: direccion || address || PLACEHOLDER_ADDRESS,
+    precio: precio > 0 ? precio : 0,
+    tipoOperacion,
+  };
 }
 
 function assertNoOverlap(input: {
@@ -280,6 +329,13 @@ export async function scheduleManualVisit(
     throw new Error(`La propiedad ${effectivePropertyId} no consta como interés de la demanda ${effectiveDemandId}`);
   }
 
+  const snapshot = workItem ? snapshotFromWorkItem(workItem) : {};
+  const parteDetails = resolveParteVisitaDetails({
+    property,
+    effectiveDraftPropertyId,
+    snapshot,
+  });
+
   const comercial = await prisma.comercial.findUnique({
     where: { id: input.comercialId },
     select: {
@@ -318,10 +374,10 @@ export async function scheduleManualVisit(
       title: "Propiedad provisional",
       reference: `DRAFT-${effectiveDraftPropertyId}`,
       cadastralReference: null,
-      address: "Direccion pendiente de completar",
+      address: parteDetails.direccion,
       city: null,
       zone: null,
-      price: null,
+      price: parteDetails.precio > 0 ? parteDetails.precio : null,
       rooms: null,
       metersBuilt: null,
       portalUrl: null,
@@ -329,7 +385,7 @@ export async function scheduleManualVisit(
         kind: "propietario",
         name: "Propietario provisional",
         phones: [],
-        source: "property_current",
+        source: "draft_property",
       },
       missingContactPhone: false,
       interestedAt: new Date().toISOString(),
@@ -429,9 +485,9 @@ export async function scheduleManualVisit(
     comercialId: input.comercialId,
     buyerPhone,
     visitDateTime: slotStart,
-    direccion: property?.address ?? "Direccion pendiente de completar",
-    tipoOperacion: "VENTA",
-    precio: property?.price ?? 0,
+    direccion: parteDetails.direccion,
+    tipoOperacion: parteDetails.tipoOperacion,
+    precio: parteDetails.precio,
   });
 
   return {

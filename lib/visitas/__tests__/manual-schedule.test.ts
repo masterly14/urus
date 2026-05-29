@@ -149,6 +149,39 @@ beforeEach(() => {
 });
 
 describe("scheduleManualVisit", () => {
+  it("programa el parte de visita con dirección, precio y operación de propiedad provisional", async () => {
+    mockVisitWorkItemFindUnique.mockResolvedValue({
+      ...workItem,
+      propertyId: "",
+      draftPropertyId: "draft-prop-1",
+      propertySource: "draft",
+      propertySnapshot: {
+        title: "Propiedad provisional",
+        reference: "DRAFT-draft-prop-1",
+        cadastralReference: "1234567UG4913S",
+        address: "Calle Flamencos 8, La Carlota, Córdoba",
+        price: 275000,
+        operationType: "ALQUILER",
+      },
+    });
+
+    await scheduleManualVisit({
+      visitWorkItemId: "work-1",
+      fecha: "2026-05-22",
+      horaInicio: "10:00",
+      horaFin: "11:00",
+      comercialId: "com-1",
+    });
+
+    expect(mockScheduleParteVisitaFromDetails).toHaveBeenCalledWith(
+      expect.objectContaining({
+        direccion: "Calle Flamencos 8, La Carlota, Córdoba",
+        precio: 275000,
+        tipoOperacion: "ALQUILER",
+      }),
+    );
+  });
+
   it("crea el evento de Google Calendar con la API directa de Composio, sin agente LLM", async () => {
     const result = await scheduleManualVisit({
       visitWorkItemId: "work-1",

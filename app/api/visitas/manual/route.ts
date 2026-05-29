@@ -27,6 +27,8 @@ const BodySchema = z.object({
   draftPropertyKeyTipo: z.number().int().positive().optional(),
   draftPropertyKeyLoca: z.number().int().positive().optional(),
   draftPropertyOperationType: z.enum(["VENTA", "ALQUILER"]).optional(),
+  draftPropertyAddress: z.string().optional(),
+  draftPropertyPrice: z.number().positive().optional(),
   nluSummary: z.string().optional(),
 });
 
@@ -54,6 +56,19 @@ const postHandler = async (request: Request) => {
   }
   if (parsed.data.propertyMode === "draft" && (!parsed.data.ownerPhone || !parsed.data.cadastralRef)) {
     return NextResponse.json({ ok: false, error: "Para propiedad provisional debes indicar teléfono y referencia catastral" }, { status: 400 });
+  }
+  const draftPropertyAddress = parsed.data.draftPropertyAddress?.trim() ?? "";
+  if (parsed.data.propertyMode === "draft" && draftPropertyAddress.length < 5) {
+    return NextResponse.json(
+      { ok: false, error: "Para propiedad provisional debes indicar la dirección del inmueble (mínimo 5 caracteres)" },
+      { status: 400 },
+    );
+  }
+  if (parsed.data.propertyMode === "draft" && !(parsed.data.draftPropertyPrice && parsed.data.draftPropertyPrice > 0)) {
+    return NextResponse.json(
+      { ok: false, error: "Para propiedad provisional debes indicar un precio mayor que cero" },
+      { status: 400 },
+    );
   }
 
   const demand = parsed.data.demandId
@@ -176,6 +191,8 @@ const postHandler = async (request: Request) => {
             keyTipo: parsed.data.draftPropertyKeyTipo ?? undefined,
             keyLoca: parsed.data.draftPropertyKeyLoca ?? undefined,
             operationType: parsed.data.draftPropertyOperationType ?? undefined,
+            address: draftPropertyAddress,
+            price: parsed.data.draftPropertyPrice,
           },
         });
       } else {
@@ -187,6 +204,8 @@ const postHandler = async (request: Request) => {
             keyTipo: parsed.data.draftPropertyKeyTipo ?? defaultDemandType?.valor ?? 2799,
             keyLoca: parsed.data.draftPropertyKeyLoca ?? defaultKeyLoca?.key_loca ?? null,
             operationType: parsed.data.draftPropertyOperationType ?? "VENTA",
+            address: draftPropertyAddress,
+            price: parsed.data.draftPropertyPrice,
             status: "OPEN",
           },
         });

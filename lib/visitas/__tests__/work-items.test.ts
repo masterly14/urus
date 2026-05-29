@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VisitWorkItemStatus } from "@prisma/client";
 import {
+  createManualVisitWorkItem,
   createOrUpdateVisitWorkItemFromInterest,
   createOrUpdateVisitWorkItemsForDemandInterest,
   listVisitWorkItems,
@@ -18,6 +19,10 @@ const mockFindFirstEvent = vi.fn();
 const mockAppendEvent = vi.fn();
 const mockEnqueueJob = vi.fn();
 const mockGetPackage = vi.fn();
+const mockDemandCurrentFindUnique = vi.fn();
+const mockDraftDemandFindUnique = vi.fn();
+const mockPropertyCurrentFindUnique = vi.fn();
+const mockDraftPropertyFindUnique = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -36,7 +41,17 @@ vi.mock("@/lib/prisma", () => ({
       findFirst: (...args: unknown[]) => mockFindFirstEvent(...args),
     },
     demandCurrent: {
+      findUnique: (...args: unknown[]) => mockDemandCurrentFindUnique(...args),
       update: vi.fn(),
+    },
+    draftDemand: {
+      findUnique: (...args: unknown[]) => mockDraftDemandFindUnique(...args),
+    },
+    propertyCurrent: {
+      findUnique: (...args: unknown[]) => mockPropertyCurrentFindUnique(...args),
+    },
+    draftProperty: {
+      findUnique: (...args: unknown[]) => mockDraftPropertyFindUnique(...args),
     },
     demandSnapshot: {
       findUnique: vi.fn(),
@@ -214,6 +229,61 @@ describe("createOrUpdateVisitWorkItemFromInterest", () => {
       }),
     });
     expect(mockAppendEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe("createManualVisitWorkItem", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFindFirst.mockResolvedValue(null);
+    mockFindFirstEvent.mockResolvedValue(null);
+    mockAppendEvent.mockResolvedValue({ id: "evt-visit-precreated" });
+    mockEnqueueJob.mockResolvedValue({ id: "job-1" });
+    mockDemandCurrentFindUnique.mockResolvedValue(null);
+    mockPropertyCurrentFindUnique.mockResolvedValue(null);
+    mockDraftDemandFindUnique.mockResolvedValue({
+      id: "draft-demand-1",
+      buyerName: "Comprador provisional",
+      buyerPhone: "34600111222",
+      comercialId: "com-001",
+      status: "OPEN",
+    });
+    mockDraftPropertyFindUnique.mockResolvedValue({
+      id: "draft-prop-1",
+      ownerPhone: "34666777888",
+      cadastralRef: "1234567UG4913S",
+      address: "Calle Flamencos 8, La Carlota, Córdoba",
+      price: 275000,
+      operationType: "ALQUILER",
+    });
+  });
+
+  it("incluye dirección, precio y operación en el snapshot de propiedad provisional", async () => {
+    const created = makeWorkItem({
+      demandId: "",
+      propertyId: "",
+      draftDemandId: "draft-demand-1",
+      draftPropertyId: "draft-prop-1",
+      propertySource: "draft",
+    });
+    mockCreate.mockResolvedValue(created);
+
+    await createManualVisitWorkItem({
+      draftDemandId: "draft-demand-1",
+      draftPropertyId: "draft-prop-1",
+      comercialId: "com-001",
+    });
+
+    expect(mockCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        draftPropertyId: "draft-prop-1",
+        propertySnapshot: expect.objectContaining({
+          address: "Calle Flamencos 8, La Carlota, Córdoba",
+          price: 275000,
+          operationType: "ALQUILER",
+        }),
+      }),
+    });
   });
 });
 

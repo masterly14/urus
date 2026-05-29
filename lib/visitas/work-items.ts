@@ -29,6 +29,7 @@ type VisitPropertySnapshot = {
   metersBuilt: number | null;
   portalUrl: string | null;
   interestedAt: string;
+  operationType?: string | null;
 };
 
 type VisitContactSnapshot = VisitInterestProperty["contact"] & {
@@ -347,6 +348,9 @@ export async function createManualVisitWorkItem(input: {
             id: true,
             ownerPhone: true,
             cadastralRef: true,
+            address: true,
+            price: true,
+            operationType: true,
           },
         })
       : Promise.resolve(null),
@@ -402,10 +406,13 @@ export async function createManualVisitWorkItem(input: {
         : cleanString(draftProperty?.cadastralRef),
       address: property
         ? ([property.zona, property.ciudad].map(cleanString).filter(Boolean).join(", ") || "Direccion no disponible")
-        : "Direccion pendiente de completar",
+        : (cleanString(draftProperty?.address) ?? "Direccion pendiente de completar"),
       city: property ? cleanString(property.ciudad) : null,
       zone: property ? cleanString(property.zona) : null,
-      price: property && property.precio > 0 ? property.precio : null,
+      price: property && property.precio > 0
+        ? property.precio
+        : (draftProperty?.price && draftProperty.price > 0 ? draftProperty.price : null),
+      operationType: property ? null : (draftProperty?.operationType ?? "VENTA"),
       rooms: property && property.habitaciones > 0 ? property.habitaciones : null,
       metersBuilt: property && property.metrosConstruidos > 0 ? property.metrosConstruidos : null,
       portalUrl: property ? cleanString(property.portalUrl) : null,

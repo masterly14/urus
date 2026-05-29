@@ -194,6 +194,8 @@ export function CrearVisitaDialog({ open, onOpenChange, useMock = false, onSucce
   const [draftPropertyKeyTipo, setDraftPropertyKeyTipo] = useState("");
   const [draftPropertyKeyLoca, setDraftPropertyKeyLoca] = useState("");
   const [draftPropertyOperationType, setDraftPropertyOperationType] = useState<"VENTA" | "ALQUILER">("VENTA");
+  const [draftPropertyAddress, setDraftPropertyAddress] = useState("");
+  const [draftPropertyPrice, setDraftPropertyPrice] = useState("");
 
   const [fecha, setFecha] = useState(tomorrow());
   const [horaInicio, setHoraInicio] = useState("10:00");
@@ -223,6 +225,8 @@ export function CrearVisitaDialog({ open, onOpenChange, useMock = false, onSucce
     setDraftBuyerPhone("");
     setDraftOwnerPhone("");
     setDraftCadastralRef("");
+    setDraftPropertyAddress("");
+    setDraftPropertyPrice("");
     setFecha(tomorrow());
     setHoraInicio("10:00");
     setHoraFin("11:00");
@@ -328,13 +332,26 @@ export function CrearVisitaDialog({ open, onOpenChange, useMock = false, onSucce
 
   const isPropertyStepValid = useMemo(() => {
     if (propertyMode === "existing") return Boolean(propertyId);
+    const price = Number(draftPropertyPrice);
     return (
       isValidManualPhone(draftOwnerPhone) &&
       Boolean(draftCadastralRef.trim()) &&
+      draftPropertyAddress.trim().length >= 5 &&
+      Number.isFinite(price) &&
+      price > 0 &&
       Boolean(draftPropertyKeyTipo) &&
       Boolean(draftPropertyKeyLoca)
     );
-  }, [propertyMode, propertyId, draftOwnerPhone, draftCadastralRef, draftPropertyKeyTipo, draftPropertyKeyLoca]);
+  }, [
+    propertyMode,
+    propertyId,
+    draftOwnerPhone,
+    draftCadastralRef,
+    draftPropertyAddress,
+    draftPropertyPrice,
+    draftPropertyKeyTipo,
+    draftPropertyKeyLoca,
+  ]);
 
   const isScheduleStepValid = useMemo(
     () => Boolean(fecha) && horaInicio < horaFin,
@@ -432,6 +449,8 @@ export function CrearVisitaDialog({ open, onOpenChange, useMock = false, onSucce
           draftPropertyKeyTipo: isExistingProperty ? undefined : Number(draftPropertyKeyTipo),
           draftPropertyKeyLoca: isExistingProperty ? undefined : Number(draftPropertyKeyLoca),
           draftPropertyOperationType: isExistingProperty ? undefined : draftPropertyOperationType,
+          draftPropertyAddress: isExistingProperty ? undefined : draftPropertyAddress.trim(),
+          draftPropertyPrice: isExistingProperty ? undefined : Number(draftPropertyPrice),
           nluSummary: notas || "Visita inicial creada manualmente sin contexto previo del comprador.",
         }),
       });
@@ -642,7 +661,7 @@ export function CrearVisitaDialog({ open, onOpenChange, useMock = false, onSucce
               <div className="flex items-center gap-2">
                 <Home className="size-4 text-primary" />
                 <span className="font-medium">Propiedad</span>
-                <InlineHelp text="Existente: selecciona una propiedad ya cargada. Provisional: crea un prospecto con referencia catastral." />
+                <InlineHelp text="Existente: selecciona una propiedad ya cargada. Provisional: crea un prospecto con referencia catastral, dirección y precio (aparecen en el Parte de Visita por WhatsApp)." />
               </div>
               <div className="flex gap-2">
                 <Button
@@ -692,6 +711,26 @@ export function CrearVisitaDialog({ open, onOpenChange, useMock = false, onSucce
                       value={draftCadastralRef}
                       onChange={(e) => setDraftCadastralRef(e.target.value)}
                       placeholder="Ej: 1234567UG4913S"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Dirección del inmueble *</Label>
+                    <Input
+                      value={draftPropertyAddress}
+                      onChange={(e) => setDraftPropertyAddress(e.target.value)}
+                      placeholder="Ej: Calle Flamencos 8, La Carlota, Córdoba"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>
+                      {draftPropertyOperationType === "ALQUILER" ? "Renta mensual (€) *" : "Precio de venta (€) *"}
+                    </Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={draftPropertyPrice}
+                      onChange={(e) => setDraftPropertyPrice(e.target.value)}
+                      placeholder={draftPropertyOperationType === "ALQUILER" ? "850" : "275000"}
                     />
                   </div>
                   <Collapsible open={propertyAdvancedOpen} onOpenChange={setPropertyAdvancedOpen}>

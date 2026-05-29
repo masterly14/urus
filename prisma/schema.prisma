@@ -847,6 +847,8 @@ model DraftProperty {
   keyTipo               Int?
   keyLoca               Int?
   operationType         String              @default("VENTA")
+  address               String?
+  price                 Float?
   status                DraftPropertyStatus @default(OPEN)
   inmovillaPropertyCode String?
   propertyRef           String?
