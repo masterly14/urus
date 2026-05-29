@@ -9,7 +9,7 @@ export type VisitInterestContact = {
   kind: "propietario" | "agencia" | "anunciante" | "desconocido";
   name: string | null;
   phones: string[];
-  source: "property_current" | "microsite_json";
+  source: "property_current" | "microsite_json" | "draft_property";
 };
 
 export type VisitInterestProperty = {
