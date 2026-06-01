@@ -130,6 +130,21 @@ describe("fetchPricingComparables (snapshot)", () => {
     expect(comparables[0].tipologia).toBe("flat");
   });
 
+  it("incluye tipologias compatibles (p. ej. penthouse para Piso)", async () => {
+    mockGetSnapshot.mockResolvedValue(
+      makeSnapshotResponse({
+        "id-penthouse": makeSnapshotProp({ pHousing: "penthouse", pPrice: 195000 }),
+        "id-house": makeSnapshotProp({ pHousing: "house", pPrice: 198000 }),
+      }),
+    );
+
+    const { comparables } = await fetchPricingComparables(makeInput({ tipologiaNombre: "Piso" }), {
+      maxPages: 1,
+    });
+    expect(comparables.length).toBe(1);
+    expect(comparables[0].tipologia).toBe("penthouse");
+  });
+
   it("filtra por rango de precio ±20%", async () => {
     mockGetSnapshot.mockResolvedValue(
       makeSnapshotResponse({
@@ -423,5 +438,60 @@ describe("fetchPricingComparables (snapshot)", () => {
     expect(result.comparables.length).toBe(1);
     expect(result.comparables[0].zona).toBe("Centro");
     expect(result.comparabilityMeta.excludedByReason.ZONE_UNKNOWN_FALLBACK).toBe(1);
+  });
+
+  it("incluye candidatos sin zona resuelta en path Statefox (comparabilidad relajada)", async () => {
+    mockGetSnapshot.mockResolvedValue(
+      makeSnapshotResponse({
+        "id-known": makeSnapshotProp({ pZone: { name: "Centro" } }),
+        "id-unknown": makeSnapshotProp({
+          _id: "id.2",
+          pZone: "",
+          pPrice: 205000,
+        }),
+      }),
+    );
+    mockAliasFindMany.mockResolvedValue([
+      { aliasNormalized: "centro", zoneCode: "COR-IMV-1901999" },
+    ]);
+    mockProfileFindMany.mockResolvedValue([
+      { suggestedZoneCode: "COR-IMV-1901999", zoneNameCanonical: "Centro" },
+    ]);
+
+    const result = await fetchPricingComparables(makeInput(), {
+      maxPages: 1,
+      comparabilityProfile: {
+        propertyCode: "TEST-001",
+        catalogVersion: "v1.1",
+        resolutionMethod: "key_zona",
+        confidenceLevel: "low",
+        confidenceFlags: ["UNKNOWN_ZONE"],
+        zoneRaw: "Centro",
+        zoneCode: "COR-IMV-1901999",
+        zoneNameCanonical: "Centro",
+        keyLoca: 224499,
+        keyZona: 1901999,
+        macroArea: "Centro",
+        marketSegment: "medio_alto",
+        qualityProfile: "medio",
+        pricingProfileStatus: "not_ready",
+        coverageStatus: "known_unprofiled",
+        comparableRadiusMode: "zone_plus_mirrors",
+        allowedZoneCodes: ["COR-IMV-1901999"],
+        excludedZoneCodes: [],
+        comparableRelations: [],
+        excludedRelations: [],
+        priceBandM2Min: 2000,
+        priceBandM2Max: 2600,
+        builtAt: new Date().toISOString(),
+      },
+    });
+
+    expect(result.comparables.length).toBe(2);
+    expect(
+      result.comparabilityMeta.comparableDecisions.some(
+        (d) => d.reason === "ZONE_INCLUDED_STATEFOX_RELAXED",
+      ),
+    ).toBe(true);
   });
 });

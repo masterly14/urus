@@ -35,9 +35,23 @@ import type {
 
 const DEFAULT_PRICE_RANGE_PERCENT = 20;
 const DEFAULT_METERS_RANGE_PERCENT = 20;
+/** Rangos por defecto en path Statefox (/snapshot): más amplios que MarketListing. */
+const STATEFOX_DEFAULT_PRICE_RANGE_PERCENT = 35;
+const STATEFOX_DEFAULT_METERS_RANGE_PERCENT = 30;
 const DEFAULT_MAX_PAGES = 30;
 const DEFAULT_MIN_COMPARABLES = 5;
 const ITEMS_PER_PAGE = 250;
+
+/** Tipologías Statefox consideradas comparables entre sí (vivienda urbana). */
+const STATEFOX_HOUSING_COMPAT: Record<string, readonly string[]> = {
+  flat: ["flat", "penthouse", "duplex", "studio", "loft"],
+  penthouse: ["penthouse", "flat", "duplex", "loft"],
+  duplex: ["duplex", "flat", "penthouse", "loft"],
+  studio: ["studio", "flat", "penthouse"],
+  loft: ["loft", "flat", "penthouse", "duplex"],
+  house: ["house", "countryhouse"],
+  countryhouse: ["countryhouse", "house"],
+};
 
 export interface FetchComparablesOptions {
   priceRangePercent?: number;
@@ -72,8 +86,19 @@ function matchesCity(prop: StatefoxSnapshotProperty, ciudad: string): boolean {
   return cityName.includes(target) || target.includes(cityName) || address.includes(target);
 }
 
-function matchesHousing(prop: StatefoxSnapshotProperty, housing: string): boolean {
-  return (prop.pHousing ?? "") === housing;
+function resolveStatefoxHousingTypes(tipologiaNombre: string): Set<string> {
+  if (!tipologiaNombre.trim()) {
+    return new Set(STATEFOX_HOUSING_COMPAT.flat);
+  }
+  const primary = mapTiposToHousing(tipologiaNombre);
+  const compat = STATEFOX_HOUSING_COMPAT[primary];
+  return new Set(compat ?? [primary]);
+}
+
+function matchesHousingTypes(prop: StatefoxSnapshotProperty, allowed: Set<string>): boolean {
+  const housing = prop.pHousing ?? "";
+  if (!housing) return false;
+  return allowed.has(housing);
 }
 
 function isInPriceRange(price: number, refPrice: number, rangePercent: number): boolean {
@@ -230,6 +255,7 @@ async function resolveCandidateZoneCodes(
 async function applyComparabilityFilter(
   candidates: PricingComparable[],
   profile: PropertyComparabilityProfile | undefined,
+  options?: { relaxed?: boolean },
 ): Promise<{ filtered: PricingComparable[]; meta: PricingComparabilityMeta }> {
   if (!profile) {
     return {
@@ -277,6 +303,18 @@ async function applyComparabilityFilter(
       continue;
     }
 
+    if (options?.relaxed && !zoneCode) {
+      decisions.push({
+        statefoxId: candidate.statefoxId,
+        candidateZoneRaw: zoneRaw,
+        candidateZoneCodeResolved: zoneCode,
+        decision: "included",
+        reason: "ZONE_INCLUDED_STATEFOX_RELAXED",
+      });
+      included.push(candidate);
+      continue;
+    }
+
     if (allowedSet.size > 0) {
       if (!zoneCode || !allowedSet.has(zoneCode)) {
         const reason: ComparableDecisionReason =
@@ -292,6 +330,17 @@ async function applyComparabilityFilter(
         continue;
       }
     } else if (mode === "fallback") {
+      if (options?.relaxed) {
+        decisions.push({
+          statefoxId: candidate.statefoxId,
+          candidateZoneRaw: zoneRaw,
+          candidateZoneCodeResolved: zoneCode,
+          decision: "included",
+          reason: "ZONE_INCLUDED_STATEFOX_RELAXED",
+        });
+        included.push(candidate);
+        continue;
+      }
       const reason: ComparableDecisionReason = "ZONE_UNKNOWN_FALLBACK";
       decisions.push({
         statefoxId: candidate.statefoxId,
@@ -359,26 +408,41 @@ export async function fetchPricingComparables(
     });
     if (result.comparables.length > 0) {
       const filtered = await applyComparabilityFilter(result.comparables, options?.comparabilityProfile);
-      return {
-        comparables: filtered.filtered,
-        totalResultsFromAPI: result.totalResultsFromAPI,
-        pagesScanned: result.pagesScanned,
-        comparabilityMeta: filtered.meta,
-      };
+      if (filtered.filtered.length > 0) {
+        return {
+          comparables: filtered.filtered,
+          totalResultsFromAPI: result.totalResultsFromAPI,
+          pagesScanned: result.pagesScanned,
+          comparabilityMeta: filtered.meta,
+        };
+      }
+      console.log(
+        `[pricing] MARKET_PRICING_SOURCE=marketlisting: ${result.comparables.length} candidatos, ` +
+          `comparabilidad dejo 0 para ${input.propertyCode} (ciudad=${input.ciudad}); cayendo a Statefox.`,
+      );
+    } else {
+      console.log(
+        `[pricing] MARKET_PRICING_SOURCE=marketlisting devolvio 0 comparables para ${input.propertyCode} ` +
+          `(ciudad=${input.ciudad}); cayendo a Statefox.`,
+      );
     }
-    // Fallback explicito a Statefox si MarketListing no devuelve nada
-    // (ciudad sin seeds activos, p. ej.). Loguamos para tener visibilidad.
-    console.log(
-      `[pricing] MARKET_PRICING_SOURCE=marketlisting devolvio 0 comparables para ${input.propertyCode} ` +
-        `(ciudad=${input.ciudad}); cayendo a Statefox.`,
-    );
   }
-  const priceRange = options?.priceRangePercent ?? DEFAULT_PRICE_RANGE_PERCENT;
-  const metersRange = options?.metersRangePercent ?? DEFAULT_METERS_RANGE_PERCENT;
+
+  return fetchStatefoxComparables(input, options);
+}
+
+async function fetchStatefoxComparables(
+  input: PricingPropertyInput,
+  options?: FetchComparablesOptions,
+): Promise<FetchComparablesResult> {
+  const priceRange =
+    options?.priceRangePercent ?? STATEFOX_DEFAULT_PRICE_RANGE_PERCENT;
+  const metersRange =
+    options?.metersRangePercent ?? STATEFOX_DEFAULT_METERS_RANGE_PERCENT;
   const maxPages = options?.maxPages ?? DEFAULT_MAX_PAGES;
   const minComparables = options?.minComparables ?? DEFAULT_MIN_COMPARABLES;
 
-  const housing = mapTiposToHousing(input.tipologiaNombre);
+  const allowedHousing = resolveStatefoxHousingTypes(input.tipologiaNombre);
   const client = createStatefoxClient();
 
   const seen = new Set<string>();
@@ -412,7 +476,7 @@ export async function fetchPricingComparables(
       seen.add(id);
 
       if (!prop.pPrice || prop.pPrice <= 0) continue;
-      if (!matchesHousing(prop, housing)) continue;
+      if (!matchesHousingTypes(prop, allowedHousing)) continue;
       if (!matchesCity(prop, input.ciudad)) continue;
       if (!isInPriceRange(prop.pPrice, input.precio, priceRange)) continue;
 
@@ -433,6 +497,7 @@ export async function fetchPricingComparables(
   const filtered = await applyComparabilityFilter(
     comparablesWithCachedImages,
     options?.comparabilityProfile,
+    { relaxed: true },
   );
   return {
     comparables: filtered.filtered,
