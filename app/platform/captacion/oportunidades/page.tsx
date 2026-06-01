@@ -1,22 +1,10 @@
 /**
  * /platform/captacion/oportunidades
  *
- * Pantalla unica de captacion de cartera externa para comerciales.
- * Muestra un listado plano de anuncios externos (Idealista, Pisos.com,
- * Fotocasa) ordenados por mas reciente, con accion para registrar al
- * publicante en Inmovilla CRM.
+ * Pantalla desactivada: el pipeline Market in-house está apagado y el acceso
+ * comercial se retiró del sidebar. Redirige a Captación (notas de encargo).
  *
- * Caracteristicas:
- *  - Filtros simples (ciudad, publicante, ventana temporal, precio, m²,
- *    habitaciones, "solo con telefono", ocultar Fotocasa).
- *  - Filtrado opcional por zona dibujada en mapa (Sheet lateral, opt-in).
- *  - Refresco automatico cada 90s (toggle, OFF por defecto).
- *  - Boton "Anadir a CRM" por anuncio (deshabilitado cuando no hay
- *    publicante o telefono detectado).
- *
- * Permisos: cualquier usuario autenticado.
- *
- * Mock: `?mock=1` activa fixtures locales sin red para revisar UI.
+ * Mock: `?mock=1` conserva la vista legacy para revisión de UI sin red.
  */
 
 import { redirect } from "next/navigation";
@@ -35,15 +23,17 @@ export default async function OportunidadesPage({ searchParams }: PageProps) {
   const isMock = params.mock === "1";
 
   if (!isMock) {
-    const session = await getSession();
-    if (!session) {
-      redirect("/login?redirectTo=/platform/captacion/oportunidades");
-    }
+    redirect("/platform/captacion");
+  }
+
+  const session = await getSession();
+  if (!session) {
+    redirect("/login?redirectTo=/platform/captacion");
   }
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <PageHeader title="Inmuebles" description="Listado de inmuebles" />
+      <PageHeader title="Inmuebles (mock)" description="Vista legacy solo con ?mock=1" />
       <OportunidadesView mock={isMock} />
     </div>
   );
