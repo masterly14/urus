@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { PricingAnalysisResult } from "./types";
+import type { PricingRecommendation } from "./recommendation-types";
+import type { PricingAnalysisResult, PricingClusterStats } from "./types";
 
 export interface PersistPricingReportInput {
   result: PricingAnalysisResult;
@@ -11,6 +12,18 @@ export interface PersistPricingReportInput {
 
 function toJson(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
+}
+
+/** Recomendación fallback (sin_datos) persistida antes de un análisis con comparables reales. */
+export function isStaleSinDatosRecommendation(
+  stats: PricingClusterStats,
+  recommendation?: PricingRecommendation | null,
+): boolean {
+  if (!recommendation || stats.semaforo === "sin_datos") return false;
+  return (
+    recommendation.confidence <= 0.1 &&
+    recommendation.diagnostico.includes("No se encontraron comparables suficientes")
+  );
 }
 
 function withComparabilityDefaults(
@@ -109,12 +122,20 @@ export async function getLatestPricingReport(
     comparabilityProfile?: PricingAnalysisResult["comparabilityProfile"] | null;
   };
 
+  const stats = row.stats as unknown as PricingAnalysisResult["stats"];
+  const recommendationRaw = (row.recommendation ?? undefined) as unknown as
+    | PricingAnalysisResult["recommendation"]
+    | undefined;
+  const recommendation = isStaleSinDatosRecommendation(stats, recommendationRaw)
+    ? undefined
+    : recommendationRaw;
+
   return {
     propertyCode: row.propertyCode,
     input: row.input as unknown as PricingAnalysisResult["input"],
-    stats: row.stats as unknown as PricingAnalysisResult["stats"],
+    stats,
     comparables: row.comparables as unknown as PricingAnalysisResult["comparables"],
-    recommendation: (row.recommendation ?? undefined) as unknown as PricingAnalysisResult["recommendation"],
+    recommendation,
     recommendationError: row.recommendationError ?? undefined,
     trend: (row.trend ?? undefined) as unknown as PricingAnalysisResult["trend"],
     zoneStudy: (row.zoneStudy ?? undefined) as unknown as PricingAnalysisResult["zoneStudy"],

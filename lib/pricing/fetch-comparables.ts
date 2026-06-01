@@ -493,7 +493,11 @@ async function fetchStatefoxComparables(
     cursor = nextCursor;
   }
 
-  const comparablesWithCachedImages = await hydrateComparablesWithImageCache(comparables);
+  // Pricing no necesita import Playwright/Cloudinary: Statefox ya trae pImages válidas.
+  const comparablesWithCachedImages = await hydrateComparablesWithImageCache(comparables, {
+    cacheOnly: true,
+  });
+
   const filtered = await applyComparabilityFilter(
     comparablesWithCachedImages,
     options?.comparabilityProfile,

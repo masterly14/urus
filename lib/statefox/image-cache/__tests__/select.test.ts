@@ -237,6 +237,33 @@ describe("hydrateComparablesWithImageCache", () => {
     expect(result[0].imageCacheStatus).toBe("IMPORTED");
   });
 
+  it("cacheOnly: no invoca orquestador ni encola aunque syncOnFirstSeen=true", async () => {
+    mockConfig.mockReturnValue({
+      enabled: true,
+      syncOnFirstSeen: true,
+      syncMaxComparables: 5,
+      maxImages: 12,
+      timeoutMs: 60_000,
+      idealistaDelayMs: 3_000,
+      headless: true,
+    });
+
+    await hydrateComparablesWithImageCache(
+      [
+        {
+          ...baseComparable,
+          statefoxId: "id.1",
+          link: "https://www.idealista.com/inmueble/1",
+          fotos: ["https://img4.idealista.com/fresh.jpg"],
+        },
+      ],
+      { cacheOnly: true },
+    );
+
+    expect(mockOrchestrator).not.toHaveBeenCalled();
+    expect(mockEnqueue).not.toHaveBeenCalled();
+  });
+
   it("no encola si la cache está deshabilitada", async () => {
     mockConfig.mockReturnValue({
       enabled: false,

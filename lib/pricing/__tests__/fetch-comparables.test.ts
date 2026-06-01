@@ -7,8 +7,11 @@ vi.mock("@/lib/statefox/client", () => ({
   getSnapshot: vi.fn(),
 }));
 
+const mockHydrateComparablesWithImageCache = vi.fn(async (comparables: unknown) => comparables);
+
 vi.mock("@/lib/statefox/image-cache", () => ({
-  hydrateComparablesWithImageCache: vi.fn(async (comparables: unknown) => comparables),
+  hydrateComparablesWithImageCache: (...args: unknown[]) =>
+    mockHydrateComparablesWithImageCache(...args),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -104,6 +107,21 @@ beforeEach(() => {
 });
 
 describe("fetchPricingComparables (snapshot)", () => {
+  it("hidrata imágenes en modo cacheOnly (sin import híbrido)", async () => {
+    mockGetSnapshot.mockResolvedValue(
+      makeSnapshotResponse({
+        "id-1": makeSnapshotProp({ pCity: { cityName: "Murcia" } }),
+      }),
+    );
+
+    await fetchPricingComparables(makeInput(), { maxPages: 1 });
+
+    expect(mockHydrateComparablesWithImageCache).toHaveBeenCalledWith(
+      expect.any(Array),
+      { cacheOnly: true },
+    );
+  });
+
   it("filtra correctamente por ciudad", async () => {
     mockGetSnapshot.mockResolvedValue(
       makeSnapshotResponse({

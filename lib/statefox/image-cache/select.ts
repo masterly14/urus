@@ -6,6 +6,14 @@ import { runHybridImageImport } from "./orchestrator";
 import { getImportedImagesByStatefoxIds, toCloudinaryUrls } from "./repo";
 import type { CachedStatefoxImage } from "./types";
 
+export type HydrateImageCacheOptions = {
+  /**
+   * Solo usa cache Cloudinary existente y URLs `pImages` de Statefox (sin caducar).
+   * No ejecuta import híbrido ni encola jobs — adecuado para RUN_PRICING_ANALYSIS.
+   */
+  cacheOnly?: boolean;
+};
+
 export function selectComparablePhotos(args: {
   cachedUrls: string[];
   statefoxUrls: string[];
@@ -38,15 +46,22 @@ async function loadCache(
  */
 export async function hydrateComparablesWithImageCache<T extends PricingComparable>(
   comparables: T[],
+  options?: HydrateImageCacheOptions,
 ): Promise<T[]> {
   if (comparables.length === 0) return comparables;
 
+  const cacheOnly = options?.cacheOnly === true;
   const config = getStatefoxImageImportConfig();
   const ids = comparables.map((c) => c.statefoxId);
   let cached = await loadCache(ids);
 
   const acceptedIds = new Set<string>();
-  if (config.enabled && config.syncOnFirstSeen && config.syncMaxComparables > 0) {
+  if (
+    !cacheOnly &&
+    config.enabled &&
+    config.syncOnFirstSeen &&
+    config.syncMaxComparables > 0
+  ) {
     const missingCandidates = comparables
       .filter((c) => !cached.has(c.statefoxId) && Boolean(c.link))
       .slice(0, config.syncMaxComparables)
@@ -88,7 +103,7 @@ export async function hydrateComparablesWithImageCache<T extends PricingComparab
     } as T;
   });
 
-  if (config.enabled) {
+  if (!cacheOnly && config.enabled) {
     const missingCache = comparables
       .filter((c) => {
         const cachedImages = cached.get(c.statefoxId) ?? [];

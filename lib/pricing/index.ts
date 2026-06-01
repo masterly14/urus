@@ -123,7 +123,22 @@ export async function runPricingAnalysis(
         `[pricing] Error en motor de recomendación para ${propertyCode}: ${errorMsg}`,
       );
       result.recommendationError = errorMsg;
+      result.recommendation = undefined;
     }
+  }
+
+  if (
+    result.recommendation &&
+    result.stats.semaforo !== "sin_datos" &&
+    result.recommendation.diagnostico.includes("No se encontraron comparables suficientes")
+  ) {
+    console.warn(
+      `[pricing] Descartando recomendación fallback incoherente para ${propertyCode} (semaforo=${result.stats.semaforo}, comparables=${result.stats.totalComparables})`,
+    );
+    result.recommendation = undefined;
+    result.recommendationError =
+      result.recommendationError ??
+      "La recomendación IA no se generó correctamente; vuelve a ejecutar el análisis.";
   }
 
   await persistPricingReport({
