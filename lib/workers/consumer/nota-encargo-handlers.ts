@@ -1,18 +1,17 @@
 /**
  * Handlers legacy de Nota de Encargo en el consumer.
  *
- * Estos handlers ya **no se usan en el camino feliz**: el flujo se programa
- * directamente en QStash y se ejecuta vía
- * `/api/nota-encargo/{recordatorio,check-confirmacion,formulario,matching-check}`.
+ * El flujo activo se programa en QStash y se ejecuta vía
+ * `/api/nota-encargo/{formulario,matching-check}`. Los endpoints
+ * `recordatorio` y `check-confirmacion` responden `deprecated_noop`.
  *
- * Se mantienen como **red de seguridad** para drenar cualquier job que aún
- * quede en `job_queue` por la migración (ver `scripts/migrate-nota-encargo-to-qstash.ts`)
- * o por un rescate manual. Cada handler delega en la función pura idempotente
- * de `lib/nota-encargo/send.ts`, que ya respeta la transición de estados y
- * encadena el siguiente paso vía QStash (recordatorio → check_confirmacion).
+ * Se mantienen como red de seguridad para drenar jobs remanentes en
+ * `job_queue` (ver `scripts/migrate-nota-encargo-to-qstash.ts`).
+ * Recordatorio y check delegan en stubs noop; formulario y matching-check
+ * delegan en `lib/nota-encargo/send.ts`.
  *
  * El handler de evento `NOTA_ENCARGO_FORMULARIO_COMPLETADO` sigue activo y
- * procesa la firma del propietario.
+ * procesa la firma del comercial.
  */
 
 import type { JobRecord } from "@/lib/job-queue/types";

@@ -932,9 +932,9 @@ function CaptacionPageContent() {
           <SheetHeader>
             <SheetTitle>Nueva Nota de Encargo</SheetTitle>
             <SheetDescription>
-              Agende una visita de captación y el sistema se encargará de enviar
-              el recordatorio, el formulario y la firma al propietario por
-              WhatsApp.
+              Agende una visita de captación. A la hora acordada el comercial
+              recibirá el formulario por WhatsApp; el PDF firmado se entrega al
+              propietario.
             </SheetDescription>
             {prefillAppliedForListingId ? (
               <p className="text-xs text-muted-foreground">
@@ -1069,7 +1069,7 @@ function CaptacionPageContent() {
               <div className="space-y-2 text-sm">
                 <p>
                   Esta acción marcará la nota como <strong>cancelada</strong> y
-                  detendrá cualquier recordatorio o envío pendiente al
+                  detendrá cualquier envío pendiente al comercial o al
                   propietario. La nota se conservará en el historial.
                 </p>
                 {pendingCancel && (

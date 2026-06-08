@@ -80,6 +80,8 @@
     "parte-visita:migrate-qstash": "tsx scripts/migrate-parte-visita-to-qstash.ts",
     "nota-encargo:force-send": "tsx scripts/force-send-nota-encargo.ts",
     "nota-encargo:migrate-qstash": "tsx scripts/migrate-nota-encargo-to-qstash.ts",
+    "nota-encargo:migrate-drop-confirmacion": "tsx scripts/migrate-nota-encargo-drop-confirmacion.ts",
+    "nota-encargo:register-rescate-cron": "tsx scripts/register-qstash-nota-encargo-rescate.ts",
     "list:properties-by-comercial": "tsx scripts/list-properties-by-comercial.ts",
     "test:transfer:preview": "tsx scripts/test-transfer-api-preview.ts",
     "test:transfer:property:live": "tsx scripts/test-transfer-property-live.ts",

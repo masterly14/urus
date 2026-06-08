@@ -20,7 +20,7 @@ El normalizador canónico vive en `lib/nota-encargo/cadastral-ref.ts`.
 1. `POST /api/captacion/nota-encargo` recibe `refCatastral`, `propietarioPhone` y `visitDateTime`.
 2. Si `PropertyCurrent.refCatastral` ya existe, la sesión se crea con `propertyCode` real, `propertyRef` real y estado `PENDING`.
 3. Si no existe, la sesión se crea con `propertyCode = null` y estado `PENDIENTE_PROPIEDAD`.
-4. El recordatorio y el WhatsApp Flow se envían igualmente; si falta dirección, los mensajes usan la referencia catastral como fallback.
+4. A la hora de la visita el comercial recibe el WhatsApp Flow; si falta dirección, los mensajes usan la referencia catastral como fallback. El PDF firmado se envía al propietario.
 5. Si el propietario completa el Flow y firma antes del matching, `SignatureRequest` y `LegalDocument` usan `operationId = propertyCode = NOTA:<sessionId>` de forma provisional.
 6. Cuando la ingesta emite `PROPIEDAD_CREADA`, `lib/nota-encargo/ref-matcher.ts` busca sesiones pendientes por `refCatastral`, rellena `propertyCode`, `propertyRef`, dirección, precio y tipo de operación, copia datos de propietario a `PropertyCurrent`, y rebindea documentos/firma al código real.
 

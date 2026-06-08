@@ -1,13 +1,12 @@
 /**
- * Callback QStash: verifica si el propietario confirmó la visita ~30 min antes
- * y, si no lo hizo, avisa al comercial.
+ * @deprecated Callback QStash legacy (check confirmación del propietario).
+ * Responde noop para drenar mensajes ya publicados sin marcar NO_CONFIRMADA.
  */
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isQstashAuthorized } from "@/lib/api/cron-auth";
 import { withObservedRoute } from "@/lib/observability";
-import { checkNotaEncargoConfirmacionForSession } from "@/lib/nota-encargo/send";
 
 const BodySchema = z.object({ sessionId: z.string().min(1) });
 
@@ -25,14 +24,10 @@ const postHandler = async (request: Request) => {
     );
   }
 
-  const result = await checkNotaEncargoConfirmacionForSession(parsed.data.sessionId);
-  if (!result.ok) {
-    return NextResponse.json(
-      { ok: false, error: result.error, permanent: result.permanent },
-      { status: result.permanent ? 400 : 500 },
-    );
-  }
-  return NextResponse.json({ ok: true, status: result.status });
+  console.log(
+    `[nota-encargo/check-confirmacion] deprecated noop — session=${parsed.data.sessionId}`,
+  );
+  return NextResponse.json({ ok: true, status: "deprecated_noop" });
 };
 
 export const POST = withObservedRoute(

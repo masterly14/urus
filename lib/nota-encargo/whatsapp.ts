@@ -1,5 +1,7 @@
 /**
  * WhatsApp sending functions specific to the Nota de Encargo flow.
+ *
+ * El formulario y la firma van al comercial; solo el PDF firmado va al propietario.
  */
 
 import {
@@ -22,95 +24,7 @@ const WHATSAPP_TEMPLATE_LANGUAGE_CODE =
   process.env.WHATSAPP_TEMPLATE_LANGUAGE?.trim() || "es";
 
 // ---------------------------------------------------------------------------
-// Recordatorio (template con botones)
-// ---------------------------------------------------------------------------
-
-const RECORDATORIO_TEMPLATE =
-  process.env.WHATSAPP_TEMPLATE_NOTA_ENCARGO_RECORDATORIO ||
-  "nota_encargo_recordatorio";
-
-/** Texto legible para el propietario: dirección si existe, si no la ref Inmovilla. */
-function propertyLocationLabel(
-  direccion: string | null | undefined,
-  propertyRef: string,
-): string {
-  const d = direccion?.trim();
-  return d && d.length > 0 ? d : propertyRef;
-}
-
-export async function sendNotaEncargoRecordatorio(
-  to: string,
-  params: { propertyRef: string; direccion?: string | null; visitTime: Date },
-  options?: NotaEncargoSendOptions,
-): Promise<SendMessageSuccess> {
-  // Negocio en España: forzamos zona Europe/Madrid en lugar de la zona del
-  // host (Vercel usa UTC por defecto), para que el propietario reciba la hora
-  // civil de Madrid y no la UTC.
-  const hora = params.visitTime.toLocaleTimeString("es-ES", {
-    timeZone: "Europe/Madrid",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  const ubicacion = propertyLocationLabel(params.direccion, params.propertyRef);
-
-  const template: TemplateObject = {
-    name: RECORDATORIO_TEMPLATE,
-    language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
-    components: [
-      {
-        type: "body",
-        parameters: [
-          { type: "text", text: hora },
-          { type: "text", text: ubicacion },
-        ],
-      },
-    ],
-  };
-
-  return sendTemplateMessage(to, template, options);
-}
-
-// ---------------------------------------------------------------------------
-// No confirmada (template al comercial)
-// ---------------------------------------------------------------------------
-
-const NO_CONFIRMADA_TEMPLATE =
-  process.env.WHATSAPP_TEMPLATE_NOTA_ENCARGO_NO_CONFIRMADA ||
-  "nota_encargo_no_confirmada";
-
-export async function sendNotaEncargoNoConfirmada(
-  to: string,
-  params: { propertyRef: string; direccion?: string | null; visitTime: Date },
-  options?: NotaEncargoSendOptions,
-): Promise<SendMessageSuccess> {
-  const hora = params.visitTime.toLocaleTimeString("es-ES", {
-    timeZone: "Europe/Madrid",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  const ubicacion = propertyLocationLabel(params.direccion, params.propertyRef);
-
-  const template: TemplateObject = {
-    name: NO_CONFIRMADA_TEMPLATE,
-    language: { code: WHATSAPP_TEMPLATE_LANGUAGE_CODE },
-    components: [
-      {
-        type: "body",
-        parameters: [
-          { type: "text", text: hora },
-          { type: "text", text: ubicacion },
-        ],
-      },
-    ],
-  };
-
-  return sendTemplateMessage(to, template, options);
-}
-
-// ---------------------------------------------------------------------------
-// WhatsApp Flow (formulario nota de encargo)
+// WhatsApp Flow (formulario nota de encargo → comercial)
 // ---------------------------------------------------------------------------
 
 const FORMULARIO_TEMPLATE =
@@ -179,10 +93,6 @@ export async function sendNotaEncargoFlow(
   return sendTemplateMessage(to, template, options);
 }
 
-/**
- * Alternative: send Flow as interactive message (within 24h conversation window).
- * Used when WHATSAPP_FLOW_NOTA_ENCARGO_ID is configured.
- */
 async function sendNotaEncargoFlowInteractive(
   to: string,
   params: {
@@ -229,13 +139,9 @@ async function sendNotaEncargoFlowInteractive(
 }
 
 // ---------------------------------------------------------------------------
-// Documento firmado (mensaje libre, dentro de ventana de 24h)
+// Documento firmado → propietario
 // ---------------------------------------------------------------------------
 
-/**
- * Envía el PDF firmado de la nota de encargo al propietario.
- * Solo válido dentro de la ventana de 24h tras la firma.
- */
 export async function sendNotaEncargoDocumentoFirmado(
   to: string,
   params: {

@@ -1,13 +1,12 @@
 /**
- * Callback QStash: envía el recordatorio de la Nota de Encargo (~2h antes de
- * la visita) y programa el CHECK_CONFIRMACION (~30 min antes).
+ * @deprecated Callback QStash legacy (recordatorio con confirmación del propietario).
+ * Responde noop para drenar mensajes ya publicados sin efectos secundarios.
  */
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isQstashAuthorized } from "@/lib/api/cron-auth";
 import { withObservedRoute } from "@/lib/observability";
-import { sendNotaEncargoRecordatorioForSession } from "@/lib/nota-encargo/send";
 
 const BodySchema = z.object({ sessionId: z.string().min(1) });
 
@@ -25,14 +24,10 @@ const postHandler = async (request: Request) => {
     );
   }
 
-  const result = await sendNotaEncargoRecordatorioForSession(parsed.data.sessionId);
-  if (!result.ok) {
-    return NextResponse.json(
-      { ok: false, error: result.error, permanent: result.permanent },
-      { status: result.permanent ? 400 : 500 },
-    );
-  }
-  return NextResponse.json({ ok: true, status: result.status });
+  console.log(
+    `[nota-encargo/recordatorio] deprecated noop — session=${parsed.data.sessionId}`,
+  );
+  return NextResponse.json({ ok: true, status: "deprecated_noop" });
 };
 
 export const POST = withObservedRoute(

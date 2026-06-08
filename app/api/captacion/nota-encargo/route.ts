@@ -296,13 +296,13 @@ export async function POST(request: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(
-      `[captacion/nota-encargo] Error programando recordatorio en QStash para sesión ${notaSessionId}: ${message}`,
+      `[captacion/nota-encargo] Error programando formulario en QStash para sesión ${notaSessionId}: ${message}`,
     );
     return NextResponse.json(
       {
         ok: false,
         error:
-          "Nota de encargo creada pero falló la programación del recordatorio. Reintenta o contacta a soporte.",
+          "Nota de encargo creada pero falló la programación del formulario. Reintenta o contacta a soporte.",
         sessionId: notaSessionId,
         warnings,
       },

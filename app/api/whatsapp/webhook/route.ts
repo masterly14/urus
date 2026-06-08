@@ -25,10 +25,7 @@ import { appendEvent } from "@/lib/event-store";
 import { enqueueJob } from "@/lib/job-queue";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
-import {
-  handleNotaEncargoButtonReply,
-  handleNotaEncargoNfmReply,
-} from "@/lib/nota-encargo";
+import { handleNotaEncargoNfmReply } from "@/lib/nota-encargo";
 import {
   handleParteVisitaNfmReply,
   handleParteVisitaOffFlowMessage,
@@ -99,14 +96,6 @@ const postHandler = async (request: NextRequest): Promise<NextResponse> => {
 
     try {
       if (msg.type === "interactive" && interactive) {
-        if (interactive.type === "button_reply") {
-          const btnReply = interactive.button_reply as { id: string } | undefined;
-          if (btnReply?.id) {
-            const handled = await handleNotaEncargoButtonReply(from, btnReply.id);
-            if (handled) continue;
-          }
-        }
-
         if (interactive.type === "nfm_reply") {
           const nfmReply = interactive.nfm_reply as { name?: string; response_json?: string } | undefined;
           if (nfmReply?.name === "flow" && nfmReply.response_json) {

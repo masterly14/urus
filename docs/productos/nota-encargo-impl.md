@@ -8,15 +8,19 @@ Sistema que automatiza la "Nota de Encargo Inmobiliaria": desde que el comercial
 >
 > **Nota (abril 2026 — matching diferido):** La creación desde plataforma ya no selecciona una propiedad existente ni pide la referencia interna URUS. El comercial introduce la referencia catastral; si ya existe una propiedad sincronizada con `PropertyCurrent.refCatastral` se vincula al instante, y si no existe todavía la sesión queda en `PENDIENTE_PROPIEDAD`. Cuando el worker de ingesta emite `PROPIEDAD_CREADA` para una propiedad con esa misma referencia catastral (`raw.rcatastral`), `lib/nota-encargo/ref-matcher.ts` completa `propertyCode`, `propertyRef`, dirección, precio y tipo de operación, copia los datos de propietario a `PropertyCurrent` y rebindea documentos/firma que se hubieran creado con `operationId = NOTA:<sessionId>`. Detalle operativo en `docs/nota-encargo-matching-diferido.md`.
 >
-> **Nota (mayo 2026 — envío en caliente con QStash):** Los cuatro pasos temporales del flujo (`recordatorio` 2h antes, `check-confirmacion` 30 min antes, `formulario` en el instante exacto de la visita y `matching-check` N días después) **ya no se encolan en `job_queue`**: se programan directamente en Upstash QStash con `notBefore = <instante objetivo>` apuntando a endpoints dedicados:
-> - `POST /api/nota-encargo/recordatorio`
-> - `POST /api/nota-encargo/check-confirmacion`
-> - `POST /api/nota-encargo/formulario`
-> - `POST /api/nota-encargo/matching-check`
+> **Nota (junio 2026 — envío directo al comercial):** Se eliminó la confirmación del propietario (recordatorio 2h antes, botones Confirmo/No puedo, check −30 min). Al crear la sesión se programa en QStash el **formulario al comercial** en `visitDateTime` (`POST /api/nota-encargo/formulario`). Si la propiedad aún no existe, también se programa `matching-check` N días después (`POST /api/nota-encargo/matching-check`). Los endpoints legacy `recordatorio` y `check-confirmacion` responden `deprecated_noop` para callbacks QStash ya publicados. La firma se completa en el dispositivo del comercial; el **PDF firmado** se envía al propietario.
 >
-> QStash invoca el endpoint en el instante exacto y la lógica de envío vive en `lib/nota-encargo/send.ts` (funciones puras idempotentes). La confirmación del propietario (`nota_encargo_confirmo`) programa el `formulario` mediante `publishNotaEncargoFormularioSchedule`. La idempotencia se asegura por el chequeo de `session.state` antes de actuar, sin necesidad de cancelar mensajes en QStash al cancelar la nota: el callback llega, ve `CANCELADA` y devuelve `noop_cancelled`.
+> **Destinatarios:**
 >
-> Los handlers legacy en `lib/workers/consumer/nota-encargo-handlers.ts` se conservan como red de seguridad para drenar cualquier job remanente en `job_queue`; delegan en las mismas funciones puras. Para migrar el remanente tras el despliegue: `npm run nota-encargo:migrate-qstash --confirm` (o el endpoint admin `POST /api/admin/nota-encargo/migrate-to-qstash`). Para rescate puntual de un paso: `npm run nota-encargo:force-send -- --session-id <id> --step <recordatorio|check-confirmacion|formulario|matching-check> --confirm [--force]`.
+> | Paso | Destinatario |
+> |------|--------------|
+> | Flow formulario | Comercial |
+> | Link firma | Comercial |
+> | PDF firmado | Propietario |
+>
+> **Nota (mayo 2026 — envío en caliente con QStash):** Los pasos temporales **ya no se encolan en `job_queue`**: se programan directamente en Upstash QStash con `notBefore = <instante objetivo>`. La idempotencia se asegura por claim optimista de estado antes del envío del Flow; al cancelar la nota el callback ve `CANCELADA` y devuelve `noop_cancelled`.
+>
+> Los handlers legacy en `lib/workers/consumer/nota-encargo-handlers.ts` drenan jobs remanentes en `job_queue`. Migración: `npm run nota-encargo:migrate-qstash -- --confirm` (o `POST /api/admin/nota-encargo/migrate-to-qstash`). Sesiones en vuelo del flujo antiguo: `npm run nota-encargo:migrate-drop-confirmacion -- --confirm`. Rescate puntual: `npm run nota-encargo:force-send -- --session-id <id> --step formulario --confirm [--force]`. Cron rescate: `npm run nota-encargo:register-rescate-cron` → `POST /api/cron/nota-encargo-rescate` cada 15 min.
 >
 > **Requisitos de entorno:** `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `NEXT_PUBLIC_APP_URL` apuntando al dominio público. Las rutas anteriores y los endpoints admin están whitelisted en `proxy.ts` (verificación de firma QStash + `CRON_SECRET` como fallback).
 
@@ -40,50 +44,22 @@ Sistema que automatiza la "Nota de Encargo Inmobiliaria": desde que el comercial
 │    2. Si existe PropertyCurrent: prellenar dirección/precio   │
 │       Si no existe: mantener datos de inmueble pendientes     │
 │    3. Emite NOTA_ENCARGO_DETECTADA                           │
-│    4. Programa job NOTA_ENCARGO_RECORDATORIO                 │
-│       con availableAt = visitDateTime - 2h                   │
-│       (si faltan < 2h → inmediato)                           │
+│    4. Programa QStash formulario @ visitDateTime             │
+│       (+ matching-check +N días si sin propiedad)            │
 └──────────────────┬──────────────────────────────────────────┘
                    │
                    ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  JOB: NOTA_ENCARGO_RECORDATORIO (2h antes de la visita)      │
+│  QStash: POST /api/nota-encargo/formulario (visitDateTime)   │
 │                                                              │
-│  Envía plantilla WhatsApp al propietario:                     │
-│    "Hola, tiene una visita programada para las 16:00.         │
-│     ¿Confirma su asistencia?"                                 │
-│    [Confirmo] [No puedo]                                      │
-│                                                              │
-│  Programa job NOTA_ENCARGO_CHECK_CONFIRMACION                 │
-│    con availableAt = visitDateTime - 30min                    │
-└──────────────────┬──────────────────────────────────────────┘
-                   │
-         ┌─────────┴──────────┐
-         ▼                    ▼
-┌──────────────────┐  ┌──────────────────────────────────────┐
-│  Propietario     │  │  JOB: NOTA_ENCARGO_CHECK_CONFIRMACION │
-│  pulsa "Confirmo"│  │  (30min antes de la visita)            │
-│                  │  │                                        │
-│  Webhook →       │  │  Si state != CONFIRMADA:               │
-│  Handler detecta │  │    Envía plantilla al comercial:       │
-│  el button_reply │  │    "El propietario no confirmó la      │
-│  → Actualiza     │  │     visita de captación para URUS36VMA"│
-│  state =         │  │    Actualiza state = NO_CONFIRMADA     │
-│  CONFIRMADA      │  │                                        │
-│                  │  │  Si state == CONFIRMADA:                │
-│  Programa job    │  │    No-op (ya se programó el Flow)      │
-│  NOTA_ENCARGO_   │  └──────────────────────────────────────┘
-│  ENVIAR_         │
-│  FORMULARIO      │
-│  availableAt =   │
-│  visitDateTime   │
-└────────┬─────────┘
+│  sendNotaEncargoFormularioForSession (claim optimista)       │
+│  Envía WhatsApp Flow al **comercial**                        │
+│  state → FORMULARIO_ENVIADO                                  │
+└────────┬────────────────────────────────────────────────────┘
          │
          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  JOB: NOTA_ENCARGO_ENVIAR_FORMULARIO (hora de la visita)     │
-│                                                              │
-│  Envía WhatsApp Flow (formulario interactivo):               │
+│  WhatsApp Flow (formulario interactivo → comercial):         │
 │                                                              │
 │  Pantalla 1 — Datos Personales:                               │
 │    - Nombre completo (TextInput)                              │
@@ -1589,7 +1565,9 @@ if (sigReq.documentKind === "NOTA_ENCARGO") {
 
 Plantillas a crear y aprobar:
 
-#### 7.1 `nota_encargo_recordatorio`
+#### 7.1 `nota_encargo_recordatorio` *(deprecada — jun 2026)*
+
+Ya no se usa en el flujo activo. Se conserva en Meta por filas históricas.
 
 - **Categoría:** UTILITY
 - **Body:** "Hola, soy de URUS Capital Group. Le recordamos que tiene una visita programada para hoy a las {{1}} en la propiedad {{2}}. ¿Confirma su asistencia?"
@@ -1598,7 +1576,9 @@ Plantillas a crear y aprobar:
   - Botón 1: "Confirmo" (id: `nota_encargo_confirmo`)
   - Botón 2: "No puedo" (id: `nota_encargo_no_puedo`)
 
-#### 7.2 `nota_encargo_no_confirmada`
+#### 7.2 `nota_encargo_no_confirmada` *(deprecada — jun 2026)*
+
+Ya no se usa en el flujo activo.
 
 - **Categoría:** UTILITY
 - **Body:** "Aviso: El propietario no ha confirmado la visita de captación programada para las {{1}} en la propiedad {{2}}. Contacte directamente para confirmar."

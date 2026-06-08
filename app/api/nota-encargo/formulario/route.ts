@@ -1,6 +1,6 @@
 /**
- * Callback QStash: envía el WhatsApp Flow de la Nota de Encargo en el instante
- * de la visita (programado tras la confirmación del propietario).
+ * Callback QStash: envía el WhatsApp Flow de la Nota de Encargo al comercial
+ * en el instante de la visita (programado al crear la sesión).
  */
 
 import { NextResponse } from "next/server";

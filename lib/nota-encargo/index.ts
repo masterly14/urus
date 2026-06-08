@@ -2,11 +2,7 @@ export { generateNotaEncargoPdf } from "./generate-pdf";
 export type { NotaEncargoData } from "./generate-pdf";
 export { handleNotaEncargoFlowResponse } from "./send-to-signature";
 export {
-  sendNotaEncargoRecordatorio,
-  sendNotaEncargoNoConfirmada,
   sendNotaEncargoFlow,
+  sendNotaEncargoDocumentoFirmado,
 } from "./whatsapp";
-export {
-  handleNotaEncargoButtonReply,
-  handleNotaEncargoNfmReply,
-} from "./webhook-handler";
+export { handleNotaEncargoNfmReply } from "./webhook-handler";

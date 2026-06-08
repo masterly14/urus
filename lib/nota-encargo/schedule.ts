@@ -1,11 +1,9 @@
 /**
  * Programación de los pasos de la Nota de Encargo en Upstash QStash.
  *
- * Cada paso del flujo se publica como un mensaje diferido en QStash con
- * `notBefore = <fecha objetivo>` y apunta al endpoint dedicado correspondiente
- * (`/api/nota-encargo/{recordatorio,check-confirmacion,formulario,matching-check}`).
- * QStash invoca el endpoint en el instante exacto y se ejecuta el paso en
- * caliente, sin pasar por la cola interna `job_queue` ni por crons.
+ * Al crear la sesión se publica el formulario con `notBefore = visitDateTime`
+ * apuntando a `/api/nota-encargo/formulario`. Si no hay propiedad vinculada,
+ * también se programa matching-check N días después.
  *
  * Idempotencia: los endpoints comprueban `session.state` y hacen no-op si no
  * procede. No se persiste el `messageId` de QStash; al cancelar la sesión, el
@@ -16,7 +14,9 @@ import { Client } from "@upstash/qstash";
 import { getPublicAppUrl } from "@/lib/microsite/app-url";
 
 const ROUTES = {
+  /** @deprecated Callbacks legacy; el endpoint responde noop. */
   recordatorio: "/api/nota-encargo/recordatorio",
+  /** @deprecated Callbacks legacy; el endpoint responde noop. */
   checkConfirmacion: "/api/nota-encargo/check-confirmacion",
   formulario: "/api/nota-encargo/formulario",
   matchingCheck: "/api/nota-encargo/matching-check",
@@ -67,6 +67,7 @@ async function publishStep(params: {
   return { messageId, sendAtIso: new Date(sendAtSec * 1000).toISOString() };
 }
 
+/** @deprecated Flujo legacy con confirmación del propietario. */
 export function publishNotaEncargoRecordatorioSchedule(params: {
   sessionId: string;
   sendAt: Date;
@@ -74,6 +75,7 @@ export function publishNotaEncargoRecordatorioSchedule(params: {
   return publishStep({ route: ROUTES.recordatorio, ...params });
 }
 
+/** @deprecated Flujo legacy con confirmación del propietario. */
 export function publishNotaEncargoCheckConfirmacionSchedule(params: {
   sessionId: string;
   sendAt: Date;
@@ -96,13 +98,8 @@ export function publishNotaEncargoMatchingCheckSchedule(params: {
 }
 
 /**
- * Helper combinado: programa recordatorio (2h antes) + matching check (si
- * aplica, X días después). Usado por la API de creación.
- *
- * El CHECK_CONFIRMACION lo programa el propio handler de recordatorio al
- * terminar; el FORMULARIO lo programa el webhook cuando el propietario
- * confirma. Ese encadenamiento dinámico vive en `send.ts` y
- * `lib/nota-encargo/webhook-handler.ts`.
+ * Programa el envío del formulario al comercial en la hora de la visita y,
+ * si aplica, el matching check diferido.
  */
 export async function scheduleNotaEncargoInitialSteps(params: {
   sessionId: string;
@@ -110,19 +107,16 @@ export async function scheduleNotaEncargoInitialSteps(params: {
   withMatchingCheck: boolean;
   matchingDeadlineDays: number;
 }): Promise<{
-  recordatorio: { messageId: string; sendAtIso: string };
+  formulario: { messageId: string; sendAtIso: string };
   matchingCheck: { messageId: string; sendAtIso: string } | null;
 }> {
-  const twoHoursBefore = new Date(
-    params.visitDateTime.getTime() - 2 * 60 * 60 * 1000,
-  );
-  const recordatorioSendAt = new Date(
-    Math.max(twoHoursBefore.getTime(), Date.now() + 60_000),
+  const formularioSendAt = new Date(
+    Math.max(params.visitDateTime.getTime(), Date.now() + 60_000),
   );
 
-  const recordatorio = await publishNotaEncargoRecordatorioSchedule({
+  const formulario = await publishNotaEncargoFormularioSchedule({
     sessionId: params.sessionId,
-    sendAt: recordatorioSendAt,
+    sendAt: formularioSendAt,
   });
 
   let matchingCheck: { messageId: string; sendAtIso: string } | null = null;
@@ -137,5 +131,5 @@ export async function scheduleNotaEncargoInitialSteps(params: {
     });
   }
 
-  return { recordatorio, matchingCheck };
+  return { formulario, matchingCheck };
 }

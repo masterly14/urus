@@ -99,7 +99,7 @@ beforeEach(async () => {
   process.env.WHATSAPP_PHONE_NUMBER_ID = "test";
   scheduleInitialMock.mockReset();
   scheduleInitialMock.mockResolvedValue({
-    recordatorio: { messageId: "msg-1", sendAtIso: "2026-01-01T00:00:00.000Z" },
+    formulario: { messageId: "msg-1", sendAtIso: "2026-01-01T00:00:00.000Z" },
     matchingCheck: { messageId: "msg-2", sendAtIso: "2026-01-08T00:00:00.000Z" },
   });
   mockGetSession.mockResolvedValue({

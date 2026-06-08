@@ -1,41 +1,26 @@
 /**
  * Forzar el envío inmediato de un paso de la Nota de Encargo (rescate).
  *
- * Ejecuta el handler en caliente sin pasar por QStash ni la cola. Útil cuando
- * un paso no llegó en su momento por un fallo del programador o para reenviar
- * tras una corrección.
- *
  * Uso:
- *   npx tsx scripts/force-send-nota-encargo.ts --session-id <id> --step <step> [--confirm] [--force]
- *
- * Steps:
- *   recordatorio          recordatorio al propietario (2h antes)
- *   check-confirmacion    aviso al comercial si no confirmó (30 min antes)
- *   formulario            WhatsApp Flow del formulario (a la hora de la visita)
- *   matching-check        deadline si no hay propiedad vinculada (N días después)
- *
- * Flags:
- *   --confirm   Aplica el envío real (sin él, dry-run).
- *   --force     Resetea el estado al previo esperado por el step si la sesión
- *               ya pasó de ese estado (sólo aplicable a recordatorio/formulario).
+ *   npx tsx scripts/force-send-nota-encargo.ts --session-id <id> --step formulario [--confirm] [--force]
+ *   npx tsx scripts/force-send-nota-encargo.ts --session-id <id> --step matching-check [--confirm]
  */
 
 import "dotenv/config";
 import type { NotaEncargoState } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import {
-  sendNotaEncargoRecordatorioForSession,
-  checkNotaEncargoConfirmacionForSession,
   sendNotaEncargoFormularioForSession,
   runNotaEncargoMatchingCheckForSession,
   type NotaEncargoSendResult,
 } from "../lib/nota-encargo/send";
 
-type Step =
-  | "recordatorio"
-  | "check-confirmacion"
-  | "formulario"
-  | "matching-check";
+type Step = "formulario" | "matching-check";
+
+const READY_FOR_FORMULARIO: NotaEncargoState[] = [
+  "PENDING",
+  "PENDIENTE_PROPIEDAD",
+];
 
 type Opts = {
   sessionId?: string;
@@ -65,32 +50,28 @@ function usage() {
       "Forzar el envío de un paso de la Nota de Encargo.",
       "",
       "Uso:",
-      "  npx tsx scripts/force-send-nota-encargo.ts --session-id <id> --step <recordatorio|check-confirmacion|formulario|matching-check> [--confirm] [--force]",
+      "  npx tsx scripts/force-send-nota-encargo.ts --session-id <id> --step formulario [--confirm] [--force]",
+      "  npx tsx scripts/force-send-nota-encargo.ts --session-id <id> --step matching-check [--confirm]",
     ].join("\n"),
   );
 }
-
-const STEP_TO_PREV_STATE: Record<Step, NotaEncargoState | null> = {
-  recordatorio: "PENDING",
-  "check-confirmacion": "RECORDATORIO_ENVIADO",
-  formulario: "CONFIRMADA",
-  "matching-check": null,
-};
 
 async function runStep(
   step: Step,
   sessionId: string,
 ): Promise<NotaEncargoSendResult> {
   switch (step) {
-    case "recordatorio":
-      return sendNotaEncargoRecordatorioForSession(sessionId);
-    case "check-confirmacion":
-      return checkNotaEncargoConfirmacionForSession(sessionId);
     case "formulario":
       return sendNotaEncargoFormularioForSession(sessionId);
     case "matching-check":
       return runNotaEncargoMatchingCheckForSession(sessionId);
   }
+}
+
+function resetStateForFormulario(session: {
+  propertyCode: string | null;
+}): NotaEncargoState {
+  return session.propertyCode ? "PENDING" : "PENDIENTE_PROPIEDAD";
 }
 
 async function main() {
@@ -103,10 +84,6 @@ async function main() {
     usage();
     process.exit(1);
   }
-  if (!STEP_TO_PREV_STATE.hasOwnProperty(opts.step)) {
-    console.error(`[force-send-nota-encargo] step inválido: ${opts.step}`);
-    process.exit(1);
-  }
 
   const session = await prisma.notaEncargoSession.findUnique({
     where: { id: opts.sessionId },
@@ -117,9 +94,8 @@ async function main() {
       propietarioPhone: true,
       propertyRef: true,
       refCatastral: true,
-      direccion: true,
-      comercialId: true,
       propertyCode: true,
+      comercialId: true,
     },
   });
 
@@ -144,20 +120,23 @@ async function main() {
     return;
   }
 
-  const requiredPrev = STEP_TO_PREV_STATE[opts.step];
-  if (requiredPrev && session.state !== requiredPrev) {
-    if (!opts.force) {
-      console.error(
-        `\n[force-send-nota-encargo] state=${session.state} (≠ ${requiredPrev}). Usa --force para resetear.`,
-      );
-      await prisma.$disconnect();
-      process.exit(3);
+  if (opts.step === "formulario") {
+    const canSend = READY_FOR_FORMULARIO.includes(session.state);
+    if (!canSend) {
+      if (!opts.force) {
+        console.error(
+          `\n[force-send-nota-encargo] state=${session.state} (≠ PENDING|PENDIENTE_PROPIEDAD). Usa --force para resetear y reenviar.`,
+        );
+        await prisma.$disconnect();
+        process.exit(3);
+      }
+      const resetState = resetStateForFormulario(session);
+      await prisma.notaEncargoSession.update({
+        where: { id: session.id },
+        data: { state: resetState },
+      });
+      console.log(`[force-send-nota-encargo] Estado reseteado a ${resetState} (--force).`);
     }
-    await prisma.notaEncargoSession.update({
-      where: { id: session.id },
-      data: { state: requiredPrev },
-    });
-    console.log(`[force-send-nota-encargo] Estado reseteado a ${requiredPrev} (--force).`);
   }
 
   const result = await runStep(opts.step, session.id);

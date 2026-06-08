@@ -2,28 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { JobRecord } from "@/lib/job-queue/types";
 import type { Event } from "@/types/domain";
 
-// ---------------------------------------------------------------------------
-// Mocks
-// ---------------------------------------------------------------------------
-
 const {
-  sessionFindUniqueOrThrowMock,
   sessionUpdateMock,
+  sessionUpdateManyMock,
   sessionFindUniqueMock,
-  sessionFindFirstMock,
-  legalDocCreateMock,
-  partyCreateMock,
-  sigReqCreateMock,
   comercialFindUniqueMock,
   comercialFindFirstMock,
 } = vi.hoisted(() => ({
-  sessionFindUniqueOrThrowMock: vi.fn(),
   sessionUpdateMock: vi.fn(),
+  sessionUpdateManyMock: vi.fn(),
   sessionFindUniqueMock: vi.fn(),
-  sessionFindFirstMock: vi.fn(),
-  legalDocCreateMock: vi.fn(),
-  partyCreateMock: vi.fn(),
-  sigReqCreateMock: vi.fn(),
   comercialFindUniqueMock: vi.fn(),
   comercialFindFirstMock: vi.fn(),
 }));
@@ -31,14 +19,10 @@ const {
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     notaEncargoSession: {
-      findUniqueOrThrow: sessionFindUniqueOrThrowMock,
       findUnique: sessionFindUniqueMock,
-      findFirst: sessionFindFirstMock,
       update: sessionUpdateMock,
+      updateMany: sessionUpdateManyMock,
     },
-    legalDocument: { create: legalDocCreateMock },
-    legalDocumentParty: { create: partyCreateMock },
-    signatureRequest: { create: sigReqCreateMock },
     comercial: {
       findUnique: comercialFindUniqueMock,
       findFirst: comercialFindFirstMock,
@@ -46,36 +30,11 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-const { appendEventMock } = vi.hoisted(() => ({
-  appendEventMock: vi.fn(),
+const { sendFlowMock } = vi.hoisted(() => ({
+  sendFlowMock: vi.fn(),
 }));
-
-vi.mock("@/lib/event-store", () => ({
-  appendEvent: appendEventMock,
-}));
-
-const { publishCheckConfirmacionMock } = vi.hoisted(() => ({
-  publishCheckConfirmacionMock: vi.fn(),
-}));
-
-vi.mock("@/lib/nota-encargo/schedule", () => ({
-  publishNotaEncargoCheckConfirmacionSchedule: publishCheckConfirmacionMock,
-  publishNotaEncargoRecordatorioSchedule: vi.fn(),
-  publishNotaEncargoFormularioSchedule: vi.fn(),
-  publishNotaEncargoMatchingCheckSchedule: vi.fn(),
-  scheduleNotaEncargoInitialSteps: vi.fn(),
-}));
-
-const { sendRecordatorioMock, sendNoConfirmadaMock, sendFlowMock } =
-  vi.hoisted(() => ({
-    sendRecordatorioMock: vi.fn(),
-    sendNoConfirmadaMock: vi.fn(),
-    sendFlowMock: vi.fn(),
-  }));
 
 vi.mock("@/lib/nota-encargo/whatsapp", () => ({
-  sendNotaEncargoRecordatorio: sendRecordatorioMock,
-  sendNotaEncargoNoConfirmada: sendNoConfirmadaMock,
   sendNotaEncargoFlow: sendFlowMock,
 }));
 
@@ -90,15 +49,12 @@ import {
   handleNotaEncargoFormularioCompletado,
 } from "@/lib/workers/consumer/nota-encargo-handlers";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function makeSession(overrides: Record<string, unknown> = {}) {
   return {
     id: "session-1",
     propertyCode: "PROP-001",
     propertyRef: "URUS36VMA",
+    refCatastral: null,
     comercialId: "comercial-1",
     propietarioPhone: "34666777888",
     visitDateTime: new Date("2026-04-16T16:00:00Z"),
@@ -113,7 +69,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
 function makeJob(payload: Record<string, unknown>): JobRecord {
   return {
     id: "job-1",
-    type: "NOTA_ENCARGO_RECORDATORIO",
+    type: "NOTA_ENCARGO_ENVIAR_FORMULARIO",
     payload,
     status: "PENDING",
     attempts: 0,
@@ -148,178 +104,19 @@ function makeEvent(type: string, payload: unknown): Event {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
-describe("handleNotaEncargoRecordatorio", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    sendRecordatorioMock.mockResolvedValue({ messages: [{ id: "wamid" }] });
-    sessionUpdateMock.mockResolvedValue({});
-    publishCheckConfirmacionMock.mockResolvedValue({
-      messageId: "msg-1",
-      sendAtIso: "2026-01-01T00:00:00.000Z",
-    });
-  });
-
-  it("sends reminder, transitions state, and schedules CHECK in QStash", async () => {
-    const futureVisit = new Date(Date.now() + 3 * 60 * 60 * 1000);
-    sessionFindUniqueMock.mockResolvedValue(
-      makeSession({ visitDateTime: futureVisit }),
-    );
-
+describe("legacy handlers (deprecated steps)", () => {
+  it("recordatorio returns success noop", async () => {
     const result = await handleNotaEncargoRecordatorio(
       makeJob({ sessionId: "session-1" }),
     );
-
     expect(result.success).toBe(true);
-    expect(sendRecordatorioMock).toHaveBeenCalledWith(
-      "34666777888",
-      expect.objectContaining({
-        propertyRef: "URUS36VMA",
-        direccion: "Calle Flamencos 8",
-      }),
-      expect.objectContaining({
-        trace: expect.objectContaining({
-          source: "nota_encargo_recordatorio_job",
-          kind: "nota_encargo_recordatorio",
-          aggregateId: "34666777888",
-        }),
-      }),
-    );
-    expect(sessionUpdateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { state: "RECORDATORIO_ENVIADO" },
-      }),
-    );
-    expect(publishCheckConfirmacionMock).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: "session-1" }),
-    );
   });
 
-  it("skips CHECK schedule when visit is < 45 min away", async () => {
-    const nearVisit = new Date(Date.now() + 20 * 60 * 1000);
-    sessionFindUniqueMock.mockResolvedValue(
-      makeSession({ visitDateTime: nearVisit }),
-    );
-
-    const result = await handleNotaEncargoRecordatorio(
-      makeJob({ sessionId: "session-1" }),
-    );
-
-    expect(result.success).toBe(true);
-    expect(sendRecordatorioMock).toHaveBeenCalled();
-    expect(sessionUpdateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { state: "RECORDATORIO_ENVIADO" },
-      }),
-    );
-    expect(publishCheckConfirmacionMock).not.toHaveBeenCalled();
-  });
-
-  it("schedules CHECK in QStash when visit is >= 45 min away", async () => {
-    const futureVisit = new Date(Date.now() + 3 * 60 * 60 * 1000);
-    sessionFindUniqueMock.mockResolvedValue(
-      makeSession({ visitDateTime: futureVisit }),
-    );
-
-    const result = await handleNotaEncargoRecordatorio(
-      makeJob({ sessionId: "session-1" }),
-    );
-
-    expect(result.success).toBe(true);
-    expect(publishCheckConfirmacionMock).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: "session-1" }),
-    );
-  });
-
-  it("is idempotent: no-op if state is not PENDING/PENDIENTE_PROPIEDAD", async () => {
-    sessionFindUniqueMock.mockResolvedValue(
-      makeSession({ state: "RECORDATORIO_ENVIADO" }),
-    );
-
-    const result = await handleNotaEncargoRecordatorio(
-      makeJob({ sessionId: "session-1" }),
-    );
-
-    expect(result.success).toBe(true);
-    expect(sendRecordatorioMock).not.toHaveBeenCalled();
-    expect(sessionUpdateMock).not.toHaveBeenCalled();
-  });
-});
-
-describe("handleNotaEncargoCheckConfirmacion", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    sendNoConfirmadaMock.mockResolvedValue({ messages: [{ id: "wamid" }] });
-    sessionUpdateMock.mockResolvedValue({});
-    appendEventMock.mockResolvedValue({ id: "evt" });
-  });
-
-  it("notifies comercial when owner did not confirm", async () => {
-    sessionFindUniqueMock.mockResolvedValue(
-      makeSession({ state: "RECORDATORIO_ENVIADO" }),
-    );
-    comercialFindUniqueMock.mockResolvedValue({
-      id: "comercial-1",
-      nombre: "Miguel",
-      telefono: "34600111222",
-      activo: true,
-    });
-
+  it("check confirmacion returns success noop", async () => {
     const result = await handleNotaEncargoCheckConfirmacion(
       makeJob({ sessionId: "session-1" }),
     );
-
     expect(result.success).toBe(true);
-    expect(sendNoConfirmadaMock).toHaveBeenCalledWith(
-      "34600111222",
-      expect.objectContaining({ propertyRef: "URUS36VMA" }),
-      expect.objectContaining({
-        trace: expect.objectContaining({
-          source: "nota_encargo_check_confirmacion_job",
-          kind: "nota_encargo_no_confirmada",
-          aggregateId: "34600111222",
-        }),
-      }),
-    );
-    expect(sessionUpdateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { state: "NO_CONFIRMADA" },
-      }),
-    );
-    expect(appendEventMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "NOTA_ENCARGO_NO_CONFIRMADA",
-      }),
-    );
-  });
-
-  it("no-op if already confirmed", async () => {
-    sessionFindUniqueMock.mockResolvedValue(
-      makeSession({ state: "CONFIRMADA" }),
-    );
-
-    const result = await handleNotaEncargoCheckConfirmacion(
-      makeJob({ sessionId: "session-1" }),
-    );
-
-    expect(result.success).toBe(true);
-    expect(sendNoConfirmadaMock).not.toHaveBeenCalled();
-  });
-
-  it("no-op if formulario already sent", async () => {
-    sessionFindUniqueMock.mockResolvedValue(
-      makeSession({ state: "FORMULARIO_ENVIADO" }),
-    );
-
-    const result = await handleNotaEncargoCheckConfirmacion(
-      makeJob({ sessionId: "session-1" }),
-    );
-
-    expect(result.success).toBe(true);
-    expect(sendNoConfirmadaMock).not.toHaveBeenCalled();
   });
 });
 
@@ -327,7 +124,7 @@ describe("handleNotaEncargoEnviarFormulario", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sendFlowMock.mockResolvedValue({ messages: [{ id: "wamid" }] });
-    sessionUpdateMock.mockResolvedValue({});
+    sessionUpdateManyMock.mockResolvedValue({ count: 1 });
     comercialFindUniqueMock.mockResolvedValue({
       id: "comercial-1",
       nombre: "Miguel",
@@ -337,41 +134,31 @@ describe("handleNotaEncargoEnviarFormulario", () => {
     });
   });
 
-  it("sends Flow and transitions to FORMULARIO_ENVIADO", async () => {
-    sessionFindUniqueMock.mockResolvedValue(
-      makeSession({ state: "CONFIRMADA" }),
-    );
+  it("sends Flow al comercial desde PENDING con claim optimista", async () => {
+    sessionFindUniqueMock.mockResolvedValue(makeSession({ state: "PENDING" }));
 
     const result = await handleNotaEncargoEnviarFormulario(
       makeJob({ sessionId: "session-1" }),
     );
 
     expect(result.success).toBe(true);
+    expect(sessionUpdateManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "session-1", state: "PENDING" },
+        data: { state: "FORMULARIO_ENVIADO" },
+      }),
+    );
     expect(sendFlowMock).toHaveBeenCalledWith(
       "34600111222",
       expect.objectContaining({
         sessionId: "session-1",
         propertyRef: "URUS36VMA",
-        direccion: "Calle Flamencos 8",
-        tipoOperacion: "VENTA",
-        precio: 275000,
       }),
-      expect.objectContaining({
-        trace: expect.objectContaining({
-          source: "nota_encargo_enviar_formulario_job",
-          kind: "nota_encargo_formulario",
-          aggregateId: "34600111222",
-        }),
-      }),
-    );
-    expect(sessionUpdateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { state: "FORMULARIO_ENVIADO" },
-      }),
+      expect.any(Object),
     );
   });
 
-  it("no-op if state is not CONFIRMADA", async () => {
+  it("no-op if state is not PENDING ni PENDIENTE_PROPIEDAD", async () => {
     sessionFindUniqueMock.mockResolvedValue(
       makeSession({ state: "RECORDATORIO_ENVIADO" }),
     );
@@ -387,24 +174,10 @@ describe("handleNotaEncargoEnviarFormulario", () => {
 
 describe("handleNotaEncargoFormularioCompletado", () => {
   it("returns permanent error if payload lacks sessionId", async () => {
-    const event = makeEvent("NOTA_ENCARGO_FORMULARIO_COMPLETADO", {});
-
-    const result = await handleNotaEncargoFormularioCompletado(event);
-
+    const result = await handleNotaEncargoFormularioCompletado(
+      makeEvent("NOTA_ENCARGO_FORMULARIO_COMPLETADO", {}),
+    );
     expect(result.success).toBe(false);
     expect(result.permanent).toBe(true);
-  });
-
-  it("no-op if session not found", async () => {
-    sessionFindUniqueMock.mockResolvedValue(null);
-
-    const event = makeEvent("NOTA_ENCARGO_FORMULARIO_COMPLETADO", {
-      sessionId: "session-x",
-      formData: {},
-    });
-
-    const result = await handleNotaEncargoFormularioCompletado(event);
-
-    expect(result.success).toBe(true);
   });
 });

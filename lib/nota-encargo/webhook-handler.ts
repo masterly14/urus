@@ -1,90 +1,16 @@
 /**
- * Webhook handlers for the Nota de Encargo flow.
+ * Webhook handler for the Nota de Encargo flow.
  *
- * Handles two types of incoming messages:
- * 1. Button replies from the reminder (confirmo / no puedo)
- * 2. nfm_reply from the WhatsApp Flow (form submission)
+ * Procesa `nfm_reply` del WhatsApp Flow completado por el comercial.
  */
 
 import { prisma } from "@/lib/prisma";
-import { appendEvent } from "@/lib/event-store";
-import { publishNotaEncargoFormularioSchedule } from "@/lib/nota-encargo/schedule";
 import { handleNotaEncargoFlowResponse } from "./send-to-signature";
 import { resolveComercial } from "@/lib/routing/resolve-comercial";
 import {
   normalizeComercialWhatsappPhone,
   samePhoneByLast9,
 } from "@/lib/routing/comercial-whatsapp";
-
-// ---------------------------------------------------------------------------
-// Button reply handler (recordatorio confirmation)
-// ---------------------------------------------------------------------------
-
-export async function handleNotaEncargoButtonReply(
-  from: string,
-  buttonId: string,
-): Promise<boolean> {
-  if (
-    buttonId !== "nota_encargo_confirmo" &&
-    buttonId !== "nota_encargo_no_puedo"
-  ) {
-    return false;
-  }
-
-  const last9 = from.slice(-9);
-  const session = await prisma.notaEncargoSession.findFirst({
-    where: {
-      propietarioPhone: { endsWith: last9 },
-      state: "RECORDATORIO_ENVIADO",
-    },
-    orderBy: { visitDateTime: "asc" },
-  });
-
-  if (!session) return false;
-
-  if (buttonId === "nota_encargo_confirmo") {
-    await prisma.notaEncargoSession.update({
-      where: { id: session.id },
-      data: { state: "CONFIRMADA" },
-    });
-
-    try {
-      await publishNotaEncargoFormularioSchedule({
-        sessionId: session.id,
-        sendAt: session.visitDateTime,
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(
-        `[nota-encargo-webhook] Error programando FORMULARIO en QStash para ${session.id}: ${message}`,
-      );
-      // No abortamos el webhook: el estado CONFIRMADA ya quedó persistido.
-      // El script de rescate `scripts/force-send-nota-encargo.ts` o el endpoint
-      // admin permiten reprogramar manualmente.
-    }
-
-    await appendEvent({
-      type: "NOTA_ENCARGO_CONFIRMADA",
-      aggregateType: "PROPERTY",
-      aggregateId: session.propertyCode ?? session.refCatastral ?? session.id,
-      payload: { sessionId: session.id },
-    });
-
-    console.log(
-      `[nota-encargo-webhook] Owner confirmed visit for session ${session.id}`,
-    );
-  } else {
-    console.log(
-      `[nota-encargo-webhook] Owner declined visit for session ${session.id} — check job will handle`,
-    );
-  }
-
-  return true;
-}
-
-// ---------------------------------------------------------------------------
-// nfm_reply handler (WhatsApp Flow form completion)
-// ---------------------------------------------------------------------------
 
 export async function handleNotaEncargoNfmReply(
   from: string,
