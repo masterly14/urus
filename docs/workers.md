@@ -252,8 +252,11 @@ Jobs que fallan `maxAttempts` veces (default 5) o con error permanente se mueven
 | `replayDeadLetterJob` | Reencola 1 job (reset attempts) |
 | `replayAllDeadLetterByType` | Reencola todos los de un tipo |
 | `purgeDeadLetterJobs` | Elimina jobs anteriores a un corte |
+| `purgeAllDeadLetterJobs` | Purga la DLQ en lotes (miles de filas) |
 
-**API HTTP:** `POST /api/workers/dead-letter` con acciones `replay`, `replay_all`.
+**API HTTP:** `POST /api/workers/dead-letter` con acciones `replay`, `replay_all`, `purge`.
+
+**Script operativo:** `npx tsx scripts/purge-dead-letter-jobs.ts` (dry-run) y `--apply` para borrar. Ejemplo: `--type MARKET_IMPORT_LISTING_IMAGES --apply`.
 
 ### Idempotencia
 

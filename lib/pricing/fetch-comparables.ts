@@ -23,6 +23,11 @@ import type {
 import { isExpiredStatefoxImageUrl } from "@/lib/statefox/image-expiry";
 import { hydrateComparablesWithImageCache } from "@/lib/statefox/image-cache";
 import { prisma } from "@/lib/prisma";
+import {
+  getPricingMinRawComparablesBeforeStop,
+  getPricingStatefoxMaxPages,
+  shouldSkipComparableImageHydrate,
+} from "./runtime-config";
 import type {
   ComparableDecisionReason,
   ComparableDecisionTrace,
@@ -38,7 +43,6 @@ const DEFAULT_METERS_RANGE_PERCENT = 20;
 /** Rangos por defecto en path Statefox (/snapshot): más amplios que MarketListing. */
 const STATEFOX_DEFAULT_PRICE_RANGE_PERCENT = 35;
 const STATEFOX_DEFAULT_METERS_RANGE_PERCENT = 30;
-const DEFAULT_MAX_PAGES = 30;
 const DEFAULT_MIN_COMPARABLES = 5;
 const ITEMS_PER_PAGE = 250;
 
@@ -59,6 +63,8 @@ export interface FetchComparablesOptions {
   maxPages?: number;
   minComparables?: number;
   comparabilityProfile?: PropertyComparabilityProfile;
+  /** Contexto para límites de páginas Statefox (p. ej. api_manual_async). */
+  sourceTrigger?: string;
 }
 
 export interface FetchComparablesResult {
@@ -439,8 +445,10 @@ async function fetchStatefoxComparables(
     options?.priceRangePercent ?? STATEFOX_DEFAULT_PRICE_RANGE_PERCENT;
   const metersRange =
     options?.metersRangePercent ?? STATEFOX_DEFAULT_METERS_RANGE_PERCENT;
-  const maxPages = options?.maxPages ?? DEFAULT_MAX_PAGES;
+  const maxPages =
+    options?.maxPages ?? getPricingStatefoxMaxPages(options?.sourceTrigger);
   const minComparables = options?.minComparables ?? DEFAULT_MIN_COMPARABLES;
+  const minRawBeforeStop = getPricingMinRawComparablesBeforeStop(minComparables);
 
   const allowedHousing = resolveStatefoxHousingTypes(input.tipologiaNombre);
   const client = createStatefoxClient();
@@ -488,15 +496,14 @@ async function fetchStatefoxComparables(
 
     const nextCursor = response.meta?.next;
     if (!nextCursor || entries.length === 0) break;
-    if (comparables.length >= minComparables) break;
+    if (comparables.length >= minRawBeforeStop) break;
 
     cursor = nextCursor;
   }
 
-  // Pricing no necesita import Playwright/Cloudinary: Statefox ya trae pImages válidas.
-  const comparablesWithCachedImages = await hydrateComparablesWithImageCache(comparables, {
-    cacheOnly: true,
-  });
+  const comparablesWithCachedImages = shouldSkipComparableImageHydrate()
+    ? comparables
+    : await hydrateComparablesWithImageCache(comparables, { cacheOnly: true });
 
   const filtered = await applyComparabilityFilter(
     comparablesWithCachedImages,

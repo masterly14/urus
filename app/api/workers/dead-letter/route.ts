@@ -6,6 +6,7 @@ import {
   getDeadLetterStats,
   replayDeadLetterJob,
   replayAllDeadLetterByType,
+  purgeAllDeadLetterJobs,
 } from "@/lib/job-queue";
 import { withObservedRoute } from "@/lib/observability";
 
@@ -57,7 +58,8 @@ export const GET = withObservedRoute({ method: "GET", route: "/api/workers/dead-
  *
  * Body:
  *   { "action": "replay", "jobId": "..." }              → reencola un job
- *   { "action": "replay_all", "type": "WRITE_TO_INMOVILLA" } → reencola todos de un tipo
+ *   { "action": "replay_all", "type": "WRITE_TO_INMOVILLA" } → reencola hasta 100 de un tipo
+ *   { "action": "purge", "type": "MARKET_IMPORT_LISTING_IMAGES" } → borra DLQ (opcional olderThanMs, batchSize)
  */
 const postHandler = async (request: Request) => {
   if (!isAuthorized(request)) {
@@ -92,10 +94,30 @@ const postHandler = async (request: Request) => {
       });
     }
 
+    if (action === "purge") {
+      const type =
+        typeof body.type === "string" ? (body.type as JobType) : undefined;
+      const purged = await purgeAllDeadLetterJobs({
+        type,
+        olderThanMs:
+          typeof body.olderThanMs === "number" ? body.olderThanMs : 0,
+        batchSize:
+          typeof body.batchSize === "number" ? body.batchSize : undefined,
+      });
+      const stats = await getDeadLetterStats();
+      return NextResponse.json({
+        action: "purge",
+        type: type ?? null,
+        purged,
+        remaining: stats.total,
+        byType: stats.byType,
+      });
+    }
+
     return NextResponse.json(
       {
         error:
-          'Acción no válida. Use {"action":"replay","jobId":"..."} o {"action":"replay_all","type":"..."}',
+          'Acción no válida. Use {"action":"replay","jobId":"..."}, {"action":"replay_all","type":"..."} o {"action":"purge","type":"..."}',
       },
       { status: 400 },
     );

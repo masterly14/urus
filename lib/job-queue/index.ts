@@ -6,6 +6,7 @@ export {
   replayDeadLetterJob,
   replayAllDeadLetterByType,
   purgeDeadLetterJobs,
+  purgeAllDeadLetterJobs,
 } from "./dead-letter";
 
 export type {
@@ -23,5 +24,6 @@ export type {
   DeadLetterJob,
   DeadLetterListOptions,
   DeadLetterStats,
+  PurgeAllDeadLetterOptions,
 } from "./dead-letter";
 

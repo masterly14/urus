@@ -23,6 +23,7 @@ import { buildPropertyComparabilityProfile } from "@/lib/market-zones/property-c
 import { buildDemographicsSummary } from "@/lib/market/demographics";
 import { buildZoneStudySummary } from "@/lib/market/accessibility";
 import { buildOptimalPricingSummary } from "./optimal-price";
+import { getPricingStatefoxMaxPages } from "./runtime-config";
 
 export type { PricingAnalysisResult, PricingOptions } from "./types";
 export type { PricingPropertyInput, PricingComparable, PricingComparableAdvertiser, PricingClusterStats, SemaforoStatus } from "./types";
@@ -35,27 +36,56 @@ export { analyzeCluster } from "./analyze-cluster";
 export { buildPricingTrendSummary } from "./trend-summary";
 export { getLatestPricingReport, persistPricingReport } from "./report-repo";
 
+function logPricingPhase(propertyCode: string, phase: string, startedAt: number): void {
+  console.log(
+    `[pricing] ${propertyCode} ${phase} +${Date.now() - startedAt}ms`,
+  );
+}
+
 export async function runPricingAnalysis(
   propertyCode: string,
   options?: PricingOptions,
 ): Promise<PricingAnalysisResult> {
+  const runStarted = Date.now();
+  const sourceTrigger = options?.sourceTrigger;
+
+  let phaseAt = runStarted;
   const input = await extractPropertyForPricing(propertyCode);
+  logPricingPhase(propertyCode, "extract-property", phaseAt);
+  phaseAt = Date.now();
+
   const comparabilityProfile = await buildPropertyComparabilityProfile(input);
+  logPricingPhase(propertyCode, "comparability-profile", phaseAt);
+  phaseAt = Date.now();
 
   const housing = mapTiposToHousing(input.tipologiaNombre);
+
+  const maxPages =
+    options?.maxPages ?? getPricingStatefoxMaxPages(sourceTrigger);
 
   const { comparables, totalResultsFromAPI, pagesScanned, comparabilityMeta } = await fetchPricingComparables(input, {
     priceRangePercent: options?.priceRangePercent,
     metersRangePercent: options?.metersRangePercent,
-    maxPages: options?.maxPages,
+    maxPages,
     minComparables: options?.minComparables,
     comparabilityProfile,
+    sourceTrigger,
   });
+  logPricingPhase(
+    propertyCode,
+    `fetch-comparables pages=${pagesScanned} n=${comparables.length}`,
+    phaseAt,
+  );
+  phaseAt = Date.now();
 
   const stats = analyzeCluster(input, comparables);
-  const demographicsSummary = await buildDemographicsSummary(input, comparabilityProfile);
-  const zoneStudyWithoutDemographics = await buildZoneStudySummary(input, comparabilityProfile);
+  const [demographicsSummary, zoneStudyWithoutDemographics] = await Promise.all([
+    buildDemographicsSummary(input, comparabilityProfile),
+    buildZoneStudySummary(input, comparabilityProfile),
+  ]);
   const optimalPricing = buildOptimalPricingSummary(input, comparables);
+  logPricingPhase(propertyCode, "cluster-zone-optimal", phaseAt);
+  phaseAt = Date.now();
 
   const result: PricingAnalysisResult = {
     propertyCode,
@@ -101,6 +131,8 @@ export async function runPricingAnalysis(
     try {
       const recommendation = await generatePricingRecommendation(result);
       result.recommendation = recommendation;
+      logPricingPhase(propertyCode, "recommendation-llm", phaseAt);
+      phaseAt = Date.now();
 
       const recommendationEvent = await appendEvent({
         type: "PRICING_RECOMENDACION_GENERADA",
@@ -143,10 +175,14 @@ export async function runPricingAnalysis(
 
   await persistPricingReport({
     result,
-    sourceTrigger: options?.sourceTrigger ?? "manual",
+    sourceTrigger: sourceTrigger ?? "manual",
     lastAnalysisEventId: analysisEvent.id,
     lastRecommendationEventId: recommendationEventId,
   });
+  logPricingPhase(propertyCode, "persist-report", phaseAt);
+  console.log(
+    `[pricing] ${propertyCode} análisis total +${Date.now() - runStarted}ms (maxPages=${maxPages})`,
+  );
 
   return result;
 }

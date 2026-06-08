@@ -171,13 +171,14 @@ export async function replayAllDeadLetterByType(
 }
 
 /**
- * Elimina jobs de la DLQ que llevan más de `olderThanMs` milisegundos.
+ * Elimina jobs de la DLQ con `failedAt` anterior al corte.
+ * `olderThanMs = 0` → todos los que tengan `failedAt` en el pasado.
  */
 export async function purgeDeadLetterJobs(
   olderThanMs: number,
   type?: JobType,
 ): Promise<number> {
-  const cutoff = new Date(Date.now() - olderThanMs);
+  const cutoff = new Date(Date.now() - Math.max(0, olderThanMs));
 
   const result = await prisma.jobQueue.deleteMany({
     where: {
@@ -188,8 +189,59 @@ export async function purgeDeadLetterJobs(
   });
 
   console.log(
-    `[dead-letter] ${result.count} job(s) purgados (anteriores a ${cutoff.toISOString()})`,
+    `[dead-letter] ${result.count} job(s) purgados (failedAt < ${cutoff.toISOString()}${type ? `, type=${type}` : ""})`,
   );
 
   return result.count;
+}
+
+export interface PurgeAllDeadLetterOptions {
+  type?: JobType;
+  /** Antigüedad mínima en ms. 0 = toda la DLQ (por tipo si se indica). */
+  olderThanMs?: number;
+  batchSize?: number;
+}
+
+/**
+ * Purga la DLQ en lotes (útil con miles de filas). Devuelve el total eliminado.
+ */
+export async function purgeAllDeadLetterJobs(
+  options: PurgeAllDeadLetterOptions = {},
+): Promise<number> {
+  const olderThanMs = options.olderThanMs ?? 0;
+  const batchSize = Math.max(1, options.batchSize ?? 500);
+  const cutoff = new Date(Date.now() - Math.max(0, olderThanMs));
+  const type = options.type;
+
+  let total = 0;
+  for (;;) {
+    const ids = await prisma.jobQueue.findMany({
+      where: {
+        status: "DEAD_LETTER",
+        failedAt: { lt: cutoff },
+        ...(type ? { type } : {}),
+      },
+      select: { id: true },
+      take: batchSize,
+      orderBy: { failedAt: "asc" },
+    });
+    if (ids.length === 0) break;
+
+    const result = await prisma.jobQueue.deleteMany({
+      where: { id: { in: ids.map((j) => j.id) } },
+    });
+    total += result.count;
+    console.log(
+      `[dead-letter] Lote purgado: ${result.count} (acumulado=${total}${type ? `, type=${type}` : ""})`,
+    );
+    if (ids.length < batchSize) break;
+  }
+
+  if (total > 0) {
+    console.log(
+      `[dead-letter] Purga completada: ${total} job(s) eliminados de DEAD_LETTER`,
+    );
+  }
+
+  return total;
 }

@@ -107,7 +107,21 @@ beforeEach(() => {
 });
 
 describe("fetchPricingComparables (snapshot)", () => {
-  it("hidrata imágenes en modo cacheOnly (sin import híbrido)", async () => {
+  it("omite hidratación de imágenes por defecto (PRICING_SKIP_COMPARABLE_IMAGE_HYDRATE)", async () => {
+    delete process.env.PRICING_SKIP_COMPARABLE_IMAGE_HYDRATE;
+    mockGetSnapshot.mockResolvedValue(
+      makeSnapshotResponse({
+        "id-1": makeSnapshotProp({ pCity: { cityName: "Murcia" } }),
+      }),
+    );
+
+    await fetchPricingComparables(makeInput(), { maxPages: 1 });
+
+    expect(mockHydrateComparablesWithImageCache).not.toHaveBeenCalled();
+  });
+
+  it("hidrata en cacheOnly si PRICING_SKIP_COMPARABLE_IMAGE_HYDRATE=0", async () => {
+    process.env.PRICING_SKIP_COMPARABLE_IMAGE_HYDRATE = "0";
     mockGetSnapshot.mockResolvedValue(
       makeSnapshotResponse({
         "id-1": makeSnapshotProp({ pCity: { cityName: "Murcia" } }),
@@ -221,7 +235,9 @@ describe("fetchPricingComparables (snapshot)", () => {
     expect(comparables[0].ciudad).toBe("Murcia");
   });
 
-  it("se detiene al alcanzar minComparables", async () => {
+  it("se detiene al alcanzar buffer bruto de candidatos", async () => {
+    process.env.PRICING_MIN_RAW_FLOOR = "2";
+    process.env.PRICING_RAW_COMPARABLES_BUFFER = "1";
     mockGetSnapshot
       .mockResolvedValueOnce(
         makeSnapshotResponse(

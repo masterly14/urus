@@ -4,6 +4,7 @@ import { getSessionFromRequest, unauthorized } from "@/lib/auth/session";
 import { enqueueJob } from "@/lib/job-queue";
 import { prisma } from "@/lib/prisma";
 import { withObservedRoute } from "@/lib/observability";
+import { getPricingStatefoxMaxPages } from "@/lib/pricing/runtime-config";
 
 export const runtime = "nodejs";
 
@@ -61,6 +62,7 @@ const postHandler = async (request: Request) => {
       propertyCode,
       trigger: "api_manual_async",
       requestedByUserId: session.userId,
+      maxPages: getPricingStatefoxMaxPages("api_manual_async"),
     },
     idempotencyKey: `run-pricing:manual:${propertyCode}:${Date.now()}`,
   });

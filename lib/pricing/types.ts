@@ -313,7 +313,7 @@ export interface PricingAnalysisResult {
 export interface PricingOptions {
   priceRangePercent?: number;
   metersRangePercent?: number;
-  /** Máximo de páginas de /snapshot a recorrer (250 props/pág). Default 30. */
+  /** Máximo de páginas de /snapshot a recorrer (250 props/pág). Default vía PRICING_STATEFOX_MAX_PAGES (12). */
   maxPages?: number;
   /** Mínimo de comparables antes de dejar de paginar. Default 5. */
   minComparables?: number;

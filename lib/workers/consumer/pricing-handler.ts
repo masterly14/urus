@@ -8,6 +8,7 @@
 import type { JobRecord } from "@/lib/job-queue/types";
 import type { HandlerResult } from "./types";
 import type { PricingOptions } from "@/lib/pricing";
+import { getPricingStatefoxMaxPages } from "@/lib/pricing/runtime-config";
 import {
   runPricingAnalysis,
   PricingDataIncompleteError,
@@ -36,11 +37,16 @@ export async function handlePricingAnalysis(
   const trigger = typeof payload.trigger === "string" ? payload.trigger : undefined;
   const requestedByUserId =
     typeof payload.requestedByUserId === "string" ? payload.requestedByUserId : null;
-  const options: PricingOptions = {};
-  if (typeof payload.maxPages === "number") options.maxPages = payload.maxPages;
-  if (typeof payload.generateRecommendation === "boolean")
+  const options: PricingOptions = {
+    maxPages:
+      typeof payload.maxPages === "number"
+        ? payload.maxPages
+        : getPricingStatefoxMaxPages(trigger),
+    sourceTrigger: trigger ?? "worker_job",
+  };
+  if (typeof payload.generateRecommendation === "boolean") {
     options.generateRecommendation = payload.generateRecommendation;
-  options.sourceTrigger = trigger ?? "worker_job";
+  }
 
   console.log(
     `[consumer:pricing] Ejecutando análisis de pricing para ${propertyCode}` +
