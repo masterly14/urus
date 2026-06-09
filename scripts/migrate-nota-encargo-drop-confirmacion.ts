@@ -89,6 +89,7 @@ async function main() {
         await publishNotaEncargoFormularioSchedule({
           sessionId: session.id,
           sendAt: session.visitDateTime,
+          scheduleGeneration: session.scheduleGeneration,
         });
         scheduled++;
         console.log(

@@ -48,12 +48,21 @@ async function publishForJob(
   jobType: MigratableJobType,
   sessionId: string,
   sendAt: Date,
+  scheduleGeneration: number,
 ) {
   switch (jobType) {
     case "NOTA_ENCARGO_ENVIAR_FORMULARIO":
-      return publishNotaEncargoFormularioSchedule({ sessionId, sendAt });
+      return publishNotaEncargoFormularioSchedule({
+        sessionId,
+        sendAt,
+        scheduleGeneration,
+      });
     case "NOTA_ENCARGO_MATCHING_CHECK":
-      return publishNotaEncargoMatchingCheckSchedule({ sessionId, sendAt });
+      return publishNotaEncargoMatchingCheckSchedule({
+        sessionId,
+        sendAt,
+        scheduleGeneration,
+      });
   }
 }
 
@@ -108,7 +117,12 @@ async function main() {
 
     const session = await prisma.notaEncargoSession.findUnique({
       where: { id: sessionId },
-      select: { id: true, visitDateTime: true, state: true },
+      select: {
+        id: true,
+        visitDateTime: true,
+        state: true,
+        scheduleGeneration: true,
+      },
     });
     if (!session) {
       skippedNoSession++;
@@ -133,6 +147,7 @@ async function main() {
         job.type as MigratableJobType,
         sessionId,
         target,
+        session.scheduleGeneration,
       );
       await prisma.jobQueue.delete({ where: { id: job.id } });
       console.log(
