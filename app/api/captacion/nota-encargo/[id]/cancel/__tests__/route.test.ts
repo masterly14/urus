@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 
 const mockGetSession = vi.fn();
+const cancelQstashMock = vi.fn();
 
 vi.mock("@/lib/auth/session", () => ({
   getSession: () => mockGetSession(),
@@ -14,6 +15,11 @@ vi.mock("@/lib/auth/session", () => ({
       status: 403,
     }),
   isCeoOrAdmin: (role: string) => role === "ceo" || role === "admin",
+}));
+
+vi.mock("@/lib/nota-encargo/schedule", () => ({
+  cancelNotaEncargoQstashSchedules: (...args: unknown[]) =>
+    cancelQstashMock(...args),
 }));
 
 import { POST } from "../route";
@@ -70,6 +76,10 @@ beforeEach(async () => {
     nombre: "Comercial Test",
     email: "test@example.com",
   });
+  cancelQstashMock.mockResolvedValue({
+    formularioDeleted: true,
+    matchingCheckDeleted: false,
+  });
   await cleanup();
   await prisma.comercial.create({
     data: {
@@ -86,6 +96,13 @@ afterAll(cleanup);
 describe("POST /api/captacion/nota-encargo/[id]/cancel", () => {
   it("marca la sesión como CANCELADA, emite evento y borra jobs PENDING", async () => {
     const nota = await createSession("PENDIENTE_PROPIEDAD");
+    await prisma.notaEncargoSession.update({
+      where: { id: nota.id },
+      data: {
+        formularioQstashMessageId: "form-msg",
+        matchingCheckQstashMessageId: "match-msg",
+      },
+    });
     await prisma.jobQueue.create({
       data: {
         type: "NOTA_ENCARGO_RECORDATORIO",
@@ -125,6 +142,13 @@ describe("POST /api/captacion/nota-encargo/[id]/cancel", () => {
       },
     });
     expect(cancelEvent).not.toBeNull();
+    expect(cancelQstashMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: nota.id,
+        formularioQstashMessageId: "form-msg",
+        matchingCheckQstashMessageId: "match-msg",
+      }),
+    );
   });
 
   it("es idempotente: devuelve 200 si ya está CANCELADA y no emite evento duplicado", async () => {

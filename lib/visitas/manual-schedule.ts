@@ -5,6 +5,7 @@ import { enqueueJob } from "@/lib/job-queue";
 import { prisma } from "@/lib/prisma";
 import type { CalendarEventInput } from "@/lib/composio";
 import { cancelCalendarEvent, createCalendarEventDirect } from "@/lib/composio/calendar";
+import { deleteQstashMessage } from "@/lib/qstash/delete-message";
 import { scheduleParteVisitaFromDetails } from "@/lib/parte-visita/schedule";
 import { updateDemandLeadStatus } from "@/lib/projections/update-lead-status";
 import { cancelVisitAtomically } from "@/lib/visit-scheduling/confirm-visit";
@@ -277,36 +278,6 @@ async function cancelParteVisitaSessionForVisit(visitSessionId: string) {
     });
   }
   return deleted;
-}
-
-async function deleteQstashMessage(messageId: string): Promise<boolean> {
-  const token = process.env.QSTASH_TOKEN?.trim();
-  if (!token) {
-    console.warn(
-      `[visitas] No se pudo borrar mensaje QStash ${messageId}: QSTASH_TOKEN no configurado`,
-    );
-    return false;
-  }
-
-  try {
-    const response = await fetch(`https://qstash.upstash.io/v2/messages/${messageId}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (response.ok) return true;
-
-    const body = await response.text().catch(() => "");
-    console.warn(
-      `[visitas] No se pudo borrar mensaje QStash ${messageId}: HTTP ${response.status} ${response.statusText} ${body.slice(0, 200)}`,
-    );
-    return false;
-  } catch (err) {
-    console.warn(
-      `[visitas] No se pudo borrar mensaje QStash ${messageId}:`,
-      err instanceof Error ? err.message : err,
-    );
-    return false;
-  }
 }
 
 export async function scheduleManualVisit(

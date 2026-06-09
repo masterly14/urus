@@ -35,6 +35,10 @@ describe("scheduleNotaEncargoInitialSteps", () => {
     expect(publishJSONMock.mock.calls[0][0].url).toContain(
       "/api/nota-encargo/formulario",
     );
+    expect(publishJSONMock.mock.calls[0][0].body).toEqual({
+      sessionId: "session-1",
+      scheduleGeneration: 0,
+    });
     expect(result.formulario.messageId).toBe("msg-test");
   });
 
@@ -52,5 +56,9 @@ describe("scheduleNotaEncargoInitialSteps", () => {
     expect(publishJSONMock.mock.calls[1][0].url).toContain(
       "/api/nota-encargo/matching-check",
     );
+    expect(publishJSONMock.mock.calls[1][0].body).toEqual({
+      sessionId: "session-2",
+      scheduleGeneration: 0,
+    });
   });
 });

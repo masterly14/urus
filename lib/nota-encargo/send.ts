@@ -17,6 +17,7 @@ import { appendEvent } from "@/lib/event-store";
 import { resolveComercial } from "@/lib/routing/resolve-comercial";
 import { normalizeComercialWhatsappPhone } from "@/lib/routing/comercial-whatsapp";
 import { sendNotaEncargoFlow } from "@/lib/nota-encargo/whatsapp";
+import { isStaleNotaEncargoSchedule } from "@/lib/nota-encargo/schedule-generation";
 
 const READY_FOR_FORMULARIO: NotaEncargoState[] = [
   "PENDING",
@@ -34,6 +35,7 @@ export type NotaEncargoSendResult =
         | "noop_no_phone"
         | "noop_property_linked"
         | "noop_cancelled"
+        | "noop_stale_schedule"
         | "deprecated_noop"
         | "deadline_emitted";
       sessionState?: string;
@@ -84,6 +86,7 @@ export async function checkNotaEncargoConfirmacionForSession(
 
 export async function sendNotaEncargoFormularioForSession(
   sessionId: string,
+  options?: { scheduleGeneration?: number },
 ): Promise<NotaEncargoSendResult> {
   if (!sessionId) {
     return { ok: false, permanent: true, error: "sessionId vacío" };
@@ -93,6 +96,10 @@ export async function sendNotaEncargoFormularioForSession(
     where: { id: sessionId },
   });
   if (!session) return failMissingSession(sessionId);
+
+  if (isStaleNotaEncargoSchedule(session, options?.scheduleGeneration)) {
+    return { ok: true, status: "noop_stale_schedule" };
+  }
 
   if (session.state === "CANCELADA") {
     return { ok: true, status: "noop_cancelled" };
@@ -187,6 +194,7 @@ export async function sendNotaEncargoFormularioForSession(
 
 export async function runNotaEncargoMatchingCheckForSession(
   sessionId: string,
+  options?: { scheduleGeneration?: number },
 ): Promise<NotaEncargoSendResult> {
   if (!sessionId) {
     return { ok: false, permanent: true, error: "sessionId vacío" };
@@ -196,6 +204,10 @@ export async function runNotaEncargoMatchingCheckForSession(
     where: { id: sessionId },
   });
   if (!session) return failMissingSession(sessionId);
+
+  if (isStaleNotaEncargoSchedule(session, options?.scheduleGeneration)) {
+    return { ok: true, status: "noop_stale_schedule" };
+  }
 
   if (session.state === "CANCELADA") {
     return { ok: true, status: "noop_cancelled" };

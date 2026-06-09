@@ -7,6 +7,7 @@ import {
   forbidden,
   isCeoOrAdmin,
 } from "@/lib/auth/session";
+import { cancelNotaEncargoQstashSchedules } from "@/lib/nota-encargo/schedule";
 
 const TERMINAL_STATES = new Set([
   "CANCELADA",
@@ -55,6 +56,8 @@ export async function POST(
       refCatastral: true,
       propietarioPhone: true,
       visitDateTime: true,
+      formularioQstashMessageId: true,
+      matchingCheckQstashMessageId: true,
     },
   });
 
@@ -83,6 +86,8 @@ export async function POST(
 
   const previousState = nota.state;
   const cancelledBy = session.comercialId ?? session.userId;
+
+  const qstashDeleted = await cancelNotaEncargoQstashSchedules(nota);
 
   await prisma.$transaction(async (tx) => {
     await tx.notaEncargoSession.update({
@@ -121,6 +126,7 @@ export async function POST(
       previousState,
       cancelledBy,
       cancelledAt: new Date().toISOString(),
+      qstashDeleted,
     },
   });
 

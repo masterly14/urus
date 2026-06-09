@@ -52,9 +52,12 @@ import {
   Trash2,
   User,
   XCircle,
+  CalendarClock,
 } from "lucide-react";
 
 const BUSINESS_TZ = "Europe/Madrid";
+
+const RESCHEDULABLE_STATES = new Set(["PENDING", "PENDIENTE_PROPIEDAD"]);
 
 interface NotaEncargoSesion {
   id: string;
@@ -215,6 +218,31 @@ function isDateTimeInPast(fecha: string, hora: string): boolean {
   return madridDateTime(fecha, hora).getTime() <= Date.now();
 }
 
+function visitDateTimeToMadridParts(iso: string): { fecha: string; hora: string } {
+  const date = new Date(iso);
+  const fecha = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BUSINESS_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: BUSINESS_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const map: Record<string, string> = {};
+  for (const p of parts) {
+    if (p.type !== "literal") map[p.type] = p.value;
+  }
+  return { fecha, hora: `${map.hour ?? "10"}:${map.minute ?? "00"}` };
+}
+
+function canRescheduleNotaEncargo(state: string): boolean {
+  return RESCHEDULABLE_STATES.has(state);
+}
+
 // ---------------------------------------------------------------------------
 // Mock fixtures for ?mock=1
 // ---------------------------------------------------------------------------
@@ -346,6 +374,12 @@ function CaptacionPageContent() {
   );
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [pendingReschedule, setPendingReschedule] =
+    useState<NotaEncargoSesion | null>(null);
+  const [rescheduleFecha, setRescheduleFecha] = useState("");
+  const [rescheduleHora, setRescheduleHora] = useState("10:00");
+  const [rescheduling, setRescheduling] = useState(false);
+  const [rescheduleError, setRescheduleError] = useState<string | null>(null);
   const [prefillAppliedForListingId, setPrefillAppliedForListingId] = useState<
     string | null
   >(null);
@@ -501,6 +535,16 @@ function CaptacionPageContent() {
     setSheetOpen(true);
   }
 
+  function openRescheduleDialog(session: NotaEncargoSesion) {
+    const { fecha: nextFecha, hora: nextHora } = visitDateTimeToMadridParts(
+      session.visitDateTime,
+    );
+    setRescheduleError(null);
+    setRescheduleFecha(nextFecha);
+    setRescheduleHora(nextHora);
+    setPendingReschedule(session);
+  }
+
   async function handleCancel() {
     if (!pendingCancel) return;
     setCancelling(true);
@@ -530,6 +574,60 @@ function CaptacionPageContent() {
       );
     } finally {
       setCancelling(false);
+    }
+  }
+
+  async function handleReschedule() {
+    if (!pendingReschedule || !rescheduleFecha || !rescheduleHora) return;
+    if (isDateTimeInPast(rescheduleFecha, rescheduleHora)) {
+      setRescheduleError("La fecha y hora deben estar en el futuro");
+      return;
+    }
+
+    setRescheduling(true);
+    setRescheduleError(null);
+    try {
+      if (isMock) {
+        const visitDateTime = madridDateTime(
+          rescheduleFecha,
+          rescheduleHora,
+        ).toISOString();
+        setSesiones((prev) =>
+          prev.map((s) =>
+            s.id === pendingReschedule.id ? { ...s, visitDateTime } : s,
+          ),
+        );
+        setPendingReschedule(null);
+        return;
+      }
+
+      const visitDateTime = madridDateTime(
+        rescheduleFecha,
+        rescheduleHora,
+      ).toISOString();
+      const res = await fetch(
+        `/api/captacion/nota-encargo/${pendingReschedule.id}/reschedule`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ visitDateTime }),
+        },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setRescheduleError(
+          body.error ?? `Error ${res.status} al reprogramar la nota`,
+        );
+        return;
+      }
+      setPendingReschedule(null);
+      fetchSesiones();
+    } catch (err) {
+      setRescheduleError(
+        err instanceof Error ? err.message : "Error de conexión",
+      );
+    } finally {
+      setRescheduling(false);
     }
   }
 
@@ -569,6 +667,19 @@ function CaptacionPageContent() {
     () => fecha && hora && isDateTimeInPast(fecha, hora),
     [fecha, hora],
   );
+
+  const rescheduleDateTimeInPast = useMemo(
+    () =>
+      rescheduleFecha &&
+      rescheduleHora &&
+      isDateTimeInPast(rescheduleFecha, rescheduleHora),
+    [rescheduleFecha, rescheduleHora],
+  );
+
+  const canRescheduleSubmit =
+    Boolean(rescheduleFecha && rescheduleHora) &&
+    !rescheduleDateTimeInPast &&
+    !rescheduling;
 
   const canSubmit =
     normalizeCadastralRef(refCatastral).length > 0 &&
@@ -796,6 +907,7 @@ function CaptacionPageContent() {
                     s.state === "CANCELADA" ||
                     s.state === "FIRMADA" ||
                     s.state === "DOCUMENTO_ENVIADO";
+                  const canReschedule = canRescheduleNotaEncargo(s.state);
                   return (
                     <TableRow key={s.id}>
                       <TableCell className="font-medium">
@@ -877,6 +989,20 @@ function CaptacionPageContent() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={!canReschedule}
+                            onClick={() => openRescheduleDialog(s)}
+                            title={
+                              canReschedule
+                                ? "Reprogramar visita"
+                                : "Solo se puede reprogramar antes de enviar el formulario"
+                            }
+                          >
+                            <CalendarClock className="h-4 w-4" />
+                            <span className="sr-only">Reprogramar</span>
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1110,6 +1236,86 @@ function CaptacionPageContent() {
             >
               {cancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Cancelar nota
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Confirmación de reprogramación ── */}
+      <AlertDialog
+        open={pendingReschedule !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingReschedule(null);
+            setRescheduleError(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reprogramar nota de encargo</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4 text-sm">
+                <p>
+                  Elige una nueva fecha y hora para la visita. Se reprogramará el
+                  envío del formulario al comercial en el nuevo horario.
+                </p>
+                {pendingReschedule && (
+                  <div className="rounded border bg-muted/30 p-3 text-xs">
+                    <div>
+                      <span className="font-medium">Referencia: </span>
+                      {pendingReschedule.refCatastral ?? "—"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Visita actual: </span>
+                      {fmtDateTime(pendingReschedule.visitDateTime)}
+                    </div>
+                  </div>
+                )}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="reschedule-fecha">Fecha</Label>
+                    <Input
+                      id="reschedule-fecha"
+                      type="date"
+                      min={todayMadridISO()}
+                      value={rescheduleFecha}
+                      onChange={(e) => setRescheduleFecha(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reschedule-hora">Hora</Label>
+                    <Input
+                      id="reschedule-hora"
+                      type="time"
+                      min={minTimeForDate(rescheduleFecha)}
+                      value={rescheduleHora}
+                      onChange={(e) => setRescheduleHora(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {rescheduleDateTimeInPast ? (
+                  <p className="text-destructive">
+                    La fecha y hora deben estar en el futuro.
+                  </p>
+                ) : null}
+                {rescheduleError && (
+                  <p className="font-medium text-destructive">{rescheduleError}</p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={rescheduling}>Volver</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleReschedule();
+              }}
+              disabled={!canRescheduleSubmit}
+            >
+              {rescheduling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Reprogramar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

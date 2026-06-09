@@ -417,6 +417,7 @@ registerHandler("VISITA_REPROGRAMADA", handleVisitaReprogramada);
 registerHandler("NOTA_ENCARGO_DETECTADA", auditOnlyHandler("side effects en POST /api/captacion/nota-encargo: crea session + encola NOTA_ENCARGO_RECORDATORIO"));
 registerHandler("NOTA_ENCARGO_CONFIRMADA", auditOnlyHandler("side effects en webhook: actualiza state + encola NOTA_ENCARGO_ENVIAR_FORMULARIO"));
 registerHandler("NOTA_ENCARGO_NO_CONFIRMADA", auditOnlyHandler("trazabilidad: check-confirmacion job ya notificó al comercial"));
+registerHandler("NOTA_ENCARGO_REPROGRAMADA", auditOnlyHandler("side effects en POST /api/captacion/nota-encargo/[id]/reschedule: reprograma QStash + visitDateTime"));
 registerHandler("NOTA_ENCARGO_FORMULARIO_COMPLETADO", handleNotaEncargoFormularioCompletado);
 
 // --- Pricing: precio aplicado desde recomendación (M7) ---

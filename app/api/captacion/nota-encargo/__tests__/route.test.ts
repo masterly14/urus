@@ -16,12 +16,14 @@ vi.mock("@/lib/auth/session", () => ({
   isCeoOrAdmin: (role: string) => role === "ceo" || role === "admin",
 }));
 
-const { scheduleInitialMock } = vi.hoisted(() => ({
+const { scheduleInitialMock, persistIdsMock } = vi.hoisted(() => ({
   scheduleInitialMock: vi.fn(),
+  persistIdsMock: vi.fn(),
 }));
 
 vi.mock("@/lib/nota-encargo/schedule", () => ({
   scheduleNotaEncargoInitialSteps: scheduleInitialMock,
+  persistNotaEncargoScheduleIds: persistIdsMock,
   publishNotaEncargoRecordatorioSchedule: vi.fn(),
   publishNotaEncargoCheckConfirmacionSchedule: vi.fn(),
   publishNotaEncargoFormularioSchedule: vi.fn(),
@@ -98,10 +100,12 @@ beforeEach(async () => {
   process.env.WHATSAPP_ACCESS_TOKEN = "test";
   process.env.WHATSAPP_PHONE_NUMBER_ID = "test";
   scheduleInitialMock.mockReset();
+  persistIdsMock.mockReset();
   scheduleInitialMock.mockResolvedValue({
     formulario: { messageId: "msg-1", sendAtIso: "2026-01-01T00:00:00.000Z" },
     matchingCheck: { messageId: "msg-2", sendAtIso: "2026-01-08T00:00:00.000Z" },
   });
+  persistIdsMock.mockResolvedValue(undefined);
   mockGetSession.mockResolvedValue({
     userId: `${TEST_PREFIX}-user`,
     role: "comercial",
@@ -158,6 +162,12 @@ describe("POST /api/captacion/nota-encargo", () => {
       expect.objectContaining({
         sessionId: session.id,
         withMatchingCheck: true,
+      }),
+    );
+    expect(persistIdsMock).toHaveBeenCalledWith(
+      session.id,
+      expect.objectContaining({
+        formulario: expect.objectContaining({ messageId: "msg-1" }),
       }),
     );
   });

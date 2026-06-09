@@ -9,7 +9,10 @@ import { isQstashAuthorized } from "@/lib/api/cron-auth";
 import { withObservedRoute } from "@/lib/observability";
 import { sendNotaEncargoFormularioForSession } from "@/lib/nota-encargo/send";
 
-const BodySchema = z.object({ sessionId: z.string().min(1) });
+const BodySchema = z.object({
+  sessionId: z.string().min(1),
+  scheduleGeneration: z.number().int().nonnegative().optional(),
+});
 
 const postHandler = async (request: Request) => {
   if (!(await isQstashAuthorized(request))) {
@@ -25,7 +28,9 @@ const postHandler = async (request: Request) => {
     );
   }
 
-  const result = await sendNotaEncargoFormularioForSession(parsed.data.sessionId);
+  const result = await sendNotaEncargoFormularioForSession(parsed.data.sessionId, {
+    scheduleGeneration: parsed.data.scheduleGeneration,
+  });
   if (!result.ok) {
     return NextResponse.json(
       { ok: false, error: result.error, permanent: result.permanent },

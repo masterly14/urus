@@ -103,6 +103,7 @@ enum EventType {
   NOTA_ENCARGO_CONFIRMADA
   NOTA_ENCARGO_NO_CONFIRMADA
   NOTA_ENCARGO_CANCELADA
+  NOTA_ENCARGO_REPROGRAMADA
   NOTA_ENCARGO_FORMULARIO_COMPLETADO
   NOTA_ENCARGO_VINCULADA_A_PROPIEDAD
   NOTA_ENCARGO_PROPIETARIO_REGISTRADO
@@ -2358,9 +2359,12 @@ model NotaEncargoSession {
   signatureRequestId  String?
   documentUrl         String?
   signedDocumentUrl   String?
-  refCatastral        String?
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
+  refCatastral                 String?
+  scheduleGeneration           Int              @default(0)
+  formularioQstashMessageId    String?
+  matchingCheckQstashMessageId String?
+  createdAt                    DateTime         @default(now())
+  updatedAt                    DateTime         @updatedAt
 
   @@index([state])
   @@index([propertyCode])

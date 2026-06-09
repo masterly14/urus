@@ -11,11 +11,9 @@ import {
   normalizeCadastralRef,
 } from "@/lib/nota-encargo/cadastral-ref";
 import { normalizePhoneES } from "@/lib/whatsapp/phone";
-import { scheduleNotaEncargoInitialSteps } from "@/lib/nota-encargo/schedule";
+import { scheduleNotaEncargoInitialSteps, persistNotaEncargoScheduleIds } from "@/lib/nota-encargo/schedule";
+import { validateNotaEncargoVisitDateTime } from "@/lib/nota-encargo/visit-datetime";
 
-const NOTA_ENCARGO_MAX_FUTURE_DAYS = Number(
-  process.env.NOTA_ENCARGO_MAX_FUTURE_DAYS || "180",
-);
 const NOTA_ENCARGO_MATCHING_DEADLINE_DAYS = Number(
   process.env.NOTA_ENCARGO_MATCHING_DEADLINE_DAYS || "7",
 );
@@ -29,14 +27,6 @@ const bodySchema = z.object({
   visitDateTime: z.string().datetime(),
   comercialId: z.string().min(1).optional(),
 });
-
-function startOfTodayMadrid(): Date {
-  const now = new Date();
-  const madridStr = now.toLocaleDateString("en-CA", {
-    timeZone: "Europe/Madrid",
-  });
-  return new Date(`${madridStr}T00:00:00+02:00`);
-}
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -75,36 +65,15 @@ export async function POST(request: Request) {
   const { refCatastral, visitDateTime } = parsed.data;
   const propietarioPhone = normalizePhoneES(parsed.data.propietarioPhone);
   const visitDate = new Date(visitDateTime);
-  const now = Date.now();
   const warnings: string[] = [];
   const cadastralWarning = buildCadastralRefWarning(refCatastral);
   if (cadastralWarning) warnings.push(cadastralWarning);
 
-  if (visitDate.getTime() <= now) {
+  const visitDateError = validateNotaEncargoVisitDateTime(visitDate);
+  if (visitDateError) {
     return NextResponse.json(
-      { ok: false, error: "La fecha de visita debe estar en el futuro" },
-      { status: 400 },
-    );
-  }
-
-  if (visitDate < startOfTodayMadrid()) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "La fecha de visita no puede ser anterior a hoy",
-      },
-      { status: 400 },
-    );
-  }
-
-  const maxFutureMs = NOTA_ENCARGO_MAX_FUTURE_DAYS * 24 * 60 * 60 * 1000;
-  if (visitDate.getTime() > now + maxFutureMs) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: `La fecha de visita no puede ser más de ${NOTA_ENCARGO_MAX_FUTURE_DAYS} días en el futuro`,
-      },
-      { status: 400 },
+      { ok: false, error: visitDateError.error },
+      { status: visitDateError.status },
     );
   }
 
@@ -287,12 +256,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    await scheduleNotaEncargoInitialSteps({
+    const schedules = await scheduleNotaEncargoInitialSteps({
       sessionId: notaSessionId,
       visitDateTime: visitDate,
       withMatchingCheck: !propertyCurrent,
       matchingDeadlineDays: NOTA_ENCARGO_MATCHING_DEADLINE_DAYS,
     });
+    await persistNotaEncargoScheduleIds(notaSessionId, schedules);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(
